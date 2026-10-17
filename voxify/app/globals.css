@@ -1,0 +1,216 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.never-match-dark, .never-match-dark *));
+
+:root {
+  color-scheme: light !important;
+  --background: #f8fafc;
+  --section-bg: #ffffff;
+  --card-bg: #ffffff;
+  --highlight-bg: #f1f5f9;
+  --accent-primary: #2563eb;
+  --foreground: #0f172a;
+  --secondary: #475569;
+  --border: #e2e8f0;
+}
+
+/* Guard against dark class ever being added */
+html,
+html.dark,
+html.light,
+body {
+  color-scheme: light !important;
+}
+
+html.dark {
+  --background: #f8fafc !important;
+  --section-bg: #ffffff !important;
+  --card-bg: #ffffff !important;
+  --highlight-bg: #f1f5f9 !important;
+  --accent-primary: #2563eb !important;
+  --foreground: #0f172a !important;
+  --secondary: #475569 !important;
+  --border: #e2e8f0 !important;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ----------------------------------------------------
+   LIGHT MODE RULES - Clean Google/Stripe Style
+   Crisp white cards, solid dark slate text, clear contours
+   ---------------------------------------------------- */
+html,
+html.light,
+html.dark,
+html body,
+html.light body,
+html.dark body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.bg-\[\#FCFEFF\],
+.bg-\[\#F5FAFF\],
+.bg-slate-950,
+.bg-slate-900,
+.bg-slate-900\/98,
+.bg-slate-900\/90,
+.bg-slate-900\/80,
+.bg-slate-900\/70,
+.bg-purple-950,
+.bg-indigo-950 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.bg-\[\#DFF1FF\],
+.bg-purple-950\/60,
+.bg-purple-900\/40,
+.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.border-\[\#E6F2FC\],
+.border-slate-800,
+.border-slate-700,
+.border-slate-600 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Standalone text elements inside light containers turn dark */
+.bg-white > .text-white,
+.bg-slate-50 > .text-white,
+.p-5 > .text-white,
+.space-y-2 > .text-white {
+  color: #0f172a !important;
+}
+
+.text-slate-100,
+.text-slate-200,
+.text-slate-300 {
+  color: #1e293b !important;
+}
+
+.text-slate-400,
+.text-slate-500 {
+  color: #475569 !important;
+}
+
+/* ----------------------------------------------------
+   BADGE & OVERLAY TEXT CONTRAST GUARANTEE
+   Badges, pills, and overlay tags on dark covers MUST have white text
+   ---------------------------------------------------- */
+.bg-black .text-white,
+.bg-black\/80 .text-white,
+.bg-black\/75 .text-white,
+.bg-black\/70 .text-white,
+.bg-black\/60 .text-white,
+.bg-emerald-600 .text-white,
+.bg-rose-600 .text-white,
+.bg-blue-600 .text-white,
+.bg-purple-600 .text-white {
+  color: #ffffff !important;
+}
+
+/* ----------------------------------------------------
+   SOLID BUTTON TEXT CONTRAST GUARANTEE
+   All action buttons MUST have bold bright white text (#ffffff)
+   ---------------------------------------------------- */
+.bg-blue-600,
+.bg-blue-500,
+.bg-blue-700,
+.bg-purple-600,
+.bg-purple-500,
+.bg-purple-700,
+.bg-indigo-600,
+.bg-indigo-700,
+.bg-emerald-600,
+.bg-emerald-500,
+.bg-rose-600,
+.bg-rose-500,
+.bg-amber-600,
+.bg-amber-500,
+button.bg-slate-900,
+a.bg-slate-900 {
+  color: #ffffff !important;
+}
+
+.bg-blue-600 *,
+.bg-blue-500 *,
+.bg-blue-700 *,
+.bg-purple-600 *,
+.bg-purple-500 *,
+.bg-purple-700 *,
+.bg-indigo-600 *,
+.bg-indigo-700 *,
+.bg-emerald-600 *,
+.bg-emerald-500 *,
+.bg-rose-600 *,
+.bg-rose-500 *,
+.bg-amber-600 *,
+.bg-amber-500 *,
+button.bg-slate-900 *,
+a.bg-slate-900 * {
+  color: #ffffff !important;
+}
+
+/* ----------------------------------------------------
+   FORM INPUT CONTRAST & READABILITY GUARANTEE
+   All text inputs, textareas, and selects MUST have dark readable text
+   ---------------------------------------------------- */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  color: #0f172a !important;
+  background-color: #ffffff;
+}
+
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+/* Animation Utilities */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ----------------------------------------------------
+   GOOGLE ADSENSE CONTROLS
+   Collapse unfilled ad units and suppress unwanted auto-ads
+   ---------------------------------------------------- */
+ins.adsbygoogle[data-ad-status="unfilled"],
+.google-auto-placed {
+  display: none !important;
+}
+
