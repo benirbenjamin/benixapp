@@ -1,0 +1,867 @@
+// ==============================================================================
+// UMUGUZIPRO PRISMA SCHEMA (PostgreSQL Compatible - Neon, Supabase, Vercel PG)
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------------------
+// 1. USERS & ROLES
+// ------------------------------------------------------------------------------
+
+enum UserRoleType {
+  USER
+  CREATOR
+  ARTIST
+  PROVIDER
+  AFFILIATE
+  CONTENT_MODERATOR
+  FINANCE_ADMIN
+  SUPPORT_AGENT
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id                 String         @id @default(uuid())
+  email              String         @unique
+  username           String         @unique
+  displayName        String
+  passwordHash       String
+  avatar             String?
+  banner             String?
+  bio                String?
+  phone              String?
+  country            String?        @default("Rwanda")
+  city               String?        @default("Kigali")
+  website            String?
+  socials            Json?          // Facebook, Instagram, Twitter/X, YouTube, LinkedIn, TikTok, WhatsApp
+  role               UserRoleType   @default(USER)
+  isVerified         Boolean        @default(false)
+  isBanned           Boolean        @default(false)
+  twoFactorEnabled   Boolean        @default(false)
+  referralCode       String         @unique @default(uuid())
+  referredById       String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  // Relations
+  referredBy         User?          @relation("UserReferrals", fields: [referredById], references: [id])
+  referralsMade      User[]         @relation("UserReferrals")
+  channels           Channel[]
+  videos             Video[]
+  videoViews         VideoView[]
+  videoLikes         VideoLike[]
+  comments           Comment[]
+  commentLikes       CommentLike[]
+  playlists          Playlist[]
+  posts              Post[]
+  postLikes          PostLike[]
+  services           Service[]
+  serviceBookings    ServiceBooking[] @relation("CustomerBookings")
+  providerBookings   ServiceBooking[] @relation("ProviderBookings")
+  serviceRequests    ServiceRequest[]
+  serviceProposals   ServiceProposal[]
+  products           Product[]
+  orders             Order[]
+  entitlements       Entitlement[]
+  wallet             Wallet?
+  withdrawals        Withdrawal[]
+  supportTickets     SupportTicket[]
+  supportReplies     SupportReply[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  sessions           Session[]
+  emailCodes         EmailVerificationCode[]
+  twoFactorCodes     TwoFactorCode[]
+  passwordResetCodes PasswordResetCode[]
+  channelSubs        ChannelSubscription[]
+
+  @@index([email])
+  @@index([username])
+  @@index([role])
+  @@index([referralCode])
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  ipAddress  String?
+  userAgent  String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model EmailVerificationCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   // 6-digit numeric verification code
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+}
+
+model TwoFactorCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   // 6-digit numeric 2FA code
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+}
+
+model PasswordResetCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   // 6-digit numeric reset code
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+}
+
+// ------------------------------------------------------------------------------
+// 2. CHANNELS
+// ------------------------------------------------------------------------------
+
+model Channel {
+  id              String   @id @default(uuid())
+  ownerId         String
+  name            String
+  handle          String   @unique
+  description     String?
+  avatar          String?
+  banner          String?
+  country         String?  @default("Rwanda")
+  socialLinks     Json?
+  website         String?
+  subscriberCount Int      @default(0)
+  totalViews      Int      @default(0)
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  videos          Video[]
+  posts           Post[]
+  subscriptions   ChannelSubscription[]
+
+  @@index([ownerId])
+  @@index([handle])
+}
+
+model ChannelSubscription {
+  id        String   @id @default(uuid())
+  channelId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------------------
+// 3. CATEGORIES & TAGS
+// ------------------------------------------------------------------------------
+
+enum CategoryType {
+  VIDEO
+  SERVICE
+  PRODUCT
+}
+
+model CategoryGroup {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique
+  type        CategoryType @default(VIDEO)
+  categories  Category[]
+}
+
+model Category {
+  id          String         @id @default(uuid())
+  groupId     String?
+  name        String
+  slug        String         @unique
+  description String?
+  icon        String?
+  thumbnail   String?
+  type        CategoryType   @default(VIDEO)
+  createdAt   DateTime       @default(now())
+
+  group       CategoryGroup? @relation(fields: [groupId], references: [id])
+  videos      Video[]
+  services    Service[]
+  serviceRequests ServiceRequest[]
+  products    Product[]
+
+  @@index([slug])
+  @@index([type])
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  slug      String     @unique
+  videos    VideoTag[]
+
+  @@index([slug])
+}
+
+model VideoTag {
+  videoId   String
+  tagId     String
+
+  video     Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  tag       Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([videoId, tagId])
+}
+
+// ------------------------------------------------------------------------------
+// 4. VIDEOS & ANALYTICS
+// ------------------------------------------------------------------------------
+
+enum VideoAccessType {
+  PUBLIC
+  PRIVATE
+  PREMIUM
+}
+
+enum VideoAccessLevel {
+  ALL
+  MEMBERS
+  PREMIUM
+}
+
+enum VideoStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Video {
+  id              String           @id @default(uuid())
+  channelId       String
+  userId          String
+  title           String
+  slug            String           @unique
+  description     String?
+  videoUrl        String           // MP4 direct url, HLS, or YouTube/external embed
+  thumbnailUrl    String?
+  duration        Int              @default(0) // Duration in seconds
+  accessType      VideoAccessType  @default(PUBLIC)
+  accessLevel     VideoAccessLevel @default(ALL)
+  price           Float            @default(0)
+  views           Int              @default(0)
+  likes           Int              @default(0)
+  dislikes        Int              @default(0)
+  status          VideoStatus      @default(APPROVED)
+  isFeatured      Boolean          @default(false)
+  categoryId      String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  channel         Channel          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category?        @relation(fields: [categoryId], references: [id])
+  tags            VideoTag[]
+  videoLikes      VideoLike[]
+  videoViews      VideoView[]
+  comments        Comment[]
+  playlistItems   PlaylistItem[]
+  entitlements    Entitlement[]
+
+  @@index([channelId])
+  @@index([userId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([isFeatured])
+  @@index([createdAt])
+}
+
+model VideoLike {
+  id        String   @id @default(uuid())
+  videoId   String
+  userId    String
+  isLike    Boolean  @default(true) // true for like, false for dislike
+  createdAt DateTime @default(now())
+
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, userId])
+  @@index([videoId])
+  @@index([userId])
+}
+
+model VideoView {
+  id            String   @id @default(uuid())
+  videoId       String
+  userId        String?
+  ipHash        String?
+  watchDuration Int      @default(0)
+  completed     Boolean  @default(false)
+  referrer      String?
+  country       String?  @default("Rwanda")
+  device        String?  @default("desktop")
+  browser       String?
+  createdAt     DateTime @default(now())
+
+  video         Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([videoId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------------------------
+// 5. PLAYLISTS, POSTS & COMMENTS
+// ------------------------------------------------------------------------------
+
+model Playlist {
+  id          String         @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  thumbnail   String?
+  isPublic    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       PlaylistItem[]
+
+  @@index([userId])
+}
+
+model PlaylistItem {
+  id         String   @id @default(uuid())
+  playlistId String
+  videoId    String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+}
+
+enum PostType {
+  TEXT
+  IMAGE
+  VIDEO
+  ANNOUNCEMENT
+}
+
+model Post {
+  id        String     @id @default(uuid())
+  userId    String
+  channelId String?
+  content   String
+  mediaUrls Json?      // String array of photos/media
+  postType  PostType   @default(TEXT)
+  likes     Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel?   @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  postLikes PostLike[]
+  comments  Comment[]
+
+  @@index([userId])
+  @@index([channelId])
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+}
+
+model Comment {
+  id           String        @id @default(uuid())
+  videoId      String?
+  postId       String?
+  userId       String
+  parentId     String?
+  content      String
+  likes        Int           @default(0)
+  isPinned     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  video        Video?        @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent       Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      Comment[]     @relation("CommentReplies")
+  commentLikes CommentLike[]
+
+  @@index([videoId])
+  @@index([postId])
+  @@index([userId])
+  @@index([parentId])
+}
+
+model CommentLike {
+  id        String   @id @default(uuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+}
+
+// ------------------------------------------------------------------------------
+// 6. SERVICE MARKETPLACE & BOOKINGS
+// ------------------------------------------------------------------------------
+
+enum PriceType {
+  FIXED
+  HOURLY
+  STARTING_AT
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+  PAUSED
+}
+
+model Service {
+  id          String           @id @default(uuid())
+  providerId  String
+  categoryId  String?
+  title       String
+  slug        String           @unique
+  description String
+  price       Float
+  priceType   PriceType        @default(FIXED)
+  location    String?          @default("Kigali, Rwanda")
+  images      Json?            // Array of URLs
+  packages    Json?            // Basic, Standard, Premium packages
+  availability Json?           // Operating hours, schedule
+  rating      Float            @default(5.0)
+  reviewCount Int              @default(0)
+  status      ServiceStatus    @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  provider    User             @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category    Category?        @relation(fields: [categoryId], references: [id])
+  bookings    ServiceBooking[]
+
+  @@index([providerId])
+  @@index([categoryId])
+  @@index([status])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model ServiceBooking {
+  id               String        @id @default(uuid())
+  serviceId        String
+  customerId       String
+  providerId       String
+  packageTitle     String?
+  bookingDate      DateTime
+  status           BookingStatus @default(PENDING)
+  totalAmount      Float
+  paymentMethod    String        @default("MANUAL") // FLUTTERWAVE, MANUAL, WALLET
+  paymentStatus    String        @default("PENDING") // PENDING, PAID, REFUNDED
+  paymentReference String?
+  notes            String?
+  location         String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  service          Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  customer         User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  provider         User          @relation("ProviderBookings", fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@index([customerId])
+  @@index([providerId])
+  @@index([status])
+}
+
+enum RequestStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+model ServiceRequest {
+  id          String            @id @default(uuid())
+  customerId  String
+  categoryId  String?
+  title       String
+  description String
+  budget      Float?
+  location    String?           @default("Kigali, Rwanda")
+  status      RequestStatus     @default(OPEN)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  customer    User              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  category    Category?         @relation(fields: [categoryId], references: [id])
+  proposals   ServiceProposal[]
+
+  @@index([customerId])
+  @@index([categoryId])
+  @@index([status])
+}
+
+model ServiceProposal {
+  id           String         @id @default(uuid())
+  requestId    String
+  providerId   String
+  amount       Float
+  proposalText String
+  status       String         @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  createdAt    DateTime       @default(now())
+
+  request      ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  provider     User           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([providerId])
+}
+
+// ------------------------------------------------------------------------------
+// 7. DIGITAL PRODUCTS & E-COMMERCE
+// ------------------------------------------------------------------------------
+
+model Product {
+  id          String        @id @default(uuid())
+  sellerId    String
+  categoryId  String?
+  title       String
+  slug        String        @unique
+  description String
+  price       Float
+  images      Json?         // Array of image preview URLs
+  downloadUrl String?       // Secure digital file download URL
+  fileType    String?       // PDF, ZIP, MP3, MP4
+  fileSize    String?       // "15 MB"
+  salesCount  Int           @default(0)
+  rating      Float         @default(5.0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  seller      User          @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category    Category?     @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  entitlements Entitlement[]
+
+  @@index([sellerId])
+  @@index([categoryId])
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  buyerId          String
+  totalAmount      Float
+  status           OrderStatus @default(PENDING)
+  paymentMethod    String      @default("WALLET") // FLUTTERWAVE, MANUAL, WALLET
+  paymentStatus    String      @default("PENDING") // PENDING, PAID, FAILED
+  paymentReference String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  buyer            User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  items            OrderItem[]
+
+  @@index([buyerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+  price     Float
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Entitlement {
+  id              String   @id @default(uuid())
+  userId          String
+  productId       String?
+  videoId         String?
+  accessGrantedAt DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  video           Video?   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------------------
+// 8. WALLET, LEDGER & WITHDRAWALS
+// ------------------------------------------------------------------------------
+
+model Wallet {
+  id               String              @id @default(uuid())
+  userId           String              @unique
+  availableBalance Float               @default(0)
+  pendingBalance   Float               @default(0)
+  totalEarnings    Float               @default(0)
+  totalWithdrawn   Float               @default(0)
+  currency         String              @default("RWF")
+  updatedAt        DateTime            @updatedAt
+
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions     WalletTransaction[]
+  withdrawals      Withdrawal[]
+
+  @@index([userId])
+}
+
+enum TransactionType {
+  SALE
+  SERVICE_PAYMENT
+  REFERRAL_COMMISSION
+  WITHDRAWAL
+  REFUND
+  PLATFORM_FEE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model WalletTransaction {
+  id          String            @id @default(uuid())
+  walletId    String
+  type        TransactionType
+  amount      Float             // Positive or negative
+  fee         Float             @default(0)
+  netAmount   Float
+  status      TransactionStatus @default(COMPLETED)
+  referenceId String?
+  description String
+  createdAt   DateTime          @default(now())
+
+  wallet      Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum PayoutMethod {
+  MTN_MOMO
+  AIRTEL_MONEY
+  BANK_TRANSFER
+  PAYPAL
+}
+
+model Withdrawal {
+  id             String           @id @default(uuid())
+  userId         String
+  walletId       String
+  amount         Float
+  paymentMethod  PayoutMethod     @default(MTN_MOMO)
+  accountDetails Json             // Phone number or bank account name & number
+  status         WithdrawalStatus @default(PENDING)
+  adminNote      String?
+  processedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet         Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([status])
+}
+
+// ------------------------------------------------------------------------------
+// 9. SITE SETTINGS & DYNAMIC BRANDING
+// ------------------------------------------------------------------------------
+
+model SiteSetting {
+  key         String   @id
+  value       String
+  category    String   @default("GENERAL") // BRANDING, CONTACT, SOCIAL, PAYMENTS, GENERAL
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ------------------------------------------------------------------------------
+// 10. NOTIFICATIONS, SUPPORT & AUDIT
+// ------------------------------------------------------------------------------
+
+enum NotificationType {
+  SYSTEM
+  VERIFICATION
+  TWO_FACTOR
+  NEW_FOLLOWER
+  NEW_COMMENT
+  COMMENT_REPLY
+  PURCHASE
+  SALE
+  WITHDRAWAL
+  BOOKING
+  SERVICE_REQUEST
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType @default(SYSTEM)
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  ANSWERED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id          String         @id @default(uuid())
+  userId      String
+  subject     String
+  category    String         @default("General")
+  priority    TicketPriority @default(MEDIUM)
+  status      TicketStatus   @default(OPEN)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies     SupportReply[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SupportReply {
+  id        String        @id @default(uuid())
+  ticketId  String
+  userId    String
+  message   String
+  isAdmin   Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String   // e.g. USER_BANNED, VIDEO_APPROVED, WITHDRAWAL_PAID, SETTINGS_UPDATED
+  targetType String   // USER, VIDEO, WITHDRAWAL, SETTINGS
+  targetId   String?
+  ipAddress  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+}
