@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1e36" />
+    <meta name="description" content="Watch Benix Space TV Live, sports, entertainment and listen to live radio stations." />
+    <meta property="og:title" content="Benix Space TV | Live Streaming & Entertainment" />
+    <meta property="og:description" content="Official streaming service for Benix Space TV (Live TV, Sports, Radio & Shows)." />
+    <meta property="og:image" content="/logo.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://tv.benix.space/" />
+    <link rel="canonical" href="https://tv.benix.space/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@BenixSpaceTV" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- PWA Manifest & iOS Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Benix TV" />
+    <link rel="apple-touch-icon" href="/logo.png" />
+
+    <title>Benix Space TV | Live Television & Video Streaming</title>
+    <!-- Google AdSense -->
+    <script
+      async
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4078466828008985"
+      crossorigin="anonymous"
+      onload="console.log('[Google AdSense] Script loaded successfully from pagead2.googlesyndication.com');"
+      onerror="console.error('[Google AdSense ERROR] Failed to load adsbygoogle.js script! Check if an AdBlocker, Brave Shields, or network filter is blocking googleadservices/googlesyndication.');"
+    ></script>
+
+    <!-- Emergency Service Worker Recovery Script for Legacy Browsers -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var reg of registrations) {
+            reg.update();
+          }
+        });
+      }
+    </script>
+  </head>
+
+  <body class="bg-rba-grayBg text-slate-800 antialiased selection:bg-rba-blue selection:text-white min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            console.log('PWA ServiceWorker registered:', reg.scope);
+            // Check for service worker updates on page load
+            if (reg.update) reg.update();
+          }).catch(function(err) {
+            console.warn('PWA ServiceWorker registration failed:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+
+

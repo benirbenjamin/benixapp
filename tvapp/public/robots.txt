@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+Sitemap: https://tv.benix.space/sitemap.xml
+Host: https://tv.benix.space
