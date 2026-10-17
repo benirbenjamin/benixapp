@@ -1,0 +1,11 @@
+{
+  "name": "benix-space-unified-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BenixSpace Unified Super-App Monorepo Bundle containing all 8 platforms and Neon PostgreSQL migrations",
+  "scripts": {
+    "build": "npm --prefix benixspace run build",
+    "start": "npm --prefix benixspace start",
+    "dev": "npm --prefix benixspace run dev"
+  }
+}
