@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-color: #4F46E5;
+  --secondary-color: #06B6D4;
+  --accent-color: #F59E0B;
+  --background-color: #FFFFFF;
+  --surface-color: #F8FAFC;
+  --text-color: #0F172A;
+  --muted-color: #64748B;
+  --header-color: #FFFFFF;
+  --footer-color: #0F172A;
+  --station-font: 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--station-font);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Live pulsating indicator */
+@keyframes live-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-live-badge {
+  animation: live-pulse 2s infinite;
+}
+
+/* Audio visualizer wave animation */
+.wave-bar {
+  animation: wave 1.2s ease-in-out infinite alternate;
+}
+.wave-bar:nth-child(1) { animation-delay: 0.1s; }
+.wave-bar:nth-child(2) { animation-delay: 0.3s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.4s; }
+.wave-bar:nth-child(5) { animation-delay: 0.15s; }
+
+/* Rich text rendered content styling */
+.rich-text h1 { font-size: 1.875rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+.rich-text h2 { font-size: 1.5rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+.rich-text h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; }
+.rich-text p { margin-bottom: 1rem; line-height: 1.75; }
+.rich-text blockquote {
+  border-left: 4px solid var(--primary-color, #4F46E5);
+  padding-left: 1rem;
+  font-style: italic;
+  margin: 1.25rem 0;
+  color: var(--muted-color, #64748B);
+}
+.rich-text ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
+.rich-text ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1rem; }
+.rich-text li { margin-bottom: 0.25rem; }
+.rich-text a { color: var(--primary-color, #4F46E5); text-decoration: underline; }
+.rich-text img { border-radius: 0.5rem; max-width: 100%; height: auto; margin: 1.5rem auto; }
+
+/* Google AdSense - Zero Blank Space Protection */
+ins.adsbygoogle {
+  display: block;
+}
+
+ins.adsbygoogle[data-ad-status="unfilled"],
+ins.adsbygoogle:empty {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  visibility: hidden !important;
+}
+
+.adsense-collapse:not(.is-ready) {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
