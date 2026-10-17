@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <!-- Homepage: Target Keywords: kunda space, kundwa, kundwa.com, benix space, umukunzi mu rwanda -->
+  <url>
+    <loc>https://kunda.space/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kunda.space/" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- How It Works & About -->
+  <url>
+    <loc>https://kunda.space/how-it-works</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/how-it-works" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/uko-bikora" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/comment-ca-marche" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://kunda.space/about</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/about" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/about" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/about" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Make Money / Referrals / Affiliate Rewards -->
+  <url>
+    <loc>https://kunda.space/make-money</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/make-money" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/gushaka-amafaranga" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/gagner-de-largent" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Membership Plans & Pricing -->
+  <url>
+    <loc>https://kunda.space/membership</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/membership" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/ibiciro" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/abonnements" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Safety Center -->
+  <url>
+    <loc>https://kunda.space/safety</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/safety" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/umutekano" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/securite" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- FAQ -->
+  <url>
+    <loc>https://kunda.space/faq</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kunda.space/en/faq" />
+    <xhtml:link rel="alternate" hreflang="rw" href="https://kunda.space/rw/ibibazo" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://kunda.space/fr/faq" />
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Register / Sign Up -->
+  <url>
+    <loc>https://kunda.space/auth/register</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Legal & Community Pages -->
+  <url>
+    <loc>https://kunda.space/terms</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://kunda.space/privacy</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://kunda.space/community-guidelines</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://kunda.space/contact</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

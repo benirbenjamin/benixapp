@@ -1,0 +1,6 @@
+{
+  "publicKey": "BBU1NzlIGBblUzcQM-SaMDPsGJjhyohTzcl6Vo0EmzahRMraY7SVl7YrVvwaoAQr0rLLmLd3393TT3ZXpWXiD_A",
+  "privateKey": "CHXPS8JASMl_jHYVRDZTqumWDKzkKATs86fEh3mQMTI",
+  "subject": "mailto:admin@kunda.space",
+  "envFormat": "VAPID_PUBLIC_KEY=BBU1NzlIGBblUzcQM-SaMDPsGJjhyohTzcl6Vo0EmzahRMraY7SVl7YrVvwaoAQr0rLLmLd3393TT3ZXpWXiD_A\nVAPID_PRIVATE_KEY=CHXPS8JASMl_jHYVRDZTqumWDKzkKATs86fEh3mQMTI\nVAPID_SUBJECT=mailto:admin@kunda.space"
+}

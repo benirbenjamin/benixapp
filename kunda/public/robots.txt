@@ -1,0 +1,28 @@
+# Kunda Space robots.txt
+User-agent: *
+Allow: /
+Allow: /en/
+Allow: /rw/
+Allow: /fr/
+Allow: /how-it-works
+Allow: /membership
+Allow: /safety
+Allow: /faq
+Allow: /about
+Allow: /contact
+Allow: /terms
+Allow: /privacy
+Allow: /community-guidelines
+
+# Disallow private user dashboards, API endpoints, chat, and wallet
+Disallow: /api/
+Disallow: /app/
+Disallow: /dashboard/
+Disallow: /messages/
+Disallow: /matches/
+Disallow: /wallet/
+Disallow: /settings/
+Disallow: /admin/
+Disallow: /auth/
+
+Sitemap: https://kunda.space/sitemap.xml

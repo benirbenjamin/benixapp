@@ -1,0 +1,44 @@
+{
+  "name": "Kunda Space | African Connections & Dating",
+  "short_name": "Kunda",
+  "description": "Rwanda and Africa's premier modern dating, community feed, and messaging platform.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#e11d48",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Direct Messages",
+      "short_name": "Messages",
+      "description": "Open your direct chats and stories",
+      "url": "/dashboard/messages",
+      "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Community Feed",
+      "short_name": "Feed",
+      "description": "View posts and stories from members",
+      "url": "/dashboard/feed",
+      "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Discover Singles",
+      "short_name": "Discover",
+      "description": "Find compatible matches",
+      "url": "/dashboard/discover",
+      "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
+    }
+  ]
+}
