@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/admin/
+
+Sitemap: https://easycalc.benix.space/sitemap.xml
+Sitemap: https://easycalc.benix.space/calculators-sitemap.xml
+Sitemap: https://easycalc.benix.space/categories-sitemap.xml
