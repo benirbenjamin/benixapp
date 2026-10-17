@@ -1,0 +1,4 @@
+export const ADSENSE_CONFIG = {
+  CLIENT_ID: import.meta.env.VITE_ADSENSE_CLIENT_ID || 'ca-pub-4078466828008985',
+  DEFAULT_SLOT_ID: import.meta.env.VITE_ADSENSE_SLOT_ID || '7034214536',
+};
