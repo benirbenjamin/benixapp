@@ -12,6 +12,7 @@ import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal'
 import { BenixPlayerModal } from '../components/modals/BenixPlayerModal';
 import { WalletModal } from '../components/modals/WalletModal';
 import { ReferralModal } from '../components/modals/ReferralModal';
+import { CompanionAdBanner } from '../components/ads/CompanionAdBanner';
 import { SeoHead } from '../components/common/SeoHead';
 import {
   Tv,
@@ -260,6 +261,10 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
+        {/* Featured Stream Sponsor Ad Banner */}
+        <div className="max-w-5xl mx-auto">
+          <CompanionAdBanner label="Featured Broadcast Partner" />
+        </div>
 
         {/* ==========================================
             3. CONTINUE WATCHING (Resume Streams)

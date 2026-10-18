@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchRadioStations, type Station } from '../../services/mediaService';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { BenixPlayerModal } from '../../components/modals/BenixPlayerModal';
+import { CompanionAdBanner } from '../../components/ads/CompanionAdBanner';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
   Radio,
@@ -230,6 +231,11 @@ export const RadioPage: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Live Radio Broadcast Sponsor Banner */}
+        <div className="max-w-5xl mx-auto">
+          <CompanionAdBanner label="Live Radio Stream Partner" />
         </div>
 
         {/* Search & Genre Filters */}

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchTvStations, type Station } from '../../services/mediaService';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { BenixPlayerModal } from '../../components/modals/BenixPlayerModal';
+import { CompanionAdBanner } from '../../components/ads/CompanionAdBanner';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
   Tv,
@@ -220,6 +221,11 @@ export const TvPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Live TV Broadcast Sponsor Banner */}
+        <div className="max-w-5xl mx-auto">
+          <CompanionAdBanner label="Live TV Broadcast Partner" />
         </div>
 
         {/* Search & Category Filter Strip */}
