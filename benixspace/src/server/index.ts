@@ -31,6 +31,11 @@ app.use(cors());
 
 // Serverless & Vercel Request Path / Body Normalizer
 app.use((req, res, next) => {
+  if (req.query && req.query.__path) {
+    const sub = String(req.query.__path);
+    delete req.query.__path;
+    req.url = '/api/' + sub;
+  }
   const matched = req.headers['x-matched-path'] as string;
   if (matched && matched.startsWith('/api') && (req.url.includes('[...route]') || req.url === '/api' || req.url === '/api/')) {
     req.url = matched;
@@ -38,7 +43,12 @@ app.use((req, res, next) => {
   if (!req.url.startsWith('/api') && !req.url.startsWith('/robots.txt') && !req.url.startsWith('/sitemap.xml')) {
     req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
   }
-  if (req.body && typeof req.body === 'object') {
+  if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+    try {
+      req.body = JSON.parse(req.body);
+      (req as any)._body = true;
+    } catch {}
+  } else if (req.body && typeof req.body === 'object') {
     (req as any)._body = true;
   }
   next();
@@ -46,6 +56,16 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+// Serverless Diagnostics & Liveness Health Check
+app.get('/api/health', (req, res) => {
+  return res.json({
+    status: 'ok',
+    platform: 'BenixSpace Unified API',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Verification & OTP In-Memory Cache (with 15-minute expiration)
 interface AuthCodeRecord {
@@ -4678,7 +4698,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   return res.status(500).json({ error: err?.message || 'Internal server error.' });
 });
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && !process.env.VERCEL_ENV && !process.env.NOW_REGION && process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`🌐 Benix.Space Unified Platform Server running on port ${PORT}`);
   });
