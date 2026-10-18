@@ -34,15 +34,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans">
+    <div className="min-h-screen bg-[#0B0E14] text-slate-100 flex flex-col md:flex-row font-sans selection:bg-blue-600 selection:text-white">
       
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-slate-900 text-slate-300 border-r border-slate-800 shrink-0">
+      <aside className="hidden md:flex flex-col w-64 bg-[#111724] text-slate-300 border-r border-slate-800 shrink-0">
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <img src="/logo.png" alt="NebeluRw Logo" className="w-9 h-9 object-contain" />
+          <img src="/logo.png" alt="BenixSpace Logo" className="w-9 h-9 object-contain" />
           <div>
             <span className="font-extrabold text-lg text-white block tracking-tight">BenixSpace</span>
-            <span className="text-[10px] uppercase tracking-wider text-sky-400 font-semibold">Admin Panel</span>
+            <span className="text-[10px] uppercase tracking-wider text-sky-400 font-semibold">Admin Console</span>
           </div>
         </div>
 

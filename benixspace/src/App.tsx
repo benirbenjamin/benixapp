@@ -168,7 +168,7 @@ export const App: React.FC = () => {
                           <Route path="/games" element={<GamesPage />} />
                           <Route path="/dice" element={<GamesPage />} />
                           <Route path="/marketplace" element={<MarketplacePage />} />
-                          <Route path="/umuguzi" element={<MarketplacePage />} />
+                          <Route path="/shop" element={<MarketplacePage />} />
                           <Route path="/music" element={<VoxifyPage />} />
                           <Route path="/voxify" element={<VoxifyPage />} />
                           <Route path="/dating" element={<KundaPage />} />

@@ -43,7 +43,7 @@ const UI_DICTIONARY: Record<Language, Record<string, string>> = {
     radio: 'Radiyo',
     music: 'Umuziki & Amakorali',
     dating: 'Guhuza Imitima (Kunda)',
-    marketplace: 'Isoko (Umuguzi)',
+    marketplace: 'Isoko (Marketplace)',
     games: 'Imikino',
     calc: 'Imibare & Ibikoresho',
     blog: 'Amakuru',

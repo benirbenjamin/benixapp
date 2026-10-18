@@ -34,7 +34,7 @@ const AVAILABLE_MODULES = [
   { id: 'radio', name: 'Live Radio', icon: Radio, desc: 'Listen to 24/7 digital radio stations, DJ mixes, and live talk shows' },
   { id: 'dating', name: 'Kunda Space Dating', icon: Heart, desc: 'Connect with verified matches for serious and genuine relationships' },
   { id: 'music', name: 'Voxify Music & Choirs', icon: Music, desc: 'Stream choir tracks, vocal rehearsal audio, and gospel releases' },
-  { id: 'marketplace', name: 'Marketplace (Umuguzi)', icon: ShoppingBag, desc: 'Discover digital products, services, and creative freelance work' },
+  { id: 'marketplace', name: 'Benix Marketplace', icon: ShoppingBag, desc: 'Discover digital products, services, and creative freelance work' },
   { id: 'games', name: 'RollDice Games', icon: Dices, desc: 'Compete in multiplayer roll-dice challenges with your central wallet' },
   { id: 'calc', name: 'EasyCalc Smart Utilities', icon: Calculator, desc: 'Instant finance, scientific, business, and unit conversion calculators' }
 ];
@@ -524,18 +524,18 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
                     </div>
                   )}
 
-                  {/* Umuguzi Marketplace Specific Questions */}
+                  {/* Benix Marketplace Specific Questions */}
                   {selectedModules.includes('marketplace') && (
                     <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
                       <div className="flex items-center gap-2">
                         <ShoppingBag className="w-4 h-4 text-emerald-500" />
                         <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider">
-                          Umuguzi Marketplace Role
+                          Benix Marketplace Role
                         </h4>
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          How do you plan to use Umuguzi Marketplace?
+                          How do you plan to use Benix Marketplace?
                         </label>
                         <select
                           value={marketRole}

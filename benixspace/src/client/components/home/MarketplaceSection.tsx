@@ -26,7 +26,7 @@ export const MarketplaceSection: React.FC = () => {
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-purple-600 bg-purple-50 px-3 py-1 rounded-full border border-purple-100 flex items-center gap-1.5 w-fit">
               <ShoppingBag className="w-3.5 h-3.5 text-purple-600" />
-              Umuguzi Marketplace
+              Benix Marketplace
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">
               Digital Products & Professional Services
@@ -49,7 +49,7 @@ export const MarketplaceSection: React.FC = () => {
                   Digital Product
                 </span>
                 <h4 className="text-sm font-bold text-slate-900 line-clamp-1">{p.title}</h4>
-                <p className="text-xs text-slate-500 line-clamp-2">{p.description || 'Verified product on Umuguzi platform.'}</p>
+                <p className="text-xs text-slate-500 line-clamp-2">{p.description || 'Verified product on Benix Marketplace.'}</p>
               </div>
 
               <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">

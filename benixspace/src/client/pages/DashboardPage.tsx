@@ -149,7 +149,7 @@ export const DashboardPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 transition-colors">
       <SeoHead
         title="Unified Super-App Dashboard — BenixSpace"
-        description="Unified personalized dashboard across all BenixSpace apps: TV, Radio, Kunda Dating, Voxify, Umuguzi, RollDice, and central wallet ledger."
+        description="Unified personalized dashboard across all BenixSpace apps: TV, Radio, Kunda Dating, Voxify, Benix Marketplace, RollDice, and central wallet ledger."
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -235,7 +235,7 @@ export const DashboardPage: React.FC = () => {
                   { id: 'radio', name: 'Live Radio FM', icon: Radio, path: '/radio', desc: '24/7 Digital Radio & Shows', color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/40' },
                   { id: 'dating', name: 'Kunda Space', icon: Heart, path: '/dating', desc: 'Verified Rwandan Dating & Matchmaking', color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/40' },
                   { id: 'music', name: 'Voxify Choirs', icon: Music, path: '/music', desc: 'Choir Music & Vocal Tracks', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' },
-                  { id: 'marketplace', name: 'Umuguzi Market', icon: ShoppingBag, path: '/marketplace', desc: 'Digital Goods & Freelance Services', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' },
+                  { id: 'marketplace', name: 'Benix Market', icon: ShoppingBag, path: '/marketplace', desc: 'Digital Goods & Freelance Services', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' },
                   { id: 'games', name: 'RollDice Games', icon: Dices, path: '/games', desc: 'RollDice Challenges & Wagers', color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' },
                   { id: 'calc', name: 'EasyCalc Smart', icon: Calculator, path: '/calc', desc: 'Loan EMI & Financial Tools', color: 'text-teal-600 bg-teal-50 dark:bg-teal-950/40' }
                 ].map((app) => {
@@ -298,7 +298,7 @@ export const DashboardPage: React.FC = () => {
                 { id: 'radio', label: 'Live Radio 24/7' },
                 { id: 'dating', label: 'Kunda Space Dating' },
                 { id: 'music', label: 'Voxify Music & Choirs' },
-                { id: 'marketplace', label: 'Umuguzi Marketplace' },
+                { id: 'marketplace', label: 'Benix Marketplace' },
                 { id: 'games', label: 'RollDice Games' },
                 { id: 'calc', label: 'EasyCalc Smart Calculators' }
               ].map((item) => {
@@ -496,7 +496,7 @@ export const DashboardPage: React.FC = () => {
                 <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
                   Unified Users Directory ({allUsers.length})
                 </h3>
-                <p className="text-xs text-slate-500">Migrated accounts from TV, Radio, Kunda, Voxify, and Umuguzi into Neon PostgreSQL core_users.</p>
+                <p className="text-xs text-slate-500">Migrated accounts from TV, Radio, Kunda, Voxify, and Marketplace into Neon PostgreSQL core_users.</p>
               </div>
             </div>
 

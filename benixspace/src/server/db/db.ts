@@ -8,12 +8,16 @@ const { Pool } = pg;
 // Central Target Neon PostgreSQL Database
 const NEON_DEFAULT = 'postgresql://neondb_owner:npg_j9q1UhnxgTrl@ep-soft-hill-b4t6y52i-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
-const connectionString =
+let rawConn =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_URL_NON_POOLING ||
   NEON_DEFAULT;
 
+// Strip channel_binding if present as standard pg doesn't support it
+const connectionString = rawConn.replace(/&?channel_binding=[^&]+/g, '').replace(/\?&/, '?');
+
+export const hasValidDbConfig = !!connectionString;
 const isVercel = !!process.env.VERCEL;
 const isProduction = process.env.NODE_ENV === 'production' || isVercel;
 
@@ -26,9 +30,9 @@ export const pool = new Pool({
   ssl: isProduction || connectionString.includes('neon.tech') || connectionString.includes('supabase')
     ? { rejectUnauthorized: false }
     : false,
-  max: 20,
+  max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 6000,
 });
 
 /**

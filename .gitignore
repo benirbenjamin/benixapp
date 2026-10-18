@@ -26,5 +26,8 @@ Thumbs.db
 .idea/
 
 sql/
+**/sql/
+*.sql
 
 push_all_incremental.ps1
+

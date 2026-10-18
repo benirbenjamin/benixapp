@@ -9,13 +9,16 @@ export interface EmailOptions {
 
 export class EmailService {
   private static resendApiKey = process.env.RESEND_API_KEY;
-  private static fromEmail = process.env.EMAIL_FROM || 'noreply@benix.space';
+  private static fromEmail = process.env.EMAIL_FROM || 'BenixSpace <noreply@benix.space>';
 
   /**
    * Sends email via Resend API or logs fallback
    */
   static async sendEmail(options: EmailOptions): Promise<{ success: boolean; messageId?: string }> {
-    const from = options.from || this.fromEmail;
+    let from = options.from || this.fromEmail;
+    if (from.includes('onboarding@resend.dev') || from.includes('onboarding')) {
+      from = 'BenixSpace <noreply@benix.space>';
+    }
     const { to, subject, html } = options;
 
     // 1. Try Resend API if key is configured

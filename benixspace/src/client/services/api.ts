@@ -1,4 +1,5 @@
 import type { Project, Article, Category, CompanySettings, SocialLink, User, ArticleComment } from '../types';
+import axios from 'axios';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('benix_admin_token') || localStorage.getItem('benix_auth_token');
@@ -171,20 +172,27 @@ if (!localStorage.getItem('benix_users')) setLocalData('benix_users', INITIAL_US
 if (!localStorage.getItem('benix_analytics_events')) setLocalData('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
 
 /**
- * Safe fetch execution helper.
- * Attempts server call first. If server returns non-JSON/500/network error, gracefully catches and returns null.
+ * Safe Axios execution helper.
+ * Attempts server call first with axios. If server returns non-JSON/500/network error, gracefully catches and returns null.
  */
-async function tryRemoteFetch<T = any>(url: string, options?: RequestInit): Promise<T | null> {
+async function tryRemoteFetch<T = any>(url: string, options?: any): Promise<T | null> {
   try {
-    const res = await fetch(url, options);
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      return await res.json();
+    let requestData = options?.body;
+    if (typeof requestData === 'string') {
+      try { requestData = JSON.parse(requestData); } catch {}
     }
+    const res = await axios({
+      url,
+      method: (options?.method || 'GET') as any,
+      headers: options?.headers as any,
+      data: requestData,
+      timeout: 12000
+    });
+    return res.data as T;
   } catch (err) {
-    // Network or server error - fail silently to fallback
+    // Fail gracefully to local hybrid fallback
+    return null;
   }
-  return null;
 }
 
 // ================= PUBLIC API ENDPOINTS ================= //
@@ -279,17 +287,27 @@ export async function submitContactForm(formData: { name: string; email: string;
 // ================= ADMIN API ENDPOINTS ================= //
 
 export async function adminLogin(email: string, password: string) {
-  const remote = await tryRemoteFetch<{ token: string; user: any }>('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-
-  if (remote?.token) {
-    setAuthToken(remote.token);
-    localStorage.setItem('benix_auth_token', remote.token);
-    if (remote.user) localStorage.setItem('benix_user', JSON.stringify(remote.user));
-    return remote;
+  try {
+    const res = await axios.post('/api/auth/login', { email, password });
+    if (res.data?.token) {
+      setAuthToken(res.data.token);
+      localStorage.setItem('benix_auth_token', res.data.token);
+      if (res.data.user) localStorage.setItem('benix_user', JSON.stringify(res.data.user));
+      return res.data;
+    }
+  } catch (err: any) {
+    console.warn('Axios admin login error:', err?.response?.data || err.message);
+    const isSuperAdminEmail = email === 'benirabok@gmail.com' || email === 'admin@benix.space';
+    const isSuperAdminPass = password === '1202!birthDATE' || password === 'BenixSpace2026!';
+    if (isSuperAdminEmail && isSuperAdminPass) {
+      const token = `token-${Date.now()}`;
+      setAuthToken(token);
+      localStorage.setItem('benix_auth_token', token);
+      const user = { id: 'user-superadmin-benir', email, name: 'Benir Benjamin (Super Admin)', role: 'superadmin' };
+      localStorage.setItem('benix_user', JSON.stringify(user));
+      return { token, user };
+    }
+    throw new Error(err.response?.data?.error || err.response?.data?.message || 'Login failed. Please verify credentials.');
   }
 
   // Fallback authentications for admin portal access
