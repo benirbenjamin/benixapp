@@ -81,7 +81,13 @@ export const BottomNav: React.FC = () => {
 
         {/* 5. Profile / Admin */}
         <Link
-          to={isAdmin ? '/admin' : (user ? '/dashboard' : '/dating')}
+          to={isAdmin ? '/admin' : (user ? '/dashboard' : '#')}
+          onClick={(e) => {
+            if (!user && !isAdmin) {
+              e.preventDefault();
+              setShowWizard(true);
+            }
+          }}
           className={`flex flex-col items-center justify-center py-1 transition-all ${
             isActive('/dashboard') || isActive('/admin') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
           }`}

@@ -24,7 +24,8 @@ import {
   MessageSquare,
   Plus,
   Smartphone,
-  Download
+  Download,
+  Film
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
@@ -167,7 +168,7 @@ export const Navbar: React.FC = () => {
                 )}
               </button>
 
-              {/* User Avatar / Login */}
+              {/* User Avatar / Join */}
               {user ? (
                 <div className="relative group">
                   <Link
@@ -181,9 +182,9 @@ export const Navbar: React.FC = () => {
               ) : (
                 <button
                   onClick={() => setWizardAppKey('tv')}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 transition-all"
+                  className="hidden md:inline-flex px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all items-center gap-1"
                 >
-                  Sign In
+                  Join
                 </button>
               )}
 
@@ -263,6 +264,16 @@ export const Navbar: React.FC = () => {
                     <Tv className="w-4 h-4" />
                   </div>
                   <span>Watch TV & Channels</span>
+                </button>
+
+                <button
+                  onClick={() => handleAppClick('videos', '/videos')}
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
+                >
+                  <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400">
+                    <Film className="w-4 h-4" />
+                  </div>
+                  <span>Creator Videos & Shows</span>
                 </button>
 
                 <button

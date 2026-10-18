@@ -37,6 +37,7 @@ const CATEGORIES = [
 export const TvPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasAppProfile } = useAuth();
+  const { activeTvStation, playTv } = usePlayer();
 
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState<boolean>(true);

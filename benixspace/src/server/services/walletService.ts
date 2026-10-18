@@ -28,13 +28,20 @@ export class WalletService {
           id VARCHAR(255) PRIMARY KEY,
           user_id VARCHAR(255) UNIQUE NOT NULL,
           balance NUMERIC(15,2) DEFAULT 0.00,
+          bonus_balance NUMERIC(15,2) DEFAULT 0.00,
           pending_balance NUMERIC(15,2) DEFAULT 0.00,
           currency VARCHAR(10) DEFAULT 'RWF',
           total_earnings NUMERIC(15,2) DEFAULT 0.00,
           total_withdrawn NUMERIC(15,2) DEFAULT 0.00,
+          total_bonus_received NUMERIC(15,2) DEFAULT 0.00,
+          last_login_bonus_date VARCHAR(20) DEFAULT NULL,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+        ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(15,2) DEFAULT 0.00;
+        ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS total_bonus_received NUMERIC(15,2) DEFAULT 0.00;
+        ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS last_login_bonus_date VARCHAR(20) DEFAULT NULL;
+
         CREATE TABLE IF NOT EXISTS core_wallet_transactions (
           id VARCHAR(255) PRIMARY KEY,
           wallet_id VARCHAR(255),
@@ -60,8 +67,8 @@ export class WalletService {
 
     const walletId = 'wallet-' + userId;
     const inserted = await query(
-      `INSERT INTO core_wallets (id, user_id, balance, pending_balance, currency, total_earnings, total_withdrawn)
-       VALUES ($1, $2, 0.00, 0.00, 'RWF', 0.00, 0.00)
+      `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings, total_withdrawn, total_bonus_received)
+       VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00, 0.00, 0.00)
        ON CONFLICT (user_id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [walletId, userId]
@@ -124,7 +131,167 @@ export class WalletService {
   }
 
   /**
-   * Safe Atomic Debit from User Wallet (with strict insufficient balance check)
+   * Safe Atomic Credit of Platform Bonus (e.g., Welcome bonus, Daily login bonus, or Admin promotion)
+   * Stored strictly in bonus_balance (NEVER mixes into deposit/earned balance).
+   */
+  static async creditBonus(
+    userId: string,
+    amount: number,
+    module: string = 'wallet',
+    type: string = 'bonus_credit',
+    description: string = 'Platform Bonus',
+    reference?: string,
+    metadata?: any
+  ): Promise<{ success: boolean; newBonusBalance: number; transactionId: string }> {
+    if (amount <= 0) throw new Error('Bonus credit amount must be greater than zero.');
+    const txRef = reference || `tx_bonus_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const txId = 'cwt-' + crypto.randomUUID();
+
+    return await withTransaction(async (client) => {
+      let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings, total_bonus_received)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00, 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ['wallet-' + userId, userId]
+        );
+        walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      }
+
+      const wallet = walletRes.rows[0];
+      const newBonusBalance = Number(wallet.bonus_balance || 0) + amount;
+      const newTotalBonus = Number(wallet.total_bonus_received || 0) + amount;
+
+      await client.query(
+        `UPDATE core_wallets 
+         SET bonus_balance = $1, total_bonus_received = $2, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $3`,
+        [newBonusBalance, newTotalBonus, wallet.id]
+      );
+
+      await client.query(
+        `INSERT INTO core_wallet_transactions 
+         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, 0.00, 'RWF', 'completed', $7, $8, $9)`,
+        [txId, wallet.id, userId, module, type, amount, txRef, description, JSON.stringify(metadata || {})]
+      );
+
+      return { success: true, newBonusBalance, transactionId: txId };
+    });
+  }
+
+  /**
+   * Claim Daily Login Bonus (Credited into bonus_balance, once every calendar day)
+   */
+  static async claimDailyLoginBonus(
+    userId: string,
+    bonusAmount: number = 200
+  ): Promise<{ claimed: boolean; alreadyClaimed: boolean; amount: number; bonusBalance: number; message: string }> {
+    const today = new Date().toISOString().split('T')[0];
+
+    return await withTransaction(async (client) => {
+      let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings, total_bonus_received)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00, 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ['wallet-' + userId, userId]
+        );
+        walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      }
+
+      const wallet = walletRes.rows[0];
+      const lastClaimed = wallet.last_login_bonus_date;
+
+      if (lastClaimed === today) {
+        return {
+          claimed: false,
+          alreadyClaimed: true,
+          amount: 0,
+          bonusBalance: Number(wallet.bonus_balance || 0),
+          message: 'Daily login bonus already claimed for today.'
+        };
+      }
+
+      const newBonusBalance = Number(wallet.bonus_balance || 0) + bonusAmount;
+      const newTotalBonus = Number(wallet.total_bonus_received || 0) + bonusAmount;
+
+      await client.query(
+        `UPDATE core_wallets 
+         SET bonus_balance = $1, total_bonus_received = $2, last_login_bonus_date = $3, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $4`,
+        [newBonusBalance, newTotalBonus, today, wallet.id]
+      );
+
+      const txId = 'cwt-' + crypto.randomUUID();
+      await client.query(
+        `INSERT INTO core_wallet_transactions 
+         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description, metadata)
+         VALUES ($1, $2, $3, 'wallet', 'daily_login_bonus', $4, 0.00, 'RWF', 'completed', $5, $6, $7)`,
+        [
+          txId,
+          wallet.id,
+          userId,
+          bonusAmount,
+          `tx_daily_${today}_${userId}`,
+          `Daily Login Bonus (${today}): +${bonusAmount} RWF credited to Bonus Wallet`,
+          JSON.stringify({ date: today, bonusAmount })
+        ]
+      );
+
+      return {
+        claimed: true,
+        alreadyClaimed: false,
+        amount: bonusAmount,
+        bonusBalance: newBonusBalance,
+        message: `🎉 Daily Login Bonus Credited: +${bonusAmount} RWF added to your Bonus Wallet!`
+      };
+    });
+  }
+
+  /**
+   * Admin can set or credit bonus balance for any user
+   */
+  static async adminSetBonus(
+    userId: string,
+    bonusAmount: number,
+    reason: string = 'Admin adjustment'
+  ): Promise<{ success: boolean; bonusBalance: number }> {
+    return await withTransaction(async (client) => {
+      let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ['wallet-' + userId, userId]
+        );
+        walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      }
+      const wallet = walletRes.rows[0];
+
+      await client.query(
+        `UPDATE core_wallets SET bonus_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [bonusAmount, wallet.id]
+      );
+
+      const txId = 'cwt-' + crypto.randomUUID();
+      await client.query(
+        `INSERT INTO core_wallet_transactions 
+         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+         VALUES ($1, $2, $3, 'admin', 'admin_bonus_override', $4, 0.00, 'RWF', 'completed', $5, $6)`,
+        [txId, wallet.id, userId, bonusAmount, `tx_adm_bonus_${Date.now()}`, `Admin Bonus Adjustment: ${reason}`]
+      );
+
+      return { success: true, bonusBalance: bonusAmount };
+    });
+  }
+
+  /**
+   * Safe Atomic Debit from User Wallet
+   * Priority: Deducts from bonus_balance first. When bonus is exhausted, deducts from real deposit/earned balance.
    */
   static async debit(
     userId: string,
@@ -134,7 +301,15 @@ export class WalletService {
     description: string,
     reference?: string,
     metadata?: any
-  ): Promise<{ success: boolean; newBalance: number; transactionId: string }> {
+  ): Promise<{
+    success: boolean;
+    newBalance: number;
+    newBonusBalance: number;
+    totalBalance: number;
+    deductedFromBonus: number;
+    deductedFromReal: number;
+    transactionId: string;
+  }> {
     if (amount <= 0) throw new Error('Debit amount must be greater than zero.');
 
     const txRef = reference || `tx_db_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -148,31 +323,69 @@ export class WalletService {
       }
 
       const wallet = walletRes.rows[0];
-      const currentBalance = Number(wallet.balance);
+      const realBalance = Number(wallet.balance || 0);
+      const bonusBalance = Number(wallet.bonus_balance || 0);
+      const totalAvailable = realBalance + bonusBalance;
 
-      if (currentBalance < amount) {
-        throw new Error(`Insufficient wallet balance. Current: ${currentBalance} RWF, Required: ${amount} RWF`);
+      if (totalAvailable < amount) {
+        throw new Error(
+          `Insufficient wallet balance. Required: ${amount.toLocaleString()} RWF (Available: ${realBalance.toLocaleString()} RWF real deposit + ${bonusBalance.toLocaleString()} RWF bonus).`
+        );
       }
 
-      const newBalance = currentBalance - amount;
+      let deductedFromBonus = 0;
+      let deductedFromReal = 0;
 
-      // Update wallet balance
+      if (bonusBalance >= amount) {
+        deductedFromBonus = amount;
+      } else {
+        deductedFromBonus = bonusBalance;
+        deductedFromReal = amount - bonusBalance;
+      }
+
+      const newBonusBalance = bonusBalance - deductedFromBonus;
+      const newRealBalance = realBalance - deductedFromReal;
+
+      // Update wallet balances
       await client.query(
         `UPDATE core_wallets 
-         SET balance = $1, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $2`,
-        [newBalance, wallet.id]
+         SET balance = $1, bonus_balance = $2, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $3`,
+        [newRealBalance, newBonusBalance, wallet.id]
       );
 
       // Record negative ledger entry
+      const debitBreakdown = [
+        deductedFromBonus > 0 ? `${deductedFromBonus} RWF bonus` : null,
+        deductedFromReal > 0 ? `${deductedFromReal} RWF deposit` : null
+      ].filter(Boolean).join(' + ');
+
       await client.query(
         `INSERT INTO core_wallet_transactions 
          (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, 0.00, 'RWF', 'completed', $7, $8, $9)`,
-        [txId, wallet.id, userId, module, type, -amount, txRef, description, JSON.stringify(metadata || {})]
+        [
+          txId,
+          wallet.id,
+          userId,
+          module,
+          type,
+          -amount,
+          txRef,
+          `${description} [${debitBreakdown}]`,
+          JSON.stringify({ ...(metadata || {}), deductedFromBonus, deductedFromReal })
+        ]
       );
 
-      return { success: true, newBalance, transactionId: txId };
+      return {
+        success: true,
+        newBalance: newRealBalance,
+        newBonusBalance,
+        totalBalance: newRealBalance + newBonusBalance,
+        deductedFromBonus,
+        deductedFromReal,
+        transactionId: txId
+      };
     });
   }
 

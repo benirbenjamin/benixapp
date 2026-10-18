@@ -2,7 +2,7 @@ import { query } from '../db/db';
 
 export interface SearchResult {
   id: string;
-  module: 'tv' | 'radio' | 'music' | 'marketplace' | 'calc' | 'blog' | 'games' | 'dating' | 'wallet';
+  module: 'tv' | 'radio' | 'music' | 'marketplace' | 'calc' | 'blog' | 'games' | 'dating' | 'wallet' | 'videos';
   title: string;
   description: string;
   url: string;
@@ -256,6 +256,56 @@ const ECOSYSTEM_CATALOG: SearchResult[] = [
     description: 'Discover verified software licenses, freelance services, and creative digital assets.',
     url: '/marketplace',
     category: 'Marketplace'
+  },
+
+  // Creator Videos & Studio Hub
+  {
+    id: 'vid-kwetu',
+    module: 'videos',
+    title: 'Kwetu Pazuri (Ambassadors of Christ Choir)',
+    description: 'Iconic Rwandan choir music video with 4-part harmonies and cultural attire.',
+    url: '/videos?v=vid-1',
+    category: 'Gospel Choirs'
+  },
+  {
+    id: 'vid-nina-siri',
+    module: 'videos',
+    title: 'Nina Siri (Israel Mbonyi)',
+    description: 'Trending praise and worship live gospel song performed in Kigali by Israel Mbonyi.',
+    url: '/videos?v=vid-2',
+    category: 'Gospel Choirs'
+  },
+  {
+    id: 'vid-seburikoko',
+    module: 'videos',
+    title: 'Seburikoko Episode 1 (Filime Nyarwanda)',
+    description: 'Popular Rwandan comedy and drama television series by Afrifame Pictures.',
+    url: '/videos?v=vid-3',
+    category: 'Cinema & Films'
+  },
+  {
+    id: 'vid-bamenya',
+    module: 'videos',
+    title: 'Bamenya Series Episode 1 (Zacu Entertainment)',
+    description: 'Rwanda comedy drama starring Bamenya (Ramadhan).',
+    url: '/videos?v=vid-4',
+    category: 'Comedy & Skits'
+  },
+  {
+    id: 'vid-city-maid',
+    module: 'videos',
+    title: 'City Maid Episode 1 (Afrifame Pictures)',
+    description: 'Rwandan drama depicting urban life and romance in Kigali.',
+    url: '/videos?v=vid-5',
+    category: 'Cinema & Films'
+  },
+  {
+    id: 'vid-bk-arena-concert',
+    module: 'videos',
+    title: 'Israel Mbonyi Live BK Arena VIP Concert',
+    description: 'Full 2-hour VIP recorded concert live from BK Arena Kigali with multitrack sound.',
+    url: '/videos?v=vid-9',
+    category: 'Premium VIP Videos'
   },
 
   // Wallet

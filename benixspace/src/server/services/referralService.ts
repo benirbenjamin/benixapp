@@ -115,4 +115,66 @@ export class ReferralService {
       history: referrals.rows
     };
   }
+
+  /**
+   * Credits Affiliate Commission to Referrer when a purchase or unlock happens via shareable link
+   * Earned money ALWAYS goes to real wallet balance (never to bonus wallet).
+   */
+  static async recordAffiliateSale(
+    referrerCodeOrId: string,
+    itemId: string,
+    itemTitle: string,
+    saleAmount: number,
+    commissionRate: number = 0.10,
+    module: string = 'marketplace',
+    buyerUserId?: string
+  ): Promise<{ success: boolean; commissionAmount: number; referrerId: string } | null> {
+    if (!referrerCodeOrId) return null;
+
+    // Locate referrer
+    const cleanRef = String(referrerCodeOrId).trim();
+    const refUser = await query(
+      'SELECT id, name, email FROM core_users WHERE referral_code = $1 OR id = $1 LIMIT 1',
+      [cleanRef]
+    );
+
+    if (refUser.rowCount === 0) return null;
+    const referrer = refUser.rows[0];
+
+    // Prevent self-commission
+    if (buyerUserId && referrer.id === buyerUserId) return null;
+
+    const commissionAmount = Math.max(100, Math.round(saleAmount * commissionRate));
+
+    // Credit referrer's real wallet balance
+    await WalletService.credit(
+      referrer.id,
+      commissionAmount,
+      module,
+      'affiliate_commission',
+      `Affiliate Commission (${Math.round(commissionRate * 100)}%): Shared link sale for "${itemTitle}"`,
+      `tx_aff_${Date.now()}_${itemId}`
+    );
+
+    // Record into core_referrals for auditing
+    const refRecordId = 'ref-sale-' + crypto.randomUUID();
+    await query(
+      `INSERT INTO core_referrals 
+       (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
+       VALUES ($1, $2, $3, $4, $5, 'approved', CURRENT_TIMESTAMP)`,
+      [
+        refRecordId,
+        referrer.id,
+        buyerUserId || referrer.id,
+        `sale_${module}_${itemId}`,
+        commissionAmount
+      ]
+    ).catch(() => {});
+
+    return {
+      success: true,
+      commissionAmount,
+      referrerId: referrer.id
+    };
+  }
 }

@@ -1,4 +1,3 @@
-import { Pool as NeonPool } from '@neondatabase/serverless';
 import pg from 'pg';
 import dotenv from 'dotenv';
 
@@ -19,9 +18,13 @@ const connectionString = rawConn.replace(/&?channel_binding=[^&]+/g, '').replace
 export const hasValidDbConfig = !!connectionString;
 export const dbEngine: 'postgres' | 'mysql' = 'postgres';
 
-// Use Neon Serverless Pool for non-blocking HTTP / WebSocket pooling without timeouts
-export const pool = new NeonPool({
+// Standard resilient PostgreSQL connection pool with connection timeout
+export const pool = new pg.Pool({
   connectionString,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
 });
 
 /**

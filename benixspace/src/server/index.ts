@@ -304,9 +304,9 @@ app.post('/api/auth/register-wizard', async (req, res) => {
 
     const user = userRes.rows[0];
 
-    // Create Initial Central Wallet with welcome bonus (100 RWF)
+    // Create Initial Central Wallet with welcome bonus (100 RWF) strictly into bonus_balance
     const wallet = await WalletService.getOrCreateWallet(user.id);
-    await WalletService.credit(
+    await WalletService.creditBonus(
       user.id,
       100.00,
       'wallet',
@@ -331,7 +331,7 @@ app.post('/api/auth/register-wizard', async (req, res) => {
     return res.status(201).json({
       token,
       user,
-      wallet: { balance: 100.00, currency: 'RWF' },
+      wallet: { balance: 0.00, bonus_balance: 100.00, total_balance: 100.00, currency: 'RWF' },
       message: 'Account registered successfully!'
     });
   } catch (err: any) {
@@ -397,10 +397,27 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // 4. Fetch Wallet with graceful fallback
-    let wallet: any = { balance: 100.00, currency: 'RWF' };
+    // 4. Fetch Wallet & Auto-Claim Daily Login Bonus (200 RWF) into bonus_balance
+    let wallet: any = { balance: 0.00, bonus_balance: 0.00, currency: 'RWF' };
+    let loginBonusResult: any = null;
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
+      
+      let dailyAmount = 200;
+      try {
+        const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+        if (sRes.rowCount && sRes.rows[0].services_json) {
+          const parsed = JSON.parse(sRes.rows[0].services_json);
+          if (parsed.daily_login_bonus_amount) {
+            dailyAmount = Number(parsed.daily_login_bonus_amount);
+          }
+        }
+      } catch {}
+
+      loginBonusResult = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
+      if (loginBonusResult.claimed) {
+        wallet = await WalletService.getOrCreateWallet(user.id);
+      }
     } catch (wErr: any) {
       console.warn('Could not load wallet from DB, using fallback:', wErr?.message);
     }
@@ -421,9 +438,12 @@ app.post('/api/auth/login', async (req, res) => {
         referral_code: user.referral_code
       },
       wallet: {
-        balance: Number(wallet.balance || 100.00),
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
         currency: wallet.currency || 'RWF'
-      }
+      },
+      daily_login_bonus: loginBonusResult?.claimed ? loginBonusResult : null
     });
   } catch (err: any) {
     console.error('Login Error:', err);
@@ -449,14 +469,31 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
             referral_code: 'BENIX-SUPERADMIN',
             selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']
           },
-          wallet: { balance: 100000.00, currency: 'RWF' }
+          wallet: { balance: 100000.00, bonus_balance: 5000.00, total_balance: 105000.00, currency: 'RWF' }
         });
       }
       return res.status(404).json({ error: 'User not found.' });
     }
 
     const user = userRes.rows[0];
-    const wallet = await WalletService.getOrCreateWallet(user.id);
+    let wallet: any = { balance: 0.00, bonus_balance: 0.00, currency: 'RWF' };
+    let dailyBonusAwarded: any = null;
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+      let dailyAmount = 200;
+      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+      if (sRes.rowCount && sRes.rows[0].services_json) {
+        const parsed = JSON.parse(sRes.rows[0].services_json);
+        if (parsed.daily_login_bonus_amount) {
+          dailyAmount = Number(parsed.daily_login_bonus_amount);
+        }
+      }
+      dailyBonusAwarded = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
+      if (dailyBonusAwarded.claimed) {
+        wallet = await WalletService.getOrCreateWallet(user.id);
+      }
+    } catch {}
+
     const refStats = await ReferralService.getStats(user.id);
 
     return res.json({
@@ -472,12 +509,16 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
         referral_code: user.referral_code
       },
       wallet: {
-        balance: Number(wallet.balance),
-        pending_balance: Number(wallet.pending_balance),
-        currency: wallet.currency,
-        total_earnings: Number(wallet.total_earnings),
-        total_withdrawn: Number(wallet.total_withdrawn)
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        pending_balance: Number(wallet.pending_balance || 0),
+        currency: wallet.currency || 'RWF',
+        total_earnings: Number(wallet.total_earnings || 0),
+        total_withdrawn: Number(wallet.total_withdrawn || 0),
+        last_login_bonus_date: wallet.last_login_bonus_date
       },
+      daily_login_bonus: dailyBonusAwarded?.claimed ? dailyBonusAwarded : null,
       referrals: refStats
     });
   } catch (err: any) {
@@ -519,14 +560,50 @@ app.get('/api/wallet', authenticateToken, async (req: AuthenticatedRequest, res)
     const transactions = await WalletService.getTransactions(req.user!.id, 20);
     return res.json({
       wallet: {
-        balance: Number(wallet.balance),
-        pending_balance: Number(wallet.pending_balance),
-        currency: wallet.currency,
-        total_earnings: Number(wallet.total_earnings),
-        total_withdrawn: Number(wallet.total_withdrawn)
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        pending_balance: Number(wallet.pending_balance || 0),
+        currency: wallet.currency || 'RWF',
+        total_earnings: Number(wallet.total_earnings || 0),
+        total_withdrawn: Number(wallet.total_withdrawn || 0),
+        last_login_bonus_date: wallet.last_login_bonus_date
       },
       transactions
     });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/wallet/claim-daily-bonus', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    let dailyAmount = 200;
+    try {
+      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+      if (sRes.rowCount && sRes.rows[0].services_json) {
+        const parsed = JSON.parse(sRes.rows[0].services_json);
+        if (parsed.daily_login_bonus_amount) {
+          dailyAmount = Number(parsed.daily_login_bonus_amount);
+        }
+      }
+    } catch {}
+
+    const result = await WalletService.claimDailyLoginBonus(req.user!.id, dailyAmount);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/wallets/set-bonus', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { userId, bonusAmount, reason } = req.body;
+    if (!userId || bonusAmount === undefined) {
+      return res.status(400).json({ error: 'userId and bonusAmount are required.' });
+    }
+    const result = await WalletService.adminSetBonus(userId, Number(bonusAmount), reason || 'Admin bonus credit');
+    return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -2515,22 +2592,470 @@ app.post('/api/auth/save-app-profile', authenticateToken, async (req: Authentica
   }
 });
 
-// C. Marketplace Module
-app.get('/api/modules/marketplace/products', async (req, res) => {
+// B2. Videos Module (Benix Creator Studio & Video Hub)
+const SAMPLE_VIDEOS = [
+  {
+    id: "vid-1",
+    title: "KWETU PAZURI by Ambassadors of Christ Choir (Official Video 4K)",
+    slug: "ambassadors-of-christ-kwetu-pazuri",
+    description: "Official iconic gospel video by Ambassadors of Christ Choir in Kigali, Rwanda. Sung with rich harmonic voices, cultural attire, and deep spiritual inspiration.",
+    videoUrl: "https://www.youtube.com/watch?v=J_QGkWDk4Hk",
+    thumbnailUrl: "https://img.youtube.com/vi/J_QGkWDk4Hk/hqdefault.jpg",
+    duration: 375,
+    views: 12500000,
+    likes: 85000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Gospel Choirs",
+    channelName: "Ambassadors of Christ Choir",
+    channelHandle: "ambassadorsofchrist",
+    channelAvatar: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-01-10T10:00:00Z"
+  },
+  {
+    id: "vid-2",
+    title: "ISRAEL MBONYI - NINA SIRI (Official Music Video)",
+    slug: "israel-mbonyi-nina-siri",
+    description: "Breathtaking praise and worship song performed live in Kigali by Israel Mbonyi. Celebrated across East Africa and globally with millions of streams.",
+    videoUrl: "https://www.youtube.com/watch?v=92x0t5p57_k",
+    thumbnailUrl: "https://img.youtube.com/vi/92x0t5p57_k/hqdefault.jpg",
+    duration: 320,
+    views: 48900000,
+    likes: 310000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Gospel Choirs",
+    channelName: "Israel Mbonyi Official",
+    channelHandle: "israelmbonyi",
+    channelAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-02-14T12:00:00Z"
+  },
+  {
+    id: "vid-3",
+    title: "SEBURIKOKO Episode 1 - Afrifame Pictures (Filime Nyarwanda)",
+    slug: "seburikoko-episode-1",
+    description: "The critically acclaimed Rwandan comedy drama and film series produced by Afrifame Pictures in Kigali. Follow the hilarious misadventures of Seburikoko and his village.",
+    videoUrl: "https://www.youtube.com/watch?v=8q-w0O0V6gY",
+    thumbnailUrl: "https://img.youtube.com/vi/8q-w0O0V6gY/hqdefault.jpg",
+    duration: 1560,
+    views: 1890000,
+    likes: 48000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Cinema & Films",
+    channelName: "Afrifame Pictures (Filime Nyarwanda)",
+    channelHandle: "afrifame",
+    channelAvatar: "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-03-01T15:00:00Z"
+  },
+  {
+    id: "vid-4",
+    title: "BAMENYA SERIES Episode 1 - Rwandan Comedy Cinema",
+    slug: "bamenya-series-episode-1",
+    description: "Starring Ramadhan (Bamenya) in Rwanda's most popular contemporary comedy and family drama film series. High energy, street smarts, and authentic Kigali humor.",
+    videoUrl: "https://www.youtube.com/watch?v=P6jW8pW1Y8E",
+    thumbnailUrl: "https://img.youtube.com/vi/P6jW8pW1Y8E/hqdefault.jpg",
+    duration: 1680,
+    views: 2450000,
+    likes: 67000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Comedy & Skits",
+    channelName: "Zacu Entertainment TV (Bamenya)",
+    channelHandle: "zacutv",
+    channelAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-03-12T16:00:00Z"
+  },
+  {
+    id: "vid-5",
+    title: "CITY MAID Episode 1 - Afrifame Pictures Rwandan Drama",
+    slug: "city-maid-episode-1",
+    description: "Engaging Rwandan urban drama depicting the trials, romance, and ambitions of young workers navigating urban life in modern Kigali City.",
+    videoUrl: "https://www.youtube.com/watch?v=369V6qJ-15k",
+    thumbnailUrl: "https://img.youtube.com/vi/369V6qJ-15k/hqdefault.jpg",
+    duration: 1620,
+    views: 1980000,
+    likes: 52000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Cinema & Films",
+    channelName: "Afrifame Pictures (Filime Nyarwanda)",
+    channelHandle: "afrifame",
+    channelAvatar: "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-03-20T14:30:00Z"
+  },
+  {
+    id: "vid-6",
+    title: "TURAKWEMEYE by Alarm Ministries Rwanda (Official 4K Video)",
+    slug: "alarm-ministries-turakwemeye",
+    description: "Powerful choir worship and praise session recorded in Kigali, Rwanda by Alarm Ministries. Deeply moving vocals and live orchestra.",
+    videoUrl: "https://www.youtube.com/watch?v=kG6-1eX84mY",
+    thumbnailUrl: "https://img.youtube.com/vi/kG6-1eX84mY/hqdefault.jpg",
+    duration: 490,
+    views: 3400000,
+    likes: 42000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Gospel Choirs",
+    channelName: "Alarm Ministries Rwanda",
+    channelHandle: "alarmministries",
+    channelAvatar: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-04-05T09:00:00Z"
+  },
+  {
+    id: "vid-7",
+    title: "NIMUSINGIZE NYAGASANI - Chorale de Kigali (Concert Live)",
+    slug: "chorale-de-kigali-nimusingize-nyagasani",
+    description: "Prestigious classical choral concert performance by Chorale de Kigali at Kigali Serena Hotel. Traditional and sacred compositions arranged in 4-part harmony.",
+    videoUrl: "https://www.youtube.com/watch?v=V12j7uQ_K6U",
+    thumbnailUrl: "https://img.youtube.com/vi/V12j7uQ_K6U/hqdefault.jpg",
+    duration: 380,
+    views: 1900000,
+    likes: 27000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Music & Live Shows",
+    channelName: "Chorale de Kigali",
+    channelHandle: "choraledekigali",
+    channelAvatar: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-04-18T18:00:00Z"
+  },
+  {
+    id: "vid-8",
+    title: "RWANDA 4K Aerial Cinematic Tour - Visit Rwanda Showcase",
+    slug: "rwanda-4k-aerial-tour",
+    description: "A stunning visual journey through the Thousand Hills of Rwanda: Volcanoes National Park, Lake Kivu, Nyungwe Canopy Walkway, and the modern skyline of Kigali.",
+    videoUrl: "https://www.youtube.com/watch?v=M3wS5r34Y2w",
+    thumbnailUrl: "https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=640&auto=format&fit=crop&q=80",
+    duration: 480,
+    views: 4100000,
+    likes: 89000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Culture & Travel",
+    channelName: "Visit Rwanda Official",
+    channelHandle: "visitrwanda",
+    channelAvatar: "/logo.png",
+    isVerified: true,
+    createdAt: "2026-05-01T08:00:00Z"
+  },
+  {
+    id: "vid-9",
+    title: "ISRAEL MBONYI LIVE BK ARENA VIP CONCERT (Exclusive Full Access)",
+    slug: "israel-mbonyi-live-bk-arena-vip",
+    description: "Full uninterrupted 2-hour VIP recorded concert live from BK Arena Kigali. Includes exclusive backstage footage, acoustic bonus sessions, and high definition multitrack sound.",
+    videoUrl: "https://www.youtube.com/watch?v=sI9pP3T34tQ",
+    thumbnailUrl: "https://img.youtube.com/vi/sI9pP3T34tQ/hqdefault.jpg",
+    duration: 7200,
+    views: 320000,
+    likes: 18000,
+    accessType: "PREMIUM",
+    price: 1500,
+    category: "Premium VIP",
+    channelName: "Israel Mbonyi Official",
+    channelHandle: "israelmbonyi",
+    channelAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-05-15T20:00:00Z"
+  },
+  {
+    id: "vid-10",
+    title: "PAPA SAVA VIP EXCLUSIVE - Extended Director's Cut Comedy",
+    slug: "papa-sava-vip-exclusive",
+    description: "Special uncut full-length feature comedy film starring Papa Sava. 40 minutes of unreleased hilarious scenes and behind-the-scenes interviews with the cast.",
+    videoUrl: "https://www.youtube.com/watch?v=8q-w0O0V6gY",
+    thumbnailUrl: "https://images.unsplash.com/photo-1518107616815-455b898a39d8?w=640&auto=format&fit=crop&q=80",
+    duration: 2400,
+    views: 410000,
+    likes: 22000,
+    accessType: "PREMIUM",
+    price: 500,
+    category: "Premium VIP",
+    channelName: "Zacu Entertainment TV (Bamenya)",
+    channelHandle: "zacutv",
+    channelAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-06-01T11:00:00Z"
+  },
+  {
+    id: "vid-11",
+    title: "AMASHIMWE by Healing Worship Team Kigali",
+    slug: "healing-worship-amashimwe",
+    description: "Live thanksgiving worship session by Healing Worship Team Kigali with full live brass band and choir chorus.",
+    videoUrl: "https://www.youtube.com/watch?v=zJg5g0xR7gM",
+    thumbnailUrl: "https://img.youtube.com/vi/zJg5g0xR7gM/hqdefault.jpg",
+    duration: 440,
+    views: 2800000,
+    likes: 36000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Gospel Choirs",
+    channelName: "Healing Worship Team",
+    channelHandle: "healingworship",
+    channelAvatar: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=120&auto=format&fit=crop&q=80",
+    isVerified: true,
+    createdAt: "2026-06-10T14:00:00Z"
+  },
+  {
+    id: "vid-12",
+    title: "KIGALI NIGHTLIFE & BK ARENA EXPERIENCE - Culture & Lifestyle",
+    slug: "kigali-nightlife-bk-arena",
+    description: "An energetic spotlight on the bustling arts, entertainment, fine dining, and live concerts illuminating Kigali after dark.",
+    videoUrl: "https://www.youtube.com/watch?v=92x0t5p57_k",
+    thumbnailUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=640&auto=format&fit=crop&q=80",
+    duration: 540,
+    views: 780000,
+    likes: 19000,
+    accessType: "PUBLIC",
+    price: 0,
+    category: "Culture & Travel",
+    channelName: "Benix Creative Studios",
+    channelHandle: "benixstudio",
+    channelAvatar: "/logo.png",
+    isVerified: true,
+    createdAt: "2026-06-20T17:00:00Z"
+  }
+];
+
+const unlockedVideosByUser = new Map<string, Set<string>>();
+
+// Videos endpoints
+app.get('/api/modules/videos', async (req, res) => {
   try {
-    const result = await query('SELECT * FROM marketplace."Product" LIMIT 20');
-    return res.json({ products: result.rows });
+    const category = req.query.category as string;
+    let list = SAMPLE_VIDEOS;
+    if (category && category !== 'All') {
+      list = list.filter(v => v.category.toLowerCase() === category.toLowerCase());
+    }
+    return res.json({ videos: list });
   } catch (err: any) {
-    return res.json({ products: [] });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/modules/marketplace/services', async (req, res) => {
+app.get('/api/modules/videos/:id', async (req, res) => {
   try {
-    const result = await query('SELECT * FROM marketplace."Service" LIMIT 20');
-    return res.json({ services: result.rows });
+    const { id } = req.params;
+    const video = SAMPLE_VIDEOS.find(v => v.id === id || v.slug === id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found.' });
+    }
+    const related = SAMPLE_VIDEOS.filter(v => v.id !== video.id).slice(0, 6);
+    return res.json({ video, related });
   } catch (err: any) {
-    return res.json({ services: [] });
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/modules/videos/:id/like', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const video = SAMPLE_VIDEOS.find(v => v.id === id || v.slug === id);
+    if (!video) return res.status(404).json({ error: 'Video not found.' });
+    video.likes += 1;
+    return res.json({ success: true, likes: video.likes });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/modules/videos/:id/unlock', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { ref } = req.body;
+    const video = SAMPLE_VIDEOS.find(v => v.id === id || v.slug === id);
+    if (!video) return res.status(404).json({ error: 'Video not found.' });
+
+    if (video.price <= 0) {
+      return res.json({ success: true, message: 'This video is already free to watch.' });
+    }
+
+    const userUnlocked = unlockedVideosByUser.get(req.user!.id) || new Set<string>();
+    if (userUnlocked.has(video.id)) {
+      return res.json({ success: true, alreadyUnlocked: true, message: 'You have already unlocked this video.' });
+    }
+
+    // Debit price (bonus balance used first, then real balance!)
+    const debitResult = await WalletService.debit(
+      req.user!.id,
+      video.price,
+      'videos',
+      'video_unlock',
+      `Unlocked Premium Video: "${video.title}"`,
+      `tx_vid_unl_${video.id}`
+    );
+
+    userUnlocked.add(video.id);
+    unlockedVideosByUser.set(req.user!.id, userUnlocked);
+
+    // If accessed via an affiliate referral link, credit 15% commission to referrer's REAL wallet!
+    if (ref) {
+      try {
+        await ReferralService.recordAffiliateSale(
+          ref,
+          video.id,
+          video.title,
+          video.price,
+          0.15,
+          'videos',
+          req.user!.id
+        );
+      } catch (e) {
+        console.warn('Affiliate commission recording warning:', e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully unlocked "${video.title}"!`,
+      wallet: {
+        balance: debitResult.newBalance,
+        bonus_balance: debitResult.newBonusBalance,
+        total_balance: debitResult.totalBalance
+      }
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Failed to unlock video.' });
+  }
+});
+
+// C. Marketplace Module (Benix Digital Marketplace)
+const SAMPLE_MARKET_PRODUCTS = [
+  {
+    id: 'mp1',
+    title: 'Modern Super-App React & Vite Template',
+    description: 'Production-ready starter repository with Tailwind CSS, dark mode, authentication hooks, and Neon DB integration.',
+    price: 35000,
+    category: 'Software & Code',
+    seller: 'Benix Tech Studio',
+    rating: 4.9,
+    downloads: 142,
+    badge: 'BESTSELLER',
+    commission_pct: 10,
+    image_url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mp2',
+    title: 'Rwandan High-Resolution Brand Identity UI Kit',
+    description: 'Figma component library tailored for East African fintech, media, and e-commerce web applications.',
+    price: 25000,
+    category: 'Design & Graphics',
+    seller: 'Kigali Visuals Lab',
+    rating: 4.8,
+    downloads: 89,
+    badge: 'POPULAR',
+    commission_pct: 12,
+    image_url: 'https://images.unsplash.com/photo-1581291518655-9523c932edcf?w=600&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mp3',
+    title: 'Full-Stack Web App Development (1 Week Sprint)',
+    description: 'Custom React & Node.js web development service delivered with tested APIs, responsive layouts, and cloud deployment.',
+    price: 250000,
+    category: 'Services & Freelance',
+    seller: 'Verified Benix Partner',
+    rating: 5.0,
+    downloads: 34,
+    commission_pct: 8,
+    image_url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mp4',
+    title: 'Professional Audio Mixing & Gospel Mastering',
+    description: 'Studio acoustic master for choir performances, choral multitrack balancing, and vocal clarity enhancement.',
+    price: 45000,
+    category: 'Creative & Audio',
+    seller: 'Voxify Audio Pro',
+    rating: 4.9,
+    downloads: 67,
+    commission_pct: 15,
+    image_url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=600&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mp5',
+    title: 'Rwanda Small Business Tax & Accounting Toolkit',
+    description: 'Pre-formatted Excel and Google Sheets models for PAYE payroll, VAT declaration, and cash flow tracking.',
+    price: 18000,
+    category: 'Business & Finance',
+    seller: 'EasyCalc Solutions',
+    rating: 4.7,
+    downloads: 215,
+    badge: 'ESSENTIAL',
+    commission_pct: 10,
+    image_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mp6',
+    title: 'SEO Audit & Regional Search Engine Ranking Package',
+    description: 'Comprehensive keyword audit, Google Search Console indexing, backlink profiling, and speed optimization.',
+    price: 80000,
+    category: 'Services & Freelance',
+    seller: 'Benix SEO Guild',
+    rating: 4.9,
+    downloads: 51,
+    commission_pct: 10,
+    image_url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80'
+  }
+];
+
+app.get('/api/modules/marketplace/products', async (req, res) => {
+  return res.json({ products: SAMPLE_MARKET_PRODUCTS });
+});
+
+app.post('/api/modules/marketplace/buy', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { productId, ref } = req.body;
+    const product = SAMPLE_MARKET_PRODUCTS.find(p => p.id === productId);
+    if (!product) return res.status(404).json({ error: 'Product not found.' });
+
+    // Debit product price from wallet (bonus balance used first, then real balance)
+    const debitResult = await WalletService.debit(
+      req.user!.id,
+      product.price,
+      'marketplace',
+      'product_purchase',
+      `Purchased: "${product.title}"`,
+      `tx_mp_buy_${product.id}`
+    );
+
+    // If bought via affiliate shareable link, credit commission straight to referrer's REAL wallet
+    let affiliateCredit: any = null;
+    if (ref) {
+      try {
+        const commRate = (product.commission_pct || 10) / 100;
+        affiliateCredit = await ReferralService.recordAffiliateSale(
+          ref,
+          product.id,
+          product.title,
+          product.price,
+          commRate,
+          'marketplace',
+          req.user!.id
+        );
+      } catch (e) {
+        console.warn('Marketplace affiliate commission error:', e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully purchased "${product.title}"!`,
+      wallet: {
+        balance: debitResult.newBalance,
+        bonus_balance: debitResult.newBonusBalance,
+        total_balance: debitResult.totalBalance
+      },
+      affiliate_awarded: !!affiliateCredit
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Purchase failed.' });
   }
 });
 
@@ -2691,6 +3216,19 @@ app.get('/api/settings', async (req, res) => {
     });
   } catch (err: any) {
     return res.json({ company: {}, social: [] });
+  }
+// Universal Search API across all 9 integrated super-app platforms
+app.get('/api/search', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      return res.json({ results: [] });
+    }
+    const results = await SearchService.search(q);
+    return res.json({ results: results || [] });
+  } catch (err: any) {
+    console.error('Universal Search API error:', err);
+    return res.json({ results: [] });
   }
 });
 

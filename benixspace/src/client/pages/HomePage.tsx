@@ -232,6 +232,7 @@ export const HomePage: React.FC = () => {
 
           <div className="flex items-center gap-2.5 sm:gap-4 overflow-x-auto pb-2 pt-1 scrollbar-none scroll-smooth">
             {[
+              { id: 'videos', name: 'Creator Videos', badge: 'Shows', icon: Film, route: '/videos', color: 'from-purple-600 to-indigo-600' },
               { id: 'tv', name: 'Watch TV', badge: '17 CH', icon: Tv, route: '/tv', color: 'from-blue-600 to-indigo-600' },
               { id: 'radio', name: 'Live Radio', badge: '19 FM', icon: Radio, route: '/radio', color: 'from-purple-600 to-pink-600' },
               { id: 'kunda', name: 'Kunda Dating', badge: 'Singles', icon: Heart, route: '/dating', color: 'from-rose-500 to-pink-600' },
@@ -596,55 +597,90 @@ export const HomePage: React.FC = () => {
         </section>
 
         {/* ==========================================
-            6. CREATOR VIDEOS & COMMUNITY UPLOADS
+            6. FEATURED CREATOR VIDEOS & SHOWS
            ========================================== */}
-        {creatorVideos.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                  <Film className="w-5 h-5 text-rose-400" />
-                  Creator Videos & Community Broadcasts
-                </h2>
-                <p className="text-xs text-slate-400">User uploaded content with multi-account Google Drive storage & creator monetization.</p>
-              </div>
-              <button
-                onClick={() => {
-                  if (!user) setWizardTargetKey('tv');
-                  else setShowCreateMediaModal(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Upload Video</span>
-              </button>
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                <Film className="w-5 h-5 text-purple-400" />
+                Featured Creator Videos & Shows
+              </h2>
+              <p className="text-xs text-slate-400">Stream exclusive choir concerts, comedy series, and cinema. Share your link to earn 15% commissions!</p>
             </div>
+            <Link to="/videos" className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1">
+              <span>View All Videos & Earn</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {creatorVideos.map((vid: any) => (
-                <div
-                  key={vid.id}
-                  className="rounded-2xl bg-[#121824] border border-slate-800 overflow-hidden shadow-lg p-3 space-y-2 group"
-                >
-                  <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden">
-                    <video src={vid.videoUrl} className="w-full h-full object-cover" preload="metadata" />
-                    <div className="absolute top-2 left-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                        vid.isPaid ? 'bg-amber-500 text-black' : 'bg-emerald-600 text-white'
-                      }`}>
-                        {vid.isPaid ? `${vid.price.toLocaleString()} RWF` : 'Free'}
-                      </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {[
+              {
+                id: 'vid-01',
+                title: 'Ambassadors of Christ — Kwetu Pazuri Live 4K',
+                creator: 'Ambassadors of Christ Choir',
+                thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
+                views: '482K',
+                category: 'Gospel & Choirs',
+                price: 'Free'
+              },
+              {
+                id: 'vid-02',
+                title: 'Israel Mbonyi — Nina Siri Live BK Arena',
+                creator: 'Israel Mbonyi Official',
+                thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
+                views: '890K',
+                category: 'Gospel & Choirs',
+                price: 'Free'
+              },
+              {
+                id: 'vid-03',
+                title: 'Seburikoko Season 18 Episode 1 (Afrifame Pictures)',
+                creator: 'Afrifame Pictures',
+                thumbnail: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+                views: '312K',
+                category: 'Series & Comedy',
+                price: '300 RWF'
+              },
+              {
+                id: 'vid-04',
+                title: 'Bamenya Series Episode 142 — Byakaze mu Mujyi',
+                creator: 'Zacu TV',
+                thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=80',
+                views: '520K',
+                category: 'Series & Comedy',
+                price: 'Free'
+              }
+            ].map((vid) => (
+              <div
+                key={vid.id}
+                onClick={() => navigate(`/videos?v=${vid.id}`)}
+                className="rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-purple-500/50 overflow-hidden shadow-lg p-3 space-y-2 group cursor-pointer transition-all hover:shadow-purple-950/20"
+              >
+                <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden">
+                  <img src={vid.thumbnail} alt={vid.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <div className="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
+                      <Play className="w-4 h-4 fill-white ml-0.5" />
                     </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white truncate">{vid.title}</h4>
-                    <p className="text-[10px] text-slate-400 truncate">{vid.authorName} • {vid.category}</p>
+                  <div className="absolute top-2 left-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      vid.price === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
+                    }`}>
+                      {vid.price}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <div>
+                  <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors">{vid.title}</h4>
+                  <p className="text-[10px] text-slate-400 truncate">{vid.creator} • {vid.views} views</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* ==========================================
             7. QUICK ACCESS CARDS (Kunda Space + Central Wallet)

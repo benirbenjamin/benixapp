@@ -31,6 +31,7 @@ import { DashboardPage } from './client/pages/DashboardPage';
 
 // Integrated Super-App Module Pages
 import { TvPage } from './client/pages/modules/TvPage';
+import { VideosPage } from './client/pages/modules/VideosPage';
 import { RadioPage } from './client/pages/modules/RadioPage';
 import { GamesPage } from './client/pages/modules/GamesPage';
 import { MarketplacePage } from './client/pages/modules/MarketplacePage';
@@ -38,6 +39,7 @@ import { VoxifyPage } from './client/pages/modules/VoxifyPage';
 import { KundaPage } from './client/pages/modules/KundaPage';
 import { EasyCalcPage } from './client/pages/modules/EasyCalcPage';
 import { MessagesPage } from './client/pages/MessagesPage';
+import { PwaInstallBanner } from './client/components/pwa/PwaInstallBanner';
 
 // Admin System Pages
 import { AdminLoginPage } from './client/pages/admin/AdminLoginPage';
@@ -68,6 +70,7 @@ const GlobalPlayerLayer: React.FC = () => {
     <>
       <GlobalRadioPlayer />
       <FloatingPipTV />
+      <PwaInstallBanner />
       <RadioAdModal
         isOpen={showRadioAd}
         station={pendingRadioStation}
@@ -196,6 +199,8 @@ export const App: React.FC = () => {
                           <Route path="/messages" element={<MessagesPage />} />
 
                           {/* Integrated Module Pages */}
+                          <Route path="/videos" element={<VideosPage />} />
+                          <Route path="/videos/:id" element={<VideosPage />} />
                           <Route path="/tv" element={<TvPage />} />
                           <Route path="/radio" element={<RadioPage />} />
                           <Route path="/games" element={<GamesPage />} />

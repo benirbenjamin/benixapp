@@ -133,11 +133,16 @@ export const DashboardPage: React.FC = () => {
                 <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">Central Wallet</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Real Balance</span>
                 <span className="text-lg font-black text-white">
-                  {Number(wallet?.balance || 100).toLocaleString()}{' '}
+                  {Number(wallet?.balance || 0).toLocaleString()}{' '}
                   <span className="text-xs text-emerald-400">{wallet?.currency || 'RWF'}</span>
                 </span>
+                {Boolean(wallet?.bonus_balance) && (
+                  <span className="text-[10px] text-amber-300 font-bold block mt-0.5">
+                    +{Number(wallet?.bonus_balance || 0).toLocaleString()} Bonus RWF
+                  </span>
+                )}
               </div>
             </div>
 

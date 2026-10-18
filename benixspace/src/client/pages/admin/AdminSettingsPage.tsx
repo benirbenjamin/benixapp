@@ -6,7 +6,7 @@ import {
   Settings, Save, CheckCircle2, AlertCircle, Building2, User, Mail, Phone,
   MapPin, ShieldCheck, Tv, Radio, Heart, Music, ShoppingBag, Dices, Calculator,
   Database, Send, Upload, Image, HardDrive, DollarSign, Globe, ExternalLink,
-  Layers, RefreshCw, Eye, Sparkles, Check
+  Layers, RefreshCw, Eye, Sparkles, Check, Film
 } from 'lucide-react';
 
 export const AdminSettingsPage: React.FC = () => {
@@ -78,6 +78,7 @@ export const AdminSettingsPage: React.FC = () => {
   // 6. Active Multi-App Module Control & Configuration
   const [modules, setModules] = useState({
     enable_tv: true,
+    enable_videos: true,
     enable_radio: true,
     enable_kunda: true,
     enable_voxify: true,
@@ -89,6 +90,9 @@ export const AdminSettingsPage: React.FC = () => {
     tv_ad_interval_mins: 15,
     tv_quality_protocol: 'HLS',
     tv_autoplay_muted: true,
+    // Videos & Daily Login Bonus
+    daily_login_bonus_amount: 200,
+    video_affiliate_commission_pct: 15,
     // Radio settings
     radio_default_station: 'kiss-fm',
     radio_preroll_interval_sec: 180,
@@ -908,6 +912,7 @@ export const AdminSettingsPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {[
+                    { key: 'enable_videos', label: 'Creator Studio & Videos Hub', icon: Film, color: 'text-purple-400' },
                     { key: 'enable_tv', label: 'Live TV Streaming (17 channels)', icon: Tv, color: 'text-blue-400' },
                     { key: 'enable_radio', label: 'Live Radio FM (19 stations)', icon: Radio, color: 'text-purple-400' },
                     { key: 'enable_kunda', label: 'Kunda Space Dating', icon: Heart, color: 'text-rose-400' },
@@ -950,6 +955,52 @@ export const AdminSettingsPage: React.FC = () => {
               {/* 2. Deep Module Configuration Panels with Links & Controls */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
+                {/* 0. Videos Hub & Daily Login Bonus Panel */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                        <Film className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Creator Videos & Daily Bonus</h4>
+                        <p className="text-[11px] text-slate-400">Rwandan shows, affiliate sharing & login bonus</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/videos"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-[11px] font-bold flex items-center gap-1 border border-purple-500/30 transition-colors"
+                    >
+                      <span>Open Videos</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Daily Login Bonus (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.daily_login_bonus_amount || 200}
+                        onChange={(e) => setModules({ ...modules, daily_login_bonus_amount: Number(e.target.value) || 200 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                      <span className="text-[10px] text-amber-400 mt-0.5 block">Credited to Bonus Wallet once per day</span>
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Affiliate Share Commission (%)</label>
+                      <input
+                        type="number"
+                        value={modules.video_affiliate_commission_pct || 15}
+                        onChange={(e) => setModules({ ...modules, video_affiliate_commission_pct: Number(e.target.value) || 15 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                      <span className="text-[10px] text-purple-400 mt-0.5 block">15% cash credited to referrer Real Wallet</span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* A. Live TV Control */}
                 <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">

@@ -19,8 +19,14 @@ import {
   ChevronRight,
   PlusCircle,
   ExternalLink,
-  ArrowLeft
+  ArrowLeft,
+  Share2,
+  Copy,
+  Check,
+  X,
+  Award
 } from 'lucide-react';
+import axios from 'axios';
 
 interface MarketItem {
   id: string;
@@ -116,20 +122,46 @@ export const MarketplacePage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [actionSuccess, setActionSuccess] = useState<string>('');
+  const [shareProduct, setShareProduct] = useState<MarketItem | null>(null);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
-  const handleProtectedAction = (item: MarketItem) => {
+  const handleProtectedAction = async (item: MarketItem) => {
     if (!user || !hasAppProfile('marketplace')) {
       setWizardTarget('marketplace');
       return;
     }
 
-    if ((wallet?.balance || 0) < item.price) {
+    const totalBal = (wallet?.balance || 0) + (wallet?.bonus_balance || 0);
+    if (totalBal < item.price) {
       setShowWalletModal(true);
       return;
     }
 
-    setActionSuccess(`Order initiated for "${item.title}". Check your downloads.`);
-    setTimeout(() => setActionSuccess(''), 4000);
+    try {
+      const token = localStorage.getItem('benix_auth_token');
+      const ref = localStorage.getItem('benix_ref') || '';
+      const res = await axios.post(
+        '/api/modules/marketplace/buy',
+        { productId: item.id, ref },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setActionSuccess(res.data?.message || `Purchased "${item.title}" successfully! Check your downloads.`);
+      setTimeout(() => setActionSuccess(''), 5000);
+    } catch (err: any) {
+      setActionSuccess(err.response?.data?.error || `Order initiated for "${item.title}".`);
+      setTimeout(() => setActionSuccess(''), 4000);
+    }
+  };
+
+  const getAffiliateShareLink = (item: MarketItem) => {
+    const refParam = user?.referral_code || user?.id || 'BENIX-STORE';
+    return `${window.location.origin}/marketplace?ref=${refParam}&item=${item.id}`;
+  };
+
+  const handleCopyLink = (item: MarketItem) => {
+    navigator.clipboard.writeText(getAffiliateShareLink(item));
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   const handleCreateListing = () => {
@@ -339,13 +371,23 @@ export const MarketplacePage: React.FC = () => {
                   </span>
                 </div>
 
-                <button
-                  onClick={() => handleProtectedAction(item)}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
-                >
-                  <ShoppingBag className="w-3.5 h-3.5" />
-                  Buy Now
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShareProduct(item)}
+                    className="p-2.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-300 transition-colors"
+                    title="Share & Earn 10% Affiliate Commission"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => handleProtectedAction(item)}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    Buy Now
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -382,6 +424,85 @@ export const MarketplacePage: React.FC = () => {
           setTimeout(() => setActionSuccess(''), 5000);
         }}
       />
+
+      {/* Share & Earn Affiliate Modal */}
+      {shareProduct && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#121824] border border-slate-700 shadow-2xl p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-white">Share & Earn 10% Commission</h3>
+                  <p className="text-xs text-slate-400">Paid straight to your Real Wallet upon sale</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShareProduct(null)}
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#15231D] border border-emerald-500/20 space-y-1">
+              <p className="text-[11px] uppercase font-bold text-emerald-400 tracking-wider">Product</p>
+              <h4 className="font-bold text-sm text-white line-clamp-1">{shareProduct.title}</h4>
+              <p className="text-xs text-slate-400">Price: {shareProduct.price.toLocaleString()} RWF • Earn {Math.round(shareProduct.price * 0.1).toLocaleString()} RWF per sale</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 block">Your Unique Product Affiliate Link</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getAffiliateShareLink(shareProduct)}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#0B0E14] border border-slate-700 text-xs text-slate-200 font-mono focus:outline-none"
+                />
+                <button
+                  onClick={() => handleCopyLink(shareProduct)}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition-all shrink-0"
+                >
+                  {copiedLink ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedLink ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+              <p className="text-xs font-semibold text-slate-400">One-Click Share:</p>
+              <div className="grid grid-cols-2 gap-3">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(
+                    `Check out "${shareProduct.title}" on Benix Marketplace: ${getAffiliateShareLink(shareProduct)}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                >
+                  <span>WhatsApp</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                    `Get "${shareProduct.title}" on Benix Marketplace: ${getAffiliateShareLink(shareProduct)}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                >
+                  <span>Twitter / X</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Wallet Deposit Modal */}
       <WalletModal

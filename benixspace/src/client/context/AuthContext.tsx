@@ -18,6 +18,9 @@ export interface User {
 
 export interface Wallet {
   balance: number;
+  bonus_balance?: number;
+  total_balance?: number;
+  last_login_bonus_date?: string;
   pending_balance?: number;
   currency: string;
   total_earnings?: number;
@@ -44,7 +47,8 @@ interface AuthContextType {
   logout: () => void;
   refreshMe: () => Promise<void>;
   updatePreferences: (modules: string[], layout?: any) => Promise<void>;
-  updateWalletBalance: (newBalance: number) => void;
+  updateWalletBalance: (newBalance: number, newBonusBalance?: number) => void;
+  claimDailyBonus: () => Promise<{ success: boolean; bonusAmount?: number; message?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -59,7 +63,8 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   refreshMe: async () => {},
   updatePreferences: async () => {},
-  updateWalletBalance: () => {}
+  updateWalletBalance: () => {},
+  claimDailyBonus: async () => ({ success: false })
 });
 
 // Configure Axios instance

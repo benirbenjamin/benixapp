@@ -16,7 +16,8 @@ import {
   UserCheck,
   Building,
   Smartphone,
-  ChevronRight
+  ChevronRight,
+  Gift
 } from 'lucide-react';
 
 interface Props {
@@ -26,7 +27,8 @@ interface Props {
 }
 
 export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'balance' }) => {
-  const { user, wallet, token, updateWalletBalance } = useAuth();
+  const { user, wallet, token, updateWalletBalance, claimDailyBonus } = useAuth();
+  const [claimingBonus, setClaimingBonus] = useState(false);
   const [tab, setTab] = useState<'balance' | 'deposit' | 'withdraw' | 'transfer'>(initialTab);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -245,6 +247,24 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
     }
   };
 
+  const handleClaimDailyBonus = async () => {
+    setClaimingBonus(true);
+    try {
+      const res = await claimDailyBonus();
+      if (res.success) {
+        notificationSound.playNotificationChime();
+        setStatusMsg({ text: `🎉 Claimed ${res.bonusAmount || 200} RWF Daily Login Bonus!` });
+        loadTransactions();
+      } else {
+        setStatusMsg({ text: res.message || 'Daily login bonus already claimed today.', error: !res.success });
+      }
+    } catch {
+      setStatusMsg({ text: 'Could not claim daily bonus right now.', error: true });
+    } finally {
+      setClaimingBonus(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -267,23 +287,46 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
           </button>
         </div>
 
-        {/* Balance Showcase Card */}
+        {/* Dual Balance Showcase Card */}
         <div className="p-6 pb-2">
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#162032] via-[#101726] to-[#0B0F1A] border border-slate-800 text-white shadow-xl relative overflow-hidden">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-              <span>Available Active Balance</span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black border border-emerald-500/30">
-                Active Ledger
-              </span>
-            </div>
-            <div className="text-3xl font-black mt-2 tracking-tight text-white">
-              {Number(wallet?.balance || 0).toLocaleString()} <span className="text-lg font-bold text-emerald-400">{wallet?.currency || 'RWF'}</span>
-            </div>
-            {wallet?.pending_balance ? (
-              <div className="text-xs text-amber-300 mt-1">
-                Pending: {Number(wallet.pending_balance).toLocaleString()} RWF
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#162032] via-[#101726] to-[#0B0F1A] border border-slate-800 text-white shadow-xl relative overflow-hidden space-y-3">
+            <div className="grid grid-cols-2 gap-4 divide-x divide-slate-800">
+              {/* Real Deposit & Earnings Balance */}
+              <div className="pr-2">
+                <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Real Balance</span>
+                <div className="text-2xl font-black mt-1 text-white">
+                  {Number(wallet?.balance || 0).toLocaleString()} <span className="text-xs text-emerald-400 font-bold">{wallet?.currency || 'RWF'}</span>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-medium block mt-0.5">Deposits & Earnings</span>
               </div>
-            ) : null}
+
+              {/* Bonus Balance */}
+              <div className="pl-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Bonus Balance</span>
+                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-black">Usage First</span>
+                </div>
+                <div className="text-2xl font-black mt-1 text-amber-300">
+                  {Number(wallet?.bonus_balance || 0).toLocaleString()} <span className="text-xs text-amber-400 font-bold">RWF</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Welcome + Daily Logins</span>
+              </div>
+            </div>
+
+            {/* Daily Login Bonus Row */}
+            <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 text-amber-300">
+                <Gift className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-bold">Daily Login Bonus: 200 RWF</span>
+              </div>
+              <button
+                onClick={handleClaimDailyBonus}
+                disabled={claimingBonus}
+                className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shadow-md transition-all disabled:opacity-50"
+              >
+                {claimingBonus ? 'Claiming...' : 'Claim Today'}
+              </button>
+            </div>
           </div>
         </div>
 
