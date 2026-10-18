@@ -1,12 +1,22 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Radio, Sparkles, Volume2, Clock, X, ShieldCheck, Play } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Radio, Sparkles, Clock, X, ShieldCheck, Play, ExternalLink } from 'lucide-react';
 import type { Station } from '../../services/mediaService';
+import { GoogleAdSense } from './GoogleAdSense';
 
 interface RadioAdModalProps {
   isOpen: boolean;
   station: Station | null;
   onComplete: () => void;
   onCancel: () => void;
+}
+
+interface SubmittedAd {
+  id: string;
+  title: string;
+  description: string;
+  targetUrl: string;
+  mediaUrl?: string;
+  mediaType?: string;
 }
 
 export const RadioAdModal: React.FC<RadioAdModalProps> = ({
@@ -16,26 +26,36 @@ export const RadioAdModal: React.FC<RadioAdModalProps> = ({
   onCancel
 }) => {
   const [countdown, setCountdown] = useState<number>(6);
-  const [isAdLoaded, setIsAdLoaded] = useState<boolean>(false);
+  const [activeAd, setActiveAd] = useState<SubmittedAd | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setCountdown(6);
-      setIsAdLoaded(false);
       return;
     }
 
     setCountdown(6);
-    // Ad load simulation fallback (instantly loaded after 1 second)
-    const adTimer = setTimeout(() => {
-      setIsAdLoaded(true);
-    }, 1000);
 
-    return () => clearTimeout(adTimer);
+    // Fetch active submitted ads
+    fetch('/api/ads/active')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ads && Array.isArray(data.ads) && data.ads.length > 0) {
+          const randomAd = data.ads[Math.floor(Math.random() * data.ads.length)];
+          setActiveAd(randomAd);
+          // Track impression
+          fetch('/api/ads/track-impression', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adId: randomAd.id })
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !isAdLoaded) return;
+    if (!isOpen) return;
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -49,7 +69,20 @@ export const RadioAdModal: React.FC<RadioAdModalProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, isAdLoaded, onComplete]);
+  }, [isOpen, onComplete]);
+
+  const handleAdClick = () => {
+    if (activeAd) {
+      fetch('/api/ads/track-click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adId: activeAd.id })
+      }).catch(() => {});
+      if (activeAd.targetUrl) {
+        window.open(activeAd.targetUrl, '_blank', 'noopener,noreferrer');
+      }
+    }
+  };
 
   if (!isOpen || !station) return null;
 
@@ -97,27 +130,43 @@ export const RadioAdModal: React.FC<RadioAdModalProps> = ({
             </div>
           </div>
 
-          {/* Ad Container (Google AdSense / Rwandan Sponsors) */}
-          <div className="rounded-2xl bg-gradient-to-br from-indigo-950/60 to-slate-900 border border-indigo-500/30 p-4 space-y-2">
+          {/* Ad Container (Google AdSense / Submitted Ads) */}
+          <div className="rounded-2xl bg-gradient-to-br from-indigo-950/60 to-slate-900 border border-indigo-500/30 p-4 space-y-2 text-left">
             <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold border-b border-slate-800 pb-1.5">
               <span className="flex items-center gap-1 text-amber-300">
                 <ShieldCheck className="w-3.5 h-3.5" /> Verified Benix Partner
               </span>
               <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                Ad
+                Sponsored
               </span>
             </div>
 
-            <div className="py-3 space-y-1">
-              <p className="font-black text-sm text-white">MTN Rwanda & Bank of Kigali</p>
-              <p className="text-xs text-slate-300">
-                Deposit, cash out, and bet securely across all Benix apps starting from 100 RWF with zero fees.
-              </p>
-            </div>
+            {activeAd ? (
+              <div className="py-2 space-y-2">
+                {activeAd.mediaUrl && (
+                  <img
+                    src={activeAd.mediaUrl}
+                    alt={activeAd.title}
+                    className="w-full h-32 object-cover rounded-xl border border-slate-800"
+                  />
+                )}
+                <div>
+                  <p className="font-black text-sm text-white">{activeAd.title}</p>
+                  <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">{activeAd.description}</p>
+                </div>
+                <button
+                  onClick={handleAdClick}
+                  className="w-full py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <span>Visit Sponsor</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              </div>
+            ) : null}
 
-            {/* Google AdSense slot container */}
-            <div className="min-h-[60px] bg-black/40 rounded-xl border border-dashed border-slate-700 flex items-center justify-center p-2 text-center text-xs text-slate-500">
-              <span>Google AdSense / Radio Display Ad</span>
+            {/* Google AdSense Unit */}
+            <div className="pt-1">
+              <GoogleAdSense slot="8392017482" format="rectangle" />
             </div>
           </div>
 

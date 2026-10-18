@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Home, Search, Plus, MessageSquare, User, ShieldCheck } from 'lucide-react';
+import { Home, Search, Plus, MessageSquare, User, ShieldCheck, LogIn, UserPlus } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 
@@ -12,6 +12,7 @@ export const BottomNav: React.FC = () => {
 
   const [showSearch, setShowSearch] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [wizardTab, setWizardTab] = useState<'register' | 'login'>('login');
   const [showInboxNotice, setShowInboxNotice] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
@@ -48,6 +49,7 @@ export const BottomNav: React.FC = () => {
           <button
             onClick={() => {
               if (!user) {
+                setWizardTab('register');
                 setShowWizard(true);
               } else {
                 navigate('/dashboard');
@@ -66,6 +68,7 @@ export const BottomNav: React.FC = () => {
           onClick={(e) => {
             if (!user) {
               e.preventDefault();
+              setWizardTab('login');
               setShowWizard(true);
             }
           }}
@@ -79,31 +82,39 @@ export const BottomNav: React.FC = () => {
           <span className="text-[10px] font-bold mt-1 tracking-tight">Inbox</span>
         </Link>
 
-        {/* 5. Profile / Admin */}
-        <Link
-          to={isAdmin ? '/admin' : (user ? '/dashboard' : '#')}
-          onClick={(e) => {
-            if (!user && !isAdmin) {
-              e.preventDefault();
+        {/* 5. Profile / Admin / Sign In */}
+        {user ? (
+          <Link
+            to={isAdmin ? '/admin' : '/dashboard'}
+            className={`flex flex-col items-center justify-center py-1 transition-all ${
+              isActive('/dashboard') || isActive('/admin') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {isAdmin ? (
+              <div className="relative">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              </div>
+            ) : (
+              <User className="w-5 h-5" />
+            )}
+            <span className="text-[10px] font-bold mt-1 tracking-tight">
+              {isAdmin ? 'Admin' : 'Profile'}
+            </span>
+          </Link>
+        ) : (
+          <button
+            onClick={() => {
+              setWizardTab('login');
               setShowWizard(true);
-            }
-          }}
-          className={`flex flex-col items-center justify-center py-1 transition-all ${
-            isActive('/dashboard') || isActive('/admin') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          {isAdmin ? (
-            <div className="relative">
-              <ShieldCheck className="w-5 h-5 text-amber-400" />
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            </div>
-          ) : (
-            <User className="w-5 h-5" />
-          )}
-          <span className="text-[10px] font-bold mt-1 tracking-tight">
-            {isAdmin ? 'Admin' : (user ? 'Profile' : 'Join')}
-          </span>
-        </Link>
+            }}
+            className="flex flex-col items-center justify-center py-1 transition-all text-slate-400 hover:text-blue-400"
+            title="Sign In to Account"
+          >
+            <LogIn className="w-5 h-5 text-blue-400" />
+            <span className="text-[10px] font-bold mt-1 tracking-tight text-blue-400">Sign In</span>
+          </button>
+        )}
 
       </nav>
 
@@ -116,6 +127,7 @@ export const BottomNav: React.FC = () => {
           isOpen={showWizard}
           onClose={() => setShowWizard(false)}
           targetAppKey="tv"
+          initialTab={wizardTab}
           onSuccess={() => setShowWizard(false)}
         />
       )}

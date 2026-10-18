@@ -32,6 +32,8 @@ import {
   X
 } from 'lucide-react';
 import axios from 'axios';
+import { GoogleAdSense } from '../../components/ads/GoogleAdSense';
+import realVideosData from '../../config/realVideos.json';
 
 interface VideoItem {
   id: string;
@@ -51,133 +53,8 @@ interface VideoItem {
   createdAt?: string;
 }
 
-// Clean fallback catalogue (Removed dummy Ambassador videos as requested by user)
-const FALLBACK_VIDEOS: VideoItem[] = [
-  {
-    id: 'vid-02',
-    title: 'Israel Mbonyi - Nina Siri Live Acoustic BK Arena Experience',
-    creator: 'Israel Mbonyi Official',
-    channelName: 'Israel Mbonyi',
-    channelAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
-    duration: '8:45',
-    views: 890000,
-    likes: 64200,
-    category: 'Gospel & Choirs',
-    price: 0,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/7V-2mGj8H1M',
-    description: 'Soul-stirring live acoustic gospel worship performance recorded live at BK Arena in Kigali in front of 20,000 worshippers.'
-  },
-  {
-    id: 'vid-03',
-    title: 'Seburikoko Season 18 — Full Episode Premier (Afrifame Pictures)',
-    creator: 'Afrifame Pictures',
-    channelName: 'Afrifame Studios',
-    channelAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
-    duration: '26:15',
-    views: 312000,
-    likes: 18900,
-    category: 'Series & Comedy',
-    price: 300,
-    commission_pct: 15,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLfWb3Xk-comedy',
-    description: "Rwanda's favorite national television drama series. Follow Seburikoko's village adventures and unexpected family schemes."
-  },
-  {
-    id: 'vid-04',
-    title: 'Bamenya Series Episode 142 — Byakaze mu Mujyi',
-    creator: 'Zacu TV',
-    channelName: 'Zacu Entertainment',
-    channelAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=80',
-    duration: '22:30',
-    views: 520000,
-    likes: 31000,
-    category: 'Series & Comedy',
-    price: 0,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLzacu-bamenya',
-    description: 'City life comedy drama starring Denis Nsanzimahoro (Bamenya) exploring modern youth culture and hustle in Kigali.'
-  },
-  {
-    id: 'vid-05',
-    title: 'City Maid Season 12 Finale — Inkuru Idasanzwe',
-    creator: 'Zacu Entertainment',
-    channelName: 'Zacu Entertainment',
-    channelAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&auto=format&fit=crop&q=80',
-    duration: '28:10',
-    views: 410000,
-    likes: 24500,
-    category: 'Series & Comedy',
-    price: 500,
-    commission_pct: 15,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLzacu-citymaid',
-    description: 'Emotional season finale unveiling domestic challenges, romantic twists, and family triumphs across urban households.'
-  },
-  {
-    id: 'vid-06',
-    title: 'Alarm Ministries - Hashimwe Izina Ryera Live Worship Album',
-    creator: 'Alarm Ministries',
-    channelName: 'Alarm Ministries',
-    channelAvatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
-    duration: '18:50',
-    views: 295000,
-    likes: 21300,
-    category: 'Gospel & Choirs',
-    price: 0,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLalarm-ministries',
-    description: 'An anointed evening of praise and prophetic worship recorded live in Kimisagara.'
-  },
-  {
-    id: 'vid-07',
-    title: 'Chorale de Kigali — Easter Gala Evening at Kigali Serena',
-    creator: 'Chorale de Kigali',
-    channelName: 'Chorale de Kigali',
-    channelAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800&auto=format&fit=crop&q=80',
-    duration: '32:00',
-    views: 180000,
-    likes: 14700,
-    category: 'Gospel & Choirs',
-    price: 500,
-    commission_pct: 15,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLchorale-de-kigali',
-    description: 'Majestic classical polyphonic choral harmony performing traditional Rwandan and sacred masterpieces.'
-  },
-  {
-    id: 'vid-08',
-    title: 'Visit Rwanda 4K Cinematic Journey — The Land of a Thousand Hills',
-    creator: 'Rwanda Development Board',
-    channelName: 'Visit Rwanda',
-    channelAvatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?w=800&auto=format&fit=crop&q=80',
-    duration: '12:15',
-    views: 740000,
-    likes: 58000,
-    category: 'Culture & Documentaries',
-    price: 0,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLvisit-rwanda',
-    description: 'Breathtaking 4K drone cinematography spanning Volcanoes National Park, Lake Kivu, and Akagera wildlife.'
-  },
-  {
-    id: 'vid-09',
-    title: 'BK Arena All-Stars Mega Concert Live Stream Experience',
-    creator: 'BK Arena Live',
-    channelName: 'BK Arena Live',
-    channelAvatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=200&auto=format&fit=crop&q=80',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80',
-    duration: '45:30',
-    views: 620000,
-    likes: 49200,
-    category: 'Music & Shows',
-    price: 1000,
-    commission_pct: 20,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLbk-arena-concerts',
-    description: 'High-energy arena concert featuring the best contemporary African and Rwandan musicians.'
-  }
-];
+// 94 Real YouTube videos provided by user (real creators & titles, 0 fake subscriber counters)
+const FALLBACK_VIDEOS: VideoItem[] = realVideosData as VideoItem[];
 
 const CATEGORIES = [
   'All',
@@ -629,7 +506,7 @@ export const VideosPage: React.FC = () => {
                       <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 fill-purple-400/20" />
                     </div>
                     <span className="text-[11px] text-slate-400">
-                      {((activeVideo.views || 1000) * 1.4).toLocaleString(undefined, { maximumFractionDigits: 0 })} subscribers
+                      Official Benix Partner Channel
                     </span>
                   </div>
 
@@ -706,6 +583,11 @@ export const VideosPage: React.FC = () => {
                 <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
                   {activeVideo.description || 'Verified high definition creator broadcast on BenixSpace.'}
                 </p>
+              </div>
+
+              {/* Google AdSense Banner below description */}
+              <div className="pt-2">
+                <GoogleAdSense slot="8392017482" format="horizontal" />
               </div>
 
               {/* YouTube-Style Threaded Comments & Live Replies with Multilingual Moderation */}

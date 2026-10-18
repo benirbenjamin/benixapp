@@ -3,8 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { removeAuthToken } from '../../services/api';
 import {
   LayoutDashboard, Layers, FileText, BarChart3, SearchCheck,
-  Settings, LogOut, Menu, X, Rocket, ShieldCheck, Mail, Users, UserCheck,
-  Globe, ExternalLink
+  Settings, LogOut, Menu, X, ShieldCheck, Users, UserCheck,
+  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -29,18 +29,36 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     navigate('/admin/login');
   };
 
-  const navItems = [
+  const coreNavItems = [
     { name: 'Dashboard Overview', path: '/admin', icon: LayoutDashboard },
+    { name: 'Users & Permissions', path: '/admin/users', icon: Users },
     { name: 'Project Portfolio', path: '/admin/projects', icon: Layers },
     { name: 'Blog Articles CMS', path: '/admin/blog', icon: FileText },
-    { name: 'Users & Editors', path: '/admin/users', icon: Users },
     { name: 'Visitor Analytics', path: '/admin/analytics', icon: BarChart3 },
     { name: 'SEO Health & Audit', path: '/admin/seo', icon: SearchCheck },
-    { name: 'Platform Settings', path: '/admin/settings', icon: Settings },
+  ];
+
+  const platformNavItems = [
+    { name: 'Videos & Shows', path: '/admin#videos', icon: Film, badge: '94 Videos' },
+    { name: 'Marketplace Store', path: '/admin#marketplace', icon: ShoppingBag, badge: 'Products' },
+    { name: 'Live TV & Radio', path: '/admin#tv_radio', icon: Tv, badge: '36 Live' },
+    { name: 'Kunda Dating Hub', path: '/admin#kunda', icon: Heart },
+    { name: 'Voxify Choral Music', path: '/admin#voxify', icon: Music },
+    { name: 'RollDice Games', path: '/admin#games', icon: Gamepad2 },
+  ];
+
+  const configNavItems = [
+    { name: 'Platform Settings & Variables', path: '/admin/settings', icon: Settings },
     { name: 'My Profile & Security', path: '/admin/profile', icon: UserCheck },
   ];
 
   const isActive = (path: string) => {
+    if (path.includes('#')) {
+      return location.pathname === '/admin' && location.hash === path.substring(path.indexOf('#'));
+    }
+    if (path === '/admin') {
+      return location.pathname === '/admin' && !location.hash;
+    }
     if (path === '/admin/settings') {
       return location.pathname === '/admin/settings' || location.pathname === '/admin/settings/company';
     }
@@ -89,24 +107,85 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </Link>
         </div>
 
-        <nav className="flex-1 px-3 py-1 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
-                  isActive(item.path)
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                    : 'text-slate-400 hover:bg-[#161D2E] hover:text-white'
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 py-1 space-y-4 overflow-y-auto">
+          {/* Group 1: Core Operations */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 px-3 block">
+              Core Operations
+            </span>
+            {coreNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isActive(item.path)
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                      : 'text-slate-400 hover:bg-[#161D2E] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Group 2: Ecosystem Platforms Content */}
+          <div className="space-y-1 pt-2 border-t border-slate-800/80">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-400 px-3 block">
+              Ecosystem Platforms
+            </span>
+            {platformNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isActive(item.path)
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                      : 'text-slate-400 hover:bg-[#161D2E] hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0 text-purple-400" />
+                    <span className="truncate">{item.name}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold shrink-0">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Group 3: Configuration */}
+          <div className="space-y-1 pt-2 border-t border-slate-800/80">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 px-3 block">
+              Configuration
+            </span>
+            {configNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isActive(item.path)
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                      : 'text-slate-400 hover:bg-[#161D2E] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Footer Admin User Card */}
@@ -157,7 +236,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
       {/* Mobile Drawer Menu */}
       {sidebarOpen && (
-        <div className="md:hidden bg-[#111724] text-slate-300 p-4 space-y-2 border-b border-slate-800">
+        <div className="md:hidden bg-[#111724] text-slate-300 p-4 space-y-3 border-b border-slate-800 max-h-[80vh] overflow-y-auto">
           <Link
             to="/"
             target="_blank"
@@ -170,22 +249,79 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <ExternalLink className="w-4 h-4" />
           </Link>
 
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold ${
-                  isActive(item.path) ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 px-2 block">
+              Core Operations
+            </span>
+            {coreNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold ${
+                    isActive(item.path) ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="space-y-1 pt-2 border-t border-slate-800">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-400 px-2 block">
+              Ecosystem Platforms
+            </span>
+            {platformNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold ${
+                    isActive(item.path) ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-4 h-4 text-purple-400" />
+                    <span>{item.name}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="space-y-1 pt-2 border-t border-slate-800">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 px-2 block">
+              Configuration
+            </span>
+            {configNavItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold ${
+                    isActive(item.path) ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/20 text-red-400 font-bold text-xs"

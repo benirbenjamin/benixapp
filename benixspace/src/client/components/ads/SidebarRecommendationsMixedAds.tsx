@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
 import { WalletModal } from '../modals/WalletModal';
+import { GoogleAdSense } from './GoogleAdSense';
 
 interface RecommendationItem {
   id: string;
@@ -205,11 +206,9 @@ export const SidebarRecommendationsMixedAds: React.FC<Props> = ({
 
               {/* Google AdSense Rectangle slot after item 3 */}
               {index === 2 && (
-                <div className="p-3 rounded-2xl bg-black/40 border border-dashed border-slate-700/80 text-center space-y-1">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Google AdSense Partner Slot</span>
-                  <div className="h-16 flex items-center justify-center text-xs text-slate-400">
-                    <span>Responsive AdSense Mixed Banner</span>
-                  </div>
+                <div className="p-2.5 rounded-2xl bg-black/40 border border-slate-800 text-center space-y-1">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Sponsored Advertisement</span>
+                  <GoogleAdSense slot="8392017482" format="rectangle" />
                 </div>
               )}
             </React.Fragment>

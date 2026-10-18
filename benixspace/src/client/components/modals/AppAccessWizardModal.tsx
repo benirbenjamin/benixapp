@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { APP_REQUIREMENTS, type AppRequirementConfig } from '../../config/appRequirements';
@@ -20,7 +20,8 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 
 interface AppAccessWizardModalProps {
@@ -28,6 +29,7 @@ interface AppAccessWizardModalProps {
   onClose: () => void;
   targetAppKey: string | null;
   onSuccess?: () => void;
+  initialTab?: 'register' | 'login';
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -44,13 +46,14 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   isOpen,
   onClose,
   targetAppKey,
-  onSuccess
+  onSuccess,
+  initialTab = 'register'
 }) => {
   const navigate = useNavigate();
   const { user, login, registerWizard, verifyAccount, resendVerificationCode, saveAppProfile } = useAuth();
 
   // Mode: 'register' | 'login' | 'verify' (if not logged in) or 'wizard' (if logged in but needs requirement fields)
-  const [authTab, setAuthTab] = useState<'register' | 'login' | 'verify'>('register');
+  const [authTab, setAuthTab] = useState<'register' | 'login' | 'verify'>(initialTab);
   const [authError, setAuthError] = useState<string>('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string>('');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
@@ -72,6 +75,29 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   const [wizardError, setWizardError] = useState('');
   const [wizardLoading, setWizardLoading] = useState(false);
   const [wizardSuccess, setWizardSuccess] = useState(false);
+
+  // Sync initialTab when modal opens or initialTab changes
+  useEffect(() => {
+    if (initialTab) {
+      setAuthTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
+
+  // Pre-populate wizard data with defaults (e.g. favorite_content multiselect for TV)
+  useEffect(() => {
+    if (targetAppKey && APP_REQUIREMENTS[targetAppKey]) {
+      const cfg = APP_REQUIREMENTS[targetAppKey];
+      const initial: Record<string, any> = {};
+      cfg.fields.forEach((f) => {
+        if (f.defaultValue !== undefined) {
+          initial[f.name] = f.defaultValue;
+        } else if (f.type === 'multiselect') {
+          initial[f.name] = [];
+        }
+      });
+      setWizardData((prev) => ({ ...initial, ...prev }));
+    }
+  }, [targetAppKey, isOpen]);
 
   if (!isOpen || !targetAppKey) return null;
 
@@ -199,9 +225,12 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
 
     // Validate required fields
     for (const f of appConfig.fields) {
-      if (f.required && !wizardData[f.name]) {
-        setWizardError(`Please provide ${f.label}`);
-        return;
+      if (f.required) {
+        const val = wizardData[f.name];
+        if (val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0)) {
+          setWizardError(`Please provide ${f.label}`);
+          return;
+        }
       }
     }
 
@@ -601,6 +630,76 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
+                    )}
+
+                    {f.type === 'multiselect' && (
+                      <div className="space-y-2 mt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {f.options?.map((opt) => {
+                            const selected = Array.isArray(wizardData[f.name]) && wizardData[f.name].includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => {
+                                  const current: string[] = Array.isArray(wizardData[f.name]) ? [...wizardData[f.name]] : [];
+                                  const next = current.includes(opt)
+                                    ? current.filter((x) => x !== opt)
+                                    : [...current, opt];
+                                  setWizardData({ ...wizardData, [f.name]: next });
+                                }}
+                                className={`px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all text-left ${
+                                  selected
+                                    ? 'bg-blue-600/25 border-blue-500 text-blue-200 shadow-sm'
+                                    : 'bg-slate-900/90 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:text-white'
+                                }`}
+                              >
+                                <span className="truncate pr-1">{opt}</span>
+                                <div
+                                  className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                    selected
+                                      ? 'bg-blue-500 border-blue-400 text-white'
+                                      : 'border-slate-600 bg-slate-800'
+                                  }`}
+                                >
+                                  {selected && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-slate-400 flex items-center justify-between">
+                          <span>Click to toggle your preferred choices</span>
+                          <span className="font-bold text-blue-400">
+                            {Array.isArray(wizardData[f.name]) ? wizardData[f.name].length : 0} of {f.options?.length || 0} selected
+                          </span>
+                        </p>
+                      </div>
+                    )}
+
+                    {f.type === 'radio' && (
+                      <div className="space-y-2 mt-1">
+                        {f.options?.map((opt) => {
+                          const selected = wizardData[f.name] === opt;
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setWizardData({ ...wizardData, [f.name]: opt })}
+                              className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all text-left ${
+                                selected
+                                  ? 'bg-blue-600/25 border-blue-500 text-blue-200'
+                                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
+                              }`}
+                            >
+                              <span>{opt}</span>
+                              <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${selected ? 'border-blue-400 bg-blue-500' : 'border-slate-600'}`}>
+                                {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
 
                     {f.type === 'text' && (

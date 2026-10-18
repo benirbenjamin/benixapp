@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -26,7 +26,10 @@ import {
   Smartphone,
   Download,
   Film,
-  Megaphone
+  Megaphone,
+  LogIn,
+  UserPlus,
+  ChevronDown
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
@@ -44,6 +47,19 @@ export const Navbar: React.FC = () => {
   const [showMessages, setShowMessages] = useState(false);
   const [showCreateMedia, setShowCreateMedia] = useState(false);
   const [wizardAppKey, setWizardAppKey] = useState<string | null>(null);
+  const [wizardInitialTab, setWizardInitialTab] = useState<'register' | 'login'>('register');
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(event.target as Node)) {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const { user, wallet, logout, hasAppProfile } = useAuth();
   const { isInstalled, installApp } = usePwa();
@@ -169,24 +185,133 @@ export const Navbar: React.FC = () => {
                 )}
               </button>
 
-              {/* User Avatar / Join */}
+              {/* User Avatar Dropdown / Auth Buttons */}
               {user ? (
-                <div className="relative group">
-                  <Link
-                    to="/dashboard"
-                    className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md hover:scale-105 transition-transform"
-                    title={`Dashboard (${user.name})`}
+                <div className="relative" ref={avatarMenuRef}>
+                  <button
+                    onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
+                    className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    title={`Account Menu (${user.name})`}
                   >
                     {user.name.charAt(0).toUpperCase()}
-                  </Link>
+                  </button>
+
+                  {/* Avatar Dropdown Menu */}
+                  {isAvatarMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-72 bg-[#0F141F] border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                      {/* User Info Header */}
+                      <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-md shrink-0">
+                            {user.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-white text-xs truncate">{user.name}</p>
+                            <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-400 text-[9px] font-bold uppercase tracking-wider">
+                              {user.role}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Central Wallet Summary */}
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                            <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Wallet</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setIsAvatarMenuOpen(false);
+                              navigate('/dashboard#wallet');
+                            }}
+                            className="text-xs font-black text-emerald-400 hover:text-emerald-300"
+                          >
+                            {Number(wallet?.balance ?? 0).toLocaleString()} RWF
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Navigation Links */}
+                      <div className="space-y-1">
+                        <Link
+                          to="/dashboard"
+                          onClick={() => setIsAvatarMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                          <span>My Dashboard & Profile</span>
+                        </Link>
+
+                        <Link
+                          to="/messages"
+                          onClick={() => setIsAvatarMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
+                        >
+                          <MessageSquare className="w-4 h-4 text-purple-400" />
+                          <span>Direct Messages</span>
+                        </Link>
+
+                        {isAdmin && (
+                          <Link
+                            to="/admin"
+                            onClick={() => setIsAvatarMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 transition-colors"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-amber-400" />
+                            <span>Admin Management</span>
+                          </Link>
+                        )}
+
+                        <Link
+                          to={isAdmin ? '/admin/settings' : '/dashboard#settings'}
+                          onClick={() => setIsAvatarMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
+                        >
+                          <UserIcon className="w-4 h-4 text-slate-400" />
+                          <span>System & Profile Settings</span>
+                        </Link>
+                      </div>
+
+                      {/* Divider & Log Out */}
+                      <div className="mt-2 pt-2 border-t border-slate-800">
+                        <button
+                          onClick={() => {
+                            setIsAvatarMenuOpen(false);
+                            logout();
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-left"
+                        >
+                          <LogOut className="w-4 h-4 text-rose-400" />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <button
-                  onClick={() => setWizardAppKey('tv')}
-                  className="hidden md:inline-flex px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all items-center gap-1"
-                >
-                  Join
-                </button>
+                <div className="hidden md:flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setWizardInitialTab('login');
+                      setWizardAppKey('tv');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 hover:text-white text-xs font-bold border border-slate-700/80 transition-all flex items-center gap-1.5"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Sign In</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setWizardInitialTab('register');
+                      setWizardAppKey('tv');
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition-all flex items-center gap-1.5"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-white" />
+                    <span>Join</span>
+                  </button>
+                </div>
               )}
 
             </div>
@@ -391,12 +516,30 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => { setIsDrawerOpen(false); setWizardAppKey('tv'); }}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-lg"
-                >
-                  Sign In / Register
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      setWizardInitialTab('login');
+                      setWizardAppKey('tv');
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Sign In</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      setWizardInitialTab('register');
+                      setWizardAppKey('tv');
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-white" />
+                    <span>Join</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -412,6 +555,7 @@ export const Navbar: React.FC = () => {
           isOpen={!!wizardAppKey}
           onClose={() => setWizardAppKey(null)}
           targetAppKey={wizardAppKey}
+          initialTab={wizardInitialTab}
           onSuccess={() => setWizardAppKey(null)}
         />
       )}
