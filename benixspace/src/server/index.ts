@@ -542,8 +542,10 @@ app.post('/api/auth/register-wizard', async (req, res) => {
  */
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    console.log('🔵 [SERVER_LOGIN_ATTEMPT]:', { email: req.body?.email, hasBody: !!req.body });
+    const { email, password } = req.body || {};
     if (!email || !password) {
+      console.warn('⚠️ [SERVER_LOGIN_MISSING_CREDENTIALS]:', { email: !!email, password: !!password });
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
@@ -678,8 +680,12 @@ app.post('/api/auth/login', async (req, res) => {
       daily_login_bonus: loginBonusResult?.claimed ? loginBonusResult : null
     });
   } catch (err: any) {
-    console.error('Login Error:', err);
-    return res.status(400).json({ error: err.message || 'Login failed. Please verify your credentials.' });
+    console.error('🔴 [SERVER_LOGIN_EXCEPTION_CAUGHT]:', err);
+    return res.status(500).json({
+      error: err.message || 'Login failed due to an unexpected server error.',
+      code: err.code || 'LOGIN_ERROR',
+      details: String(err)
+    });
   }
 });
 

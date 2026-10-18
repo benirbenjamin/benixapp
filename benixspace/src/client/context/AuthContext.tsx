@@ -202,7 +202,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { success: false, error: typeof data?.error === 'string' ? data.error : 'Invalid response from server' };
     } catch (err: any) {
-      console.warn('Axios login error:', err);
+      console.error('🔴 [AUTH_LOGIN_CATCH_ERROR]:', err);
+      console.error('🔴 [AUTH_LOGIN_STATUS]:', err.response?.status);
+      console.error('🔴 [AUTH_LOGIN_DATA]:', err.response?.data);
+      console.error('🔴 [AUTH_LOGIN_MESSAGE]:', err.message);
 
       // Check if server returned requires_verification in error response
       if (err.response?.data?.requires_verification) {
@@ -248,16 +251,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
 
-      // Safe error extraction from Axios response (always clean string)
-      let errorMessage = 'Invalid email or password.';
-      const rawErr = err.response?.data?.error || err.response?.data?.message || err.message;
-      if (typeof rawErr === 'string') {
-        errorMessage = rawErr;
-      } else if (rawErr && typeof rawErr.message === 'string') {
-        errorMessage = rawErr.message;
-      } else if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. Please try again.';
+      // Exact error extraction from Axios response
+      let errorMessage = 'Login failed.';
+      const resData = err.response?.data;
+      if (resData) {
+        if (typeof resData === 'string') {
+          errorMessage = resData;
+        } else if (resData.error && typeof resData.error === 'string') {
+          errorMessage = resData.error;
+        } else if (resData.message && typeof resData.message === 'string') {
+          errorMessage = resData.message;
+        } else {
+          errorMessage = JSON.stringify(resData);
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
       }
+      console.error('🔴 [AUTH_LOGIN_DISPLAY_ERROR]:', errorMessage);
       return { success: false, error: errorMessage };
     }
   };

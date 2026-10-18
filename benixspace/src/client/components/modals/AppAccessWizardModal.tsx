@@ -84,19 +84,24 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     setAuthSuccessMsg('');
     setAuthLoading(true);
 
-    const res = await login(email, password);
-    setAuthLoading(false);
+    console.log('🔵 [MODAL_LOGIN_SUBMIT_START]:', { email });
 
-    if (res.requiresVerification) {
-      setVerifyEmail(res.email || email);
-      setAuthTab('verify');
-      setAuthSuccessMsg('Account pending verification. A 6-digit verification code has been dispatched to your email.');
-      return;
-    }
+    try {
+      const res = await login(email, password);
+      setAuthLoading(false);
 
-    if (!res.success) {
-      setAuthError(res.error || 'Login failed. Please check your credentials.');
-    } else {
+      if (res.requiresVerification) {
+        console.log('🟡 [MODAL_LOGIN_REQUIRES_VERIFICATION]:', res.email);
+        setVerifyEmail(res.email || email);
+        setAuthTab('verify');
+        setAuthSuccessMsg('Account pending verification. A 6-digit verification code has been dispatched to your email.');
+        return;
+      }
+
+      if (!res.success) {
+        console.error('🔴 [MODAL_LOGIN_FAILED_RESPONSE]:', res);
+        setAuthError(res.error || 'Login failed. Please check your credentials.');
+      } else {
       // If user has already completed this app's profile, navigate immediately
       if (appConfig) {
         const updatedUser = JSON.parse(localStorage.getItem('benix_user') || '{}');
@@ -107,7 +112,12 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
         }
       }
     }
-  };
+  } catch (err: any) {
+    setAuthLoading(false);
+    console.error('🔴 [MODAL_LOGIN_EXCEPTION_CAUGHT]:', err);
+    setAuthError(err.message || 'Login failed with an unexpected error.');
+  }
+};
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
