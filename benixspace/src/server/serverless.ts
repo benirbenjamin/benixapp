@@ -1,8 +1,8 @@
-import app from '../src/server/index';
+import app from './index';
 
 export default function handler(req: any, res: any) {
   return new Promise((resolve) => {
-    // Prevent serverless function from exiting before response is sent
+    // Keep serverless function alive until response is finished
     res.on('finish', () => resolve(null));
     res.on('close', () => resolve(null));
 
@@ -22,21 +22,6 @@ export default function handler(req: any, res: any) {
         }
         const qs = queryParams.toString();
         req.url = '/api/' + subPath + (qs ? '?' + qs : '');
-      } else if (req.query && req.query.route) {
-        // If reached via catch-all [...route]
-        const segments = Array.isArray(req.query.route) ? req.query.route.join('/') : String(req.query.route);
-        delete req.query.route;
-
-        const queryParams = new URLSearchParams();
-        for (const [k, v] of Object.entries(req.query)) {
-          if (Array.isArray(v)) {
-            v.forEach((val) => queryParams.append(k, String(val)));
-          } else if (v !== undefined) {
-            queryParams.append(k, String(v));
-          }
-        }
-        const qs = queryParams.toString();
-        req.url = '/api/' + segments + (qs ? '?' + qs : '');
       } else {
         const matched =
           req.headers['x-matched-path'] ||
@@ -82,4 +67,3 @@ export default function handler(req: any, res: any) {
     }
   });
 }
-
