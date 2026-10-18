@@ -32,7 +32,7 @@ interface AuthContextType {
   wallet: Wallet | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, pass: string) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }>;
   registerWizard: (data: {
     name: string;
     email: string;
@@ -41,7 +41,10 @@ interface AuthContextType {
     whatsapp?: string;
     country?: string;
     referral_code?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
+    [key: string]: any;
+  }) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }>;
+  verifyAccount: (email: string, code: string) => Promise<{ success: boolean; error?: string }>;
+  resendVerificationCode: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   saveAppProfile: (appKey: string, profileData: any) => Promise<{ success: boolean; error?: string }>;
   hasAppProfile: (appKey: string) => boolean;
   logout: () => void;
@@ -58,6 +61,8 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   login: async () => ({ success: false }),
   registerWizard: async () => ({ success: false }),
+  verifyAccount: async () => ({ success: false }),
+  resendVerificationCode: async () => ({ success: false }),
   saveAppProfile: async () => ({ success: false }),
   hasAppProfile: () => false,
   logout: () => {},
@@ -123,9 +128,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   /**
-   * Login using Axios with safe error parsing and instant Super Admin fallback
+   * Login using Axios with safe error parsing, unverified account verification prompt, and instant Super Admin fallback
    */
-  const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, pass: string): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = pass.trim();
 
@@ -140,6 +145,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       const { data } = response;
+
+      // Handle unverified account requiring email verification
+      if (data?.requires_verification) {
+        return {
+          success: false,
+          requiresVerification: true,
+          email: data.email || cleanEmail
+        };
+      }
+
       if (data?.token && data?.user) {
         setToken(data.token);
         setUser(data.user);
@@ -155,6 +170,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: typeof data?.error === 'string' ? data.error : 'Invalid response from server' };
     } catch (err: any) {
       console.warn('Axios login error:', err);
+
+      // Check if server returned requires_verification in error response
+      if (err.response?.data?.requires_verification) {
+        return {
+          success: false,
+          requiresVerification: true,
+          email: err.response.data.email || cleanEmail
+        };
+      }
 
       // If backend was unreachable or server error, but credentials are Super Admin, allow access:
       if (isSuperAdminEmail && isSuperAdminPass) {
@@ -216,22 +240,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     whatsapp?: string;
     country?: string;
     referral_code?: string;
-  }): Promise<{ success: boolean; error?: string }> => {
+    [key: string]: any;
+  }): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }> => {
+    const cleanEmail = data.email.trim().toLowerCase();
     try {
       const cleanData = {
         name: data.name.trim(),
-        email: data.email.trim().toLowerCase(),
+        email: cleanEmail,
         password: data.password,
         phone: (data.whatsapp || data.phone || '').trim(),
         whatsapp: (data.whatsapp || data.phone || '').trim(),
         country: (data.country || 'Rwanda').trim(),
         referral_code: data.referral_code ? data.referral_code.trim() : undefined,
-        selected_modules: ['tv', 'radio', 'kunda', 'marketplace', 'voxify', 'games', 'calc'],
-        homepage_layout: { order: ['tv', 'radio', 'kunda', 'marketplace', 'voxify', 'games', 'calc'] }
+        selected_modules: data.selected_modules || ['tv', 'radio', 'kunda', 'marketplace', 'voxify', 'games', 'calc'],
+        homepage_layout: data.homepage_layout || { order: ['tv', 'radio', 'kunda', 'marketplace', 'voxify', 'games', 'calc'] }
       };
 
       const response = await apiClient.post('/api/auth/register-wizard', cleanData);
       const resData = response.data;
+
+      // Handle unverified account requiring email verification code
+      if (resData?.requires_verification) {
+        return {
+          success: false,
+          requiresVerification: true,
+          email: resData.email || cleanEmail
+        };
+      }
 
       if (resData?.token && resData?.user) {
         setToken(resData.token);
@@ -245,37 +280,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: resData?.error || 'Registration failed.' };
     } catch (err: any) {
       console.warn('Axios register error:', err);
-      // Fallback local registration if server unreachable
-      if (data.email && data.name) {
-        const localUserId = 'usr_' + Date.now();
-        const localUser: User = {
-          id: localUserId,
-          email: data.email.trim().toLowerCase(),
-          name: data.name.trim(),
-          role: 'user',
-          phone: data.whatsapp || data.phone,
-          whatsapp: data.whatsapp || data.phone,
-          country: data.country || 'Rwanda',
-          referral_code: 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-          selected_modules: ['tv', 'radio', 'kunda', 'marketplace', 'voxify', 'games', 'calc'],
-          app_profiles: {}
-        };
-        const localToken = 'token_' + Date.now();
-        const localWallet: Wallet = { balance: 100.0, currency: 'RWF' };
 
-        setToken(localToken);
-        setUser(localUser);
-        setWallet(localWallet);
-        localStorage.setItem('benix_auth_token', localToken);
-        localStorage.setItem('benix_user', JSON.stringify(localUser));
-        localStorage.setItem('benix_wallet', JSON.stringify(localWallet));
-        return { success: true };
+      if (err.response?.data?.requires_verification) {
+        return {
+          success: false,
+          requiresVerification: true,
+          email: err.response.data.email || cleanEmail
+        };
       }
 
       const errorMessage =
         err.response?.data?.error ||
         err.response?.data?.message ||
         'Registration could not be completed. Please check your information.';
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  /**
+   * Verify Account with 6-digit email code and log in
+   */
+  const verifyAccount = async (email: string, code: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await apiClient.post('/api/auth/verify-account', {
+        email: email.trim().toLowerCase(),
+        code: code.trim()
+      });
+
+      const { data } = response;
+      if (data?.token && data?.user) {
+        setToken(data.token);
+        setUser(data.user);
+        setWallet(data.wallet || { balance: 0, bonus_balance: 100, total_balance: 100, currency: 'RWF' });
+        localStorage.setItem('benix_auth_token', data.token);
+        localStorage.setItem('benix_user', JSON.stringify(data.user));
+        localStorage.setItem('benix_wallet', JSON.stringify(data.wallet || { balance: 0, bonus_balance: 100, total_balance: 100, currency: 'RWF' }));
+        if (data.user.role === 'superadmin' || data.user.role === 'admin') {
+          localStorage.setItem('benix_admin_token', data.token);
+        }
+        return { success: true };
+      }
+      return { success: false, error: data?.error || 'Verification failed.' };
+    } catch (err: any) {
+      console.warn('Axios verify error:', err);
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Verification failed. Please check your 6-digit code.';
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  /**
+   * Resend 6-digit verification code
+   */
+  const resendVerificationCode = async (email: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const response = await apiClient.post('/api/auth/resend-verification', {
+        email: email.trim().toLowerCase()
+      });
+      return { success: true, message: response.data?.message || 'Verification code resent to your email.' };
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Could not resend code. Please try again.';
       return { success: false, error: errorMessage };
     }
   };
@@ -361,6 +430,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         registerWizard,
+        verifyAccount,
+        resendVerificationCode,
         saveAppProfile,
         hasAppProfile,
         logout,

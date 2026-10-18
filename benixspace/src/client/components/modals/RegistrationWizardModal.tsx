@@ -40,11 +40,16 @@ const AVAILABLE_MODULES = [
 ];
 
 export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
-  const { registerWizard, login } = useAuth();
+  const { registerWizard, login, verifyAccount, resendVerificationCode } = useAuth();
   const { t, language, setLanguage } = useLanguage();
   const { mode, setMode } = useTheme();
 
   const [isLoginMode, setIsLoginMode] = useState<boolean>(false);
+  const [isVerificationMode, setIsVerificationMode] = useState<boolean>(false);
+  const [verifyEmail, setVerifyEmail] = useState<string>('');
+  const [verifyCode, setVerifyCode] = useState<string>('');
+  const [successMsg, setSuccessMsg] = useState<string>('');
+  const [resendLoading, setResendLoading] = useState<boolean>(false);
   const [step, setStep] = useState<number>(1);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -117,6 +122,7 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
+    setSuccessMsg('');
     const res = await registerWizard({
       name: fullName,
       email,
@@ -140,6 +146,13 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
     });
     setLoading(false);
 
+    if (res.requiresVerification) {
+      setVerifyEmail(res.email || email);
+      setIsVerificationMode(true);
+      setSuccessMsg('Account registered! A 6-digit verification code has been dispatched to your email.');
+      return;
+    }
+
     if (res.success) {
       setLanguage(preferredLang);
       setMode(preferredTheme);
@@ -158,13 +171,55 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
     }
     setLoading(true);
     setError('');
+    setSuccessMsg('');
     const res = await login(email.trim(), password);
     setLoading(false);
+
+    if (res.requiresVerification) {
+      setVerifyEmail(res.email || email);
+      setIsVerificationMode(true);
+      setSuccessMsg('Your account is not verified yet. A 6-digit verification code has been sent to your email.');
+      return;
+    }
+
     if (res.success) {
       onClose();
       if (onSuccess) onSuccess();
     } else {
       setError(res.error || 'Invalid email or password.');
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyCode.trim()) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+    const res = await verifyAccount(verifyEmail || email, verifyCode.trim());
+    setLoading(false);
+    if (res.success) {
+      setLanguage(preferredLang);
+      setMode(preferredTheme);
+      onClose();
+      if (onSuccess) onSuccess();
+    } else {
+      setError(res.error || 'Invalid verification code. Please check your inbox or resend.');
+    }
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setResendLoading(true);
+    const res = await resendVerificationCode(verifyEmail || email);
+    setResendLoading(false);
+    if (res.success) {
+      setSuccessMsg(res.message || 'Verification code resent to your email.');
+    } else {
+      setError(res.error || 'Failed to resend code.');
     }
   };
 
@@ -175,7 +230,18 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
         {/* Header with Step Tracker */}
         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
           <div>
-            {!isLoginMode ? (
+            {isVerificationMode ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-100/70 dark:bg-sky-950 px-2.5 py-0.5 rounded-full">
+                    Activation
+                  </span>
+                </div>
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white mt-1">
+                  Email Verification Required
+                </h2>
+              </>
+            ) : !isLoginMode ? (
               <>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-100/70 dark:bg-sky-950 px-2.5 py-0.5 rounded-full">
@@ -213,7 +279,7 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
         </div>
 
         {/* Step Progress Bar */}
-        {!isLoginMode && (
+        {!isLoginMode && !isVerificationMode && (
           <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
             <div
               className="bg-gradient-to-r from-sky-600 via-indigo-600 to-emerald-500 h-1.5 transition-all duration-300"
@@ -224,13 +290,72 @@ export const RegistrationWizardModal: React.FC<Props> = ({ isOpen, onClose, onSu
 
         {/* Body Container */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
+          {successMsg && (
+            <div className="p-3 text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl">
               {error}
             </div>
           )}
 
-          {isLoginMode ? (
+          {isVerificationMode ? (
+            <form onSubmit={handleVerify} className="space-y-4">
+              <div className="text-center p-4 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900 rounded-2xl space-y-1">
+                <ShieldCheck className="w-8 h-8 text-sky-600 dark:text-sky-400 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Verify Your Email Address</h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Enter the 6-digit code sent to <span className="font-semibold text-sky-600">{verifyEmail || email}</span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  6-Digit Verification Code *
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  autoFocus
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="123456"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-800 text-center font-mono font-bold text-lg tracking-[8px] focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || verifyCode.length < 6}
+                className="w-full py-3 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 shadow-md transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Activating Account...' : 'Verify & Activate Account'}
+              </button>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resendLoading}
+                  className="text-sky-600 hover:underline font-semibold disabled:opacity-50"
+                >
+                  {resendLoading ? 'Sending new code...' : 'Resend Code'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsVerificationMode(false); setIsLoginMode(true); setError(''); setSuccessMsg(''); }}
+                  className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </form>
+          ) : isLoginMode ? (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">

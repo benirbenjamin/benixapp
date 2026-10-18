@@ -19,7 +19,8 @@ import {
   ArrowRight,
   CheckCircle,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 
 interface AppAccessWizardModalProps {
@@ -46,12 +47,18 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   onSuccess
 }) => {
   const navigate = useNavigate();
-  const { user, login, registerWizard, saveAppProfile } = useAuth();
+  const { user, login, registerWizard, verifyAccount, resendVerificationCode, saveAppProfile } = useAuth();
 
-  // Mode: 'auth' (if not logged in) or 'wizard' (if logged in but needs requirement fields)
-  const [authTab, setAuthTab] = useState<'register' | 'login'>('register');
+  // Mode: 'register' | 'login' | 'verify' (if not logged in) or 'wizard' (if logged in but needs requirement fields)
+  const [authTab, setAuthTab] = useState<'register' | 'login' | 'verify'>('register');
   const [authError, setAuthError] = useState<string>('');
+  const [authSuccessMsg, setAuthSuccessMsg] = useState<string>('');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
+
+  // Email verification state
+  const [verifyEmail, setVerifyEmail] = useState<string>('');
+  const [verifyCode, setVerifyCode] = useState<string>('');
+  const [resendLoading, setResendLoading] = useState<boolean>(false);
 
   // 5-field registration form state
   const [name, setName] = useState('');
@@ -74,10 +81,18 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setAuthSuccessMsg('');
     setAuthLoading(true);
 
     const res = await login(email, password);
     setAuthLoading(false);
+
+    if (res.requiresVerification) {
+      setVerifyEmail(res.email || email);
+      setAuthTab('verify');
+      setAuthSuccessMsg('Account pending verification. A 6-digit verification code has been dispatched to your email.');
+      return;
+    }
 
     if (!res.success) {
       setAuthError(res.error || 'Login failed. Please check your credentials.');
@@ -97,6 +112,7 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setAuthSuccessMsg('');
 
     if (!name.trim() || !email.trim() || !password || !phone.trim() || !country.trim()) {
       setAuthError('Please fill in all 5 fields to create your super-account.');
@@ -114,8 +130,56 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     });
     setAuthLoading(false);
 
+    if (res.requiresVerification) {
+      setVerifyEmail(res.email || email);
+      setAuthTab('verify');
+      setAuthSuccessMsg('Account registered! A 6-digit verification code has been sent to your email. Enter it below to activate your account.');
+      return;
+    }
+
     if (!res.success) {
       setAuthError(res.error || 'Registration failed. Please try again.');
+    }
+  };
+
+  const handleVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthSuccessMsg('');
+
+    if (!verifyCode.trim()) {
+      setAuthError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setAuthLoading(true);
+    const res = await verifyAccount(verifyEmail || email, verifyCode.trim());
+    setAuthLoading(false);
+
+    if (!res.success) {
+      setAuthError(res.error || 'Invalid verification code. Please check your code or request a new one.');
+    } else {
+      setAuthSuccessMsg('Account verified successfully! Welcome to Benix.Space.');
+      if (appConfig) {
+        const updatedUser = JSON.parse(localStorage.getItem('benix_user') || '{}');
+        if (updatedUser?.app_profiles?.[targetAppKey]?.completed) {
+          onClose();
+          navigate(appConfig.route);
+          if (onSuccess) onSuccess();
+        }
+      }
+    }
+  };
+
+  const handleResendCode = async () => {
+    setAuthError('');
+    setResendLoading(true);
+    const res = await resendVerificationCode(verifyEmail || email);
+    setResendLoading(false);
+    if (res.success) {
+      setAuthSuccessMsg(res.message || 'New verification code sent to your email.');
+    } else {
+      setAuthError(res.error || 'Failed to resend code.');
     }
   };
 
@@ -197,31 +261,54 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                 </p>
               </div>
 
-              {/* Tabs */}
-              <div className="grid grid-cols-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={() => { setAuthTab('register'); setAuthError(''); }}
-                  className={`py-2 text-xs font-bold rounded-xl transition-all ${
-                    authTab === 'register'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Create Account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAuthTab('login'); setAuthError(''); }}
-                  className={`py-2 text-xs font-bold rounded-xl transition-all ${
-                    authTab === 'login'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Log In
-                </button>
-              </div>
+              {/* Tabs or Verification Header */}
+              {authTab !== 'verify' ? (
+                <div className="grid grid-cols-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthTab('register'); setAuthError(''); setAuthSuccessMsg(''); }}
+                    className={`py-2 text-xs font-bold rounded-xl transition-all ${
+                      authTab === 'register'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Create Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthTab('login'); setAuthError(''); setAuthSuccessMsg(''); }}
+                    className={`py-2 text-xs font-bold rounded-xl transition-all ${
+                      authTab === 'login'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Log In
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between px-3.5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-sky-400" />
+                    <span className="text-xs font-bold text-white">Email Verification</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthTab('login'); setAuthError(''); setAuthSuccessMsg(''); }}
+                    className="text-[11px] text-sky-400 hover:text-sky-300 font-medium underline"
+                  >
+                    Switch Account
+                  </button>
+                </div>
+              )}
+
+              {authSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>{authSuccessMsg}</span>
+                </div>
+              )}
 
               {authError && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
@@ -230,7 +317,67 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                 </div>
               )}
 
-              {authTab === 'register' ? (
+              {authTab === 'verify' ? (
+                /* 6-Digit Email Verification Form */
+                <form onSubmit={handleVerifySubmit} className="space-y-4">
+                  <div className="text-center p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-1.5">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
+                      <Mail className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <h4 className="text-sm font-bold text-white">Verify Your Email Address</h4>
+                    <p className="text-xs text-slate-400">
+                      We sent a 6-digit activation code to{' '}
+                      <span className="font-semibold text-blue-400">{verifyEmail || email}</span>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                      Enter 6-Digit Code *
+                    </label>
+                    <div className="relative">
+                      <ShieldCheck className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        autoFocus
+                        value={verifyCode}
+                        onChange={(e) => setVerifyCode(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="123456"
+                        className="w-full pl-9 pr-3 py-3 bg-slate-900/90 border border-slate-700 rounded-xl text-center text-xl tracking-[10px] font-mono font-bold text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={authLoading || verifyCode.length < 6}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
+                  >
+                    {authLoading ? 'Activating Account...' : 'Verify & Activate Account'}
+                    <CheckCircle className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      disabled={resendLoading}
+                      className="text-blue-400 hover:text-blue-300 font-medium disabled:opacity-50 transition-colors"
+                    >
+                      {resendLoading ? 'Sending new code...' : 'Resend Code'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAuthTab('login'); setAuthError(''); setAuthSuccessMsg(''); }}
+                      className="text-slate-400 hover:text-white transition-colors"
+                    >
+                      Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              ) : authTab === 'register' ? (
                 /* 5-Field Registration Form */
                 <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
                   <div>
@@ -350,7 +497,7 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="benirabok@gmail.com"
+                        placeholder="user@gmail.com"
                         className="w-full pl-9 pr-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
@@ -378,7 +525,7 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                     disabled={authLoading}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
                   >
-                    {authLoading ? 'Signing In...' : 'Sign In with Axios'}
+                    {authLoading ? 'Signing In...' : 'Sign In'}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>

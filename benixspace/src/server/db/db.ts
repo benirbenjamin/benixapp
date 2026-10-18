@@ -1,4 +1,4 @@
-import pg from 'pg';
+import { Pool } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -18,13 +18,9 @@ const connectionString = rawConn.replace(/&?channel_binding=[^&]+/g, '').replace
 export const hasValidDbConfig = !!connectionString;
 export const dbEngine: 'postgres' | 'mysql' = 'postgres';
 
-// Standard resilient PostgreSQL connection pool with connection timeout
-export const pool = new pg.Pool({
+// Standard resilient PostgreSQL connection pool optimized for Vercel Serverless Functions
+export const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 15000,
 });
 
 /**
