@@ -1,0 +1,64 @@
+{
+  "name": "Benix.Space — All in One. For Everyone.",
+  "short_name": "BenixSpace",
+  "description": "Benix.Space Super-App: Watch Live TV, 24/7 Radio FM, Kunda Dating, Voxify Music, RollDice Games, EasyCalc & Central Wallet.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#0B0E14",
+  "theme_color": "#0B0E14",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "entertainment",
+    "music",
+    "social",
+    "utilities"
+  ],
+  "shortcuts": [
+    {
+      "name": "Live TV Streaming",
+      "short_name": "TV",
+      "url": "/tv",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Live Radio FM",
+      "short_name": "Radio",
+      "url": "/radio",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Kunda Dating",
+      "short_name": "Dating",
+      "url": "/dating",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Central Wallet",
+      "short_name": "Wallet",
+      "url": "/dashboard#wallet",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}

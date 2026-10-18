@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Search, Tv, Radio, ShoppingBag, Newspaper, ExternalLink, ArrowRight } from 'lucide-react';
+import { X, Search, Tv, Radio, ShoppingBag, Newspaper, ExternalLink, ArrowRight, Heart, Music, Calculator, Gamepad2, Wallet } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -26,7 +26,7 @@ export const SearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
         .then((data) => setResults(data.results || []))
         .catch(() => {})
         .finally(() => setLoading(false));
-    }, 250);
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [query]);
@@ -43,6 +43,11 @@ export const SearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
       case 'tv': return <Tv className="w-4 h-4 text-sky-500" />;
       case 'radio': return <Radio className="w-4 h-4 text-emerald-500" />;
       case 'marketplace': return <ShoppingBag className="w-4 h-4 text-purple-500" />;
+      case 'dating': return <Heart className="w-4 h-4 text-rose-500" />;
+      case 'music': return <Music className="w-4 h-4 text-emerald-400" />;
+      case 'calc': return <Calculator className="w-4 h-4 text-cyan-400" />;
+      case 'games': return <Gamepad2 className="w-4 h-4 text-indigo-400" />;
+      case 'wallet': return <Wallet className="w-4 h-4 text-emerald-500" />;
       default: return <Newspaper className="w-4 h-4 text-amber-500" />;
     }
   };

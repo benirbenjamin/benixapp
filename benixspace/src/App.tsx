@@ -8,6 +8,7 @@ import { Navbar } from './client/components/layout/Navbar';
 import { Footer } from './client/components/layout/Footer';
 import { BottomNav } from './client/components/layout/BottomNav';
 import { PlayerProvider, usePlayer } from './client/context/PlayerContext';
+import { PwaProvider } from './client/context/PwaContext';
 import { GlobalRadioPlayer } from './client/components/player/GlobalRadioPlayer';
 import { FloatingPipTV } from './client/components/player/FloatingPipTV';
 import { RadioAdModal } from './client/components/ads/RadioAdModal';
@@ -36,6 +37,7 @@ import { MarketplacePage } from './client/pages/modules/MarketplacePage';
 import { VoxifyPage } from './client/pages/modules/VoxifyPage';
 import { KundaPage } from './client/pages/modules/KundaPage';
 import { EasyCalcPage } from './client/pages/modules/EasyCalcPage';
+import { MessagesPage } from './client/pages/MessagesPage';
 
 // Admin System Pages
 import { AdminLoginPage } from './client/pages/admin/AdminLoginPage';
@@ -82,7 +84,8 @@ export const App: React.FC = () => {
       <ThemeProvider>
         <LanguageProvider>
           <AuthProvider>
-            <PlayerProvider>
+            <PwaProvider>
+              <PlayerProvider>
               <Router>
               <RouteAnalyticsTracker />
               <Routes>
@@ -190,6 +193,7 @@ export const App: React.FC = () => {
                           
                           {/* Unified Dashboard */}
                           <Route path="/dashboard" element={<DashboardPage />} />
+                          <Route path="/messages" element={<MessagesPage />} />
 
                           {/* Integrated Module Pages */}
                           <Route path="/tv" element={<TvPage />} />
@@ -228,7 +232,8 @@ export const App: React.FC = () => {
               </Routes>
             </Router>
           </PlayerProvider>
-        </AuthProvider>
+        </PwaProvider>
+      </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>
   </HelmetProvider>

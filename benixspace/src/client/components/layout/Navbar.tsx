@@ -22,7 +22,9 @@ import {
   Calculator,
   Briefcase,
   MessageSquare,
-  Plus
+  Plus,
+  Smartphone,
+  Download
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
@@ -30,6 +32,7 @@ import { WalletModal } from '../modals/WalletModal';
 import { NotificationTray } from '../modals/NotificationTray';
 import { MessagesDrawer } from '../modals/MessagesDrawer';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
+import { usePwa } from '../../context/PwaContext';
 
 export const Navbar: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -41,6 +44,7 @@ export const Navbar: React.FC = () => {
   const [wizardAppKey, setWizardAppKey] = useState<string | null>(null);
 
   const { user, wallet, logout, hasAppProfile } = useAuth();
+  const { isInstalled, installApp } = usePwa();
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -112,53 +116,55 @@ export const Navbar: React.FC = () => {
                 <span>Create</span>
               </button>
 
-              {/* ADMIN DASHBOARD BUTTON - ONLY VISIBLE TO VERIFIED ADMINS */}
+              {/* ADMIN DASHBOARD BUTTON - ONLY VISIBLE TO VERIFIED ADMINS (Hidden on mobile to keep header clean) */}
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 hover:border-amber-400 text-amber-300 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
+                  className="hidden md:flex px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 hover:border-amber-400 text-amber-300 text-xs font-black items-center gap-1.5 shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
                   title="Super Admin Control Center"
                 >
                   <ShieldCheck className="w-4 h-4 text-amber-400" />
-                  <span className="hidden sm:inline">Admin Dashboard</span>
-                  <span className="sm:hidden">Admin</span>
+                  <span>Admin Dashboard</span>
                 </Link>
               )}
 
-              {/* Wallet Pill if Logged In */}
+              {/* Wallet Pill if Logged In - Redirects to /dashboard#wallet */}
               {user && (
                 <button
-                  onClick={() => setShowWallet(true)}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all"
-                  title="Open Central Wallet"
+                  onClick={() => navigate('/dashboard#wallet')}
+                  className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all"
+                  title="View Central Wallet & Transactions"
                 >
                   <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{Number(wallet?.balance ?? 0).toLocaleString()} RWF</span>
+                  <span className="text-[11px] sm:text-xs">{Number(wallet?.balance ?? 0).toLocaleString()} RWF</span>
                 </button>
               )}
 
-              {/* Direct Messages Drawer Button */}
+              {/* Direct Messages Button - Hidden on mobile (present in bottom nav) */}
               <button
-                onClick={() => setShowMessages(true)}
-                className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
+                onClick={() => {
+                  if (!user) {
+                    setWizardAppKey('dating');
+                  } else {
+                    navigate('/messages');
+                  }
+                }}
+                className="hidden md:flex relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
                 title="Direct Messages"
               >
                 <MessageSquare className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full border-2 border-[#0B0E14]">
-                  3
-                </span>
               </button>
 
-              {/* Notification Bell with Chime & Push */}
+              {/* Notification Bell */}
               <button
                 onClick={() => setShowNotifications(true)}
                 className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
                 title="Notifications"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full border-2 border-[#0B0E14] animate-pulse">
-                  4
-                </span>
+                {user && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-[#0B0E14]" />
+                )}
               </button>
 
               {/* User Avatar / Login */}
@@ -201,38 +207,12 @@ export const Navbar: React.FC = () => {
         </div>
       </header>
 
-      {/* Notifications Dropdown Drawer */}
-      {showNotifications && (
-        <div className="fixed top-24 right-4 z-50 w-80 bg-[#121824] border border-slate-700 rounded-3xl shadow-2xl p-4 text-white space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <Bell className="w-4 h-4 text-amber-400" />
-              Notifications
-            </h4>
-            <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-bold">
-              5 Unread
-            </span>
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">RTV Live Streaming</p>
-              <p className="text-[10px] text-slate-400">Watch the evening news and prime-time broadcast live in HD.</p>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">Kiss FM 102.3 Kigali</p>
-              <p className="text-[10px] text-slate-400">Now playing urban beats and trending hits on Benix Radio.</p>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">Kunda Space Matches</p>
-              <p className="text-[10px] text-slate-400">3 new verified profiles matched your dating preferences.</p>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">Welcome Reward Credited</p>
-              <p className="text-[10px] text-slate-400">Your central wallet is ready for deposits, transfers, and wagers.</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Notifications Modal with clickable destinations */}
+      <NotificationTray
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        onOpenWallet={() => navigate('/dashboard#wallet')}
+      />
 
       {/* Side Navigation Drawer */}
       {isDrawerOpen && (
@@ -345,6 +325,25 @@ export const Navbar: React.FC = () => {
                   <span>EasyCalc Utilities</span>
                 </button>
               </div>
+
+              {/* PWA App Install Button (Hides when installed) */}
+              {!isInstalled && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      installApp();
+                    }}
+                    className="w-full p-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-indigo-600/30 flex items-center justify-between transition-all hover:scale-[1.02] active:scale-95"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Smartphone className="w-4 h-4 text-white" />
+                      <span>Install Benix.Space App</span>
+                    </div>
+                    <Download className="w-4 h-4 text-blue-200" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Bottom of Drawer */}

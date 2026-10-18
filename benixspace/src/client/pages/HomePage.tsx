@@ -55,11 +55,14 @@ export const HomePage: React.FC = () => {
   const [radioStations, setRadioStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Stories & Creator Media State
+  // Stories & Creator Media State (loaded exclusively from real database API)
   const [stories, setStories] = useState<any[]>([]);
   const [creatorVideos, setCreatorVideos] = useState<any[]>([]);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
+
+  // Auto Slider Carousel State
+  const [currentHeroSlide, setCurrentHeroSlide] = useState<number>(0);
 
   // Modals state
   const [wizardTargetKey, setWizardTargetKey] = useState<string | null>(null);
@@ -74,7 +77,9 @@ export const HomePage: React.FC = () => {
       ]);
       if (storyRes && storyRes.ok) {
         const sData = await storyRes.json();
-        setStories(sData.stories || []);
+        if (sData.stories && sData.stories.length > 0) {
+          setStories(sData.stories);
+        }
       }
       if (vidRes && vidRes.ok) {
         const vData = await vidRes.json();
@@ -138,6 +143,14 @@ export const HomePage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [activeStoryIndex, stories.length]);
 
+  // Auto Slider Timer: Auto-advance every 5 seconds
+  useEffect(() => {
+    const slideTimer = setInterval(() => {
+      setCurrentHeroSlide((prev) => (prev + 1) % 4);
+    }, 5000);
+    return () => clearInterval(slideTimer);
+  }, []);
+
   return (
     <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-blue-600 selection:text-white">
       <SeoHead
@@ -192,56 +205,58 @@ export const HomePage: React.FC = () => {
               </button>
             ))}
 
-            {/* Fallback sample stories if empty */}
+            {/* Clean empty state when no stories in DB */}
             {stories.length === 0 && (
-              <div className="flex items-center gap-3">
-                {[
-                  { name: 'Kigali Live', img: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=300' },
-                  { name: 'Choir Fest', img: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300' },
-                  { name: 'Sports 250', img: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' }
-                ].map((s, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1.5 shrink-0 opacity-60">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full p-0.5 bg-slate-800">
-                      <div className="w-full h-full rounded-full border-2 border-[#0B0E14] overflow-hidden">
-                        <img src={s.img} alt={s.name} className="w-full h-full object-cover" />
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-medium text-slate-500">{s.name}</span>
-                  </div>
-                ))}
+              <div className="flex items-center gap-2 pl-3 py-2 text-xs text-slate-400">
+                <span>No active stories right now. Click "Add Story" to share yours!</span>
               </div>
             )}
           </div>
         </section>
 
         {/* ==========================================
-            2. MODULE SHORTCUTS (Quick Access Strip)
+            2. MODULE SHORTCUTS (Horizontal Scroll Strip - Full Labels Without Truncation)
            ========================================== */}
-        <section className="bg-[#121824]/60 p-4 sm:p-5 rounded-3xl border border-slate-800/80 shadow-xl backdrop-blur-sm">
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 sm:gap-4">
+        <section className="bg-[#121824]/80 p-3 sm:p-5 rounded-3xl border border-slate-800/80 shadow-xl backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-2.5 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+                Ecosystem Platforms & Services
+              </span>
+            </div>
+            <span className="text-[10px] text-blue-400 font-bold sm:hidden">
+              Scroll Left/Right →
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 sm:gap-4 overflow-x-auto pb-2 pt-1 scrollbar-none scroll-smooth">
             {[
-              { id: 'tv', name: 'Watch TV', icon: Tv, route: '/tv', color: 'from-blue-600 to-indigo-600' },
-              { id: 'radio', name: 'Live Radio', icon: Radio, route: '/radio', color: 'from-purple-600 to-pink-600' },
-              { id: 'kunda', name: 'Kunda Dating', icon: Heart, route: '/dating', color: 'from-rose-500 to-pink-600' },
-              { id: 'voxify', name: 'Voxify Music', icon: Music, route: '/music', color: 'from-emerald-500 to-teal-600' },
-              { id: 'marketplace', name: 'Marketplace', icon: ShoppingBag, route: '/marketplace', color: 'from-amber-500 to-orange-600' },
-              { id: 'games', name: 'RollDice', icon: Gamepad2, route: '/games', color: 'from-violet-600 to-indigo-700' },
-              { id: 'calc', name: 'EasyCalc', icon: Calculator, route: '/calculators', color: 'from-teal-500 to-cyan-600' },
-              { id: 'tv', name: 'Articles', icon: FileText, route: '/blog', color: 'from-slate-700 to-slate-800' }
+              { id: 'tv', name: 'Watch TV', badge: '17 CH', icon: Tv, route: '/tv', color: 'from-blue-600 to-indigo-600' },
+              { id: 'radio', name: 'Live Radio', badge: '19 FM', icon: Radio, route: '/radio', color: 'from-purple-600 to-pink-600' },
+              { id: 'kunda', name: 'Kunda Dating', badge: 'Singles', icon: Heart, route: '/dating', color: 'from-rose-500 to-pink-600' },
+              { id: 'voxify', name: 'Voxify Music', badge: 'Choir', icon: Music, route: '/music', color: 'from-emerald-500 to-teal-600' },
+              { id: 'marketplace', name: 'Marketplace', badge: 'Shop', icon: ShoppingBag, route: '/marketplace', color: 'from-amber-500 to-orange-600' },
+              { id: 'games', name: 'RollDice Arena', badge: 'Win 1.9x', icon: Gamepad2, route: '/games', color: 'from-violet-600 to-indigo-700' },
+              { id: 'calc', name: 'EasyCalc Pro', badge: 'Tax & Loan', icon: Calculator, route: '/calculators', color: 'from-teal-500 to-cyan-600' },
+              { id: 'blog', name: 'News & Blog', badge: 'Articles', icon: FileText, route: '/blog', color: 'from-slate-700 to-slate-800' }
             ].map((m, idx) => {
               const Icon = m.icon;
               return (
                 <button
                   key={idx}
                   onClick={() => handleProtectedAccess(m.id, m.route)}
-                  className="flex flex-col items-center gap-2 group p-2 rounded-2xl hover:bg-slate-800/40 transition-all active:scale-95"
+                  className="flex flex-col items-center gap-2 shrink-0 p-2 sm:p-3 rounded-2xl hover:bg-slate-800/60 transition-all active:scale-95 group/app min-w-[82px] sm:min-w-[105px]"
                 >
                   <div
-                    className={`w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${m.color} flex items-center justify-center text-white shadow-lg shadow-black/40 group-hover:scale-105 transition-transform`}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${m.color} flex items-center justify-center text-white shadow-lg shadow-black/40 group-hover/app:scale-105 transition-transform relative`}
                   >
-                    <Icon className="w-6 h-6" />
+                    <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
+                    <span className="absolute -top-1.5 -right-1 px-1.5 py-0.2 rounded-full bg-[#0B0E14] border border-white/20 text-[8px] font-black text-white">
+                      {m.badge}
+                    </span>
                   </div>
-                  <span className="text-xs font-bold text-slate-300 group-hover:text-white text-center truncate w-full">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-200 group-hover/app:text-white text-center whitespace-nowrap">
                     {m.name}
                   </span>
                 </button>
@@ -251,77 +266,238 @@ export const HomePage: React.FC = () => {
         </section>
 
         {/* ==========================================
-            3. HERO BANNER (Watch TV & Live Channels)
+            3. FEATURED AUTO-SLIDER HERO CAROUSEL
            ========================================== */}
-        <section className="relative rounded-3xl bg-gradient-to-r from-[#141B2D] via-[#101726] to-[#0D121F] border border-slate-800/90 overflow-hidden shadow-2xl p-6 sm:p-10">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-            
-            <div className="md:col-span-7 space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                <span>Featured Live Broadcast</span>
-              </div>
-
-              <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-                Watch TV & Live Channels
-              </h1>
-              <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
-                Stream 17 Rwandan TV stations and 19 Radio FM frequencies live. Enjoy seamless background audio and movable Picture-in-Picture mode across all pages.
-              </p>
-
-              <div className="pt-2 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => {
-                    playTvChannel(featuredTv);
-                    navigate('/tv');
-                  }}
-                  className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-blue-600/30 transition-all active:scale-95"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Watch {featuredTv.name}</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (radioStations.length > 0) playStation(radioStations[0]);
-                  }}
-                  className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 flex items-center gap-2 transition-all"
-                >
-                  <Radio className="w-4 h-4 text-purple-400" />
-                  <span>Tune Radio (Background)</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="md:col-span-5 relative flex justify-center">
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl group cursor-pointer"
-                onClick={() => {
-                  playTvChannel(featuredTv);
-                  navigate('/tv');
-                }}
-              >
-                <img
-                  src={featuredTv.logo_url || 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?w=800'}
-                  alt={featuredTv.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                      <Play className="w-4 h-4 fill-current ml-0.5" />
-                    </div>
-                    <div>
-                      <h3 className="font-black text-white text-sm">{featuredTv.name}</h3>
-                      <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Now
-                      </p>
+        <section className="relative rounded-3xl overflow-hidden border border-slate-800/90 shadow-2xl transition-all">
+          
+          {/* SLIDE 0: LIVE TV */}
+          {currentHeroSlide === 0 && (
+            <div className="bg-gradient-to-r from-[#141B2D] via-[#101726] to-[#0D121F] p-6 sm:p-10 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <div className="md:col-span-7 space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                    <span>Live Rwandan Television (17 Channels)</span>
+                  </div>
+                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+                    Watch TV & Live Channels
+                  </h1>
+                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
+                    Stream RTV, KC2, BTN TV, TV10, Isibo TV, and Africa 24 live with low-latency adaptive HLS feeds and movable Picture-in-Picture mode across all pages.
+                  </p>
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => { playTvChannel(featuredTv); navigate('/tv'); }}
+                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-blue-600/30 transition-all active:scale-95"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Watch {featuredTv.name}</span>
+                    </button>
+                    <button
+                      onClick={() => navigate('/tv')}
+                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                    >
+                      Explore All TV Stations
+                    </button>
+                  </div>
+                </div>
+                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => { playTvChannel(featuredTv); navigate('/tv'); }}>
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl group">
+                    <img src={featuredTv.logo_url || '/logo.png'} alt="Live TV" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-white text-sm">{featuredTv.name}</h3>
+                          <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Now
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+          )}
 
+          {/* SLIDE 1: KUNDA DATING */}
+          {currentHeroSlide === 1 && (
+            <div className="bg-gradient-to-r from-[#2D0F1E] via-[#200A15] to-[#0D121F] p-6 sm:p-10 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <div className="md:col-span-7 space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold">
+                    <Heart className="w-3.5 h-3.5 fill-current" />
+                    <span>Verified Rwandan Matchmaking</span>
+                  </div>
+                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+                    Kunda Space Dating
+                  </h1>
+                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
+                    Find serious relationships and meaningful companions in Kigali and across Rwanda. Send crushes, enjoy private chats, and unlock verified contacts securely.
+                  </p>
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => navigate('/dating')}
+                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-rose-600/30 transition-all active:scale-95"
+                    >
+                      <Heart className="w-4 h-4 fill-current" />
+                      <span>Explore Verified Matches</span>
+                    </button>
+                    <button
+                      onClick={() => navigate('/messages')}
+                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                    >
+                      Open Private Chat
+                    </button>
+                  </div>
+                </div>
+                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => navigate('/dating')}>
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-rose-500/30 shadow-2xl group">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80" alt="Kunda Dating" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
+                      <div>
+                        <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black">100% VERIFIED</span>
+                        <h3 className="font-black text-white text-sm mt-1">Aline M. (Kigali, Kacyiru)</h3>
+                        <p className="text-[11px] text-rose-300">Software Designer • Online Now</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SLIDE 2: LIVE RADIO */}
+          {currentHeroSlide === 2 && (
+            <div className="bg-gradient-to-r from-[#17122B] via-[#100C1F] to-[#0D121F] p-6 sm:p-10 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <div className="md:col-span-7 space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400 text-xs font-bold">
+                    <Radio className="w-3.5 h-3.5" />
+                    <span>19 Rwandan FM Radio Frequencies</span>
+                  </div>
+                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+                    24/7 Live Radio FM
+                  </h1>
+                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
+                    Tune into Kiss FM 102.3, Radio Rwanda 100.7 FM, Magic FM, Radio 10, Flash FM, and Royal FM with seamless background audio while you browse.
+                  </p>
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        const kiss = radioStations.find(r => r.slug.includes('kiss')) || radioStations[0];
+                        if (kiss) playStation(kiss);
+                        navigate('/radio');
+                      }}
+                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-purple-600/30 transition-all active:scale-95"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Tune Kiss FM 102.3</span>
+                    </button>
+                    <button
+                      onClick={() => navigate('/radio')}
+                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                    >
+                      All 19 Radio Stations
+                    </button>
+                  </div>
+                </div>
+                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => navigate('/radio')}>
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-purple-500/30 shadow-2xl group">
+                    <img src="https://i.postimg.cc/Cx2q12xV/kiss-fm.jpg" alt="Kiss FM" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
+                      <div>
+                        <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-black">FM BROADCAST</span>
+                        <h3 className="font-black text-white text-sm mt-1">Kiss FM 102.3 Kigali</h3>
+                        <p className="text-[11px] text-purple-300">The Beat of Kigali • Urban Hits</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SLIDE 3: ROinterface DICE & WALLET */}
+          {currentHeroSlide === 3 && (
+            <div className="bg-gradient-to-r from-[#0F261E] via-[#0A1A14] to-[#0D121F] p-6 sm:p-10 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <div className="md:col-span-7 space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                    <Gamepad2 className="w-3.5 h-3.5" />
+                    <span>RollDice Arena & Central Wallet</span>
+                  </div>
+                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+                    Win 1.95x on RollDice
+                  </h1>
+                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
+                    Wager starting from 50 RWF and cash out instant winnings directly to your MTN Mobile Money account. Zero wait times.
+                  </p>
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => navigate('/games')}
+                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-600/30 transition-all active:scale-95"
+                    >
+                      <Gamepad2 className="w-4 h-4" />
+                      <span>Play RollDice Arena</span>
+                    </button>
+                    <button
+                      onClick={() => navigate('/dashboard#wallet')}
+                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                    >
+                      Deposit 100 RWF (MoMo)
+                    </button>
+                  </div>
+                </div>
+                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => navigate('/games')}>
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-emerald-500/30 shadow-2xl group">
+                    <img src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&auto=format&fit=crop&q=80" alt="RollDice" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
+                      <div>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black">INSTANT PAYOUTS</span>
+                        <h3 className="font-black text-white text-sm mt-1">RollDice PVE Arena</h3>
+                        <p className="text-[11px] text-emerald-300">Minimum Wager: 50 RWF</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Carousel Slide Indicators & Prev/Next Arrows */}
+          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+            <button
+              onClick={() => setCurrentHeroSlide((prev) => (prev === 0 ? 3 : prev - 1))}
+              className="p-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-colors"
+              title="Previous Slide"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-1.5 px-2">
+              {[0, 1, 2, 3].map((slide) => (
+                <button
+                  key={slide}
+                  onClick={() => setCurrentHeroSlide(slide)}
+                  className={`h-2 rounded-full transition-all ${
+                    currentHeroSlide === slide ? 'w-6 bg-blue-500' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                  }`}
+                  title={`Go to slide ${slide + 1}`}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => setCurrentHeroSlide((prev) => (prev + 1) % 4)}
+              className="p-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-colors"
+              title="Next Slide"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
+
         </section>
 
         {/* ==========================================

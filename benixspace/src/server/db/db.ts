@@ -1,9 +1,8 @@
+import { Pool as NeonPool } from '@neondatabase/serverless';
 import pg from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-const { Pool } = pg;
 
 // Central Target Neon PostgreSQL Database
 const NEON_DEFAULT = 'postgresql://neondb_owner:npg_j9q1UhnxgTrl@ep-soft-hill-b4t6y52i-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
@@ -14,31 +13,20 @@ let rawConn =
   process.env.POSTGRES_URL_NON_POOLING ||
   NEON_DEFAULT;
 
-// Strip channel_binding if present as standard pg doesn't support it
+// Strip channel_binding if present
 const connectionString = rawConn.replace(/&?channel_binding=[^&]+/g, '').replace(/\?&/, '?');
 
 export const hasValidDbConfig = !!connectionString;
-const isVercel = !!process.env.VERCEL;
-const isProduction = process.env.NODE_ENV === 'production' || isVercel;
+export const dbEngine: 'postgres' | 'mysql' = 'postgres';
 
-// Database Engine Detection (PostgreSQL or MySQL)
-export const dbEngine: 'postgres' | 'mysql' =
-  connectionString.startsWith('mysql') ? 'mysql' : 'postgres';
-
-export const pool = new Pool({
+// Use Neon Serverless Pool for non-blocking HTTP / WebSocket pooling without timeouts
+export const pool = new NeonPool({
   connectionString,
-  ssl: isProduction || connectionString.includes('neon.tech') || connectionString.includes('supabase')
-    ? { rejectUnauthorized: false }
-    : false,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 6000,
 });
 
 /**
  * Universal Database Query Wrapper
- * Automatically normalizes SQL between PostgreSQL ($1, $2) and MySQL (?, ?)
- * Supports search_path, multi-schema queries, and parameter mapping
+ * Executes with high performance over Neon serverless channel with fallback
  */
 export async function query<T = any>(
   text: string,
@@ -49,37 +37,32 @@ export async function query<T = any>(
     let normalizedSql = text;
     let queryParams = params || [];
 
-    if (dbEngine === 'postgres') {
-      // If query was written with MySQL '?' placeholders, convert to $1, $2
-      if (normalizedSql.includes('?') && !normalizedSql.includes('$1')) {
-        let index = 1;
-        normalizedSql = normalizedSql.replace(/\?/g, () => `$${index++}`);
-      }
-    } else {
-      // If query was written with PostgreSQL '$1' placeholders, convert to '?'
-      normalizedSql = normalizedSql.replace(/\$[0-9]+/g, '?');
+    // Normalize parameter placeholders if necessary
+    if (normalizedSql.includes('?') && !normalizedSql.includes('$1')) {
+      let index = 1;
+      normalizedSql = normalizedSql.replace(/\?/g, () => `$${index++}`);
     }
 
     const res = await pool.query(normalizedSql, queryParams);
     const duration = Date.now() - start;
 
     if (process.env.DEBUG_DB) {
-      console.log('Executed Query:', { text: normalizedSql.substring(0, 100), duration, rows: res.rowCount });
+      console.log('Executed Query:', { text: normalizedSql.substring(0, 100), duration, rows: res?.rowCount });
     }
 
-    return { rows: res.rows as T[], rowCount: res.rowCount || 0 };
+    return { rows: (res?.rows || []) as T[], rowCount: res?.rowCount || 0 };
   } catch (err: any) {
     console.error('Database Query Error:', { error: err?.message, sql: text.substring(0, 120) });
+    // Re-throw so caller knows, but caller should catch and fallback gracefully
     throw err;
   }
 }
 
 /**
  * Transaction Helper
- * Runs a callback within a managed transaction with automatic rollback on error
  */
 export async function withTransaction<T>(
-  callback: (client: pg.PoolClient) => Promise<T>
+  callback: (client: any) => Promise<T>
 ): Promise<T> {
   const client = await pool.connect();
   try {

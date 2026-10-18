@@ -603,6 +603,114 @@ app.post('/api/wallet/bet', authenticateToken, async (req: AuthenticatedRequest,
   }
 });
 
+/**
+ * Real-Time Autocomplete Recipient Search
+ */
+app.get('/api/wallet/search-recipient', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q || q.length < 2) {
+      return res.json({ users: [] });
+    }
+
+    const term = `%${q.toLowerCase()}%`;
+    const users = await query(
+      `SELECT id, name, email, phone, role
+       FROM core_users
+       WHERE (LOWER(email) LIKE $1 OR LOWER(name) LIKE $1)
+         AND id != $2
+       LIMIT 8`,
+      [term, req.user!.id]
+    );
+
+    return res.json({ users: users.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message, users: [] });
+  }
+});
+
+/**
+ * Peer-to-Peer Wallet Transfer with Real-Time Recipient Validation & Email Notification
+ */
+app.post('/api/wallet/transfer', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { recipientEmail, amount, note = '' } = req.body;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: 'Transfer amount must be greater than 0 RWF.' });
+    }
+    if (!recipientEmail) {
+      return res.status(400).json({ error: 'Recipient email is required.' });
+    }
+
+    const cleanEmail = String(recipientEmail).trim().toLowerCase();
+    if (cleanEmail === req.user!.email?.toLowerCase()) {
+      return res.status(400).json({ error: 'You cannot transfer funds to yourself.' });
+    }
+
+    // Find recipient in core_users
+    const recipientRes = await query(
+      'SELECT id, name, email FROM core_users WHERE LOWER(email) = $1',
+      [cleanEmail]
+    );
+    if (recipientRes.rowCount === 0) {
+      return res.status(404).json({ error: 'No registered user found with this email. Money can only be sent to verified Benix.Space accounts.' });
+    }
+
+    const recipient = recipientRes.rows[0];
+
+    // Check sender balance
+    const senderWallet = await WalletService.getOrCreateWallet(req.user!.id);
+    if (Number(senderWallet.balance) < numAmount) {
+      return res.status(400).json({
+        error: `Insufficient wallet balance. You have ${Number(senderWallet.balance).toLocaleString()} RWF, trying to transfer ${numAmount.toLocaleString()} RWF.`
+      });
+    }
+
+    // Execute atomic transfer via WalletService
+    const debitResult = await WalletService.debit(
+      req.user!.id,
+      numAmount,
+      'wallet',
+      'transfer_out',
+      `Sent ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}${note ? ` ("${note}")` : ''}`,
+      `tx_trf_out_${Date.now()}`
+    );
+
+    await WalletService.credit(
+      recipient.id,
+      numAmount,
+      'wallet',
+      'transfer_in',
+      `Received ${numAmount.toLocaleString()} RWF from ${req.user!.name || req.user!.email}${note ? ` ("${note}")` : ''}`,
+      `tx_trf_in_${Date.now()}`
+    );
+
+    // Notify recipient via email
+    EmailService.sendEmail({
+      to: recipient.email,
+      subject: `You received ${numAmount.toLocaleString()} RWF on Benix.Space!`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px;">
+          <h2 style="color: #10B981;">Transfer Received!</h2>
+          <p>Hello ${recipient.name || 'Member'},</p>
+          <p><strong>${req.user!.name || req.user!.email}</strong> has transferred <strong>${numAmount.toLocaleString()} RWF</strong> into your Benix.Space Central Wallet.</p>
+          ${note ? `<p style="padding: 12px; background: #1E293B; border-radius: 8px; color: #94A3B8;"><em>"${note}"</em></p>` : ''}
+          <p>You can use this balance across TV, live radio, dating, RollDice games, or withdraw directly to your MTN Mobile Money account.</p>
+        </div>
+      `
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      newBalance: debitResult.newBalance,
+      message: `Successfully transferred ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}.`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Transfer failed.' });
+  }
+});
+
 app.post('/api/wallet/withdraw', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { amount, payoutMethod = 'MTN_MOMO', accountDetails } = req.body;
@@ -901,6 +1009,79 @@ app.get('/api/modules/kunda/plans', async (req, res) => {
     },
     plans: kundaSettings.plans
   });
+});
+
+/**
+ * Persist Kunda Dating Crush (Like) to PostgreSQL
+ */
+app.post('/api/modules/kunda/crush', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { targetProfileId, targetName, unlike } = req.body;
+    if (!targetProfileId) return res.status(400).json({ error: 'targetProfileId is required.' });
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS kunda_crushes (
+        id SERIAL PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        target_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(sender_id, target_id)
+      );
+    `).catch(() => {});
+
+    if (unlike) {
+      await query('DELETE FROM kunda_crushes WHERE sender_id = $1 AND target_id = $2', [
+        req.user!.id,
+        targetProfileId
+      ]);
+      return res.json({ success: true, isMatch: false, action: 'unliked' });
+    }
+
+    await query(
+      `INSERT INTO kunda_crushes (sender_id, target_id)
+       VALUES ($1, $2)
+       ON CONFLICT (sender_id, target_id) DO NOTHING`,
+      [req.user!.id, targetProfileId]
+    );
+
+    // Check mutual crush
+    const mutual = await query(
+      'SELECT id FROM kunda_crushes WHERE sender_id = $1 AND target_id = $2',
+      [targetProfileId, req.user!.id]
+    );
+
+    const isMatch = mutual.rowCount > 0;
+
+    return res.json({
+      success: true,
+      isMatch,
+      message: isMatch ? 'Mutual Match! You can chat now.' : 'Crush sent successfully!'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/modules/kunda/my-crushes', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS kunda_crushes (
+        id SERIAL PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        target_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(sender_id, target_id)
+      );
+    `).catch(() => {});
+
+    const resDb = await query('SELECT target_id FROM kunda_crushes WHERE sender_id = $1', [
+      req.user!.id
+    ]);
+    const crushes = resDb.rows.map((r: any) => r.target_id);
+    return res.json({ crushes });
+  } catch (err: any) {
+    return res.json({ crushes: [] });
+  }
 });
 
 // 2. Subscribe to Kunda Pass using Central Wallet
@@ -1377,56 +1558,88 @@ app.post('/api/admin/users/:id/role', authenticateToken, requireAdminRole, async
 
 // ==================== 2.5 STORIES & CREATOR MEDIA API ==================== //
 
-// In-memory / DB storage for user stories and videos
-const userStoriesList: any[] = [
-  {
-    id: 'story-1',
-    authorName: 'Aline M.',
-    authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    mediaUrl: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1080&auto=format&fit=crop&q=80',
-    caption: 'Backstage at Kigali Gospel Live 🎶',
-    timestamp: '2h ago'
-  },
-  {
-    id: 'story-2',
-    authorName: 'Eric K.',
-    authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-    mediaUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1080&auto=format&fit=crop&q=80',
-    caption: 'Studio rehearsals with Kigali Choir 🎤',
-    timestamp: '4h ago'
-  },
-  {
-    id: 'story-3',
-    authorName: 'Benix Sports',
-    authorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-    mediaUrl: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1080&auto=format&fit=crop&q=80',
-    caption: 'Matchday highlights coming up live on TV! ⚽',
-    timestamp: '5h ago'
-  }
-];
-
+// In-memory fallback if database query fails
 const userVideosList: any[] = [];
 
+// GET real active stories from PostgreSQL core_stories table
 app.get('/api/stories', async (req, res) => {
-  return res.json({ stories: userStoriesList });
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_stories (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255),
+        author_name VARCHAR(255) NOT NULL,
+        author_avatar VARCHAR(500),
+        media_url VARCHAR(1000) NOT NULL,
+        caption TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
+      );
+    `).catch(() => {});
+
+    const result = await query(
+      `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
+              media_url as "mediaUrl", caption, created_at,
+              to_char(created_at, 'HH12:MI AM') as timestamp
+       FROM core_stories
+       WHERE expires_at > CURRENT_TIMESTAMP OR expires_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT 30`
+    );
+
+    return res.json({ stories: result.rows || [] });
+  } catch (err: any) {
+    console.error('Error fetching real stories:', err?.message);
+    return res.json({ stories: [] });
+  }
 });
 
+// POST real user story to PostgreSQL core_stories table
 app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { mediaUrl, caption } = req.body;
     if (!mediaUrl) return res.status(400).json({ error: 'Story media is required.' });
 
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_stories (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255),
+        author_name VARCHAR(255) NOT NULL,
+        author_avatar VARCHAR(500),
+        media_url VARCHAR(1000) NOT NULL,
+        caption TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
+      );
+    `).catch(() => {});
+
+    let authorName = req.user!.email?.split('@')[0] || 'Benix Creator';
+    let authorAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
+
+    try {
+      const uRes = await query('SELECT name FROM core_users WHERE id = $1', [req.user!.id]);
+      if (uRes.rowCount > 0 && uRes.rows[0].name) {
+        authorName = uRes.rows[0].name;
+      }
+    } catch {}
+
+    const storyId = 'story-' + Date.now();
+    await query(
+      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [storyId, req.user!.id, authorName, authorAvatar, mediaUrl, caption || '']
+    );
+
     const newStory = {
-      id: 'story-' + Date.now(),
+      id: storyId,
       authorId: req.user!.id,
-      authorName: req.user!.email?.split('@')[0] || 'Benix Creator',
-      authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+      authorName,
+      authorAvatar,
       mediaUrl,
       caption: caption || '',
       timestamp: 'Just now'
     };
 
-    userStoriesList.unshift(newStory);
     return res.json({ success: true, story: newStory });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

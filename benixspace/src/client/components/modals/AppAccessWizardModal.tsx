@@ -151,36 +151,36 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-[#0F141F] border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md">
+      <div className="relative w-full max-w-lg bg-[#0F141F] border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh]">
         
-        {/* Modal Top Header with gradient banner */}
-        <div className={`p-6 bg-gradient-to-r ${appConfig?.color || 'from-indigo-600 to-purple-600'} text-white relative`}>
+        {/* Modal Top Header with gradient banner - fixed at top */}
+        <div className={`p-4 sm:p-5 bg-gradient-to-r ${appConfig?.color || 'from-indigo-600 to-purple-600'} text-white relative shrink-0`}>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-colors"
+            className="absolute top-3.5 right-3.5 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
-              <AppIcon className="w-7 h-7 text-white" />
+            <div className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-sm">
+              <AppIcon className="w-6 h-6 text-white" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
                 Benix.Space Feature
               </span>
-              <h2 className="text-xl font-black mt-1">{appConfig?.title || 'Unlock Feature'}</h2>
+              <h2 className="text-lg sm:text-xl font-black mt-0.5">{appConfig?.title || 'Unlock Feature'}</h2>
             </div>
           </div>
-          <p className="text-xs text-white/90 mt-2 font-medium">
+          <p className="text-[11px] sm:text-xs text-white/90 mt-1.5 font-medium line-clamp-1">
             {appConfig?.subtitle || 'Please complete the setup to proceed.'}
           </p>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 text-slate-200">
+        {/* Modal Body - Scrollable within viewport */}
+        <div className="p-4 sm:p-6 text-slate-200 overflow-y-auto flex-1 overscroll-contain">
           
           {/* STEP A: User is NOT logged in -> Ask to Register or Login */}
           {!user ? (

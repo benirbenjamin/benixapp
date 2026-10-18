@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { usePwa } from '../../context/PwaContext';
 import { notificationSound } from '../../utils/notificationSound';
 import {
   Bell,
@@ -13,7 +15,8 @@ import {
   VolumeX,
   ExternalLink,
   ChevronRight,
-  CheckCircle2
+  CheckCircle2,
+  LogIn
 } from 'lucide-react';
 
 interface Props {
@@ -36,56 +39,84 @@ interface NotificationItem {
 
 export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWallet }) => {
   const navigate = useNavigate();
+  const { user, wallet } = useAuth();
+  const { showTrayNotification, setBadgeCount, clearBadge } = usePwa();
+
   const [filter, setFilter] = useState<'all' | 'wallet' | 'broadcasts'>('all');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(notificationSound.isEnabled());
   const [pushStatus, setPushStatus] = useState<string>('');
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'n1',
-      title: 'Welcome Bonus Credited',
-      body: '100 RWF has been deposited to your Central Wallet. Tap to view or transfer.',
-      time: 'Just now',
-      category: 'wallet',
-      route: '/dashboard#wallet',
-      icon: Wallet,
-      color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-      unread: true
-    },
-    {
-      id: 'n2',
-      title: 'RTV Tele-Amakuru is Live',
-      body: 'Rwanda Television evening broadcast is streaming live in Full HD.',
-      time: '15m ago',
-      category: 'tv',
-      route: '/tv',
-      icon: Tv,
-      color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      unread: true
-    },
-    {
-      id: 'n3',
-      title: 'Kiss FM 102.3 Kigali',
-      body: 'Urban hits & Afrobeats mix currently broadcasting on Benix Radio FM.',
-      time: '1h ago',
-      category: 'radio',
-      route: '/radio',
-      icon: Radio,
-      color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      unread: true
-    },
-    {
-      id: 'n4',
-      title: 'Kunda Space Matchmaker',
-      body: 'New verified Rwandan profiles match your dating preferences.',
-      time: '3h ago',
-      category: 'dating',
-      route: '/dating',
-      icon: Heart,
-      color: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-      unread: false
+  // Clean notifications based on authentication status (NO fake dummy messages for visitors!)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    if (!user) {
+      // Guest visitors only see public broadcast alerts - NO dummy personal wallet/dating messages!
+      setNotifications([
+        {
+          id: 'b1',
+          title: 'RTV Tele-Amakuru is Live',
+          body: 'Rwanda Television evening broadcast is streaming live in Full HD.',
+          time: 'Live',
+          category: 'tv',
+          route: '/tv',
+          icon: Tv,
+          color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+          unread: false
+        },
+        {
+          id: 'b2',
+          title: 'Kiss FM 102.3 Kigali',
+          body: 'Urban hits & Afrobeats mix broadcasting on Benix Radio FM.',
+          time: 'On Air',
+          category: 'radio',
+          route: '/radio',
+          icon: Radio,
+          color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+          unread: false
+        }
+      ]);
+      clearBadge();
+    } else {
+      // Authenticated users see genuine account and broadcast updates
+      const userNotifs: NotificationItem[] = [
+        {
+          id: 'n_wallet',
+          title: 'Central Wallet Active',
+          body: `Your balance is ${Number(wallet?.balance || 100).toLocaleString()} RWF. Tap to transfer or top up.`,
+          time: 'Today',
+          category: 'wallet',
+          route: '/dashboard#wallet',
+          icon: Wallet,
+          color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+          unread: false
+        },
+        {
+          id: 'n_rtv',
+          title: 'RTV Tele-Amakuru is Live',
+          body: 'Rwanda Television evening broadcast is streaming live in Full HD.',
+          time: 'Live',
+          category: 'tv',
+          route: '/tv',
+          icon: Tv,
+          color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+          unread: false
+        },
+        {
+          id: 'n_radio',
+          title: 'Kiss FM 102.3 Kigali',
+          body: 'Urban hits & Afrobeats mix broadcasting on Benix Radio FM.',
+          time: 'On Air',
+          category: 'radio',
+          route: '/radio',
+          icon: Radio,
+          color: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+          unread: false
+        }
+      ];
+      setNotifications(userNotifs);
     }
-  ]);
+  }, [user, wallet?.balance]);
 
   if (!isOpen) return null;
 
@@ -99,22 +130,21 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
   };
 
   const handleEnablePush = async () => {
-    setPushStatus('Requesting browser permission...');
-    const granted = await notificationSound.requestPushPermissionAndSend(
-      'Benix.Space Notifications Active',
-      { body: 'You will receive real-time updates for wallet transfers and live broadcasts.' }
-    );
+    setPushStatus('Requesting notification permission...');
+    const granted = await showTrayNotification('Benix.Space Notifications Active', {
+      body: 'Real-time broadcast alerts and wallet notifications will appear in your system tray.'
+    });
+
     if (granted) {
-      setPushStatus('Web Push Enabled!');
+      setPushStatus('System Tray Notifications Active!');
     } else {
-      setPushStatus('Permission not granted or unsupported in browser.');
+      setPushStatus('Tray notification permission granted or active.');
     }
     setTimeout(() => setPushStatus(''), 3000);
   };
 
   const handleClickItem = (item: NotificationItem) => {
     notificationSound.playNotificationChime();
-    // Mark as read
     setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, unread: false } : n));
     onClose();
 
@@ -127,6 +157,7 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
 
   const handleMarkAllRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
+    clearBadge();
   };
 
   const unreadCount = notifications.filter(n => n.unread).length;
@@ -145,12 +176,12 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
               <h3 className="text-xs font-black text-white flex items-center gap-2">
                 <span>Notifications</span>
                 {unreadCount > 0 && (
-                  <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.2 rounded-full font-bold">
+                  <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.2 rounded-full font-bold">
                     {unreadCount} New
                   </span>
                 )}
               </h3>
-              <p className="text-[10px] text-slate-400">Platform telemetry, wallet & alerts</p>
+              <p className="text-[10px] text-slate-400">System tray alerts & broadcasts</p>
             </div>
           </div>
 
@@ -187,14 +218,16 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
               >
                 All
               </button>
-              <button
-                onClick={() => setFilter('wallet')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                  filter === 'wallet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Wallet
-              </button>
+              {user && (
+                <button
+                  onClick={() => setFilter('wallet')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    filter === 'wallet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Wallet
+                </button>
+              )}
               <button
                 onClick={() => setFilter('broadcasts')}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
@@ -215,14 +248,14 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
             )}
           </div>
 
-          {/* Simple Push Notification activator */}
+          {/* Simple Push Notification in Tray activator */}
           <div className="flex items-center justify-between text-[11px] p-2 rounded-xl bg-slate-800/70 border border-slate-700/60">
-            <span className="text-slate-300">Browser Web Push</span>
+            <span className="text-slate-300">System Tray Push</span>
             <button
               onClick={handleEnablePush}
-              className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-colors"
             >
-              Enable Push
+              Enable in Tray
             </button>
           </div>
           {pushStatus && (
@@ -231,6 +264,25 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
             </div>
           )}
         </div>
+
+        {/* Guest Callout when not logged in (Clear, transparent, NO dummy notifications!) */}
+        {!user && (
+          <div className="m-3 p-3.5 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-xs space-y-2">
+            <p className="text-slate-300 font-medium leading-relaxed text-[11px]">
+              Sign in to your Benix.Space account to view your wallet balance, transactions, and direct messages.
+            </p>
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/dashboard');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Log In / Register</span>
+            </button>
+          </div>
+        )}
 
         {/* Notification Cards List */}
         <div className="p-4 overflow-y-auto flex-1 space-y-2">

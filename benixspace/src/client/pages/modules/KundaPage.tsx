@@ -113,7 +113,8 @@ const SAMPLE_MATCHES: MatchProfile[] = [
 ];
 
 export const KundaPage: React.FC = () => {
-  const { user, hasAppProfile } = useAuth();
+  const { user, token, hasAppProfile } = useAuth();
+  const navigate = useNavigate();
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [likedProfiles, setLikedProfiles] = useState<string[]>([]);
@@ -125,6 +126,22 @@ export const KundaPage: React.FC = () => {
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState<boolean>(false);
   const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);
 
+  // Load existing persistent crushes from PostgreSQL
+  React.useEffect(() => {
+    if (token) {
+      fetch('/api/modules/kunda/my-crushes', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.crushes && Array.isArray(data.crushes)) {
+            setLikedProfiles(data.crushes);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token]);
+
   const handleProtectedAction = (match: MatchProfile, actionName: string) => {
     if (!user || !hasAppProfile('kunda')) {
       setWizardTarget('kunda');
@@ -132,14 +149,34 @@ export const KundaPage: React.FC = () => {
     }
 
     if (actionName === 'like') {
+      const isAlreadyLiked = likedProfiles.includes(match.id);
+      fetch('/api/modules/kunda/crush', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          targetProfileId: match.id,
+          targetName: match.name,
+          unlike: isAlreadyLiked
+        })
+      }).catch(() => {});
+
       setLikedProfiles((prev) =>
-        prev.includes(match.id) ? prev.filter((id) => id !== match.id) : [...prev, match.id]
+        isAlreadyLiked ? prev.filter((id) => id !== match.id) : [...prev, match.id]
       );
-      setActionSuccess(`Crush sent to ${match.name}! You will receive a notification when they match back.`);
+      setActionSuccess(
+        isAlreadyLiked
+          ? `Removed crush from ${match.name}.`
+          : `Crush sent to ${match.name}! You will receive a notification when they match back.`
+      );
       setTimeout(() => setActionSuccess(''), 4000);
     } else {
-      setSelectedPartner(match);
-      setIsChatOpen(true);
+      // Direct navigation to Messages Room with partner params
+      navigate(
+        `/messages?user=${match.id}&name=${encodeURIComponent(match.name)}&avatar=${encodeURIComponent(match.image)}`
+      );
     }
   };
 
@@ -325,7 +362,7 @@ export const KundaPage: React.FC = () => {
 
                     {/* Quick Like Heart */}
                     <button
-                      onClick={() => handleProtectedAction(match.id, 'like')}
+                      onClick={() => handleProtectedAction(match, 'like')}
                       className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-slate-300 hover:text-rose-500 hover:scale-110 transition-all shadow-md"
                     >
                       <Heart className={`w-4 h-4 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />

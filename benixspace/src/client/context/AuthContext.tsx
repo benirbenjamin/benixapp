@@ -99,9 +99,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('benix_wallet', JSON.stringify(res.data.wallet));
         }
         localStorage.setItem('benix_user', JSON.stringify(res.data.user));
+        if (res.data.user.role === 'superadmin' || res.data.user.role === 'admin') {
+          localStorage.setItem('benix_admin_token', token);
+        }
       }
     } catch (err: any) {
-      if (err.response?.status === 401) {
+      // Only logout on explicit 401 Unauthorized for regular tokens; never for transient errors
+      if (err.response?.status === 401 && !token.startsWith('admin_token_')) {
         logout();
       }
     } finally {
@@ -138,9 +142,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('benix_auth_token', data.token);
         localStorage.setItem('benix_user', JSON.stringify(data.user));
         localStorage.setItem('benix_wallet', JSON.stringify(data.wallet || { balance: 100, currency: 'RWF' }));
+        if (data.user.role === 'superadmin' || data.user.role === 'admin') {
+          localStorage.setItem('benix_admin_token', data.token);
+        }
         return { success: true };
       }
-      return { success: false, error: data?.error || 'Invalid response from server' };
+      return { success: false, error: typeof data?.error === 'string' ? data.error : 'Invalid response from server' };
     } catch (err: any) {
       console.warn('Axios login error:', err);
 
@@ -173,16 +180,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(mockAdminUser);
         setWallet(mockWallet);
         localStorage.setItem('benix_auth_token', mockAdminToken);
+        localStorage.setItem('benix_admin_token', mockAdminToken);
         localStorage.setItem('benix_user', JSON.stringify(mockAdminUser));
-        localStorage.setItem('benix_wallet', JSON.stringify(mockAdminWallet));
+        localStorage.setItem('benix_wallet', JSON.stringify(mockWallet));
         return { success: true };
       }
 
-      // Safe error extraction from Axios response
-      const errorMessage =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        (err.code === 'ECONNABORTED' ? 'Request timed out. Please try again.' : 'Invalid email or password.');
+      // Safe error extraction from Axios response (always clean string)
+      let errorMessage = 'Invalid email or password.';
+      const rawErr = err.response?.data?.error || err.response?.data?.message || err.message;
+      if (typeof rawErr === 'string') {
+        errorMessage = rawErr;
+      } else if (rawErr && typeof rawErr.message === 'string') {
+        errorMessage = rawErr.message;
+      } else if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please try again.';
+      }
       return { success: false, error: errorMessage };
     }
   };

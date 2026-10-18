@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, ArrowUpRight, ShieldCheck, Heart } from 'lucide-react';
+import { Mail, Phone, MapPin, ArrowUpRight, ShieldCheck, Heart, Smartphone, Download } from 'lucide-react';
 import { FacebookIcon, InstagramIcon, TwitterIcon, YoutubeIcon } from '../common/SocialIcons';
 import { fetchCompanySettings } from '../../services/api';
+import { usePwa } from '../../context/PwaContext';
 
 export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
+  const { isInstalled, installApp } = usePwa();
   const [logo, setLogo] = useState<string>('/logo.png');
   const [companyInfo, setCompanyInfo] = useState({
     name: 'BenixSpace',
@@ -102,6 +104,20 @@ export const Footer: React.FC = () => {
                 <YoutubeIcon className="w-4 h-4" />
               </a>
             </div>
+
+            {/* PWA Install Button (Hides when app is installed) */}
+            {!isInstalled && (
+              <div className="pt-2">
+                <button
+                  onClick={installApp}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95 group"
+                >
+                  <Smartphone className="w-4 h-4 text-blue-200 group-hover:scale-110 transition-transform" />
+                  <span>Install Benix.Space App</span>
+                  <Download className="w-3.5 h-3.5 text-blue-200" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Column 2: Digital Platforms Suite */}
@@ -195,6 +211,18 @@ export const Footer: React.FC = () => {
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
           <p>{companyInfo.copyright}</p>
           <div className="flex items-center gap-4">
+            {!isInstalled && (
+              <>
+                <button
+                  onClick={installApp}
+                  className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Install App</span>
+                </button>
+                <span>•</span>
+              </>
+            )}
             <Link to="/admin" className="hover:text-blue-400 transition-colors flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
               <span>Admin Console</span>

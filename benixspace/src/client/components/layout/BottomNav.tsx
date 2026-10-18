@@ -60,19 +60,24 @@ export const BottomNav: React.FC = () => {
           </button>
         </div>
 
-        {/* 4. Inbox with badge 3 */}
-        <button
-          onClick={() => setShowInboxNotice(!showInboxNotice)}
-          className="relative flex flex-col items-center justify-center py-1 text-slate-400 hover:text-white transition-all"
+        {/* 4. Inbox Message Room */}
+        <Link
+          to={user ? "/messages" : "/dating"}
+          onClick={(e) => {
+            if (!user) {
+              e.preventDefault();
+              setShowWizard(true);
+            }
+          }}
+          className={`relative flex flex-col items-center justify-center py-1 transition-all ${
+            isActive('/messages') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
+          }`}
         >
           <div className="relative">
             <MessageSquare className="w-5 h-5" />
-            <span className="absolute -top-1.5 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full border-2 border-[#0B0E14]">
-              3
-            </span>
           </div>
           <span className="text-[10px] font-bold mt-1 tracking-tight">Inbox</span>
-        </button>
+        </Link>
 
         {/* 5. Profile / Admin */}
         <Link
@@ -95,35 +100,6 @@ export const BottomNav: React.FC = () => {
         </Link>
 
       </nav>
-
-      {/* Floating Inbox Notifications Drawer */}
-      {showInboxNotice && (
-        <div className="fixed bottom-20 right-4 z-50 w-72 bg-[#121824] border border-slate-700/80 rounded-2xl shadow-2xl p-4 text-white space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
-            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-              <MessageSquare className="w-4 h-4 text-blue-400" />
-              Benix.Space Notifications
-            </h4>
-            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">
-              3 new
-            </span>
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">Welcome to Benix.Space</p>
-              <p className="text-[10px] text-slate-400">100 RWF welcome bonus has been credited to your central wallet.</p>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">RTV Live Broadcasting</p>
-              <p className="text-[10px] text-slate-400">Watch Rwanda Television 24/7 in real-time HD stream.</p>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/40">
-              <p className="font-bold text-white text-[11px]">Kunda Space Matchmaker</p>
-              <p className="text-[10px] text-slate-400">Complete your dating profile to discover verified connections.</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Search Modal */}
       {showSearch && <SearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />}

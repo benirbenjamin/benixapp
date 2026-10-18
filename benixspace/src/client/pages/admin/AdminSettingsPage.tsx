@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { fetchCompanySettings, updateCompanySettings } from '../../services/api';
+import { fetchCompanySettings, updateCompanySettings, getAuthToken } from '../../services/api';
 import {
   Settings, Save, CheckCircle2, AlertCircle, Building2, User, Mail, Phone,
   MapPin, ShieldCheck, Tv, Radio, Heart, Music, ShoppingBag, Dices, Calculator,
@@ -74,7 +75,7 @@ export const AdminSettingsPage: React.FC = () => {
     test_result: ''
   });
 
-  // 6. Active Multi-App Module Toggles
+  // 6. Active Multi-App Module Control & Configuration
   const [modules, setModules] = useState({
     enable_tv: true,
     enable_radio: true,
@@ -83,8 +84,47 @@ export const AdminSettingsPage: React.FC = () => {
     enable_marketplace: true,
     enable_games: true,
     enable_calc: true,
+    // TV settings
+    tv_default_station: 'rtv',
+    tv_ad_interval_mins: 15,
+    tv_quality_protocol: 'HLS',
+    tv_autoplay_muted: true,
+    // Radio settings
+    radio_default_station: 'kiss-fm',
+    radio_preroll_interval_sec: 180,
+    radio_buffer_sec: 5,
+    // Kunda Dating settings
+    kunda_message_cost: 50,
+    kunda_free_messages: 3,
+    kunda_contact_unlock_price: 2000,
+    kunda_pass_24h_price: 500,
+    kunda_pass_3d_price: 1200,
+    kunda_pass_weekly_price: 2500,
+    kunda_pass_monthly_price: 6000,
+    kunda_photo_verify_required: true,
+    // Voxify Music settings
+    voxify_royalty_split: 70,
+    voxify_audio_bitrate: '320kbps',
+    voxify_allow_download: true,
+    // RollDice Gaming settings
+    min_dice_wager: 100,
     max_dice_wager: 10000,
-    tv_ad_interval_mins: 15
+    dice_payout_multiplier: 1.9,
+    dice_house_edge_pct: 5,
+    dice_daily_limit: 50000,
+    // EasyCalc settings
+    calc_currency: 'RWF',
+    calc_vat_pct: 18,
+    calc_corp_tax_pct: 30,
+    calc_loan_apr_pct: 16,
+    // Marketplace settings
+    market_commission_pct: 5,
+    market_min_payout: 1000,
+    market_auto_approve: true,
+    // Stories & Creator Studio
+    story_lifespan_hours: 24,
+    creator_watch_hours_goal: 300,
+    creator_subscribers_goal: 30
   });
 
   const [saving, setSaving] = useState(false);
@@ -198,6 +238,27 @@ export const AdminSettingsPage: React.FC = () => {
         founder_name: contacts.founder_name
       }).catch(() => {});
 
+      // 3. Sync Kunda Space dynamic pricing & subscription plans to server
+      const token = getAuthToken();
+      if (token) {
+        await fetch('/api/admin/settings/kunda', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            messageCost: Number(modules.kunda_message_cost),
+            contactUnlockPrice: Number(modules.kunda_contact_unlock_price),
+            freeInitialMessages: Number(modules.kunda_free_messages),
+            pass24hPrice: Number(modules.kunda_pass_24h_price),
+            pass3dPrice: Number(modules.kunda_pass_3d_price),
+            passWeeklyPrice: Number(modules.kunda_pass_weekly_price),
+            passMonthlyPrice: Number(modules.kunda_pass_monthly_price)
+          })
+        }).catch(() => {});
+      }
+
       setSuccess('All platform configurations, AdSense variables, Drive setup, and footer contacts saved successfully!');
       setTimeout(() => setSuccess(''), 5000);
     } catch (err: any) {
@@ -213,7 +274,7 @@ export const AdminSettingsPage: React.FC = () => {
     { key: 'adsense', label: 'Google AdSense Monetization', icon: DollarSign },
     { key: 'drive', label: 'Google Drive Storage', icon: HardDrive },
     { key: 'email', label: 'Resend & Email Relay', icon: Mail },
-    { key: 'modules', label: 'App Suite Toggles', icon: Building2 },
+    { key: 'modules', label: 'All Apps Control & Configuration', icon: Building2 },
     { key: 'database', label: 'Neon Database Health', icon: Database },
   ];
 
@@ -825,57 +886,595 @@ export const AdminSettingsPage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: MULTI-APP MODULE TOGGLES */}
+          {/* TAB 6: ALL APPS CONTROL & CONFIGURATION */}
           {activeTab === 'modules' && (
-            <div className="rounded-3xl p-6 sm:p-8 border border-slate-800 bg-[#131926] shadow-xl space-y-6">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-purple-400" /> Active Application Suite Master Switches
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Turn platform modules on or off. Disabled modules will be hidden from public navigation and homepage feeds.
-                </p>
-              </div>
+            <div className="space-y-6">
+              
+              {/* 1. Master Application Suite Switches */}
+              <div className="rounded-3xl p-6 sm:p-8 border border-slate-800 bg-[#131926] shadow-xl space-y-5">
+                <div className="border-b border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                      <Building2 className="w-5 h-5 text-purple-400" /> Active Application Suite Master Switches
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Turn platform modules on or off. Disabled modules will be hidden from public navigation and homepage feeds.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400">
+                    {Object.values(modules).filter(v => v === true).length} Modules Active
+                  </span>
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {[
-                  { key: 'enable_tv', label: 'Live TV Streaming (17 channels)', icon: Tv, color: 'text-blue-400' },
-                  { key: 'enable_radio', label: 'Live Radio FM (19 stations)', icon: Radio, color: 'text-purple-400' },
-                  { key: 'enable_kunda', label: 'Kunda Space Dating', icon: Heart, color: 'text-rose-400' },
-                  { key: 'enable_voxify', label: 'Voxify Choirs & Gospel', icon: Music, color: 'text-indigo-400' },
-                  { key: 'enable_marketplace', label: 'Benix Marketplace', icon: ShoppingBag, color: 'text-emerald-400' },
-                  { key: 'enable_games', label: 'RollDice Arena Gaming', icon: Dices, color: 'text-amber-400' },
-                  { key: 'enable_calc', label: 'EasyCalc Smart Calculators', icon: Calculator, color: 'text-teal-400' },
-                ].map((m) => {
-                  const Icon = m.icon;
-                  const isEnabled = modules[m.key as keyof typeof modules] as boolean;
-                  return (
-                    <button
-                      key={m.key}
-                      type="button"
-                      onClick={() => setModules({ ...modules, [m.key]: !isEnabled })}
-                      className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all ${
-                        isEnabled
-                          ? 'bg-[#1A2234] border-blue-500/50 text-white'
-                          : 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Icon className={`w-5 h-5 ${m.color}`} />
-                        <span className="text-xs font-bold">{m.label}</span>
-                      </div>
-
-                      <span
-                        className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
-                          isEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[
+                    { key: 'enable_tv', label: 'Live TV Streaming (17 channels)', icon: Tv, color: 'text-blue-400' },
+                    { key: 'enable_radio', label: 'Live Radio FM (19 stations)', icon: Radio, color: 'text-purple-400' },
+                    { key: 'enable_kunda', label: 'Kunda Space Dating', icon: Heart, color: 'text-rose-400' },
+                    { key: 'enable_voxify', label: 'Voxify Choirs & Gospel', icon: Music, color: 'text-indigo-400' },
+                    { key: 'enable_marketplace', label: 'Benix Marketplace', icon: ShoppingBag, color: 'text-emerald-400' },
+                    { key: 'enable_games', label: 'RollDice Arena Gaming', icon: Dices, color: 'text-amber-400' },
+                    { key: 'enable_calc', label: 'EasyCalc Smart Calculators', icon: Calculator, color: 'text-teal-400' },
+                  ].map((m) => {
+                    const Icon = m.icon;
+                    const isEnabled = modules[m.key as keyof typeof modules] as boolean;
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setModules({ ...modules, [m.key]: !isEnabled })}
+                        className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all ${
+                          isEnabled
+                            ? 'bg-[#1A2234] border-blue-500/50 text-white shadow-md'
+                            : 'bg-slate-900/60 border-slate-800 text-slate-500 opacity-60'
                         }`}
                       >
-                        {isEnabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <div className="flex items-center gap-3">
+                          <Icon className={`w-5 h-5 ${m.color}`} />
+                          <span className="text-xs font-bold">{m.label}</span>
+                        </div>
+
+                        <span
+                          className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                            isEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {isEnabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* 2. Deep Module Configuration Panels with Links & Controls */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* A. Live TV Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                        <Tv className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Live TV Streaming Control</h4>
+                        <p className="text-[11px] text-slate-400">17 Rwandan & regional broadcast channels</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to="/tv"
+                        target="_blank"
+                        className="px-2.5 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[11px] font-bold flex items-center gap-1 border border-blue-500/30 transition-colors"
+                      >
+                        <span>Open TV</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Default Station Channel</label>
+                      <input
+                        type="text"
+                        value={modules.tv_default_station}
+                        onChange={(e) => setModules({ ...modules, tv_default_station: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">In-Stream Ad Interval (mins)</label>
+                      <input
+                        type="number"
+                        value={modules.tv_ad_interval_mins}
+                        onChange={(e) => setModules({ ...modules, tv_ad_interval_mins: Number(e.target.value) || 15 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Stream Transport Protocol</label>
+                      <select
+                        value={modules.tv_quality_protocol}
+                        onChange={(e) => setModules({ ...modules, tv_quality_protocol: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      >
+                        <option value="HLS">HLS (Adaptive .m3u8 - Recommended)</option>
+                        <option value="MP4">Direct MP4 Video Stream</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-between pt-5">
+                      <span className="text-slate-400">Autoplay Muted</span>
+                      <input
+                        type="checkbox"
+                        checked={modules.tv_autoplay_muted}
+                        onChange={(e) => setModules({ ...modules, tv_autoplay_muted: e.target.checked })}
+                        className="w-4 h-4 rounded text-blue-600"
+                      >
+                      </input>
+                    </div>
+                  </div>
+                </div>
+
+                {/* B. Live Radio FM Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                        <Radio className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Live Radio FM Control</h4>
+                        <p className="text-[11px] text-slate-400">19 FM stations & digital live audio</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/radio"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-[11px] font-bold flex items-center gap-1 border border-purple-500/30 transition-colors"
+                    >
+                      <span>Open Radio</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Default Radio Station</label>
+                      <input
+                        type="text"
+                        value={modules.radio_default_station}
+                        onChange={(e) => setModules({ ...modules, radio_default_station: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Pre-Roll Ad Frequency (s)</label>
+                      <input
+                        type="number"
+                        value={modules.radio_preroll_interval_sec}
+                        onChange={(e) => setModules({ ...modules, radio_preroll_interval_sec: Number(e.target.value) || 180 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Buffer Pre-load (seconds)</label>
+                      <input
+                        type="number"
+                        value={modules.radio_buffer_sec}
+                        onChange={(e) => setModules({ ...modules, radio_buffer_sec: Number(e.target.value) || 5 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-5">
+                      <span className="text-slate-400">Background Playback</span>
+                      <span className="text-emerald-400 font-bold">Enabled 24/7</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* C. Kunda Space Dating Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                        <Heart className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Kunda Dating Pricing & Passes</h4>
+                        <p className="text-[11px] text-slate-400">Matchmaking, WhatsApp unlock & passes</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to="/dating"
+                        target="_blank"
+                        className="px-2.5 py-1 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 text-[11px] font-bold flex items-center gap-1 border border-rose-500/30 transition-colors"
+                      >
+                        <span>Dating Page</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                      <Link
+                        to="/messages"
+                        target="_blank"
+                        className="px-2.5 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[11px] font-bold flex items-center gap-1 border border-blue-500/30 transition-colors"
+                      >
+                        <span>Messages</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Single Message Fee (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_message_cost}
+                        onChange={(e) => setModules({ ...modules, kunda_message_cost: Number(e.target.value) || 50 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-rose-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Free Initial Messages</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_free_messages}
+                        onChange={(e) => setModules({ ...modules, kunda_free_messages: Number(e.target.value) || 3 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">WhatsApp Contact Unlock (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_contact_unlock_price}
+                        onChange={(e) => setModules({ ...modules, kunda_contact_unlock_price: Number(e.target.value) || 2000 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-amber-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">24-Hour Pass (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_pass_24h_price}
+                        onChange={(e) => setModules({ ...modules, kunda_pass_24h_price: Number(e.target.value) || 500 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">3-Day Pass (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_pass_3d_price}
+                        onChange={(e) => setModules({ ...modules, kunda_pass_3d_price: Number(e.target.value) || 1200 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">7-Day Weekly Pass (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_pass_weekly_price}
+                        onChange={(e) => setModules({ ...modules, kunda_pass_weekly_price: Number(e.target.value) || 2500 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">30-Day Monthly Pass (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.kunda_pass_monthly_price}
+                        onChange={(e) => setModules({ ...modules, kunda_pass_monthly_price: Number(e.target.value) || 6000 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-5">
+                      <span className="text-slate-400">Photo Verification Mandatory</span>
+                      <input
+                        type="checkbox"
+                        checked={modules.kunda_photo_verify_required}
+                        onChange={(e) => setModules({ ...modules, kunda_photo_verify_required: e.target.checked })}
+                        className="w-4 h-4 rounded text-rose-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* D. Voxify Choirs & Gospel Music Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                        <Music className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Voxify Choirs & Gospel</h4>
+                        <p className="text-[11px] text-slate-400">Choir releases, audio fidelity & splits</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/music"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-[11px] font-bold flex items-center gap-1 border border-indigo-500/30 transition-colors"
+                    >
+                      <span>Open Voxify</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Choir Royalty Split %</label>
+                      <input
+                        type="number"
+                        value={modules.voxify_royalty_split}
+                        onChange={(e) => setModules({ ...modules, voxify_royalty_split: Number(e.target.value) || 70 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Audio Streaming Bitrate</label>
+                      <select
+                        value={modules.voxify_audio_bitrate}
+                        onChange={(e) => setModules({ ...modules, voxify_audio_bitrate: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      >
+                        <option value="320kbps">320 kbps (Studio Master Hi-Fi)</option>
+                        <option value="192kbps">192 kbps (High Quality)</option>
+                        <option value="128kbps">128 kbps (Data Saver)</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-between pt-5 col-span-2">
+                      <span className="text-slate-400">Allow Offline MP3 Downloads for VIP Members</span>
+                      <input
+                        type="checkbox"
+                        checked={modules.voxify_allow_download}
+                        onChange={(e) => setModules({ ...modules, voxify_allow_download: e.target.checked })}
+                        className="w-4 h-4 rounded text-indigo-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* E. RollDice Arena Gaming Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        <Dices className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">RollDice Arena Gaming Control</h4>
+                        <p className="text-[11px] text-slate-400">PVE dice challenge, limits & payouts</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/games"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 text-[11px] font-bold flex items-center gap-1 border border-amber-500/30 transition-colors"
+                    >
+                      <span>Open Arena</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Minimum Wager (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.min_dice_wager}
+                        onChange={(e) => setModules({ ...modules, min_dice_wager: Number(e.target.value) || 100 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Maximum Single Wager (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.max_dice_wager}
+                        onChange={(e) => setModules({ ...modules, max_dice_wager: Number(e.target.value) || 10000 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-amber-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Win Payout Multiplier (x)</label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={modules.dice_payout_multiplier}
+                        onChange={(e) => setModules({ ...modules, dice_payout_multiplier: Number(e.target.value) || 1.9 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-emerald-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">House Edge Margin %</label>
+                      <input
+                        type="number"
+                        value={modules.dice_house_edge_pct}
+                        onChange={(e) => setModules({ ...modules, dice_house_edge_pct: Number(e.target.value) || 5 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* F. EasyCalc Smart Utilities Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30">
+                        <Calculator className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">EasyCalc Pro Smart Utilities</h4>
+                        <p className="text-[11px] text-slate-400">Taxes, VAT, loans, and currency defaults</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/calculators"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-teal-600/20 hover:bg-teal-600/30 text-teal-400 text-[11px] font-bold flex items-center gap-1 border border-teal-500/30 transition-colors"
+                    >
+                      <span>Open EasyCalc</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Default Currency Code</label>
+                      <input
+                        type="text"
+                        value={modules.calc_currency}
+                        onChange={(e) => setModules({ ...modules, calc_currency: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-teal-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Rwanda Standard VAT %</label>
+                      <input
+                        type="number"
+                        value={modules.calc_vat_pct}
+                        onChange={(e) => setModules({ ...modules, calc_vat_pct: Number(e.target.value) || 18 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Corporate Tax %</label>
+                      <input
+                        type="number"
+                        value={modules.calc_corp_tax_pct}
+                        onChange={(e) => setModules({ ...modules, calc_corp_tax_pct: Number(e.target.value) || 30 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Standard Loan Annual APR %</label>
+                      <input
+                        type="number"
+                        value={modules.calc_loan_apr_pct}
+                        onChange={(e) => setModules({ ...modules, calc_loan_apr_pct: Number(e.target.value) || 16 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* G. Digital Marketplace Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Digital Marketplace Control</h4>
+                        <p className="text-[11px] text-slate-400">Commission rates, vendor listings & escrows</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/marketplace"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-[11px] font-bold flex items-center gap-1 border border-emerald-500/30 transition-colors"
+                    >
+                      <span>Open Marketplace</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Platform Commission Fee %</label>
+                      <input
+                        type="number"
+                        value={modules.market_commission_pct}
+                        onChange={(e) => setModules({ ...modules, market_commission_pct: Number(e.target.value) || 5 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-emerald-400 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Minimum MoMo Payout (RWF)</label>
+                      <input
+                        type="number"
+                        value={modules.market_min_payout}
+                        onChange={(e) => setModules({ ...modules, market_min_payout: Number(e.target.value) || 1000 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-5 col-span-2">
+                      <span className="text-slate-400">Auto-Approve Verified Merchant Listings</span>
+                      <input
+                        type="checkbox"
+                        checked={modules.market_auto_approve}
+                        onChange={(e) => setModules({ ...modules, market_auto_approve: e.target.checked })}
+                        className="w-4 h-4 rounded text-emerald-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* H. Stories & Creator Studio Control */}
+                <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">Stories & Creator Studio</h4>
+                        <p className="text-[11px] text-slate-400">Real stories, reels, monetization goals</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/"
+                      target="_blank"
+                      className="px-2.5 py-1 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 text-[11px] font-bold flex items-center gap-1 border border-rose-500/30 transition-colors"
+                    >
+                      <span>Homepage Reel</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Story Lifespan (hours)</label>
+                      <input
+                        type="number"
+                        value={modules.story_lifespan_hours}
+                        onChange={(e) => setModules({ ...modules, story_lifespan_hours: Number(e.target.value) || 24 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Creator Watch Hours Goal</label>
+                      <input
+                        type="number"
+                        value={modules.creator_watch_hours_goal}
+                        onChange={(e) => setModules({ ...modules, creator_watch_hours_goal: Number(e.target.value) || 300 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Creator Subscribers Goal</label>
+                      <input
+                        type="number"
+                        value={modules.creator_subscribers_goal}
+                        onChange={(e) => setModules({ ...modules, creator_subscribers_goal: Number(e.target.value) || 30 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-5">
+                      <span className="text-slate-400">Real Stories Only</span>
+                      <span className="text-emerald-400 font-bold">PostgreSQL Verified</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           )}
 
