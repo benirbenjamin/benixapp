@@ -20,17 +20,24 @@ import {
   Music,
   Heart,
   Calculator,
-  Briefcase
+  Briefcase,
+  MessageSquare,
+  Plus
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { WalletModal } from '../modals/WalletModal';
+import { NotificationTray } from '../modals/NotificationTray';
+import { MessagesDrawer } from '../modals/MessagesDrawer';
+import { CreateMediaModal } from '../modals/CreateMediaModal';
 
 export const Navbar: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [showCreateMedia, setShowCreateMedia] = useState(false);
   const [wizardAppKey, setWizardAppKey] = useState<string | null>(null);
 
   const { user, wallet, logout, hasAppProfile } = useAuth();
@@ -54,12 +61,12 @@ export const Navbar: React.FC = () => {
   return (
     <>
       <header className="sticky top-0 z-40 bg-[#0B0E14]/95 backdrop-blur-xl border-b border-slate-800/80 text-white shadow-lg transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-3">
+        <div className="w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-10 py-3 space-y-3">
           
           {/* Top Row: Menu | Brand Logo & Subtitle | Prominent Admin & Bell */}
           <div className="flex items-center justify-between gap-3">
             
-            {/* Left: Drawer Menu Button & Logo */}
+            {/* Left: Drawer Menu Button & Clickable Logo */}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsDrawerOpen(true)}
@@ -69,21 +76,44 @@ export const Navbar: React.FC = () => {
                 <Menu className="w-5 h-5" />
               </button>
 
-              <Link to="/" className="flex flex-col group">
-                <span className="font-black text-xl tracking-tight text-white flex items-center gap-1 group-hover:text-blue-400 transition-colors">
-                  Benix<span className="text-blue-500">.Space</span>
-                </span>
-                <span className="text-[10px] font-medium text-slate-400 tracking-wide">
-                  All in One. For Everyone.
-                </span>
+              <Link to="/" className="flex items-center gap-2.5 group">
+                <img
+                  src={localStorage.getItem('benix_platform_logo') || '/logo.png'}
+                  alt="BenixSpace Logo"
+                  className="w-9 h-9 object-contain rounded-xl shadow-md group-hover:scale-105 transition-transform"
+                />
+                <div className="flex flex-col">
+                  <span className="font-black text-xl tracking-tight text-white flex items-center gap-1 group-hover:text-blue-400 transition-colors">
+                    Benix<span className="text-blue-500">.Space</span>
+                  </span>
+                  <span className="text-[10px] font-medium text-slate-400 tracking-wide">
+                    All in One. For Everyone.
+                  </span>
+                </div>
               </Link>
             </div>
 
-            {/* Right: Prominent Admin Dashboard Button + Notifications Bell */}
+            {/* Right: Actions */}
             <div className="flex items-center gap-2 sm:gap-3">
               
-              {/* PROMINENT ADMIN DASHBOARD BUTTON */}
-              {isAdmin ? (
+              {/* Creator Upload (+) Button */}
+              <button
+                onClick={() => {
+                  if (!user) {
+                    setWizardAppKey('tv');
+                  } else {
+                    setShowCreateMedia(true);
+                  }
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all hover:scale-105"
+                title="Upload Video or Story"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Create</span>
+              </button>
+
+              {/* ADMIN DASHBOARD BUTTON - ONLY VISIBLE TO VERIFIED ADMINS */}
+              {isAdmin && (
                 <Link
                   to="/admin"
                   className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 hover:border-amber-400 text-amber-300 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
@@ -93,15 +123,6 @@ export const Navbar: React.FC = () => {
                   <span className="hidden sm:inline">Admin Dashboard</span>
                   <span className="sm:hidden">Admin</span>
                 </Link>
-              ) : (
-                <Link
-                  to="/admin/login"
-                  className="px-2.5 py-1 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 text-slate-400 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition-all"
-                  title="Admin Portal Login"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="hidden md:inline">Admin Portal</span>
-                </Link>
               )}
 
               {/* Wallet Pill if Logged In */}
@@ -109,21 +130,34 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={() => setShowWallet(true)}
                   className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all"
+                  title="Open Central Wallet"
                 >
                   <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{wallet ? Number(wallet.balance).toLocaleString() : '100'} RWF</span>
+                  <span>{Number(wallet?.balance ?? 0).toLocaleString()} RWF</span>
                 </button>
               )}
 
-              {/* Notification Bell with Red Badge 5 */}
+              {/* Direct Messages Drawer Button */}
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={() => setShowMessages(true)}
+                className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
+                title="Direct Messages"
+              >
+                <MessageSquare className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full border-2 border-[#0B0E14]">
+                  3
+                </span>
+              </button>
+
+              {/* Notification Bell with Chime & Push */}
+              <button
+                onClick={() => setShowNotifications(true)}
                 className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
                 title="Notifications"
               >
                 <Bell className="w-5 h-5" />
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full border-2 border-[#0B0E14] animate-pulse">
-                  5
+                  4
                 </span>
               </button>
 
@@ -132,7 +166,8 @@ export const Navbar: React.FC = () => {
                 <div className="relative group">
                   <Link
                     to="/dashboard"
-                    className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md"
+                    className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md hover:scale-105 transition-transform"
+                    title={`Dashboard (${user.name})`}
                   >
                     {user.name.charAt(0).toUpperCase()}
                   </Link>

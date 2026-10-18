@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { usePlayer } from '../../context/PlayerContext';
 import { fetchTvStations, type Station } from '../../services/mediaService';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
-import { BenixPlayerModal } from '../../components/modals/BenixPlayerModal';
+import { LiveTVPlayer } from '../../components/player/LiveTVPlayer';
+import { SidebarRecommendationsMixedAds } from '../../components/ads/SidebarRecommendationsMixedAds';
 import { CompanionAdBanner } from '../../components/ads/CompanionAdBanner';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
@@ -20,7 +22,8 @@ import {
   ChevronRight,
   Flame,
   Globe,
-  Film
+  Film,
+  ArrowLeft
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -79,14 +82,12 @@ export const TvPage: React.FC = () => {
   };
 
   const handlePlayStation = (station: Station) => {
-    // Check if user is logged in and has TV profile filled
     if (!user) {
-      // Allow preview or prompt login
-      setActiveStation(station);
+      playTv(station);
     } else if (!hasAppProfile('tv')) {
       setWizardTarget('tv');
     } else {
-      setActiveStation(station);
+      playTv(station);
     }
   };
 
@@ -125,111 +126,85 @@ export const TvPage: React.FC = () => {
     logo_url: 'https://i.postimg.cc/k47vB4L2/rtv.png'
   };
 
+  const activeChannel = activeTvStation || stations[0] || featuredStation;
+
   return (
-    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-24 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-blue-600 selection:text-white">
       <SeoHead
         title="Live TV Broadcasts & Channels — BenixSpace"
         description="Stream official live television channels in Rwanda and globally. Watch RTV, KC2, BTN, TV10, Isibo TV, France 24, and CBS News in high definition."
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         
-        {/* Top Hero Banner */}
-        <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#121926] via-[#0e1422] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-blue-600/10 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 -mb-16 w-72 h-72 rounded-full bg-red-600/10 blur-3xl pointer-events-none" />
+        {/* Prominent Back to Home Button & Broadcast Banner */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </Link>
 
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-4 max-w-2xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-600 text-white shadow-lg shadow-red-600/30">
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                  Live Broadcast
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  HLS Full HD Stream
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300">
-                  {stations.length} Active Channels
-                </span>
+          <span className="text-xs text-blue-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+            <Tv className="w-3.5 h-3.5" />
+            <span>24/7 Live Broadcasts • Movable PiP Enabled</span>
+          </span>
+        </div>
+
+        {/* Embedded Live TV Player & Sidebar Recommendations Mixed with Ads */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Main Video Player & Details */}
+          <div className="lg:col-span-8 space-y-4">
+            <LiveTVPlayer
+              station={activeChannel}
+              autoPlay={true}
+            />
+
+            <div className="p-4 sm:p-5 rounded-3xl bg-[#121824] border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                  <h2 className="text-lg sm:text-xl font-black text-white">
+                    {activeChannel.name}
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-black uppercase border border-red-500/30">
+                    Live Broadcast
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-xl">
+                  {activeChannel.description || 'Public service high definition live television broadcast.'}
+                </p>
               </div>
 
-              <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-                Watch Live TV Channels <br />
-                <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
-                  Anytime, Anywhere on BenixSpace
-                </span>
-              </h1>
-
-              <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
-                Enjoy real-time streaming directly from public broadcasting feeds without delay. Clean audio, zero YouTube embeds, and direct low-latency HLS video.
-              </p>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={() => handlePlayStation(featuredStation)}
-                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-xl shadow-blue-600/25 flex items-center gap-2.5 transition-all transform active:scale-95"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  Watch {featuredStation.name} Now
-                </button>
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => navigate('/radio')}
-                  className="px-5 py-3.5 rounded-2xl bg-[#1A2234] hover:bg-[#222c42] text-slate-200 font-semibold text-sm border border-slate-700/60 flex items-center gap-2 transition-all"
+                  className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all"
                 >
                   <Radio className="w-4 h-4 text-purple-400" />
-                  Switch to Live Radio
+                  <span>Switch to Radio FM</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Featured Channel Card Preview */}
-            <div
-              onClick={() => handlePlayStation(featuredStation)}
-              className="w-full md:w-80 p-5 rounded-2xl bg-[#161F30]/90 border border-slate-700/70 shadow-2xl backdrop-blur-md cursor-pointer hover:border-blue-500/60 group transition-all"
-            >
-              <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden flex items-center justify-center border border-slate-800 mb-4">
-                {featuredStation.logo_url ? (
-                  <img
-                    src={featuredStation.logo_url}
-                    alt={featuredStation.name}
-                    className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/logo.png';
-                    }}
-                  />
-                ) : (
-                  <Tv className="w-12 h-12 text-slate-600" />
-                )}
-                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 flex items-center justify-center transition-all">
-                  <div className="w-12 h-12 rounded-full bg-blue-600/90 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-                    <Play className="w-5 h-5 fill-white ml-0.5" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-extrabold text-sm text-white group-hover:text-blue-400 transition-colors">
-                    {featuredStation.name}
-                  </h4>
-                  <p className="text-[11px] text-slate-400">{featuredStation.location || 'Kigali, Rwanda'}</p>
-                </div>
-                <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-red-600/20 text-red-400 border border-red-500/30">
-                  LIVE
-                </span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Live TV Broadcast Sponsor Banner */}
-        <div className="max-w-5xl mx-auto">
-          <CompanionAdBanner label="Live TV Broadcast Partner" />
+          {/* Right Sidebar: Recommendations Mixed with User Ads + Google AdSense */}
+          <div className="lg:col-span-4">
+            <SidebarRecommendationsMixedAds
+              items={stations}
+              type="tv"
+              activeItemId={activeChannel.id}
+              onSelectItem={(st) => handlePlayStation(st)}
+            />
+          </div>
+
         </div>
 
         {/* Search & Category Filter Strip */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-800">
           {/* Categories */}
           <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-none">
             {CATEGORIES.map((cat) => (
@@ -403,13 +378,6 @@ export const TvPage: React.FC = () => {
         onSuccess={() => {
           setWizardTarget(null);
         }}
-      />
-
-      {/* Benix Live Streaming Player Modal */}
-      <BenixPlayerModal
-        isOpen={!!activeStation}
-        station={activeStation}
-        onClose={() => setActiveStation(null)}
       />
     </div>
   );

@@ -75,6 +75,14 @@ export function requireAdminRole(req: AuthenticatedRequest, res: Response, next:
   next();
 }
 
+export function requireStaffRole(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const allowed = ['superadmin', 'admin', 'manager', 'editor', 'moderator'];
+  if (!req.user || !allowed.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied. Staff privileges (Manager/Editor/Admin) required.' });
+  }
+  next();
+}
+
 export function requireSuperAdminRole(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.user || req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'Access denied. Super Administrator privileges required.' });

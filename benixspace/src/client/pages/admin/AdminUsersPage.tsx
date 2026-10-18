@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { fetchUsers, createUser, deleteUser } from '../../services/api';
+import { fetchUsers, createUser, deleteUser, getAuthToken } from '../../services/api';
 import { User, UserPlus, Trash2, Shield, Edit3, X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export const AdminUsersPage: React.FC = () => {
@@ -12,7 +12,7 @@ export const AdminUsersPage: React.FC = () => {
     name: '',
     email: '',
     password: '',
-    role: 'editor' as 'admin' | 'editor'
+    role: 'editor' as string
   });
 
   const [formError, setFormError] = useState('');
@@ -66,6 +66,33 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
+  const [updatingRoleId, setUpdatingRoleId] = useState<number | null>(null);
+
+  const handleUpdateRole = async (userId: number, newRole: string) => {
+    const token = getAuthToken();
+    setUpdatingRoleId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)));
+      } else {
+        alert(data.error || 'Failed to update user role');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating user role');
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
   const handleDeleteUser = async (id: number, name: string) => {
     if (!window.confirm(`Are you sure you want to delete user ${name}?`)) return;
     try {
@@ -83,15 +110,15 @@ export const AdminUsersPage: React.FC = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">User & Editor Management</h1>
-            <p className="text-slate-600 text-sm">Add platform administrators and content editors with article review workflows.</p>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">User & Role Management</h1>
+            <p className="text-slate-600 text-sm">Assign platform roles (Superadmin, Admin, Manager, Editor, Moderator, User) and manage access permissions.</p>
           </div>
 
           <button
             onClick={handleOpenModal}
             className="px-5 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-lg shadow-sky-600/20 transition-all flex items-center gap-2"
           >
-            <UserPlus className="w-4 h-4" /> Add New User / Editor
+            <UserPlus className="w-4 h-4" /> Add New User / Staff
           </button>
         </div>
 
@@ -99,10 +126,12 @@ export const AdminUsersPage: React.FC = () => {
         <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100 flex items-start gap-3 text-xs text-sky-900">
           <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <strong className="block text-slate-900 font-bold">Role & Content Review Workflow:</strong>
+            <strong className="block text-slate-900 font-bold">Role & Permissions Hierarchy:</strong>
             <p>
-              • <strong>Editors</strong> can write and edit blog articles. When an editor submits a post, it is set to <span className="font-bold text-amber-700">Pending Review</span>.<br />
-              • <strong>Administrators</strong> receive submitted articles in the CMS, review the content, and approve them to be published live on BenixSpace.
+              • <strong>Superadmin & Admin:</strong> Full platform control, settings, user role assignment, and financial approvals.<br />
+              • <strong>Manager:</strong> Oversees mini-apps, TV/Radio channels, Voxify choirs, and game bankrolls.<br />
+              • <strong>Editor:</strong> Authors articles and publishes news content.<br />
+              • <strong>Moderator & User:</strong> Community discussions, member messaging, and standard platform actions.
             </p>
           </div>
         </div>
@@ -115,7 +144,7 @@ export const AdminUsersPage: React.FC = () => {
                 <tr className="bg-slate-100 text-slate-600 text-xs uppercase font-extrabold border-b border-slate-200">
                   <th className="p-4">User</th>
                   <th className="p-4">Email</th>
-                  <th className="p-4">Role</th>
+                  <th className="p-4">Assigned Role</th>
                   <th className="p-4">Created Date</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
@@ -127,7 +156,7 @@ export const AdminUsersPage: React.FC = () => {
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500 font-medium">No users found. Click "Add New User / Editor".</td>
+                    <td colSpan={5} className="p-8 text-center text-slate-500 font-medium">No users found. Click "Add New User / Staff".</td>
                   </tr>
                 ) : (
                   users.map((u) => (
@@ -142,11 +171,24 @@ export const AdminUsersPage: React.FC = () => {
                       </td>
                       <td className="p-4 text-slate-600 text-xs font-mono">{u.email}</td>
                       <td className="p-4">
-                        <span className={`text-xs px-3 py-1 rounded-full font-extrabold capitalize ${
-                          u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {u.role}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={u.role || 'user'}
+                            onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                            disabled={updatingRoleId === u.id || u.email === 'benirabok@gmail.com'}
+                            className="text-xs font-bold rounded-xl px-2.5 py-1.5 border border-slate-300 bg-white text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 cursor-pointer"
+                          >
+                            <option value="superadmin">Superadmin</option>
+                            <option value="admin">Administrator</option>
+                            <option value="manager">Manager</option>
+                            <option value="editor">Editor</option>
+                            <option value="moderator">Moderator</option>
+                            <option value="user">User</option>
+                          </select>
+                          {updatingRoleId === u.id && (
+                            <span className="text-[10px] text-sky-600 font-bold animate-pulse">Saving...</span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4 text-slate-500 text-xs">
                         {new Date(u.created_at).toLocaleDateString()}
@@ -234,11 +276,14 @@ export const AdminUsersPage: React.FC = () => {
                   <label className="text-slate-600 uppercase">Access Role</label>
                   <select
                     value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value as any })}
+                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                     className="w-full p-3 rounded-xl border border-slate-200 text-sm font-semibold"
                   >
-                    <option value="editor">Editor (Submits articles for review)</option>
                     <option value="admin">Administrator (Full control & approvals)</option>
+                    <option value="manager">Manager (App management & operations)</option>
+                    <option value="editor">Editor (Submits articles for review)</option>
+                    <option value="moderator">Moderator (Community moderation)</option>
+                    <option value="user">Standard User (Regular member)</option>
                   </select>
                 </div>
 

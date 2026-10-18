@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { WalletModal } from '../../components/modals/WalletModal';
@@ -17,7 +18,8 @@ import {
   Layers,
   ChevronRight,
   PlusCircle,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft
 } from 'lucide-react';
 
 interface MarketItem {
@@ -159,6 +161,21 @@ export const MarketplacePage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
         
+        {/* Prominent Back to Home Button */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </Link>
+          <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span>Direct Rwandan Marketplace</span>
+          </span>
+        </div>
+
         {/* Top Hero Banner */}
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#0c2419] via-[#091a12] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-emerald-600/10 blur-3xl pointer-events-none" />

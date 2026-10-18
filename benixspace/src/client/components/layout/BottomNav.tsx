@@ -19,7 +19,7 @@ export const BottomNav: React.FC = () => {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0B0E14]/95 backdrop-blur-xl border-t border-slate-800/80 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] px-4 py-2 flex items-center justify-around transition-all text-slate-400">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B0E14]/95 backdrop-blur-xl border-t border-slate-800/80 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] px-4 py-2 flex items-center justify-around transition-all text-slate-400">
         
         {/* 1. Home */}
         <Link

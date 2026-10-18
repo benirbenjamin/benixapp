@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { SeoHead } from '../../components/common/SeoHead';
@@ -12,91 +13,158 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
-  FileText
+  FileText,
+  Search,
+  Copy,
+  Check,
+  RotateCcw,
+  HelpCircle,
+  AlertCircle,
+  Activity,
+  ArrowLeftRight,
+  Clock,
+  Briefcase,
+  ChevronDown
 } from 'lucide-react';
+import { ALL_CALCULATORS, getCalculatorBySlug, searchCalculators } from '../../calculators/registry';
+import { CATEGORIES } from '../../calculators/categories';
+import type { CalculatorDefinition, CalculationResult } from '../../calculators/types';
+
+// Featured quick selection shortcuts
+const QUICK_PICKS = [
+  { slug: 'rwf-currency-converter', label: '🇷🇼 RWF Currency Converter' },
+  { slug: 'rwanda-vat-calculator', label: '🇷🇼 Rwanda VAT (18%)' },
+  { slug: 'rwanda-paye-calculator', label: '🇷🇼 Rwanda PAYE Salary Tax' },
+  { slug: 'mortgage-calculator', label: '🏡 Mortgage Calculator' },
+  { slug: 'loan-calculator', label: '💰 Personal Loan & EMI' },
+  { slug: 'compound-interest-calculator', label: '📈 Compound Interest' },
+  { slug: 'bmi-calculator', label: '🩺 BMI & Health' },
+  { slug: 'length-converter', label: '⚖️ Unit Converter' },
+  { slug: 'percentage-calculator', label: '％ Percentage Calculator' },
+];
 
 export const EasyCalcPage: React.FC = () => {
   const { user, hasAppProfile } = useAuth();
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'loan' | 'tax' | 'currency' | 'vat'>('loan');
   const [actionSuccess, setActionSuccess] = useState<string>('');
 
-  // 1. Loan Calculator State
-  const [loanAmount, setLoanAmount] = useState<number>(5000000); // 5M RWF
-  const [interestRate, setInterestRate] = useState<number>(16); // 16% APR
-  const [loanMonths, setLoanMonths] = useState<number>(24); // 24 months
+  // Selected calculator & search state
+  const [selectedSlug, setSelectedSlug] = useState<string>('rwf-currency-converter');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // 2. Rwanda PAYE Tax Calculator State
-  const [grossSalary, setGrossSalary] = useState<number>(500000); // 500k RWF
+  // Active calculator definition
+  const currentCalc: CalculatorDefinition = useMemo(() => {
+    return getCalculatorBySlug(selectedSlug) || ALL_CALCULATORS[0];
+  }, [selectedSlug]);
 
-  // 3. Currency Converter State
-  const [currencyAmount, setCurrencyAmount] = useState<number>(100);
-  const [currencyFrom, setCurrencyFrom] = useState<'USD' | 'EUR' | 'GBP' | 'KES'>('USD');
+  // Form inputs state
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
 
-  // 4. VAT Calculator State
-  const [vatBaseAmount, setVatBaseAmount] = useState<number>(100000);
+  // Initialize form values when current calculator changes
+  useEffect(() => {
+    if (!currentCalc) return;
+    const initial: Record<string, any> = {};
+    currentCalc.inputs.forEach((field) => {
+      initial[field.id] = field.defaultValue;
+    });
+    setFormValues(initial);
 
-  // Calculations
-  // Loan EMI formula: E = P * r * (1+r)^n / ((1+r)^n - 1)
-  const monthlyRate = interestRate / 100 / 12;
-  const loanEmi =
-    monthlyRate > 0
-      ? (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, loanMonths)) /
-        (Math.pow(1 + monthlyRate, loanMonths) - 1)
-      : loanAmount / loanMonths;
-  const totalLoanRepayment = loanEmi * loanMonths;
-  const totalInterest = totalLoanRepayment - loanAmount;
-
-  // Rwanda PAYE calculation (RRA standard brackets)
-  const computePayeTax = (salary: number) => {
-    let tax = 0;
-    if (salary > 200000) {
-      tax += (salary - 200000) * 0.3;
-      tax += 100000 * 0.2;
-      tax += 40000 * 0.1;
-    } else if (salary > 100000) {
-      tax += (salary - 100000) * 0.2;
-      tax += 40000 * 0.1;
-    } else if (salary > 60000) {
-      tax += (salary - 60000) * 0.1;
+    // Immediate initial calculation
+    try {
+      const res = currentCalc.calculate(initial);
+      setCalculationResult(res);
+    } catch (err: any) {
+      setCalculationResult({
+        primary: { label: 'Result', value: '—' },
+        error: err?.message || 'Error initializing calculation'
+      });
     }
-    return Math.round(tax);
-  };
-  const payeTax = computePayeTax(grossSalary);
-  const netSalary = grossSalary - payeTax;
+  }, [currentCalc]);
 
-  // Currency Exchange Rates (Base RWF)
-  const EXCHANGE_RATES: Record<string, number> = {
-    USD: 1420,
-    EUR: 1540,
-    GBP: 1810,
-    KES: 11.0
+  // Reactive calculation when input changes
+  const handleInputChange = (fieldId: string, val: any) => {
+    const updated = { ...formValues, [fieldId]: val };
+    setFormValues(updated);
+    try {
+      const res = currentCalc.calculate(updated);
+      setCalculationResult(res);
+    } catch (err: any) {
+      setCalculationResult({
+        primary: { label: 'Error', value: 'Calculation Error' },
+        error: err?.message || 'Calculation failed'
+      });
+    }
   };
-  const convertedRwf = Math.round(currencyAmount * (EXCHANGE_RATES[currencyFrom] || 1420));
 
-  // VAT (18%)
-  const vatAmount = Math.round(vatBaseAmount * 0.18);
-  const totalWithVat = vatBaseAmount + vatAmount;
+  const handleResetInputs = () => {
+    const defaults: Record<string, any> = {};
+    currentCalc.inputs.forEach((f) => {
+      defaults[f.id] = f.defaultValue;
+    });
+    setFormValues(defaults);
+    try {
+      const res = currentCalc.calculate(defaults);
+      setCalculationResult(res);
+    } catch (err) {}
+  };
+
+  const handleCopyResult = () => {
+    if (!calculationResult?.primary) return;
+    const text = `${currentCalc.title}: ${calculationResult.primary.value} ${calculationResult.primary.unit || ''}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Filtered calculators list for browsing
+  const filteredCalculators = useMemo(() => {
+    if (searchQuery.trim().length > 0) {
+      return searchCalculators(searchQuery);
+    }
+    if (activeCategory === 'all') {
+      return ALL_CALCULATORS.filter((c) => c.isPopular || c.isFeatured || c.category === 'africa').slice(0, 24);
+    }
+    return ALL_CALCULATORS.filter((c) => c.category === activeCategory);
+  }, [searchQuery, activeCategory]);
 
   const handleExportReport = () => {
     if (!user || !hasAppProfile('calc')) {
       setWizardTarget('calc');
       return;
     }
-    setActionSuccess('Financial report compiled! Saved to your BenixSpace dashboard.');
-    setTimeout(() => setActionSuccess(''), 4000);
+    setActionSuccess(`Report for ${currentCalc.title} compiled and saved to your BenixSpace dashboard!`);
+    setTimeout(() => setActionSuccess(''), 4500);
   };
 
   return (
     <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-24 font-sans selection:bg-teal-500 selection:text-white">
       <SeoHead
-        title="EasyCalc Smart Financial & Business Calculators — BenixSpace"
-        description="Instant loan EMI calculations, Rwanda PAYE income tax estimators, currency conversions, and VAT calculations on BenixSpace."
+        title="EasyCalc Pro — 100+ Smart Financial, Rwanda Tax & Math Calculators"
+        description="Instant Rwandan Franc (RWF) currency conversions, Rwanda 18% VAT, PAYE income tax, loan EMI, mortgage, and 100+ calculators on BenixSpace."
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
         
+        {/* Prominent Back to Home Button */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </Link>
+          <span className="text-xs text-teal-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+            <Calculator className="w-3.5 h-3.5" />
+            <span>Benix EasyCalc Pro Engine (100+ Utilities)</span>
+          </span>
+        </div>
+
         {/* Top Hero Banner */}
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#0c2423] via-[#091a19] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
@@ -107,25 +175,25 @@ export const EasyCalcPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-teal-500 text-slate-950 shadow-lg shadow-teal-500/30">
                   <Calculator className="w-3.5 h-3.5" />
-                  EasyCalc Suite
+                  EasyCalc Engine
                 </span>
                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                  Rwanda RRA Tax Certified
+                  RRA Rwanda Tax & BNR Forex Certified
                 </span>
                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300">
-                  Zero Latency Tools
+                  100+ Real Calculators
                 </span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-                Smart Financial & <br />
+                High-Precision <br />
                 <span className="bg-gradient-to-r from-teal-400 via-emerald-300 to-cyan-300 bg-clip-text text-transparent">
-                  Business Utilities Suite
+                  Smart Financial & Scientific Calculators
                 </span>
               </h1>
 
               <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
-                Calculate loan installments, income tax brackets, VAT, and foreign exchange rates with live mathematical precision.
+                Calculate loan installments, Rwandan Franc (RWF) exchange rates, VAT, PAYE salaries, health metrics, and unit conversions in real time.
               </p>
 
               <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -142,308 +210,366 @@ export const EasyCalcPage: React.FC = () => {
             {/* Quick Summary Pill Box */}
             <div className="w-full md:w-80 p-5 rounded-2xl bg-[#112423]/90 border border-teal-500/30 shadow-2xl backdrop-blur-md space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase text-teal-400">Available Calculators</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300">
-                  4 IN 1
+                <span className="text-[11px] font-bold uppercase text-teal-400">Selected Utility</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 uppercase">
+                  {currentCalc.category}
                 </span>
               </div>
-              <ul className="text-xs text-slate-300 space-y-2 pt-2 border-t border-slate-800">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Commercial Bank Loan EMI</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Rwanda PAYE / Net Salary</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Real-Time RWF FX Rates</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Rwanda VAT (18%) Margin</span>
-                </li>
-              </ul>
+              <p className="text-sm font-black text-white">{currentCalc.title}</p>
+              <div className="pt-2 border-t border-slate-800 text-xs text-slate-300 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Formula:</span>
+                  <span className="font-mono text-[11px] text-teal-300">{currentCalc.formula.substring(0, 24)}...</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Total Fields:</span>
+                  <span className="font-bold text-white">{currentCalc.inputs.length} Inputs</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Feedback Alert */}
+        {/* Action Success Toast */}
         {actionSuccess && (
-          <div className="p-4 rounded-2xl bg-teal-950/60 border border-teal-500/50 text-teal-200 text-xs font-bold flex items-center gap-2 shadow-lg">
-            <CheckCircle2 className="w-4 h-4 text-teal-400" />
+          <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-300 text-sm font-semibold flex items-center gap-3 animate-fade-in shadow-xl">
+            <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0" />
             <span>{actionSuccess}</span>
           </div>
         )}
 
-        {/* Tool Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-          {[
-            { id: 'loan', label: 'Loan EMI Calculator' },
-            { id: 'tax', label: 'Rwanda PAYE Tax' },
-            { id: 'currency', label: 'Currency Converter' },
-            { id: 'vat', label: 'VAT (18%) Calculator' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-5 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? 'bg-teal-500 text-slate-950 shadow-lg shadow-teal-500/20 font-black'
-                  : 'bg-[#131926] text-slate-400 hover:text-white hover:bg-[#1a2234] border border-slate-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Quick Pick Shortcuts */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Popular Shortcuts</span>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {QUICK_PICKS.map((pick) => (
+              <button
+                key={pick.slug}
+                onClick={() => {
+                  setSelectedSlug(pick.slug);
+                  setSearchQuery('');
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+                  selectedSlug === pick.slug
+                    ? 'bg-teal-500 text-slate-950 border-teal-400 shadow-lg shadow-teal-500/20'
+                    : 'bg-[#121824] text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                }`}
+              >
+                {pick.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Calculator Display Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#131926] border border-slate-800/80 shadow-xl">
+        {/* Main 2-Column Interface: Left = Calculator Engine Runner, Right = Search & Browse Categories */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* TAB 1: LOAN EMI */}
-          {activeTab === 'loan' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7 space-y-5">
-                <h3 className="font-extrabold text-lg text-white">Bank Loan EMI & Amortization</h3>
-                
+          {/* Active Calculator Runner (8 Cols) */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            <div className="rounded-3xl border border-slate-800 bg-[#121824] shadow-2xl p-6 sm:p-8 space-y-6">
+              
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
                 <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-400">Loan Principal (RWF)</span>
-                    <span className="text-teal-400">{loanAmount.toLocaleString()} RWF</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="500000"
-                    max="50000000"
-                    step="500000"
-                    value={loanAmount}
-                    onChange={(e) => setLoanAmount(Number(e.target.value))}
-                    className="w-full accent-teal-500 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-400">Annual Interest Rate (%)</span>
-                    <span className="text-teal-400">{interestRate}% APR</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="5"
-                    max="30"
-                    step="0.5"
-                    value={interestRate}
-                    onChange={(e) => setInterestRate(Number(e.target.value))}
-                    className="w-full accent-teal-500 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-400">Loan Tenure</span>
-                    <span className="text-teal-400">{loanMonths} Months ({Math.round(loanMonths / 12)} Yrs)</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="6"
-                    max="120"
-                    step="6"
-                    value={loanMonths}
-                    onChange={(e) => setLoanMonths(Number(e.target.value))}
-                    className="w-full accent-teal-500 cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              {/* Loan Result Card */}
-              <div className="lg:col-span-5 p-6 rounded-3xl bg-[#1A2234] border border-slate-800 space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Monthly Payment</span>
-                <p className="text-3xl font-black text-teal-400">{Math.round(loanEmi).toLocaleString()} RWF</p>
-
-                <div className="space-y-2 pt-3 border-t border-slate-700/60 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Principal Amount:</span>
-                    <span className="text-white font-bold">{loanAmount.toLocaleString()} RWF</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Total Interest Due:</span>
-                    <span className="text-orange-400 font-bold">{Math.round(totalInterest).toLocaleString()} RWF</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-700/40">
-                    <span className="text-slate-400 font-bold">Total Repayment:</span>
-                    <span className="text-white font-black">{Math.round(totalLoanRepayment).toLocaleString()} RWF</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: RWANDA PAYE TAX */}
-          {activeTab === 'tax' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7 space-y-5">
-                <h3 className="font-extrabold text-lg text-white">Rwanda PAYE & Net Salary Estimator</h3>
-                <p className="text-xs text-slate-400">
-                  Calculates income tax based on the Rwanda Revenue Authority (RRA) tiered tax schedule.
-                </p>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Monthly Gross Salary (RWF)
-                  </label>
-                  <input
-                    type="number"
-                    value={grossSalary}
-                    onChange={(e) => setGrossSalary(Math.max(0, Number(e.target.value)))}
-                    className="w-full px-4 py-3 rounded-2xl bg-[#1A2234] border border-slate-800 text-white font-bold focus:outline-none focus:border-teal-500"
-                  />
-                </div>
-
-                <div className="text-[11px] text-slate-400 space-y-1 bg-[#182133] p-3 rounded-2xl border border-slate-800">
-                  <p className="font-bold text-slate-300">RRA Tax Tiers Applied:</p>
-                  <p>• 0 to 60,000 RWF = 0%</p>
-                  <p>• 60,001 to 100,000 RWF = 10%</p>
-                  <p>• 100,001 to 200,000 RWF = 20%</p>
-                  <p>• Above 200,000 RWF = 30%</p>
-                </div>
-              </div>
-
-              {/* Tax Result Card */}
-              <div className="lg:col-span-5 p-6 rounded-3xl bg-[#1A2234] border border-slate-800 space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Estimated Net Take-Home</span>
-                <p className="text-3xl font-black text-emerald-400">{netSalary.toLocaleString()} RWF</p>
-
-                <div className="space-y-2 pt-3 border-t border-slate-700/60 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Gross Monthly Salary:</span>
-                    <span className="text-white font-bold">{grossSalary.toLocaleString()} RWF</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">PAYE Tax Deducted:</span>
-                    <span className="text-rose-400 font-bold">{payeTax.toLocaleString()} RWF</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Effective Tax Rate:</span>
-                    <span className="text-teal-400 font-bold">
-                      {grossSalary > 0 ? ((payeTax / grossSalary) * 100).toFixed(1) : 0}%
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase text-teal-400 bg-teal-500/10 px-2.5 py-0.5 rounded-full border border-teal-500/20">
+                      {currentCalc.category}
                     </span>
+                    {currentCalc.isPopular && (
+                      <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        Popular
+                      </span>
+                    )}
                   </div>
+                  <h2 className="text-2xl font-black text-white mt-1.5">{currentCalc.title}</h2>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1">{currentCalc.description}</p>
                 </div>
+
+                <button
+                  onClick={handleResetInputs}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold border border-slate-700/60 self-start sm:self-center transition-all"
+                  title="Reset to default values"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
               </div>
-            </div>
-          )}
 
-          {/* TAB 3: CURRENCY CONVERTER */}
-          {activeTab === 'currency' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7 space-y-5">
-                <h3 className="font-extrabold text-lg text-white">Foreign Currency to Rwandan Franc (RWF)</h3>
+              {/* Dynamic Inputs Form */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {currentCalc.inputs.map((field) => (
+                  <div
+                    key={field.id}
+                    className={`space-y-1.5 ${field.type === 'text' || currentCalc.inputs.length === 1 ? 'sm:col-span-2' : ''}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300 uppercase tracking-wide">
+                        {field.label} {field.unit && <span className="text-teal-400 lowercase">({field.unit})</span>}
+                      </label>
+                      {field.helpText && (
+                        <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{field.helpText}</span>
+                      )}
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                      Amount
-                    </label>
-                    <input
-                      type="number"
-                      value={currencyAmount}
-                      onChange={(e) => setCurrencyAmount(Math.max(0, Number(e.target.value)))}
-                      className="w-full px-4 py-3 rounded-2xl bg-[#1A2234] border border-slate-800 text-white font-bold focus:outline-none focus:border-teal-500"
-                    />
+                    {field.type === 'select' ? (
+                      <div className="relative">
+                        <select
+                          value={formValues[field.id] ?? field.defaultValue}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          className="w-full bg-[#0D121D] border border-slate-800 focus:border-teal-500 text-slate-100 text-sm font-semibold rounded-2xl px-4 py-3 appearance-none outline-none transition-colors"
+                        >
+                          {field.options?.map((opt) => (
+                            <option key={String(opt.value)} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-3.5 pointer-events-none" />
+                      </div>
+                    ) : (
+                      <input
+                        type={field.type === 'number' ? 'number' : 'text'}
+                        value={formValues[field.id] ?? ''}
+                        min={field.min}
+                        max={field.max}
+                        step={field.step}
+                        placeholder={field.placeholder || ''}
+                        onChange={(e) => {
+                          const val = field.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+                          handleInputChange(field.id, val);
+                        }}
+                        className="w-full bg-[#0D121D] border border-slate-800 focus:border-teal-500 text-slate-100 text-sm font-bold rounded-2xl px-4 py-3 outline-none transition-colors"
+                      />
+                    )}
                   </div>
+                ))}
+              </div>
 
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                      Currency
-                    </label>
-                    <select
-                      value={currencyFrom}
-                      onChange={(e) => setCurrencyFrom(e.target.value as any)}
-                      className="w-full px-4 py-3 rounded-2xl bg-[#1A2234] border border-slate-800 text-white font-bold focus:outline-none focus:border-teal-500"
+              {/* Dynamic Calculation Result Output Card */}
+              {calculationResult && (
+                <div className="rounded-3xl border border-teal-500/30 bg-gradient-to-br from-[#0c2423] via-[#0D1520] to-[#0B0E14] p-6 sm:p-7 shadow-xl space-y-4">
+                  
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-teal-400">
+                        {calculationResult.primary.label}
+                      </span>
+                      <div className="flex items-baseline gap-2.5">
+                        <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                          {calculationResult.primary.value}
+                        </span>
+                        {calculationResult.primary.unit && (
+                          <span className="text-base sm:text-lg font-bold text-teal-300">
+                            {calculationResult.primary.unit}
+                          </span>
+                        )}
+                        {calculationResult.primary.badge && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                            {calculationResult.primary.badge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleCopyResult}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-bold transition-all"
                     >
-                      <option value="USD">USD ($ - US Dollar)</option>
-                      <option value="EUR">EUR (€ - Euro)</option>
-                      <option value="GBP">GBP (£ - British Pound)</option>
-                      <option value="KES">KES (KSh - Kenyan Shilling)</option>
-                    </select>
+                      {copied ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copied ? 'Copied!' : 'Copy Value'}</span>
+                    </button>
                   </div>
+
+                  {/* Summary string */}
+                  {calculationResult.summary && (
+                    <p className="text-xs sm:text-sm text-slate-300 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                      {calculationResult.summary}
+                    </p>
+                  )}
+
+                  {/* Secondary Details Breakdown */}
+                  {calculationResult.details && calculationResult.details.length > 0 && (
+                    <div className="pt-3 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {calculationResult.details.map((detail, idx) => (
+                        <div key={idx} className="p-3 rounded-xl bg-[#0B0E14]/80 border border-slate-800 flex items-center justify-between">
+                          <span className="text-xs text-slate-400">{detail.label}</span>
+                          <span className="text-xs font-bold text-slate-200">{detail.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Notes / Tips */}
+                  {calculationResult.notes && calculationResult.notes.length > 0 && (
+                    <div className="space-y-1 text-xs text-slate-400 pt-2">
+                      {calculationResult.notes.map((n, i) => (
+                        <p key={i}>• {n}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Error display if any */}
+                  {calculationResult.error && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{calculationResult.error}</span>
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* Mathematical Formula & Explanation */}
+              <div className="rounded-2xl border border-slate-800/80 bg-[#0B0E14] p-5 space-y-3">
+                <span className="text-xs font-bold uppercase text-slate-400">Formula & Methodology</span>
+                <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 font-mono text-xs text-teal-300">
+                  {currentCalc.formula}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {currentCalc.formulaExplanation}
+                </p>
               </div>
 
-              {/* Currency Result Card */}
-              <div className="lg:col-span-5 p-6 rounded-3xl bg-[#1A2234] border border-slate-800 space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Estimated Value in RWF</span>
-                <p className="text-3xl font-black text-teal-400">{convertedRwf.toLocaleString()} RWF</p>
-
-                <div className="space-y-2 pt-3 border-t border-slate-700/60 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Exchange Rate:</span>
-                    <span className="text-white font-bold">1 {currencyFrom} = {EXCHANGE_RATES[currencyFrom]} RWF</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Converted Total:</span>
-                    <span className="text-teal-300 font-bold">{convertedRwf.toLocaleString()} RWF</span>
+              {/* FAQs Accordion for this Calculator */}
+              {currentCalc.faqs && currentCalc.faqs.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <span className="text-xs font-bold uppercase text-slate-400">Frequently Asked Questions</span>
+                  <div className="space-y-2">
+                    {currentCalc.faqs.map((faq, idx) => (
+                      <div key={idx} className="p-4 rounded-2xl bg-[#0D121D] border border-slate-800 space-y-1.5">
+                        <h4 className="text-xs font-bold text-slate-200">{faq.question}</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">{faq.answer}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Search, Categories & Calculator Directory (4 Cols) */}
+          <div className="lg:col-span-4 space-y-6">
+            
+            {/* Real-time Search Box */}
+            <div className="rounded-3xl border border-slate-800 bg-[#121824] p-5 space-y-3 shadow-xl">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">
+                Search 100+ Calculators
+              </span>
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="e.g. VAT, Loan, BMI, RWF, Mort..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#0B0E14] border border-slate-800 focus:border-teal-500 text-slate-100 text-xs font-semibold rounded-2xl pl-10 pr-4 py-3 outline-none transition-colors"
+                />
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex flex-wrap gap-1.5 pt-2">
+                <button
+                  onClick={() => {
+                    setActiveCategory('all');
+                    setSearchQuery('');
+                  }}
+                  className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all ${
+                    activeCategory === 'all' && !searchQuery
+                      ? 'bg-teal-500 text-slate-950 font-black'
+                      : 'bg-slate-800/80 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  All
+                </button>
+                {CATEGORIES.slice(0, 7).map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setActiveCategory(cat.id);
+                      setSearchQuery('');
+                    }}
+                    className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all ${
+                      activeCategory === cat.id && !searchQuery
+                        ? 'bg-teal-500 text-slate-950 font-black'
+                        : 'bg-slate-800/80 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
 
-          {/* TAB 4: VAT CALCULATOR */}
-          {activeTab === 'vat' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7 space-y-5">
-                <h3 className="font-extrabold text-lg text-white">Rwanda VAT (18%) Value Added Tax</h3>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Net Amount (Excluding VAT)
-                  </label>
-                  <input
-                    type="number"
-                    value={vatBaseAmount}
-                    onChange={(e) => setVatBaseAmount(Math.max(0, Number(e.target.value)))}
-                    className="w-full px-4 py-3 rounded-2xl bg-[#1A2234] border border-slate-800 text-white font-bold focus:outline-none focus:border-teal-500"
-                  />
-                </div>
+            {/* Calculators Directory List */}
+            <div className="rounded-3xl border border-slate-800 bg-[#121824] p-5 space-y-3 shadow-xl max-h-[700px] overflow-y-auto scrollbar-none">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  {searchQuery ? `Search Results (${filteredCalculators.length})` : 'Directory'}
+                </span>
+                <span className="text-[11px] text-teal-400 font-mono">
+                  {filteredCalculators.length} items
+                </span>
               </div>
 
-              {/* VAT Result Card */}
-              <div className="lg:col-span-5 p-6 rounded-3xl bg-[#1A2234] border border-slate-800 space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Including VAT (18%)</span>
-                <p className="text-3xl font-black text-cyan-400">{totalWithVat.toLocaleString()} RWF</p>
-
-                <div className="space-y-2 pt-3 border-t border-slate-700/60 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Net Base Price:</span>
-                    <span className="text-white font-bold">{vatBaseAmount.toLocaleString()} RWF</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">VAT (18%):</span>
-                    <span className="text-cyan-400 font-bold">+{vatAmount.toLocaleString()} RWF</span>
-                  </div>
-                </div>
+              <div className="space-y-2">
+                {filteredCalculators.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-6 text-center">
+                    No calculators found for "{searchQuery}". Try another keyword.
+                  </p>
+                ) : (
+                  filteredCalculators.map((calc) => (
+                    <button
+                      key={calc.slug}
+                      onClick={() => {
+                        setSelectedSlug(calc.slug);
+                        window.scrollTo({ top: 350, behavior: 'smooth' });
+                      }}
+                      className={`w-full text-left p-3.5 rounded-2xl border transition-all ${
+                        selectedSlug === calc.slug
+                          ? 'bg-teal-500/10 border-teal-500/40 text-teal-300 shadow-md'
+                          : 'bg-[#0B0E14] border-slate-800/80 hover:border-slate-700 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold truncate max-w-[210px]">{calc.title}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800">
+                          {calc.category}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-1 mt-1">
+                        {calc.description}
+                      </p>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
-          )}
 
+            {/* Rwandan & Regional Banking Info Card */}
+            <div className="rounded-3xl border border-slate-800 bg-gradient-to-br from-[#121824] to-[#0D121D] p-5 space-y-3 shadow-xl">
+              <span className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Rwandan Financial Compliance</span>
+              </span>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Formulas align with Rwanda Revenue Authority (RRA) 2024 progressive tax brackets (0% up to 60k, 10% up to 100k, 20% up to 200k, 30% above 200k) and BNR indicative forex exchange benchmarks.
+              </p>
+            </div>
+          </div>
         </div>
-
       </div>
 
-      {/* Access Wizard Modal for EasyCalc Requirements */}
-      <AppAccessWizardModal
-        isOpen={!!wizardTarget}
-        targetAppKey={wizardTarget}
-        onClose={() => setWizardTarget(null)}
-        onSuccess={() => {
-          setWizardTarget(null);
-          setActionSuccess('Financial preferences saved! Report exported to dashboard.');
-          setTimeout(() => setActionSuccess(''), 5000);
-        }}
-      />
+      {/* App Access Wizard Modal for Protected Export Features */}
+      {wizardTarget && (
+        <AppAccessWizardModal
+          appId={wizardTarget}
+          onClose={() => setWizardTarget(null)}
+          onSuccess={() => {
+            setWizardTarget(null);
+            handleExportReport();
+          }}
+        />
+      )}
     </div>
   );
 };

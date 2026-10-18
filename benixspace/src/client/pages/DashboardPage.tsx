@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme, ThemeMode, AccentColor } from '../context/ThemeContext';
 import { SeoHead } from '../components/common/SeoHead';
+import { WalletModal } from '../components/modals/WalletModal';
 import {
   LayoutDashboard,
   Wallet,
   Gift,
   Settings,
   Users,
-  BarChart3,
   Tv,
   Radio,
   Heart,
@@ -17,7 +18,6 @@ import {
   ShoppingBag,
   Dices,
   Calculator,
-  HardDrive,
   Copy,
   Check,
   Sparkles,
@@ -28,7 +28,11 @@ import {
   Moon,
   Palette,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ExternalLink,
+  Lock,
+  User,
+  ArrowLeft
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -36,55 +40,15 @@ export const DashboardPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
   const { mode, accent, setMode, setAccent } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'preferences' | 'settings' | 'analytics' | 'users'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security'>('overview');
   const [copied, setCopied] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
+  const [showWalletModal, setShowWalletModal] = useState(false);
 
   // Selected Modules
   const [modules, setModules] = useState<string[]>(
     user?.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']
   );
-
-  // Google Drive Admin Config State
-  const [driveConfig, setDriveConfig] = useState({
-    clientId: '',
-    clientSecret: '',
-    refreshToken: '',
-    folderId: 'root'
-  });
-  const [driveTesting, setDriveTesting] = useState(false);
-  const [driveStatus, setDriveStatus] = useState<string | null>(null);
-
-  // Users State (For Admin role)
-  const [allUsers, setAllUsers] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (token) {
-      // Fetch Google Drive Settings if admin
-      if (user?.role === 'admin' || user?.role === 'superadmin') {
-        fetch('/api/admin/settings/storage', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            setDriveConfig({
-              clientId: data.clientId || '',
-              clientSecret: data.clientSecret || '',
-              refreshToken: data.refreshToken || '',
-              folderId: data.folderId || 'root'
-            });
-          })
-          .catch(() => {});
-
-        fetch('/api/admin/users', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-          .then((res) => res.json())
-          .then((data) => setAllUsers(data.users || []))
-          .catch(() => {});
-      }
-    }
-  }, [token, user]);
 
   const handleCopyRef = () => {
     const link = `https://benix.space/?ref=${user?.referral_code || 'BENIX'}`;
@@ -107,100 +71,94 @@ export const DashboardPage: React.FC = () => {
     setTimeout(() => setSaveSuccess(''), 2500);
   };
 
-  const handleSaveDriveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDriveStatus('Saving...');
-    try {
-      const res = await fetch('/api/admin/settings/storage', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(driveConfig)
-      });
-      const data = await res.json();
-      setDriveStatus(data.message || 'Storage settings saved successfully!');
-    } catch (e: any) {
-      setDriveStatus('Failed to save settings: ' + e.message);
-    }
-  };
-
-  const handleTestDriveConnection = async () => {
-    setDriveTesting(true);
-    setDriveStatus(null);
-    try {
-      const res = await fetch('/api/admin/settings/storage/test', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setDriveStatus(data.message);
-    } catch (e: any) {
-      setDriveStatus('Test failed: ' + e.message);
-    } finally {
-      setDriveTesting(false);
-    }
-  };
-
   const isSuperAdmin = user?.role === 'superadmin' || user?.role === 'admin';
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 transition-colors">
+    <div className="min-h-screen bg-[#0B0E14] text-white py-6 sm:py-8 transition-colors font-sans selection:bg-blue-600">
       <SeoHead
-        title="Unified Super-App Dashboard — BenixSpace"
-        description="Unified personalized dashboard across all BenixSpace apps: TV, Radio, Kunda Dating, Voxify, Benix Marketplace, RollDice, and central wallet ledger."
+        title="My Super-Account Dashboard — Benix.Space"
+        description="Unified management for your Benix.Space modules, central wallet, and personal profile."
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      <div className="w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-10 space-y-6">
         
-        {/* Top Header Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border border-slate-800">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30 px-3 py-1 rounded-full">
-                Personalized Super-App Dashboard
-              </span>
-              <span className="text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-3 py-1 rounded-full uppercase">
-                {user?.role || 'Guest'}
-              </span>
+        {/* Navigation Breadcrumb / Back Button */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/90 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition-all shadow-md group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back to Home</span>
+          </Link>
+
+          {/* Admin Banner if Admin */}
+          {isSuperAdmin && (
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 hover:border-amber-400 text-xs font-black shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <span>Admin Control Center & Cloud Storage →</span>
+            </Link>
+          )}
+        </div>
+
+        {/* Dashboard Top Header Profile Card */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#141B2D] via-[#101726] to-[#0D121F] border border-slate-800 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white font-black text-2xl flex items-center justify-center border-2 border-white/20 shadow-xl">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              {user ? `Hello, ${user.name} 👋` : 'Welcome to Benix.Space'}
-            </h1>
-            <p className="text-slate-300 text-xs sm:text-sm">
-              One unified platform combining streaming media, games, dating, marketplace, and finance tools.
-            </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Hello, {user?.name || 'Benix User'} 👋
+                </h1>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Verified Super-Account
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">{user?.email}</p>
+            </div>
           </div>
 
-          {/* Quick Wallet & Referral Widget */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-right">
-              <span className="text-[10px] text-slate-300 uppercase font-bold block">Central Wallet</span>
-              <span className="text-xl font-black text-emerald-400">
-                {(wallet?.balance || 0).toLocaleString()} RWF
-              </span>
+          {/* Wallet Balance & Referral Action */}
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div
+              onClick={() => setShowWalletModal(true)}
+              className="p-3.5 rounded-2xl bg-[#162032] border border-slate-700/80 cursor-pointer hover:border-emerald-500/50 transition-all flex items-center gap-3 shadow-lg"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Central Wallet</span>
+                <span className="text-lg font-black text-white">
+                  {Number(wallet?.balance || 100).toLocaleString()}{' '}
+                  <span className="text-xs text-emerald-400">{wallet?.currency || 'RWF'}</span>
+                </span>
+              </div>
             </div>
 
             <button
               onClick={handleCopyRef}
-              className="px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all shadow-md"
-              title="Copy referral link"
+              className="px-4 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 shrink-0"
             >
               <Gift className="w-4 h-4" />
-              <span>{copied ? 'Copied!' : 'Invite & Earn 500 RWF'}</span>
+              <span>{copied ? 'Copied!' : 'Invite & Earn Rewards'}</span>
             </button>
           </div>
         </div>
 
         {/* Dashboard Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto scrollbar-none">
           {[
             { id: 'overview', label: 'Overview & Apps', icon: LayoutDashboard },
-            { id: 'preferences', label: 'Module Customizer', icon: Palette },
-            { id: 'settings', label: 'Broad Project Settings & Drive', icon: Settings },
-            { id: 'analytics', label: 'Cross-App Analytics', icon: BarChart3 },
-            ...(isSuperAdmin ? [{ id: 'users', label: 'User Directory', icon: Users }] : [])
+            { id: 'wallet', label: 'Central Wallet & Ledger', icon: Wallet },
+            { id: 'customizer', label: 'App Customizer', icon: Palette },
+            { id: 'referrals', label: 'Referrals & Earnings', icon: Gift },
+            { id: 'security', label: 'Account & Security', icon: ShieldCheck }
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -210,8 +168,8 @@ export const DashboardPage: React.FC = () => {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
                   active
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'bg-[#121824] text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -221,51 +179,60 @@ export const DashboardPage: React.FC = () => {
           })}
         </div>
 
+        {saveSuccess && (
+          <div className="p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{saveSuccess}</span>
+          </div>
+        )}
+
         {/* TAB 1: OVERVIEW & CONNECTED APPS */}
         {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* 7 Connected App Cards */}
+          <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 mb-4">
                 Your Enabled Application Suite
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { id: 'videos', name: 'Benix Space TV', icon: Tv, path: '/tv', desc: 'Live Rwandan TV & Video Stream', color: 'text-sky-600 bg-sky-50 dark:bg-sky-950/40' },
-                  { id: 'radio', name: 'Live Radio FM', icon: Radio, path: '/radio', desc: '24/7 Digital Radio & Shows', color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/40' },
-                  { id: 'dating', name: 'Kunda Space', icon: Heart, path: '/dating', desc: 'Verified Rwandan Dating & Matchmaking', color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/40' },
-                  { id: 'music', name: 'Voxify Choirs', icon: Music, path: '/music', desc: 'Choir Music & Vocal Tracks', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' },
-                  { id: 'marketplace', name: 'Benix Market', icon: ShoppingBag, path: '/marketplace', desc: 'Digital Goods & Freelance Services', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' },
-                  { id: 'games', name: 'RollDice Games', icon: Dices, path: '/games', desc: 'RollDice Challenges & Wagers', color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40' },
-                  { id: 'calc', name: 'EasyCalc Smart', icon: Calculator, path: '/calc', desc: 'Loan EMI & Financial Tools', color: 'text-teal-600 bg-teal-50 dark:bg-teal-950/40' }
+                  { id: 'videos', name: 'Benix Space TV', icon: Tv, path: '/tv', desc: 'Live Rwandan TV & Video Stream', color: 'from-blue-600 to-indigo-700' },
+                  { id: 'radio', name: 'Live Radio FM', icon: Radio, path: '/radio', desc: '24/7 Digital Radio & Shows', color: 'from-purple-600 to-pink-600' },
+                  { id: 'dating', name: 'Kunda Space', icon: Heart, path: '/dating', desc: 'Verified Rwandan Dating & Matchmaking', color: 'from-rose-500 to-pink-600' },
+                  { id: 'music', name: 'Voxify Choirs', icon: Music, path: '/music', desc: 'Choir Music & Vocal Tracks', color: 'from-emerald-500 to-teal-600' },
+                  { id: 'marketplace', name: 'Benix Market', icon: ShoppingBag, path: '/marketplace', desc: 'Digital Goods & Freelance Services', color: 'from-amber-500 to-orange-600' },
+                  { id: 'games', name: 'RollDice Games', icon: Dices, path: '/games', desc: 'RollDice Challenges & Wagers', color: 'from-violet-600 to-indigo-700' },
+                  { id: 'calc', name: 'EasyCalc Smart', icon: Calculator, path: '/calc', desc: 'Loan EMI, Tax & Financial Tools', color: 'from-cyan-500 to-blue-600' }
                 ].map((app) => {
                   const Icon = app.icon;
                   const isEnabled = modules.includes(app.id);
                   return (
-                    <a
+                    <Link
                       key={app.id}
-                      href={app.path}
-                      className={`p-5 rounded-3xl border transition-all flex flex-col justify-between ${
+                      to={app.path}
+                      className={`p-5 rounded-3xl border transition-all flex flex-col justify-between group ${
                         isEnabled
-                          ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:shadow-lg'
-                          : 'bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-50'
+                          ? 'bg-[#121824] border-slate-800 hover:border-slate-700 hover:shadow-xl'
+                          : 'bg-[#0E131E] border-slate-900 opacity-60'
                       }`}
                     >
                       <div className="flex items-start justify-between mb-4">
-                        <div className={`p-3 rounded-2xl ${app.color}`}>
+                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${app.color} flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform`}>
                           <Icon className="w-6 h-6" />
                         </div>
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          isEnabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950' : 'bg-slate-200 text-slate-500'
+                          isEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'
                         }`}>
                           {isEnabled ? 'Active' : 'Disabled'}
                         </span>
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">{app.name}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{app.desc}</p>
+                        <h4 className="font-extrabold text-sm text-white group-hover:text-blue-400 transition-colors flex items-center justify-between">
+                          <span>{app.name}</span>
+                          <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-1">{app.desc}</p>
                       </div>
-                    </a>
+                    </Link>
                   );
                 })}
               </div>
@@ -273,269 +240,173 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: PREFERENCES & CUSTOMIZER */}
-        {activeTab === 'preferences' && (
-          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6">
-            <div>
-              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">
-                Customize Your Modules & Homepage Feed
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Toggle apps on or off to tailor your homepage experience:
-              </p>
+        {/* TAB 2: CENTRAL WALLET & LEDGER */}
+        {activeTab === 'wallet' && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-white">Central Wallet Overview</h3>
+                <p className="text-xs text-slate-400">Universal balance shared across all Benix.Space mini-apps</p>
+              </div>
+              <button
+                onClick={() => setShowWalletModal(true)}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all"
+              >
+                Open Full Wallet Controls
+              </button>
             </div>
 
-            {saveSuccess && (
-              <div className="p-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-2xl text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{saveSuccess}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-[#162032] to-[#0E1524] border border-slate-700/80 space-y-2">
+                <span className="text-xs text-slate-400 font-bold uppercase block">Available Balance</span>
+                <span className="text-3xl font-black text-white">{Number(wallet?.balance || 100).toLocaleString()} <span className="text-sm font-bold text-emerald-400">{wallet?.currency || 'RWF'}</span></span>
               </div>
-            )}
+              <div className="p-5 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-2">
+                <span className="text-xs text-slate-400 font-bold uppercase block">Total Earnings</span>
+                <span className="text-3xl font-black text-emerald-400">{Number(wallet?.total_earnings || 100).toLocaleString()} <span className="text-sm font-bold text-emerald-400">RWF</span></span>
+              </div>
+              <div className="p-5 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-2">
+                <span className="text-xs text-slate-400 font-bold uppercase block">Pending Withdrawals</span>
+                <span className="text-3xl font-black text-amber-400">{Number(wallet?.pending_balance || 0).toLocaleString()} <span className="text-sm font-bold text-amber-400">RWF</span></span>
+              </div>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                onClick={() => setShowWalletModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all"
+              >
+                Top Up Balance
+              </button>
+              <button
+                onClick={() => setShowWalletModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all"
+              >
+                Transfer Funds
+              </button>
+              <button
+                onClick={() => setShowWalletModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all"
+              >
+                Withdraw to MoMo / Bank
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: APP CUSTOMIZER */}
+        {activeTab === 'customizer' && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 space-y-6">
+            <div>
+              <h3 className="text-lg font-black text-white">Customize Your Enabled Apps</h3>
+              <p className="text-xs text-slate-400">Toggle which apps appear on your homepage and navigation bar.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
-                { id: 'videos', label: 'TV & Video Stream' },
-                { id: 'radio', label: 'Live Radio 24/7' },
-                { id: 'dating', label: 'Kunda Space Dating' },
-                { id: 'music', label: 'Voxify Music & Choirs' },
-                { id: 'marketplace', label: 'Benix Marketplace' },
-                { id: 'games', label: 'RollDice Games' },
-                { id: 'calc', label: 'EasyCalc Smart Calculators' }
-              ].map((item) => {
-                const active = modules.includes(item.id);
+                { id: 'videos', name: 'Benix Space TV', icon: Tv, desc: 'Watch streaming TV and live channels' },
+                { id: 'radio', name: 'Live Radio FM', icon: Radio, desc: '24/7 digital radio broadcasts' },
+                { id: 'dating', name: 'Kunda Space Dating', icon: Heart, desc: 'Connect with verified matches' },
+                { id: 'music', name: 'Voxify Choir & Music', icon: Music, desc: 'Choir practice and vocal audio' },
+                { id: 'marketplace', name: 'Benix Marketplace', icon: ShoppingBag, desc: 'Digital products & freelance services' },
+                { id: 'games', name: 'RollDice Games', icon: Dices, desc: 'Multiplayer dice challenge' },
+                { id: 'calc', name: 'EasyCalc Smart Utilities', icon: Calculator, desc: 'Instant financial calculators' }
+              ].map((m) => {
+                const Icon = m.icon;
+                const isChecked = modules.includes(m.id);
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleToggleModule(item.id)}
-                    className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all ${
-                      active
-                        ? 'border-sky-500 bg-sky-50/70 dark:bg-sky-950/40 text-sky-900 dark:text-sky-200 font-bold'
-                        : 'border-slate-200 dark:border-slate-800 text-slate-500'
+                  <div
+                    key={m.id}
+                    onClick={() => handleToggleModule(m.id)}
+                    className={`p-4 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
+                      isChecked
+                        ? 'bg-blue-600/10 border-blue-500/50 text-white'
+                        : 'bg-[#0E131E] border-slate-800 text-slate-400 opacity-60'
                     }`}
                   >
-                    <span className="text-xs">{item.label}</span>
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                      active ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-500'
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl ${isChecked ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs text-white">{m.name}</h4>
+                        <p className="text-[11px] text-slate-400">{m.desc}</p>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${
+                      isChecked ? 'bg-blue-600 border-blue-500 text-white' : 'border-slate-700'
                     }`}>
-                      {active ? '✓' : ''}
-                    </span>
-                  </button>
+                      {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </div>
+                  </div>
                 );
               })}
             </div>
           </div>
         )}
 
-        {/* TAB 3: BROAD PROJECT SETTINGS & GOOGLE DRIVE */}
-        {activeTab === 'settings' && (
-          <div className="space-y-6">
-            
-            {/* Google Drive Configuration Card */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600">
-                    <HardDrive className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
-                      Google Drive Cloud Storage via Refresh Token
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Store user uploads, videos, songs, and files directly to Google Drive.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleTestDriveConnection}
-                  disabled={driveTesting}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-bold hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center gap-2 shrink-0"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>{driveTesting ? 'Verifying Token...' : 'Test Drive Connection'}</span>
-                </button>
-              </div>
-
-              {driveStatus && (
-                <div className={`p-4 rounded-2xl text-xs font-medium border flex items-center gap-2 ${
-                  driveStatus.includes('success') || driveStatus.includes('valid')
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300'
-                    : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300'
-                }`}>
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{driveStatus}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSaveDriveSettings} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Google Drive Client ID
-                    </label>
-                    <input
-                      type="text"
-                      value={driveConfig.clientId}
-                      onChange={(e) => setDriveConfig({ ...driveConfig, clientId: e.target.value })}
-                      placeholder="e.g. 123456789-abcdef.apps.googleusercontent.com"
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 dark:bg-slate-800 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Google Drive Client Secret
-                    </label>
-                    <input
-                      type="password"
-                      value={driveConfig.clientSecret}
-                      onChange={(e) => setDriveConfig({ ...driveConfig, clientSecret: e.target.value })}
-                      placeholder="Enter Client Secret"
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 dark:bg-slate-800 text-xs font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      OAuth2 Refresh Token *
-                    </label>
-                    <input
-                      type="password"
-                      value={driveConfig.refreshToken}
-                      onChange={(e) => setDriveConfig({ ...driveConfig, refreshToken: e.target.value })}
-                      placeholder="1//04abcdef... (Persistent Refresh Token)"
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 dark:bg-slate-800 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Target Folder ID
-                    </label>
-                    <input
-                      type="text"
-                      value={driveConfig.folderId}
-                      onChange={(e) => setDriveConfig({ ...driveConfig, folderId: e.target.value })}
-                      placeholder="root or Folder ID"
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 dark:bg-slate-800 text-xs font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    className="px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition-all"
-                  >
-                    Save Google Drive Cloud Storage Configuration
-                  </button>
-                </div>
-              </form>
+        {/* TAB 4: REFERRALS & EARNINGS */}
+        {activeTab === 'referrals' && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 space-y-6">
+            <div>
+              <h3 className="text-lg font-black text-white">Invite Friends & Earn Rewards</h3>
+              <p className="text-xs text-slate-400">Share your referral link to earn rewards directly in your central wallet.</p>
             </div>
 
-            {/* Other Project Control Settings */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-              <h4 className="font-extrabold text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Broad App Values & Rules
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2">
-                  <span className="font-bold text-slate-900 dark:text-white block">RollDice Gaming Stake</span>
-                  <span className="text-slate-500">Min wager: 100 RWF • Max wager: 50,000 RWF</span>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2">
-                  <span className="font-bold text-slate-900 dark:text-white block">Kunda Space Matching</span>
-                  <span className="text-slate-500">Age: 18+ strict • Verification: SMS / Email</span>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2">
-                  <span className="font-bold text-slate-900 dark:text-white block">Referral Rewards</span>
-                  <span className="text-slate-500">500 RWF credited upon qualifying first deposit</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* TAB 4: CROSS-APP ANALYTICS */}
-        {activeTab === 'analytics' && (
-          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6">
-            <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">
-              Broad Cross-Module Analytics
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900">
-                <span className="text-xs text-sky-700 dark:text-sky-300 font-bold block">TV Views</span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white">7,948</span>
-              </div>
-              <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900">
-                <span className="text-xs text-purple-700 dark:text-purple-300 font-bold block">Radio Listeners</span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white">791</span>
-              </div>
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900">
-                <span className="text-xs text-amber-700 dark:text-amber-300 font-bold block">Dice Rolls</span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white">320</span>
-              </div>
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900">
-                <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold block">Market Items</span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white">244</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: USER MANAGEMENT (ADMIN ONLY) */}
-        {activeTab === 'users' && isSuperAdmin && (
-          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="p-5 rounded-2xl bg-[#161D2E] border border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
-                  Unified Users Directory ({allUsers.length})
-                </h3>
-                <p className="text-xs text-slate-500">Migrated accounts from TV, Radio, Kunda, Voxify, and Marketplace into Neon PostgreSQL core_users.</p>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Your Unique Referral Code</span>
+                <span className="text-2xl font-black text-white font-mono tracking-wider">{user?.referral_code || 'BENIX'}</span>
               </div>
+              <button
+                onClick={handleCopyRef}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+              >
+                <Copy className="w-4 h-4" />
+                <span>{copied ? 'Copied to Clipboard!' : 'Copy Referral Link'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: ACCOUNT & SECURITY */}
+        {activeTab === 'security' && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 space-y-6">
+            <div>
+              <h3 className="text-lg font-black text-white">Account Details & Preferences</h3>
+              <p className="text-xs text-slate-400">Manage your language, credentials, and profile settings.</p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase">
-                    <th className="py-3 px-3">Name</th>
-                    <th className="py-3 px-3">Email</th>
-                    <th className="py-3 px-3">Role</th>
-                    <th className="py-3 px-3">Wallet</th>
-                    <th className="py-3 px-3">Referral Code</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {allUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">{u.name}</td>
-                      <td className="py-3 px-3 text-slate-600 dark:text-slate-300 font-mono">{u.email}</td>
-                      <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          u.role === 'superadmin' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-bold text-emerald-600">
-                        {Number(u.wallet_balance || 0).toLocaleString()} RWF
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-500">{u.referral_code || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-1">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Full Name</span>
+                <span className="text-sm font-bold text-white">{user?.name}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-1">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Email Address</span>
+                <span className="text-sm font-bold text-white">{user?.email}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-1">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Registered Phone</span>
+                <span className="text-sm font-bold text-white">{user?.phone || 'Not configured'}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-1">
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Role</span>
+                <span className="text-sm font-bold text-white uppercase">{user?.role || 'User'}</span>
+              </div>
             </div>
           </div>
         )}
 
       </div>
+
+      {/* Central Wallet Modal */}
+      {showWalletModal && (
+        <WalletModal
+          isOpen={showWalletModal}
+          onClose={() => setShowWalletModal(false)}
+        />
+      )}
     </div>
   );
 };

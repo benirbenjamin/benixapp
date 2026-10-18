@@ -1,10 +1,11 @@
 export interface AppRequirementField {
   name: string;
   label: string;
-  type: 'text' | 'select' | 'textarea' | 'checkbox' | 'radio' | 'number';
+  type: 'text' | 'select' | 'multiselect' | 'textarea' | 'checkbox' | 'radio' | 'number';
   options?: string[];
   placeholder?: string;
   required?: boolean;
+  defaultValue?: any;
 }
 
 export interface AppRequirementConfig {
@@ -159,24 +160,36 @@ export const APP_REQUIREMENTS: Record<string, AppRequirementConfig> = {
     fields: [
       {
         name: 'favorite_content',
-        label: 'Preferred Broadcast Genres',
-        type: 'select',
-        options: ['Live News & Politics', 'Live Sports & Highlights', 'Local Entertainment & Movies', 'Music Videos & Youth Shows', 'Documentaries & Culture'],
-        required: true
+        label: 'Preferred Broadcast Genres (Choose Multiple)',
+        type: 'multiselect',
+        options: [
+          'Live News & Tele-Amakuru',
+          'Live Sports & Highlights',
+          'Local Movies & Series',
+          'Gospel & Choir Worship',
+          'Music Videos & Youth Shows',
+          'Documentaries & Rwandan History',
+          'Business, Tech & Innovation',
+          'Kids & Educational TV'
+        ],
+        required: true,
+        defaultValue: ['Live News & Tele-Amakuru', 'Live Sports & Highlights', 'Local Movies & Series']
       },
       {
         name: 'streaming_quality',
         label: 'Default Streaming Quality',
         type: 'select',
         options: ['Auto Quality (Recommended)', '1080p FHD (High-Speed Wi-Fi)', '720p HD', 'Data Saver (Low Mobile Bandwidth)'],
-        required: true
+        required: true,
+        defaultValue: 'Auto Quality (Recommended)'
       },
       {
         name: 'preferred_language',
         label: 'Primary Audio Language',
         type: 'select',
-        options: ['Kinyarwanda', 'English', 'French', 'Swahili'],
-        required: true
+        options: ['Kinyarwanda & English', 'Kinyarwanda Only', 'English Only', 'French', 'Swahili'],
+        required: true,
+        defaultValue: 'Kinyarwanda & English'
       }
     ]
   },

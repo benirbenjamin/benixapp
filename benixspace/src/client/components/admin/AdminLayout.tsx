@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { removeAuthToken } from '../../services/api';
 import {
   LayoutDashboard, Layers, FileText, BarChart3, SearchCheck,
-  Settings, LogOut, Menu, X, Rocket, ShieldCheck, Mail, Users, UserCheck
+  Settings, LogOut, Menu, X, Rocket, ShieldCheck, Mail, Users, UserCheck,
+  Globe, ExternalLink
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -12,8 +13,16 @@ interface AdminLayoutProps {
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [customLogo, setCustomLogo] = useState<string>('/logo.png');
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const savedLogo = localStorage.getItem('benix_platform_logo');
+    if (savedLogo) {
+      setCustomLogo(savedLogo);
+    }
+  }, []);
 
   const handleLogout = () => {
     removeAuthToken();
@@ -27,39 +36,73 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { name: 'Users & Editors', path: '/admin/users', icon: Users },
     { name: 'Visitor Analytics', path: '/admin/analytics', icon: BarChart3 },
     { name: 'SEO Health & Audit', path: '/admin/seo', icon: SearchCheck },
-    { name: 'Company Settings', path: '/admin/settings/company', icon: Settings },
+    { name: 'Platform Settings', path: '/admin/settings', icon: Settings },
     { name: 'My Profile & Security', path: '/admin/profile', icon: UserCheck },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/admin/settings') {
+      return location.pathname === '/admin/settings' || location.pathname === '/admin/settings/company';
+    }
+    return location.pathname === path;
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-slate-100 flex flex-col md:flex-row font-sans selection:bg-blue-600 selection:text-white">
       
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-[#111724] text-slate-300 border-r border-slate-800 shrink-0">
-        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <img src="/logo.png" alt="BenixSpace Logo" className="w-9 h-9 object-contain" />
+        
+        {/* Clickable Brand Logo Header */}
+        <Link
+          to="/"
+          title="Go to BenixSpace Public Website"
+          className="p-5 border-b border-slate-800 flex items-center gap-3 hover:bg-[#161D2E] transition-all group"
+        >
+          <img
+            src={customLogo}
+            alt="BenixSpace Logo"
+            className="w-10 h-10 object-contain rounded-xl shadow-md group-hover:scale-105 transition-transform"
+          />
           <div>
-            <span className="font-extrabold text-lg text-white block tracking-tight">BenixSpace</span>
-            <span className="text-[10px] uppercase tracking-wider text-sky-400 font-semibold">Admin Console</span>
+            <span className="font-black text-lg text-white block tracking-tight group-hover:text-blue-400 transition-colors">
+              BenixSpace
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-blue-400 font-bold flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-400" /> Admin Console
+            </span>
           </div>
+        </Link>
+
+        {/* Visit Public Website Action Button */}
+        <div className="p-3">
+          <Link
+            to="/"
+            target="_blank"
+            className="w-full px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/25 flex items-center justify-between transition-all group"
+          >
+            <span className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-white" />
+              <span>Visit Public Website</span>
+            </span>
+            <ExternalLink className="w-3.5 h-3.5 opacity-80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </Link>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all ${
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
                   isActive(item.path)
-                    ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/30'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'text-slate-400 hover:bg-[#161D2E] hover:text-white'
                 }`}
               >
-                <Icon className="w-5 h-5 shrink-0" />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span>{item.name}</span>
               </Link>
             );
@@ -67,9 +110,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </nav>
 
         {/* Footer Admin User Card */}
-        <div className="p-4 border-t border-slate-800 space-y-3">
-          <div className="flex items-center gap-3 bg-slate-800/80 p-3 rounded-2xl">
-            <div className="w-9 h-9 rounded-xl bg-sky-500 text-slate-950 flex items-center justify-center font-bold text-sm">
+        <div className="p-4 border-t border-slate-800 space-y-2.5">
+          <div className="flex items-center gap-3 bg-[#161D2E] p-3 rounded-2xl border border-slate-800/80">
+            <div className="w-9 h-9 rounded-xl bg-blue-500 text-slate-950 flex items-center justify-center font-black text-xs">
               BB
             </div>
             <div className="truncate">
@@ -80,7 +123,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 text-red-400 hover:bg-red-500 hover:text-white text-xs font-bold transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500 hover:text-white text-xs font-bold transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>Log Out</span>
@@ -89,22 +132,44 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       </aside>
 
       {/* Mobile Top Header */}
-      <div className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between border-b border-slate-800">
+      <div className="md:hidden bg-[#111724] text-white p-4 flex items-center justify-between border-b border-slate-800">
+        <Link to="/" className="flex items-center gap-2">
+          <img src={customLogo} alt="BenixSpace Logo" className="w-7 h-7 object-contain rounded-lg" />
+          <span className="font-black text-base text-white">BenixSpace Admin</span>
+        </Link>
         <div className="flex items-center gap-2">
-          <Rocket className="w-6 h-6 text-sky-400" />
-          <span className="font-extrabold text-lg">BenixSpace Admin</span>
+          <Link
+            to="/"
+            className="p-2 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center gap-1"
+            title="Visit Public Website"
+          >
+            <Globe className="w-4 h-4" />
+            <span className="text-[11px]">Site</span>
+          </Link>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 rounded-xl bg-slate-800 text-slate-300"
+          >
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-xl bg-slate-800 text-slate-300"
-        >
-          {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
       </div>
 
       {/* Mobile Drawer Menu */}
       {sidebarOpen && (
-        <div className="md:hidden bg-slate-900 text-slate-300 p-4 space-y-2 border-b border-slate-800">
+        <div className="md:hidden bg-[#111724] text-slate-300 p-4 space-y-2 border-b border-slate-800">
+          <Link
+            to="/"
+            target="_blank"
+            className="flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold"
+          >
+            <span className="flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              <span>Visit Public Website</span>
+            </span>
+            <ExternalLink className="w-4 h-4" />
+          </Link>
+
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -112,18 +177,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold ${
-                  isActive(item.path) ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold ${
+                  isActive(item.path) ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 h-4" />
                 <span>{item.name}</span>
               </Link>
             );
           })}
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/20 text-red-400 font-bold text-sm"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/20 text-red-400 font-bold text-xs"
           >
             <LogOut className="w-4 h-4" /> Log Out
           </button>
@@ -131,8 +196,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 p-6 sm:p-10 overflow-y-auto">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 p-4 sm:p-8 lg:p-10 overflow-y-auto">
+        <div className="w-full max-w-[1720px] mx-auto">
           {children}
         </div>
       </main>

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
+import { KundaChatModal } from '../../components/modals/KundaChatModal';
+import { KundaSubscriptionModal } from '../../components/modals/KundaSubscriptionModal';
+import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
   Heart,
@@ -14,7 +18,10 @@ import {
   Search,
   Star,
   Users,
-  Eye
+  Eye,
+  ArrowLeft,
+  Zap,
+  Phone
 } from 'lucide-react';
 
 interface MatchProfile {
@@ -112,7 +119,13 @@ export const KundaPage: React.FC = () => {
   const [likedProfiles, setLikedProfiles] = useState<string[]>([]);
   const [actionSuccess, setActionSuccess] = useState<string>('');
 
-  const handleProtectedAction = (matchId: string, actionName: string) => {
+  // Interactive Kunda Modals State
+  const [selectedPartner, setSelectedPartner] = useState<MatchProfile | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState<boolean>(false);
+  const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);
+
+  const handleProtectedAction = (match: MatchProfile, actionName: string) => {
     if (!user || !hasAppProfile('kunda')) {
       setWizardTarget('kunda');
       return;
@@ -120,13 +133,13 @@ export const KundaPage: React.FC = () => {
 
     if (actionName === 'like') {
       setLikedProfiles((prev) =>
-        prev.includes(matchId) ? prev.filter((id) => id !== matchId) : [...prev, matchId]
+        prev.includes(match.id) ? prev.filter((id) => id !== match.id) : [...prev, match.id]
       );
-      setActionSuccess('Crush sent! If they match back, you will be notified.');
+      setActionSuccess(`Crush sent to ${match.name}! You will receive a notification when they match back.`);
       setTimeout(() => setActionSuccess(''), 4000);
     } else {
-      setActionSuccess('Private message request delivered to verified inbox.');
-      setTimeout(() => setActionSuccess(''), 4000);
+      setSelectedPartner(match);
+      setIsChatOpen(true);
     }
   };
 
@@ -142,8 +155,27 @@ export const KundaPage: React.FC = () => {
         description="Find genuine, verified connections and serious relationships with shared values across Kigali and Rwanda on Kunda Space."
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         
+        {/* Prominent Back to Home Button & Membership Pass Action */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </Link>
+
+          <button
+            onClick={() => setIsSubscriptionOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs shadow-md shadow-rose-600/30 hover:scale-105 transition-all"
+          >
+            <Zap className="w-3.5 h-3.5 fill-current" />
+            <span>Unlimited Passes (From 500 RWF)</span>
+          </button>
+        </div>
+
         {/* Top Hero Banner */}
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#260f18] via-[#1a0a12] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-rose-600/10 blur-3xl pointer-events-none" />
@@ -334,7 +366,7 @@ export const KundaPage: React.FC = () => {
                 <div className="p-5 pt-0">
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-800">
                     <button
-                      onClick={() => handleProtectedAction(match.id, 'like')}
+                      onClick={() => handleProtectedAction(match, 'like')}
                       className={`py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
                         isLiked
                           ? 'bg-rose-600 text-white shadow-md'
@@ -346,8 +378,8 @@ export const KundaPage: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => handleProtectedAction(match.id, 'chat')}
-                      className="py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/20 transition-all"
+                      onClick={() => handleProtectedAction(match, 'chat')}
+                      className="py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/20 transition-all hover:scale-105 active:scale-95"
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
                       Private Chat
@@ -378,6 +410,37 @@ export const KundaPage: React.FC = () => {
         )}
 
       </div>
+
+      {/* Kunda Interactive Private Chat Modal */}
+      {isChatOpen && selectedPartner && (
+        <KundaChatModal
+          isOpen={isChatOpen}
+          partner={selectedPartner}
+          onClose={() => {
+            setIsChatOpen(false);
+            setSelectedPartner(null);
+          }}
+          onOpenSubscription={() => setIsSubscriptionOpen(true)}
+          onOpenWallet={() => setIsWalletOpen(true)}
+        />
+      )}
+
+      {/* Kunda Subscription Membership Modal */}
+      {isSubscriptionOpen && (
+        <KundaSubscriptionModal
+          isOpen={isSubscriptionOpen}
+          onClose={() => setIsSubscriptionOpen(false)}
+          onOpenWallet={() => setIsWalletOpen(true)}
+        />
+      )}
+
+      {/* Central Wallet Modal */}
+      {isWalletOpen && (
+        <WalletModal
+          isOpen={isWalletOpen}
+          onClose={() => setIsWalletOpen(false)}
+        />
+      )}
 
       {/* Access Wizard Modal for Kunda Requirements */}
       <AppAccessWizardModal

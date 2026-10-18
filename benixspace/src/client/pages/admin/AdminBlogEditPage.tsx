@@ -171,26 +171,26 @@ export const AdminBlogEditPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 font-sans">
         
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/blog" className="p-2.5 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300">
+            <Link to="/admin/blog" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700/60">
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900">
+              <h1 className="text-2xl sm:text-3xl font-black text-white">
                 {isEdit ? 'Edit Blog Article' : 'Write New Article'}
               </h1>
-              <p className="text-slate-600 text-xs">Craft SEO-friendly content for BenixSpace digital blog.</p>
+              <p className="text-slate-400 text-xs">Craft SEO-friendly content for BenixSpace digital blog.</p>
             </div>
           </div>
 
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-lg shadow-sky-600/20 transition-all flex items-center gap-2"
+            className="px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
           >
             {saving ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -203,14 +203,14 @@ export const AdminBlogEditPage: React.FC = () => {
         </div>
 
         {error && (
-          <div className="p-4 rounded-2xl bg-red-50 text-red-700 text-xs flex items-center gap-2 border border-red-100">
-            <AlertCircle className="w-4 h-4 shrink-0" /> <span>{error}</span>
+          <div className="p-4 rounded-2xl bg-red-950/60 text-red-200 text-xs flex items-center gap-2 border border-red-500/40">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" /> <span>{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-700 text-xs flex items-center gap-2 border border-emerald-100">
-            <CheckCircle2 className="w-4 h-4 shrink-0" /> <span>{success}</span>
+          <div className="p-4 rounded-2xl bg-emerald-950/60 text-emerald-200 text-xs flex items-center gap-2 border border-emerald-500/40">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" /> <span>{success}</span>
           </div>
         )}
 
@@ -220,27 +220,27 @@ export const AdminBlogEditPage: React.FC = () => {
           {/* Main Article Editor Form (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 shadow-md space-y-4">
+            <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Article Title</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Article Title</label>
                 <input
                   type="text"
                   value={formData.title || ''}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="e.g. Building Scalable Web Applications for Rwanda"
-                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-slate-900 text-base font-bold focus:ring-2 focus:ring-sky-500"
+                  className="w-full p-3.5 rounded-2xl bg-[#1A2234] border border-slate-700 text-white text-base font-bold focus:outline-none focus:border-blue-500 placeholder-slate-500"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">URL Slug</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400">URL Slug</label>
                   <input
                     type="text"
                     value={formData.slug || ''}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono"
+                    className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-blue-500"
                     required
                   />
                 </div>
@@ -248,7 +248,7 @@ export const AdminBlogEditPage: React.FC = () => {
                 {/* Dynamic Category Selector + Add / Edit options */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Category</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Category</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -256,7 +256,7 @@ export const AdminBlogEditPage: React.FC = () => {
                         setEditingCatNew(formData.category || categories[0]);
                         setShowEditCatModal(true);
                       }}
-                      className="text-[11px] font-semibold text-sky-600 hover:underline flex items-center gap-1"
+                      className="text-[11px] font-semibold text-blue-400 hover:underline flex items-center gap-1"
                     >
                       <Edit2 className="w-3 h-3" /> Edit Name
                     </button>
@@ -265,14 +265,14 @@ export const AdminBlogEditPage: React.FC = () => {
                   <select
                     value={formData.category || categories[0]}
                     onChange={(e) => handleCategorySelectChange(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
+                    className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs font-semibold focus:outline-none focus:border-blue-500"
                   >
                     {categories.map((cat) => (
-                      <option key={cat} value={cat}>
+                      <option key={cat} value={cat} className="bg-slate-900 text-white">
                         {cat}
                       </option>
                     ))}
-                    <option value="__ADD_NEW__" className="font-bold text-sky-600 bg-sky-50">
+                    <option value="__ADD_NEW__" className="font-bold text-blue-400 bg-slate-900">
                       + Add New Category...
                     </option>
                   </select>
@@ -280,31 +280,31 @@ export const AdminBlogEditPage: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Featured Image URL</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Featured Image URL</label>
                 <input
                   type="url"
                   value={formData.featured_image_url || ''}
                   onChange={(e) => setFormData({ ...formData, featured_image_url: e.target.value })}
                   placeholder="https://i.postimg.cc/..."
-                  className="w-full p-3 rounded-xl border border-slate-200 text-xs"
+                  className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 placeholder-slate-500"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Article Summary (Meta Description)</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Article Summary (Meta Description)</label>
                 <textarea
                   rows={3}
                   value={formData.summary || ''}
                   onChange={(e) => setFormData({ ...formData, summary: e.target.value, seo_description: e.target.value })}
                   placeholder="Short summary describing the key takeaway..."
-                  className="w-full p-3 rounded-xl border border-slate-200 text-xs leading-relaxed"
+                  className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs leading-relaxed focus:outline-none focus:border-blue-500 placeholder-slate-500"
                 />
               </div>
             </div>
 
             {/* Rich Text Editor */}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Article Body Content (Rich HTML)</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Article Body Content (Rich HTML)</label>
               <RichTextEditor
                 value={formData.content || ''}
                 onChange={(html) => setFormData({ ...formData, content: html })}
@@ -312,28 +312,28 @@ export const AdminBlogEditPage: React.FC = () => {
             </div>
 
             {/* Publication Settings */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 shadow-md space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 uppercase">Publishing Controls</h3>
+            <div className="rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Publishing Controls</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase text-slate-600">Author Name</label>
+                  <label className="text-xs font-bold uppercase text-slate-400">Author Name</label>
                   <input
                     type="text"
                     value={formData.author_name || 'Benir Benjamin'}
                     onChange={(e) => setFormData({ ...formData, author_name: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-xs"
+                    className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase text-slate-600">Status</label>
+                  <label className="text-xs font-bold uppercase text-slate-400">Status</label>
                   <select
                     value={formData.status || 'published'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold"
+                    className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs font-semibold focus:outline-none focus:border-blue-500"
                   >
-                    <option value="published">Published</option>
-                    <option value="draft">Draft</option>
+                    <option value="published" className="bg-slate-900 text-white">Published</option>
+                    <option value="draft" className="bg-slate-900 text-white">Draft</option>
                   </select>
                 </div>
               </div>
@@ -355,7 +355,7 @@ export const AdminBlogEditPage: React.FC = () => {
                 setFormData({ ...formData, seo_keywords: existing + kwd });
               }}
               onInsertLink={(url, text) => {
-                const linkHtml = `<a href="${url}" class="text-sky-600 font-semibold hover:underline">${text}</a>`;
+                const linkHtml = `<a href="${url}" class="text-blue-400 font-semibold hover:underline">${text}</a>`;
                 setFormData({ ...formData, content: (formData.content || '') + ' ' + linkHtml });
               }}
             />
@@ -367,27 +367,27 @@ export const AdminBlogEditPage: React.FC = () => {
 
       {/* MODAL: ADD NEW CATEGORY */}
       {showAddCatModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-slate-100">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#131926] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-slate-800 text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-sky-600" />
-                <h3 className="font-extrabold text-slate-900 text-lg">Add New Blog Category</h3>
+                <FolderPlus className="w-5 h-5 text-blue-400" />
+                <h3 className="font-extrabold text-white text-lg">Add New Blog Category</h3>
               </div>
-              <button onClick={() => setShowAddCatModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-400" />
+              <button onClick={() => setShowAddCatModal(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleAddNewCategory} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-600">Category Name</label>
+                <label className="text-xs font-bold uppercase text-slate-400">Category Name</label>
                 <input
                   type="text"
                   value={newCatInput}
                   onChange={(e) => setNewCatInput(e.target.value)}
                   placeholder="e.g. Artificial Intelligence, Cloud Services..."
-                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-sky-500"
+                  className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs font-semibold focus:outline-none focus:border-blue-500 placeholder-slate-500"
                   autoFocus
                   required
                 />
@@ -397,14 +397,14 @@ export const AdminBlogEditPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddCatModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={catActionLoading}
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition-all"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all"
                 >
                   {catActionLoading ? 'Saving...' : 'Add Category'}
                 </button>
@@ -416,36 +416,36 @@ export const AdminBlogEditPage: React.FC = () => {
 
       {/* MODAL: EDIT EXISTING CATEGORY */}
       {showEditCatModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-slate-100">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#131926] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-slate-800 text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-sky-600" />
-                <h3 className="font-extrabold text-slate-900 text-lg">Edit Category Name</h3>
+                <Edit2 className="w-5 h-5 text-blue-400" />
+                <h3 className="font-extrabold text-white text-lg">Edit Category Name</h3>
               </div>
-              <button onClick={() => setShowEditCatModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-400" />
+              <button onClick={() => setShowEditCatModal(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEditCategory} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-600">Current Category</label>
+                <label className="text-xs font-bold uppercase text-slate-400">Current Category</label>
                 <input
                   type="text"
                   value={editingCatOld}
                   disabled
-                  className="w-full p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500"
+                  className="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-600">New Category Name</label>
+                <label className="text-xs font-bold uppercase text-slate-400">New Category Name</label>
                 <input
                   type="text"
                   value={editingCatNew}
                   onChange={(e) => setEditingCatNew(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-sky-500"
+                  className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs font-semibold focus:outline-none focus:border-blue-500"
                   required
                 />
               </div>
@@ -454,14 +454,14 @@ export const AdminBlogEditPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowEditCatModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={catActionLoading}
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition-all"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all"
                 >
                   {catActionLoading ? 'Saving...' : 'Update Category'}
                 </button>

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { usePlayer } from '../../context/PlayerContext';
 import { fetchRadioStations, type Station } from '../../services/mediaService';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
-import { BenixPlayerModal } from '../../components/modals/BenixPlayerModal';
 import { CompanionAdBanner } from '../../components/ads/CompanionAdBanner';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
@@ -20,7 +20,8 @@ import {
   Headphones,
   Signal,
   Flame,
-  Globe
+  Globe,
+  ArrowLeft
 } from 'lucide-react';
 
 const GENRES = [
@@ -34,6 +35,7 @@ const GENRES = [
 export const RadioPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasAppProfile } = useAuth();
+  const { playStation, currentStation, isPlaying } = usePlayer();
 
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -84,11 +86,11 @@ export const RadioPage: React.FC = () => {
 
   const handlePlayStation = (station: Station) => {
     if (!user) {
-      setActiveStation(station);
+      playStation(station);
     } else if (!hasAppProfile('radio')) {
       setWizardTarget('radio');
     } else {
-      setActiveStation(station);
+      playStation(station);
     }
   };
 
@@ -118,13 +120,29 @@ export const RadioPage: React.FC = () => {
   });
 
   return (
-    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-24 font-sans selection:bg-purple-600 selection:text-white">
+    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-purple-600 selection:text-white">
       <SeoHead
         title="Live Radio Stations & Audio Streams — BenixSpace"
         description="Listen to 24/7 live Rwandan radio stations. Stream Kiss FM, Radio Rwanda, Flash FM, Radio 10, Royal FM, KT Radio, and Radio Maria online in pristine quality."
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+        
+        {/* Prominent Back to Home Button */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </Link>
+
+          <span className="text-xs text-amber-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+            <Radio className="w-3.5 h-3.5 text-purple-400" />
+            <span>Continuous Background Radio Active</span>
+          </span>
+        </div>
         
         {/* Top Hero Banner with Audio Visualizer */}
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#181126] via-[#100D1C] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
@@ -403,13 +421,6 @@ export const RadioPage: React.FC = () => {
         onSuccess={() => {
           setWizardTarget(null);
         }}
-      />
-
-      {/* Benix Live Streaming Player Modal */}
-      <BenixPlayerModal
-        isOpen={!!activeStation}
-        station={activeStation}
-        onClose={() => setActiveStation(null)}
       />
     </div>
   );

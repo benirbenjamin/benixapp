@@ -7,6 +7,10 @@ import { LanguageProvider } from './client/context/LanguageContext';
 import { Navbar } from './client/components/layout/Navbar';
 import { Footer } from './client/components/layout/Footer';
 import { BottomNav } from './client/components/layout/BottomNav';
+import { PlayerProvider, usePlayer } from './client/context/PlayerContext';
+import { GlobalRadioPlayer } from './client/components/player/GlobalRadioPlayer';
+import { FloatingPipTV } from './client/components/player/FloatingPipTV';
+import { RadioAdModal } from './client/components/ads/RadioAdModal';
 
 // Public Core Pages
 import { HomePage } from './client/pages/HomePage';
@@ -56,13 +60,30 @@ const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children
   return <>{children}</>;
 };
 
+const GlobalPlayerLayer: React.FC = () => {
+  const { showRadioAd, pendingRadioStation, closeRadioAdAndPlay, cancelRadioAd } = usePlayer();
+  return (
+    <>
+      <GlobalRadioPlayer />
+      <FloatingPipTV />
+      <RadioAdModal
+        isOpen={showRadioAd}
+        station={pendingRadioStation}
+        onComplete={closeRadioAdAndPlay}
+        onCancel={cancelRadioAd}
+      />
+    </>
+  );
+};
+
 export const App: React.FC = () => {
   return (
     <HelmetProvider>
       <ThemeProvider>
         <LanguageProvider>
           <AuthProvider>
-            <Router>
+            <PlayerProvider>
+              <Router>
               <RouteAnalyticsTracker />
               <Routes>
                 
@@ -141,6 +162,14 @@ export const App: React.FC = () => {
                   }
                 />
                 <Route
+                  path="/admin/settings"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminSettingsPage />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
                   path="/admin/settings/company"
                   element={
                     <ProtectedAdminRoute>
@@ -191,17 +220,19 @@ export const App: React.FC = () => {
                       </main>
                       <Footer />
                       <BottomNav />
+                      <GlobalPlayerLayer />
                     </div>
                   }
                 />
 
               </Routes>
             </Router>
-          </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
-    </HelmetProvider>
-  );
+          </PlayerProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </ThemeProvider>
+  </HelmetProvider>
+);
 };
 
 export default App;

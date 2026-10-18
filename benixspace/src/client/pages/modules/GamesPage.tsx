@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
+import { getAuthToken } from '../../services/api';
 import {
   Dices,
   Trophy,
@@ -14,7 +16,8 @@ import {
   History,
   AlertCircle,
   CheckCircle2,
-  Wallet
+  Wallet,
+  ArrowLeft
 } from 'lucide-react';
 
 export const GamesPage: React.FC = () => {
@@ -22,19 +25,15 @@ export const GamesPage: React.FC = () => {
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
 
-  // Game state
-  const [wager, setWager] = useState<number>(500);
+  // Game state - Minimum bet from 50 RWF, no dummy rolls
+  const [wager, setWager] = useState<number>(50);
   const [diceVal, setDiceVal] = useState<number>(6);
   const [targetPrediction, setTargetPrediction] = useState<'high' | 'low'>('high'); // high: 4-6, low: 1-3
   const [isRolling, setIsRolling] = useState<boolean>(false);
   const [lastResult, setLastResult] = useState<{ won: boolean; amount: number; dice: number } | null>(null);
-  const [rollHistory, setRollHistory] = useState<Array<{ id: number; dice: number; won: boolean; amount: number }>>([
-    { id: 1, dice: 5, won: true, amount: 1000 },
-    { id: 2, dice: 2, won: false, amount: -500 },
-    { id: 3, dice: 6, won: true, amount: 2000 }
-  ]);
+  const [rollHistory, setRollHistory] = useState<Array<{ id: number; dice: number; won: boolean; amount: number }>>([]);
 
-  const handleRollDice = () => {
+  const handleRollDice = async () => {
     if (!user || !hasAppProfile('games')) {
       setWizardTarget('games');
       return;
@@ -50,7 +49,7 @@ export const GamesPage: React.FC = () => {
 
     // Roll animation
     let count = 0;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       setDiceVal(Math.floor(Math.random() * 6) + 1);
       count++;
       if (count > 10) {
@@ -60,15 +59,31 @@ export const GamesPage: React.FC = () => {
         setIsRolling(false);
 
         const won = (targetPrediction === 'high' && finalDice >= 4) || (targetPrediction === 'low' && finalDice <= 3);
-        const payout = won ? wager * 1.95 : -wager;
+        const payout = won ? Math.round(wager * 1.95) : -wager;
 
-        setLastResult({ won, amount: payout, dice: finalDice });
+        setLastResult({ won, amount: won ? payout : wager, dice: finalDice });
         setRollHistory((prev) => [
-          { id: Date.now(), dice: finalDice, won, amount: payout },
+          { id: Date.now(), dice: finalDice, won, amount: won ? payout : -wager },
           ...prev.slice(0, 9)
         ]);
 
-        if (refreshWallet) refreshWallet();
+        // Real wallet ledger bet sync
+        try {
+          const token = getAuthToken();
+          if (token) {
+            await fetch('/api/wallet/bet', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({ wager, won, multiplier: 1.95 })
+            });
+            refreshWallet();
+          }
+        } catch (e) {
+          console.warn('Bet ledger sync error:', e);
+        }
       }
     }, 100);
   };
@@ -80,8 +95,25 @@ export const GamesPage: React.FC = () => {
         description="Compete in provably fair RollDice games. Use your unified BenixSpace wallet balance for instant deposits, fair multipliers, and cash prizes."
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         
+        {/* Prominent Back to Home Button */}
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Home</span>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-amber-400 font-bold bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+              Min Bet: 50 RWF • 1.95x Win Payout
+            </span>
+          </div>
+        </div>
+
         {/* Top Hero Banner */}
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#261d0f] via-[#1a1409] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
