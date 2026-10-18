@@ -17,13 +17,16 @@ import {
   AlertCircle,
   CheckCircle2,
   Wallet,
-  ArrowLeft
+  ArrowLeft,
+  Bot
 } from 'lucide-react';
+import { PvEGame } from '../../components/games/PvEGame';
 
 export const GamesPage: React.FC = () => {
-  const { user, wallet, hasAppProfile, refreshWallet } = useAuth();
+  const { user, wallet, hasAppProfile, refreshMe, updateWalletBalance } = useAuth();
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
+  const [gameMode, setGameMode] = useState<'pve' | 'quick'>('pve');
 
   // Game state - Minimum bet from 50 RWF, no dummy rolls
   const [wager, setWager] = useState<number>(50);
@@ -71,7 +74,7 @@ export const GamesPage: React.FC = () => {
         try {
           const token = getAuthToken();
           if (token) {
-            await fetch('/api/wallet/bet', {
+            const res = await fetch('/api/wallet/bet', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -79,7 +82,12 @@ export const GamesPage: React.FC = () => {
               },
               body: JSON.stringify({ wager, won, multiplier: 1.95 })
             });
-            refreshWallet();
+            const data = await res.json();
+            if (data?.newBalance !== undefined) {
+              updateWalletBalance(data.newBalance);
+            } else {
+              refreshMe();
+            }
           }
         } catch (e) {
           console.warn('Bet ledger sync error:', e);
@@ -182,13 +190,57 @@ export const GamesPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dice Arena Board */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Main Board */}
-          <div className="lg:col-span-8 p-6 sm:p-8 rounded-3xl bg-[#131926] border border-slate-800/80 space-y-6">
+        {/* Mode Selector Tabs: Choose how to play */}
+        <div className="flex items-center gap-3 p-1.5 rounded-2xl bg-[#121824] border border-slate-800 w-fit">
+          <button
+            onClick={() => setGameMode('pve')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
+              gameMode === 'pve'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-lg shadow-amber-500/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Bot className="w-4 h-4" />
+            <span>RollDice Arena (PvE vs Bot)</span>
+          </button>
+
+          <button
+            onClick={() => setGameMode('quick')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
+              gameMode === 'quick'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            <span>Quick Roll (High / Low 1.95x)</span>
+          </button>
+        </div>
+
+        {/* Mode 1: Authentic RollDice PvE vs Bot */}
+        {gameMode === 'pve' && (
+          <PvEGame
+            user={user}
+            walletBalance={wallet?.balance || 0}
+            onBalanceUpdate={(newBal) => {
+              if (typeof newBal === 'number') {
+                updateWalletBalance(newBal);
+              } else {
+                refreshMe();
+              }
+            }}
+            onOpenDeposit={() => setShowWalletModal(true)}
+          />
+        )}
+
+        {/* Mode 2: Quick Roll (High / Low 1.95x) */}
+        {gameMode === 'quick' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            {/* Big Dice Display */}
+            {/* Main Board */}
+            <div className="lg:col-span-8 p-6 sm:p-8 rounded-3xl bg-[#131926] border border-slate-800/80 space-y-6">
+              
+              {/* Big Dice Display */}
             <div className="py-12 bg-gradient-to-b from-[#182133] to-[#0E1422] rounded-3xl border border-slate-800 flex flex-col items-center justify-center relative overflow-hidden shadow-inner">
               <div
                 className={`w-28 h-28 sm:w-36 sm:h-36 rounded-3xl bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 shadow-2xl shadow-orange-500/30 flex items-center justify-center text-slate-950 font-black text-6xl sm:text-7xl transition-transform ${
@@ -315,6 +367,7 @@ export const GamesPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
 
       </div>
 

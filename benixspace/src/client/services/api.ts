@@ -333,140 +333,48 @@ export async function recordClientAnalyticsEvent(eventData: any) {
 }
 
 export async function fetchAnalyticsStats(range: string = '30d') {
-  // Pure local storage calculation — no network fetch call to prevent 500 Internal Server Error in DevTools console
-  const localEvents = getLocalData<any[]>('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
-  const now = new Date();
-  let startMs: number | null = null;
-  let endMs: number | null = null;
-
-  if (range === 'today') {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    startMs = start.getTime();
-  } else if (range === 'yesterday') {
-    const start = new Date();
-    start.setDate(start.getDate() - 1);
-    start.setHours(0, 0, 0, 0);
-    startMs = start.getTime();
-
-    const end = new Date();
-    end.setHours(0, 0, 0, 0);
-    endMs = end.getTime();
-  } else if (range === '7d') {
-    startMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-  } else if (range === '30d') {
-    startMs = now.getTime() - 30 * 24 * 60 * 60 * 1000;
-  } else if (range === 'year') {
-    startMs = now.getTime() - 365 * 24 * 60 * 60 * 1000;
+  const token = getAuthToken();
+  if (token) {
+    const remote = await tryRemoteFetch<any>(`/api/admin/analytics?range=${range}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (remote && remote.overview) {
+      return remote;
+    }
   }
 
-  const filtered = localEvents.filter((e) => {
-    const t = new Date(e.created_at).getTime();
-    if (startMs !== null && t < startMs) return false;
-    if (endMs !== null && t >= endMs) return false;
-    return true;
-  });
-
-  const pageViews = filtered.filter((e) => e.event_type === 'page_view');
-  const externalClicks = filtered.filter((e) => e.event_type === 'project_external_click');
-  const uniqueSessionsMap = new Map<string, number>();
-
-  filtered.forEach((e) => {
-    if (e.session_id) uniqueSessionsMap.set(e.session_id, (uniqueSessionsMap.get(e.session_id) || 0) + 1);
-  });
-
-  const totalUniqueVisitors = uniqueSessionsMap.size;
-  let singlePageSessions = 0;
-  uniqueSessionsMap.forEach((c) => { if (c === 1) singlePageSessions++; });
-
-  const bounceRate = totalUniqueVisitors > 0 ? Math.round((singlePageSessions / totalUniqueVisitors) * 100) : 0;
-  const avgViewsPerSession = totalUniqueVisitors > 0 ? Number((pageViews.length / totalUniqueVisitors).toFixed(1)) : 0;
-
-  const localProjects = getLocalData<Project[]>('benix_projects', INITIAL_PROJECTS);
-  const localArticles = getLocalData<Article[]>('benix_articles', INITIAL_ARTICLES);
-
-  const projectClickCounts = new Map<number, number>();
-  externalClicks.forEach((e) => {
-    if (e.project_id) projectClickCounts.set(e.project_id, (projectClickCounts.get(e.project_id) || 0) + 1);
-  });
-
-  const top_projects = localProjects.map((p) => ({
-    name: p.name, slug: p.slug, clicks: projectClickCounts.get(p.id) || 0
-  })).sort((a, b) => b.clicks - a.clicks);
-
-  const articleViewCounts = new Map<number, number>();
-  pageViews.forEach((e) => {
-    if (e.article_id) articleViewCounts.set(e.article_id, (articleViewCounts.get(e.article_id) || 0) + 1);
-  });
-
-  const top_articles = localArticles.map((a) => ({
-    title: a.title, slug: a.slug, views: articleViewCounts.get(a.id) || (a.views_count || 0), category: a.category
-  })).sort((a, b) => b.views - a.views);
-
-  const sourceCounts = new Map<string, number>();
-  filtered.forEach((e) => {
-    let src = 'Direct / Bookmark';
-    if (e.referrer && e.referrer !== 'Direct' && !e.referrer.includes('benix.space') && !e.referrer.includes('localhost')) {
-      if (e.referrer.includes('google')) src = 'Google Search';
-      else if (e.referrer.includes('facebook')) src = 'Facebook';
-      else if (e.referrer.includes('instagram')) src = 'Instagram';
-      else if (e.referrer.includes('x.com') || e.referrer.includes('twitter')) src = 'X (Twitter)';
-      else if (e.referrer.includes('youtube')) src = 'YouTube';
-      else {
-        try { src = new URL(e.referrer).hostname; } catch { src = 'Direct / Bookmark'; }
-      }
-    }
-    sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
-  });
-
-  const sources = Array.from(sourceCounts.entries()).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
-
-  const pageTypeCounts = new Map<string, number>();
-  pageViews.forEach((e) => {
-    const pType = e.page_type || 'general';
-    pageTypeCounts.set(pType, (pageTypeCounts.get(pType) || 0) + 1);
-  });
-
-  const pages = Array.from(pageTypeCounts.entries()).map(([page_type, count]) => ({
-    page_type: page_type.replace('_', ' ').toUpperCase(), count
-  })).sort((a, b) => b.count - a.count);
-
-  const deviceCounts = new Map<string, number>();
-  filtered.forEach((e) => {
-    const dev = (e.device_type || 'desktop').toLowerCase();
-    deviceCounts.set(dev, (deviceCounts.get(dev) || 0) + 1);
-  });
-
-  const devices = Array.from(deviceCounts.entries()).map(([device_type, count]) => ({ device_type, count })).sort((a, b) => b.count - a.count);
-
-  const browserCounts = new Map<string, number>();
-  filtered.forEach((e) => {
-    const br = e.browser || 'Chrome';
-    browserCounts.set(br, (browserCounts.get(br) || 0) + 1);
-  });
-
-  const browsers = Array.from(browserCounts.entries()).map(([browser, count]) => ({ browser, count })).sort((a, b) => b.count - a.count);
-
-  const recent_activity = filtered.slice(0, 10).map((e) => ({
-    id: e.id, event_type: e.event_type, page_url: e.page_url, device_type: e.device_type,
-    browser: e.browser, os: e.os, created_at: e.created_at
-  }));
-
+  // Real Database Default (0 values, never fake metrics)
   return {
     overview: {
-      total_views: pageViews.length,
-      unique_visitors: totalUniqueVisitors,
-      external_clicks: externalClicks.length,
-      avg_views_per_session: avgViewsPerSession,
-      bounce_rate: bounceRate
+      total_views: 0,
+      unique_visitors: 0,
+      external_clicks: 0,
+      avg_views_per_session: 0,
+      bounce_rate: 0
     },
-    top_projects,
-    top_articles,
-    sources,
-    pages,
-    devices,
-    browsers,
-    recent_activity
+    stats: {
+      total_users: 0,
+      total_wallet_balance: 0,
+      total_tx_volume: 0,
+      tv_stations: 0,
+      radio_stations: 0,
+      tv_videos: 0,
+      kunda_profiles: 0,
+      game_rooms: 0
+    },
+    adsense_earnings: 0.00,
+    tv_interstitial_earnings: 0.00,
+    radio_preroll_earnings: 0.00,
+    banner_earnings: 0.00,
+    tv_impressions: 0,
+    radio_impressions: 0,
+    banner_impressions: 0,
+    top_projects: [],
+    top_articles: [],
+    sources: [],
+    devices: [],
+    browsers: [],
+    recent_activity: []
   };
 }
 

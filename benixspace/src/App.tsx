@@ -24,7 +24,11 @@ import { BlogDetailPage } from './client/pages/BlogDetailPage';
 import { ContactPage } from './client/pages/ContactPage';
 import { PrivacyPage } from './client/pages/PrivacyPage';
 import { CookiesPage } from './client/pages/CookiesPage';
+import { TermsPage } from './client/pages/TermsPage';
 import { NotFoundPage } from './client/pages/NotFoundPage';
+import { CoffeeProvider } from './client/context/CoffeeContext';
+import { FloatingCoffeeButton } from './client/components/coffee/FloatingCoffeeButton';
+import { BuyCoffeeModal } from './client/components/coffee/BuyCoffeeModal';
 
 // Unified Super-App Dashboard
 import { DashboardPage } from './client/pages/DashboardPage';
@@ -71,6 +75,8 @@ const GlobalPlayerLayer: React.FC = () => {
       <GlobalRadioPlayer />
       <FloatingPipTV />
       <PwaInstallBanner />
+      <FloatingCoffeeButton />
+      <BuyCoffeeModal />
       <RadioAdModal
         isOpen={showRadioAd}
         station={pendingRadioStation}
@@ -87,9 +93,10 @@ export const App: React.FC = () => {
       <ThemeProvider>
         <LanguageProvider>
           <AuthProvider>
-            <PwaProvider>
-              <PlayerProvider>
-              <Router>
+            <CoffeeProvider>
+              <PwaProvider>
+                <PlayerProvider>
+                <Router>
               <RouteAnalyticsTracker />
               <Routes>
                 
@@ -222,6 +229,7 @@ export const App: React.FC = () => {
                           <Route path="/blog" element={<BlogPage />} />
                           <Route path="/blog/:slug" element={<BlogDetailPage />} />
                           <Route path="/contact" element={<ContactPage />} />
+                          <Route path="/terms" element={<TermsPage />} />
                           <Route path="/privacy" element={<PrivacyPage />} />
                           <Route path="/cookies" element={<CookiesPage />} />
                           <Route path="*" element={<NotFoundPage />} />
@@ -238,6 +246,7 @@ export const App: React.FC = () => {
             </Router>
           </PlayerProvider>
         </PwaProvider>
+      </CoffeeProvider>
       </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

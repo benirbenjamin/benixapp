@@ -162,6 +162,15 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
     }
   };
 
+  const parseSafeJson = async (res: Response) => {
+    try {
+      const text = await res.text();
+      return text ? JSON.parse(text) : {};
+    } catch {
+      return { error: 'Server returned a non-JSON response. Please verify and retry.' };
+    }
+  };
+
   const handleDeposit = async () => {
     setStatusMsg(null);
     const num = parseFloat(amount);
@@ -180,15 +189,15 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         },
         body: JSON.stringify({ amount: num, paymentMethod: method })
       });
-      const data = await res.json();
-      if (res.ok) {
+      const data = await parseSafeJson(res);
+      if (res.ok && data.success) {
         notificationSound.playNotificationChime();
         setStatusMsg({ text: `Deposited ${num.toLocaleString()} RWF successfully into central wallet!` });
         updateWalletBalance(data.newBalance);
         setAmount('');
         loadTransactions();
       } else {
-        setStatusMsg({ text: data.error || 'Deposit failed.', error: true });
+        setStatusMsg({ text: data.error || 'Deposit failed. Please try again.', error: true });
       }
     } catch (err: any) {
       setStatusMsg({ text: err.message || 'Deposit failed.', error: true });
@@ -231,7 +240,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
           accountDetails: method === 'BANK' ? { bankName, accountNumber, accountName } : { phone, method }
         })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (res.ok) {
         notificationSound.playNotificationChime();
         setStatusMsg({ text: `Withdrawal request for ${num.toLocaleString()} RWF submitted for processing!` });

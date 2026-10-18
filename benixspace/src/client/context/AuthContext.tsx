@@ -49,6 +49,7 @@ interface AuthContextType {
   hasAppProfile: (appKey: string) => boolean;
   logout: () => void;
   refreshMe: () => Promise<void>;
+  refreshWallet: () => Promise<void>;
   updatePreferences: (modules: string[], layout?: any) => Promise<void>;
   updateWalletBalance: (newBalance: number, newBonusBalance?: number) => void;
   claimDailyBonus: () => Promise<{ success: boolean; bonusAmount?: number; message?: string }>;
@@ -67,6 +68,7 @@ const AuthContext = createContext<AuthContextType>({
   hasAppProfile: () => false,
   logout: () => {},
   refreshMe: async () => {},
+  refreshWallet: async () => {},
   updatePreferences: async () => {},
   updateWalletBalance: () => {},
   claimDailyBonus: async () => ({ success: false })
@@ -125,6 +127,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshMe();
+
+    if (!token) return;
+
+    // Window focus refresh: immediate sync when returning to tab
+    const handleFocus = () => {
+      refreshMe();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Continuous dynamic auto-poll every 6 seconds to eliminate any delay
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        apiClient.get('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => {
+            if (res.data?.wallet) {
+              setWallet(res.data.wallet);
+              localStorage.setItem('benix_wallet', JSON.stringify(res.data.wallet));
+            }
+            if (res.data?.user) {
+              setUser(res.data.user);
+              localStorage.setItem('benix_user', JSON.stringify(res.data.user));
+            }
+          })
+          .catch(() => {});
+      }
+    }, 6000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [token]);
 
   /**
@@ -413,11 +446,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateWalletBalance = (newBalance: number) => {
-    if (wallet) {
-      const updated = { ...wallet, balance: newBalance };
-      setWallet(updated);
+  const updateWalletBalance = (newBalance: number, newBonusBalance?: number) => {
+    setWallet((prev) => {
+      const base = prev || { balance: 0, bonus_balance: 0, currency: 'RWF' };
+      const curBal = typeof newBalance === 'number' && !isNaN(newBalance) ? newBalance : base.balance;
+      const curBonus = typeof newBonusBalance === 'number' && !isNaN(newBonusBalance) ? newBonusBalance : (base.bonus_balance || 0);
+      const updated: Wallet = {
+        ...base,
+        balance: curBal,
+        bonus_balance: curBonus,
+        total_balance: curBal + curBonus
+      };
       localStorage.setItem('benix_wallet', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (token) {
+      apiClient.get('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (res.data?.wallet) {
+            setWallet(res.data.wallet);
+            localStorage.setItem('benix_wallet', JSON.stringify(res.data.wallet));
+          }
+        })
+        .catch(() => {});
     }
   };
 
@@ -436,6 +488,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasAppProfile,
         logout,
         refreshMe,
+        refreshWallet: refreshMe,
         updatePreferences,
         updateWalletBalance
       }}

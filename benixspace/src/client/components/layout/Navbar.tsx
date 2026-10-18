@@ -25,7 +25,8 @@ import {
   Plus,
   Smartphone,
   Download,
-  Film
+  Film,
+  Megaphone
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
@@ -335,6 +336,22 @@ export const Navbar: React.FC = () => {
                   </div>
                   <span>EasyCalc Utilities</span>
                 </button>
+
+                <a
+                  href="https://wa.me/250783987223?text=Hello%20Benix%20Space%20Advertising%20Team,%20I%20would%20like%20to%20submit%20an%20ad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-amber-300 hover:text-amber-200 transition-all text-left border border-amber-500/20 bg-amber-500/5"
+                >
+                  <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <span>Submit Ad</span>
+                    <span className="block text-[9px] text-amber-400/80 font-normal">Broadcast to TV, Radio & Videos</span>
+                  </div>
+                </a>
               </div>
 
               {/* PWA App Install Button (Hides when installed) */}

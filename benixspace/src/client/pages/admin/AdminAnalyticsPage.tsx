@@ -39,57 +39,19 @@ export const AdminAnalyticsPage: React.FC = () => {
   }, [range]);
 
   const overview = stats?.overview || {
-    total_views: 84350,
-    unique_visitors: 14820,
-    external_clicks: 1420,
-    avg_views_per_session: 5.7,
-    bounce_rate: 18.2
+    total_views: 0,
+    unique_visitors: 0,
+    external_clicks: 0,
+    avg_views_per_session: 0,
+    bounce_rate: 0
   };
 
-  const topProjects = stats?.top_projects?.length ? stats.top_projects : [
-    { name: 'Benix Space TV (17 Channels)', clicks: 584, trend: '+34%' },
-    { name: 'Benix Radio FM (19 Stations)', clicks: 426, trend: '+28%' },
-    { name: 'Kunda Space Dating', clicks: 312, trend: '+45%' },
-    { name: 'Voxify Gospel & Choirs', clicks: 248, trend: '+19%' },
-    { name: 'Benix Marketplace', clicks: 195, trend: '+14%' },
-    { name: 'RollDice Arena Gaming', clicks: 168, trend: '+22%' },
-    { name: 'EasyCalc Smart Tools', clicks: 114, trend: '+9%' }
-  ];
-
-  const topArticles = stats?.top_articles?.length ? stats.top_articles : [
-    { title: 'Building Modern Web Applications for Rwanda Digital Economy', category: 'Technology', views: 1240 },
-    { title: 'The Rise of Digital Radio and TV Streaming in East Africa', category: 'Media & Tech', views: 890 },
-    { title: 'Kunda Space: The Safe Digital Dating Movement in Kigali', category: 'Community', views: 760 },
-    { title: 'Voxify Choirs: Preserving Rwandan Choral Music Digitally', category: 'Culture', views: 650 }
-  ];
-
-  const sources = stats?.sources?.length ? stats.sources : [
-    { source: 'Direct / PWA App Launch', count: 6840, pct: '46%' },
-    { source: 'WhatsApp / Social Sharing', count: 3920, pct: '26%' },
-    { source: 'Google Search Organic', count: 2410, pct: '16%' },
-    { source: 'Referral Links (Ref Codes)', count: 1650, pct: '12%' }
-  ];
-
-  const devices = stats?.devices?.length ? stats.devices : [
-    { device_type: 'Mobile (Android/iOS)', count: 10960, pct: '74%' },
-    { device_type: 'Desktop / Laptop', count: 3260, pct: '22%' },
-    { device_type: 'Tablet / Smart TV', count: 600, pct: '4%' }
-  ];
-
-  const browsers = stats?.browsers?.length ? stats.browsers : [
-    { browser: 'Chrome Mobile', count: 7420 },
-    { browser: 'Safari Mobile', count: 3540 },
-    { browser: 'Chrome Desktop', count: 2680 },
-    { browser: 'Firefox / Edge', count: 1180 }
-  ];
-
-  const recentActivity = stats?.recent_activity?.length ? stats.recent_activity : [
-    { id: 1, event_type: 'tv_stream', page_url: '/tv#rtv', os: 'Android', browser: 'Chrome', device_type: 'Mobile', created_at: new Date(Date.now() - 1000 * 45).toISOString() },
-    { id: 2, event_type: 'radio_listen', page_url: '/radio#kiss-fm', os: 'iOS', browser: 'Safari', device_type: 'Mobile', created_at: new Date(Date.now() - 1000 * 120).toISOString() },
-    { id: 3, event_type: 'ad_impression', page_url: '/tv (Interstitial Slot 7034214536)', os: 'Windows', browser: 'Chrome', device_type: 'Desktop', created_at: new Date(Date.now() - 1000 * 180).toISOString() },
-    { id: 4, event_type: 'kunda_swipe', page_url: '/dating/profile-k1', os: 'Android', browser: 'Chrome', device_type: 'Mobile', created_at: new Date(Date.now() - 1000 * 240).toISOString() },
-    { id: 5, event_type: 'wallet_deposit', page_url: '/dashboard#wallet (MTN MoMo)', os: 'Android', browser: 'Chrome', device_type: 'Mobile', created_at: new Date(Date.now() - 1000 * 310).toISOString() }
-  ];
+  const topProjects = stats?.top_projects?.length ? stats.top_projects : [];
+  const topArticles = stats?.top_articles?.length ? stats.top_articles : [];
+  const sources = stats?.sources?.length ? stats.sources : [];
+  const devices = stats?.devices?.length ? stats.devices : [];
+  const browsers = stats?.browsers?.length ? stats.browsers : [];
+  const recentActivity = stats?.recent_activity?.length ? stats.recent_activity : [];
 
   return (
     <AdminLayout>
@@ -144,10 +106,10 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <Users className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-2xl font-black text-white">{Number(overview.unique_visitors || 14820).toLocaleString()}</p>
+            <p className="text-2xl font-black text-white">{Number(overview.unique_visitors || 0).toLocaleString()}</p>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400 font-medium">Deduplicated Sessions</span>
-              <span className="text-emerald-400 font-bold">+18.4%</span>
+              <span className="text-emerald-400 font-bold">Realtime</span>
             </div>
           </div>
 
@@ -159,10 +121,10 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <Eye className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-2xl font-black text-white">{Number(overview.total_views || 84350).toLocaleString()}</p>
+            <p className="text-2xl font-black text-white">{Number(overview.total_views || 0).toLocaleString()}</p>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400 font-medium">Logged Page Views</span>
-              <span className="text-emerald-400 font-bold">+24.1%</span>
+              <span className="text-emerald-400 font-bold">Realtime</span>
             </div>
           </div>
 
@@ -174,9 +136,9 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <Tv className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-2xl font-black text-white">1,420</p>
+            <p className="text-2xl font-black text-white">{Number(stats?.tv_viewers || 0).toLocaleString()}</p>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 font-medium">17 Channels Active</span>
+              <span className="text-slate-400 font-medium">{stats?.stats?.tv_stations || 17} Channels Active</span>
               <span className="text-rose-400 font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" /> Live
               </span>
@@ -191,10 +153,10 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <Radio className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-2xl font-black text-white">2,860</p>
+            <p className="text-2xl font-black text-white">{Number(stats?.radio_listeners || 0).toLocaleString()}</p>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 font-medium">19 FM Stations</span>
-              <span className="text-emerald-400 font-bold">99.8% Uptime</span>
+              <span className="text-slate-400 font-medium">{stats?.stats?.radio_stations || 19} FM Stations</span>
+              <span className="text-emerald-400 font-bold">Live Stream</span>
             </div>
           </div>
 
@@ -206,10 +168,10 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <DollarSign className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-2xl font-black text-emerald-400">$482.50</p>
+            <p className="text-2xl font-black text-emerald-400">{stats?.adsense_earnings ? `$${Number(stats.adsense_earnings).toFixed(2)}` : '$0.00'}</p>
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 font-medium">~624,000 RWF</span>
-              <span className="text-emerald-400 font-bold">eCPM $3.24</span>
+              <span className="text-slate-400 font-medium">Real Database Verified</span>
+              <span className="text-slate-400 font-bold">0.00 RWF</span>
             </div>
           </div>
 
@@ -221,7 +183,12 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <Wallet className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-2xl font-black text-white">3.2M <span className="text-xs text-slate-400 font-bold">RWF</span></p>
+            <p className="text-2xl font-black text-white">
+              {stats?.stats?.total_wallet_balance
+                ? Number(stats.stats.total_wallet_balance).toLocaleString()
+                : '0'}{' '}
+              <span className="text-xs text-slate-400 font-bold">RWF</span>
+            </p>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400 font-medium">Ledger Verified</span>
               <span className="text-amber-400 font-bold">Active</span>
@@ -252,9 +219,9 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <span className="text-xs font-bold text-slate-400 uppercase">TV In-Stream Interstitial</span>
                 <span className="text-[10px] font-mono bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">Slot: 7034214536</span>
               </div>
-              <div className="text-2xl font-black text-white">$242.10 <span className="text-xs text-slate-400 font-normal">USD</span></div>
+              <div className="text-2xl font-black text-white">{stats?.tv_interstitial_earnings || '$0.00'} <span className="text-xs text-slate-400 font-normal">USD</span></div>
               <div className="space-y-1.5 text-xs text-slate-400 pt-1 border-t border-slate-800">
-                <div className="flex justify-between"><span>Displays / Impressions:</span><span className="text-white font-bold">64,800</span></div>
+                <div className="flex justify-between"><span>Displays / Impressions:</span><span className="text-white font-bold">{stats?.tv_impressions || '0'}</span></div>
                 <div className="flex justify-between"><span>Trigger Interval:</span><span className="text-white font-bold">Every 5 mins (300s)</span></div>
                 <div className="flex justify-between"><span>Background Audio:</span><span className="text-emerald-400 font-bold">Active (Non-muted)</span></div>
               </div>
@@ -266,9 +233,9 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <span className="text-xs font-bold text-slate-400 uppercase">Radio Audio Pre-Roll</span>
                 <span className="text-[10px] font-mono bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">Slot: 7034214536</span>
               </div>
-              <div className="text-2xl font-black text-white">$168.40 <span className="text-xs text-slate-400 font-normal">USD</span></div>
+              <div className="text-2xl font-black text-white">{stats?.radio_preroll_earnings || '$0.00'} <span className="text-xs text-slate-400 font-normal">USD</span></div>
               <div className="space-y-1.5 text-xs text-slate-400 pt-1 border-t border-slate-800">
-                <div className="flex justify-between"><span>Displays / Impressions:</span><span className="text-white font-bold">48,200</span></div>
+                <div className="flex justify-between"><span>Displays / Impressions:</span><span className="text-white font-bold">{stats?.radio_impressions || '0'}</span></div>
                 <div className="flex justify-between"><span>Countdown Duration:</span><span className="text-white font-bold">10 Seconds</span></div>
                 <div className="flex justify-between"><span>Frequency Throttle:</span><span className="text-purple-400 font-bold">4 mins (240s)</span></div>
               </div>
@@ -280,9 +247,9 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <span className="text-xs font-bold text-slate-400 uppercase">Companion Display Banner</span>
                 <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">Slot: 7034214536</span>
               </div>
-              <div className="text-2xl font-black text-white">$72.00 <span className="text-xs text-slate-400 font-normal">USD</span></div>
+              <div className="text-2xl font-black text-white">{stats?.banner_earnings || '$0.00'} <span className="text-xs text-slate-400 font-normal">USD</span></div>
               <div className="space-y-1.5 text-xs text-slate-400 pt-1 border-t border-slate-800">
-                <div className="flex justify-between"><span>Displays / Impressions:</span><span className="text-white font-bold">39,400</span></div>
+                <div className="flex justify-between"><span>Displays / Impressions:</span><span className="text-white font-bold">{stats?.banner_impressions || '0'}</span></div>
                 <div className="flex justify-between"><span>Auto-Refresh Cycle:</span><span className="text-white font-bold">Every 150 Seconds</span></div>
                 <div className="flex justify-between"><span>Responsive Layout:</span><span className="text-amber-400 font-bold">Enabled</span></div>
               </div>

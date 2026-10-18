@@ -7,6 +7,7 @@ import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardMod
 import { LiveTVPlayer } from '../../components/player/LiveTVPlayer';
 import { SidebarRecommendationsMixedAds } from '../../components/ads/SidebarRecommendationsMixedAds';
 import { CompanionAdBanner } from '../../components/ads/CompanionAdBanner';
+import { TVLiveChat } from '../../components/chat/TVLiveChat';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
   Tv,
@@ -83,13 +84,7 @@ export const TvPage: React.FC = () => {
   };
 
   const handlePlayStation = (station: Station) => {
-    if (!user) {
-      playTv(station);
-    } else if (!hasAppProfile('tv')) {
-      setWizardTarget('tv');
-    } else {
-      playTv(station);
-    }
+    playTv(station);
   };
 
   const filteredStations = stations.filter((station) => {
@@ -190,6 +185,9 @@ export const TvPage: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Live Chat for TV Channel */}
+            <TVLiveChat station={activeChannel} />
           </div>
 
           {/* Right Sidebar: Recommendations Mixed with User Ads + Google AdSense */}

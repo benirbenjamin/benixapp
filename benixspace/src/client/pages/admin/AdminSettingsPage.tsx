@@ -70,6 +70,7 @@ export const AdminSettingsPage: React.FC = () => {
     smtp_host: 'smtp.resend.com',
     smtp_port: 587,
     smtp_user: 'resend',
+    smtp_pass: '',
     test_recipient: 'benirabok@gmail.com',
     sending_test: false,
     test_result: ''
@@ -155,7 +156,16 @@ export const AdminSettingsPage: React.FC = () => {
 
     // Fetch from backend API
     fetchCompanySettings()
-      .then((data) => {
+      .then((data: any) => {
+        if (data?.platform_settings) {
+          const p = data.platform_settings;
+          if (p.branding) setBranding((b) => ({ ...b, ...p.branding }));
+          if (p.contacts) setContacts((c) => ({ ...c, ...p.contacts }));
+          if (p.adsense) setAdsense((a) => ({ ...a, ...p.adsense }));
+          if (p.drive) setDrive((d) => ({ ...d, ...p.drive }));
+          if (p.modules) setModules((m) => ({ ...m, ...p.modules }));
+          if (p.emailConfig) setEmailConfig((e) => ({ ...e, ...p.emailConfig }));
+        }
         if (data?.company) {
           const comp = data.company;
           setBranding((b) => ({
@@ -227,13 +237,32 @@ export const AdminSettingsPage: React.FC = () => {
 
     try {
       // 1. Save in local storage for fast client sync
-      const completeConfig = { branding, contacts, adsense, drive, modules };
+      const completeConfig = { branding, contacts, adsense, drive, modules, emailConfig };
       localStorage.setItem('benix_platform_settings', JSON.stringify(completeConfig));
       if (branding.logo_url) {
         localStorage.setItem('benix_platform_logo', branding.logo_url);
       }
 
-      // 2. Persist to Neon DB via API
+      // 2. Persist All-Apps and Unified Platform Settings to Neon Database via API
+      const token = getAuthToken();
+      if (token) {
+        await fetch('/api/admin/settings/all-apps', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            branding,
+            contacts,
+            adsense,
+            drive,
+            modules,
+            emailConfig
+          })
+        }).catch(() => {});
+      }
+
       await updateCompanySettings({
         company_name: branding.platform_name,
         email: contacts.support_email,
@@ -243,7 +272,6 @@ export const AdminSettingsPage: React.FC = () => {
       }).catch(() => {});
 
       // 3. Sync Kunda Space dynamic pricing & subscription plans to server
-      const token = getAuthToken();
       if (token) {
         await fetch('/api/admin/settings/kunda', {
           method: 'PATCH',
@@ -768,7 +796,7 @@ export const AdminSettingsPage: React.FC = () => {
                     onChange={(e) => setDrive({ ...drive, provider: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold focus:outline-none"
                   >
-                    <option value="google_drive">Google Drive (OAuth2 Service Account)</option>
+                    <option value="google_drive">Google Drive (OAuth2 Refresh Token)</option>
                     <option value="s3">Amazon S3 / Wasabi Compatible Cloud</option>
                     <option value="neon_blob">PostgreSQL Neon Large Object Store</option>
                   </select>
@@ -805,6 +833,20 @@ export const AdminSettingsPage: React.FC = () => {
                     placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx"
                     className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
                   />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-slate-400 block mb-1">Google Cloud Refresh Token (OAuth2)</label>
+                  <input
+                    type="password"
+                    value={drive.refresh_token}
+                    onChange={(e) => setDrive({ ...drive, refresh_token: e.target.value })}
+                    placeholder="1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Secures long-term API access without manual service accounts. Tokens are refreshed automatically.
+                  </span>
                 </div>
               </div>
             </div>
@@ -885,6 +927,42 @@ export const AdminSettingsPage: React.FC = () => {
                     onChange={(e) => setEmailConfig({ ...emailConfig, smtp_host: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none"
                   />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">SMTP Port</label>
+                  <input
+                    type="number"
+                    value={emailConfig.smtp_port}
+                    onChange={(e) => setEmailConfig({ ...emailConfig, smtp_port: Number(e.target.value) || 587 })}
+                    placeholder="587 or 465"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">SMTP Username</label>
+                  <input
+                    type="text"
+                    value={emailConfig.smtp_user}
+                    onChange={(e) => setEmailConfig({ ...emailConfig, smtp_user: e.target.value })}
+                    placeholder="resend or your SMTP user"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-slate-400 block mb-1">SMTP Password</label>
+                  <input
+                    type="password"
+                    value={(emailConfig as any).smtp_pass || ''}
+                    onChange={(e) => setEmailConfig({ ...emailConfig, ...( { smtp_pass: e.target.value } as any) })}
+                    placeholder="re_xxxxxxxxxxxxxx or your SMTP password"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Credentials used to authenticate with SMTP relay server when dispatching transactional notifications.
+                  </span>
                 </div>
               </div>
             </div>

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams, useParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { SeoHead } from '../../components/common/SeoHead';
 import { WalletModal } from '../../components/modals/WalletModal';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
+import { SidebarRecommendationsMixedAds } from '../../components/ads/SidebarRecommendationsMixedAds';
+import { TVLiveChat } from '../../components/chat/TVLiveChat';
+import { getAuthToken } from '../../services/api';
 import {
   Film,
   Play,
@@ -12,17 +15,21 @@ import {
   Lock,
   Unlock,
   CheckCircle2,
-  DollarSign,
   Sparkles,
   Search,
   ArrowLeft,
-  X,
   Copy,
   ExternalLink,
   Eye,
   Check,
   TrendingUp,
-  Award
+  Award,
+  Upload,
+  ThumbsUp,
+  Bell,
+  UserPlus,
+  Plus,
+  X
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -39,26 +46,19 @@ interface VideoItem {
   embedUrl: string;
   commission_pct?: number;
   description?: string;
+  channelName?: string;
+  channelAvatar?: string;
+  createdAt?: string;
 }
 
+// Clean fallback catalogue (Removed dummy Ambassador videos as requested by user)
 const FALLBACK_VIDEOS: VideoItem[] = [
-  {
-    id: 'vid-01',
-    title: 'Ambassadors of Christ Choir - Kwetu Pazuri Live in Concert',
-    creator: 'Ambassadors of Christ',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
-    duration: '14:20',
-    views: 482000,
-    likes: 29400,
-    category: 'Gospel & Choirs',
-    price: 0,
-    embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLrEnWoR732-C_N24_e0fP_E',
-    description: 'The world-renowned Ambassadors of Christ choir performing signature hymns live in Kigali.'
-  },
   {
     id: 'vid-02',
     title: 'Israel Mbonyi - Nina Siri Live Acoustic BK Arena Experience',
     creator: 'Israel Mbonyi Official',
+    channelName: 'Israel Mbonyi',
+    channelAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
     duration: '8:45',
     views: 890000,
@@ -66,12 +66,14 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     category: 'Gospel & Choirs',
     price: 0,
     embedUrl: 'https://www.youtube-nocookie.com/embed/7V-2mGj8H1M',
-    description: 'Soul-stirring live gospel performance with a 20,000 capacity BK Arena audience in worship.'
+    description: 'Soul-stirring live acoustic gospel worship performance recorded live at BK Arena in Kigali in front of 20,000 worshippers.'
   },
   {
     id: 'vid-03',
     title: 'Seburikoko Season 18 — Full Episode Premier (Afrifame Pictures)',
     creator: 'Afrifame Pictures',
+    channelName: 'Afrifame Studios',
+    channelAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
     duration: '26:15',
     views: 312000,
@@ -80,12 +82,14 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     price: 300,
     commission_pct: 15,
     embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLfWb3Xk-comedy',
-    description: "Rwanda's favorite national television drama series. Follow Seburikoko's village adventures."
+    description: "Rwanda's favorite national television drama series. Follow Seburikoko's village adventures and unexpected family schemes."
   },
   {
     id: 'vid-04',
     title: 'Bamenya Series Episode 142 — Byakaze mu Mujyi',
     creator: 'Zacu TV',
+    channelName: 'Zacu Entertainment',
+    channelAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=80',
     duration: '22:30',
     views: 520000,
@@ -93,12 +97,14 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     category: 'Series & Comedy',
     price: 0,
     embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLzacu-bamenya',
-    description: 'City life comedy drama starring Denis Nsanzimahoro (Bamenya) exploring modern youth culture.'
+    description: 'City life comedy drama starring Denis Nsanzimahoro (Bamenya) exploring modern youth culture and hustle in Kigali.'
   },
   {
     id: 'vid-05',
     title: 'City Maid Season 12 Finale — Inkuru Idasanzwe',
     creator: 'Zacu Entertainment',
+    channelName: 'Zacu Entertainment',
+    channelAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&auto=format&fit=crop&q=80',
     duration: '28:10',
     views: 410000,
@@ -107,12 +113,14 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     price: 500,
     commission_pct: 15,
     embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLzacu-citymaid',
-    description: 'Emotional season finale unveiling domestic challenges and family triumphs in Kigali.'
+    description: 'Emotional season finale unveiling domestic challenges, romantic twists, and family triumphs across urban households.'
   },
   {
     id: 'vid-06',
     title: 'Alarm Ministries - Hashimwe Izina Ryera Live Worship Album',
     creator: 'Alarm Ministries',
+    channelName: 'Alarm Ministries',
+    channelAvatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
     duration: '18:50',
     views: 295000,
@@ -126,6 +134,8 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     id: 'vid-07',
     title: 'Chorale de Kigali — Easter Gala Evening at Kigali Serena',
     creator: 'Chorale de Kigali',
+    channelName: 'Chorale de Kigali',
+    channelAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800&auto=format&fit=crop&q=80',
     duration: '32:00',
     views: 180000,
@@ -134,12 +144,14 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     price: 500,
     commission_pct: 15,
     embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLchorale-de-kigali',
-    description: 'Majestic classical polyphonic choral harmony performing traditional and sacred masterpieces.'
+    description: 'Majestic classical polyphonic choral harmony performing traditional Rwandan and sacred masterpieces.'
   },
   {
     id: 'vid-08',
     title: 'Visit Rwanda 4K Cinematic Journey — The Land of a Thousand Hills',
     creator: 'Rwanda Development Board',
+    channelName: 'Visit Rwanda',
+    channelAvatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?w=800&auto=format&fit=crop&q=80',
     duration: '12:15',
     views: 740000,
@@ -147,12 +159,14 @@ const FALLBACK_VIDEOS: VideoItem[] = [
     category: 'Culture & Documentaries',
     price: 0,
     embedUrl: 'https://www.youtube-nocookie.com/embed/videoseries?list=PLvisit-rwanda',
-    description: 'Breathtaking 4K drone cinematography spanning Volcanoes National Park, Lake Kivu, and Akagera.'
+    description: 'Breathtaking 4K drone cinematography spanning Volcanoes National Park, Lake Kivu, and Akagera wildlife.'
   },
   {
     id: 'vid-09',
     title: 'BK Arena All-Stars Mega Concert Live Stream Experience',
     creator: 'BK Arena Live',
+    channelName: 'BK Arena Live',
+    channelAvatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=200&auto=format&fit=crop&q=80',
     thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80',
     duration: '45:30',
     views: 620000,
@@ -176,9 +190,10 @@ const CATEGORIES = [
 ];
 
 export const VideosPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { id: routeVideoId } = useParams();
-  const { user, wallet, refreshMe } = useAuth();
+  const { user, wallet, refreshMe, updateWalletBalance } = useAuth();
 
   const [videos, setVideos] = useState<VideoItem[]>(FALLBACK_VIDEOS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -192,6 +207,24 @@ export const VideosPage: React.FC = () => {
     }
   });
 
+  // Creator Subscriptions State
+  const [subscribedChannels, setSubscribedChannels] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('benix_subscribed_channels') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  // Liked Videos
+  const [likedVideoIds, setLikedVideoIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('benix_liked_videos') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
   // Share & Earn Affiliate Modal State
   const [shareVideo, setShareVideo] = useState<VideoItem | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
@@ -200,30 +233,53 @@ export const VideosPage: React.FC = () => {
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
 
-  // 1. Cross-Platform Referral Code Listener: Capture ?ref= from URL
+  // Creator Upload Video Modal State
+  const [showPostModal, setShowPostModal] = useState<boolean>(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newVideoUrl, setNewVideoUrl] = useState('');
+  const [newThumbnailUrl, setNewThumbnailUrl] = useState('');
+  const [newCategory, setNewCategory] = useState('Gospel & Choirs');
+  const [newPrice, setNewPrice] = useState(0);
+  const [isPosting, setIsPosting] = useState(false);
+
+  // Cross-Platform Referral Tracking
   useEffect(() => {
     const refCode = searchParams.get('ref');
     if (refCode) {
       localStorage.setItem('benix_ref', refCode);
-      console.log('🔗 Cross-Platform Affiliate Referral Tracked:', refCode);
     }
   }, [searchParams]);
 
-  // 2. Fetch video catalogue from server
+  // Load video catalogue from database
   useEffect(() => {
     axios
       .get('/api/modules/videos')
       .then((res) => {
         if (res.data?.videos && Array.isArray(res.data.videos) && res.data.videos.length > 0) {
-          setVideos(res.data.videos);
+          const mapped = res.data.videos.map((v: any) => ({
+            id: v.id,
+            title: v.title,
+            creator: v.channelName || v.creator || 'Verified Creator',
+            channelName: v.channelName || v.creator || 'Verified Creator',
+            channelAvatar: v.channelAvatar || '/logo.png',
+            thumbnail: v.thumbnailUrl || v.thumbnail || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+            duration: v.durationLabel || (v.duration ? `${Math.floor(v.duration / 60)}:${v.duration % 60 < 10 ? '0' : ''}${v.duration % 60}` : '10:00'),
+            views: v.views || 0,
+            likes: v.likes || 0,
+            category: v.category || 'General',
+            price: v.price || 0,
+            embedUrl: v.videoUrl || v.embedUrl || '',
+            commission_pct: v.price > 0 ? 15 : 0,
+            description: v.description || ''
+          }));
+          setVideos(mapped);
         }
       })
-      .catch(() => {
-        // Keeps fallback videos smoothly
-      });
+      .catch(() => {});
   }, []);
 
-  // 3. Auto-open video if specified in route or URL query (?v= or /videos/:id)
+  // Auto-sync active video if specified in route (/videos/:id) or query (?v=)
   useEffect(() => {
     const targetId = routeVideoId || searchParams.get('v');
     if (targetId) {
@@ -231,122 +287,256 @@ export const VideosPage: React.FC = () => {
       if (found) {
         setActiveVideo(found);
       }
+    } else {
+      setActiveVideo(null);
     }
   }, [routeVideoId, searchParams, videos]);
 
-  const handleLike = async (vid: VideoItem) => {
-    setVideos((prev) =>
-      prev.map((v) => (v.id === vid.id ? { ...v, likes: v.likes + 1 } : v))
-    );
-    try {
-      const token = localStorage.getItem('benix_auth_token');
-      if (token) {
-        await axios.post(
-          `/api/modules/videos/${vid.id}/like`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      }
-    } catch {}
+  const isVideoUnlocked = (vid: VideoItem): boolean => {
+    if (vid.price <= 0) return true;
+    if (unlockedVideoIds.includes(vid.id)) return true;
+    if (user?.role === 'superadmin' || user?.role === 'admin') return true;
+    return false;
   };
 
-  const handleUnlockVideo = async (video: VideoItem) => {
+  const handleSelectVideo = (video: VideoItem) => {
+    setActiveVideo(video);
+    navigate(`/videos/${video.id}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleToggleLike = (vid: VideoItem) => {
+    if (!user) {
+      setShowWizardModal(true);
+      return;
+    }
+    const isLiked = likedVideoIds.includes(vid.id);
+    const updated = isLiked ? likedVideoIds.filter((id) => id !== vid.id) : [...likedVideoIds, vid.id];
+    setLikedVideoIds(updated);
+    localStorage.setItem('benix_liked_videos', JSON.stringify(updated));
+
+    setVideos((prev) =>
+      prev.map((v) => (v.id === vid.id ? { ...v, likes: isLiked ? Math.max(0, v.likes - 1) : v.likes + 1 } : v))
+    );
+
+    if (activeVideo && activeVideo.id === vid.id) {
+      setActiveVideo((prev) => (prev ? { ...prev, likes: isLiked ? Math.max(0, prev.likes - 1) : prev.likes + 1 } : prev));
+    }
+  };
+
+  const handleToggleSubscribe = (channelName: string) => {
+    if (!user) {
+      setShowWizardModal(true);
+      return;
+    }
+    const isSub = subscribedChannels.includes(channelName);
+    const updated = isSub ? subscribedChannels.filter((c) => c !== channelName) : [...subscribedChannels, channelName];
+    setSubscribedChannels(updated);
+    localStorage.setItem('benix_subscribed_channels', JSON.stringify(updated));
+  };
+
+  // Video Unlock with Central Unified Wallet
+  const handleUnlockVideo = async (vid: VideoItem) => {
     if (!user) {
       setShowWizardModal(true);
       return;
     }
 
-    const totalBalance = (wallet?.balance || 0) + (wallet?.bonus_balance || 0);
-    if (totalBalance < video.price) {
+    const availableBal = (wallet?.balance || 0) + (wallet?.bonus_balance || 0);
+    if (availableBal < vid.price) {
       setShowWalletModal(true);
       return;
     }
 
-    setUnlockingId(video.id);
-    const token = localStorage.getItem('benix_auth_token');
-    const refCode = localStorage.getItem('benix_ref') || '';
+    setUnlockingId(vid.id);
+    setStatusMessage('');
 
     try {
+      const token = getAuthToken();
+      const activeRef = localStorage.getItem('benix_ref') || undefined;
       const res = await axios.post(
-        `/api/modules/videos/${video.id}/unlock`,
-        { ref: refCode },
+        '/api/modules/videos/unlock',
+        { videoId: vid.id, ref: activeRef },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const updated = [...unlockedVideoIds, video.id];
-      setUnlockedVideoIds(updated);
-      localStorage.setItem('benix_unlocked_videos', JSON.stringify(updated));
+      if (res.data?.success) {
+        const nextUnlocked = [...unlockedVideoIds, vid.id];
+        setUnlockedVideoIds(nextUnlocked);
+        localStorage.setItem('benix_unlocked_videos', JSON.stringify(nextUnlocked));
 
-      setStatusMessage(`Unlocked "${video.title}" successfully!`);
-      setTimeout(() => setStatusMessage(''), 4000);
-      await refreshMe();
+        if (res.data.wallet) {
+          updateWalletBalance(res.data.wallet.balance, res.data.wallet.bonus_balance);
+        } else {
+          refreshMe();
+        }
+
+        setStatusMessage(`🎉 Successfully unlocked "${vid.title}"! Enjoy streaming in HD.`);
+        setActiveVideo(vid);
+        navigate(`/videos/${vid.id}`);
+      }
     } catch (err: any) {
-      setStatusMessage(err.response?.data?.error || 'Failed to unlock video.');
-      setTimeout(() => setStatusMessage(''), 4000);
+      setStatusMessage(err.response?.data?.error || 'Failed to unlock video. Please try again.');
     } finally {
       setUnlockingId(null);
     }
   };
 
-  const isVideoUnlocked = (video: VideoItem) => {
-    if (video.price <= 0) return true;
-    return unlockedVideoIds.includes(video.id);
+  // Creator Post Video Submission
+  const handlePostVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      setShowWizardModal(true);
+      return;
+    }
+
+    if (!newTitle.trim() || !newVideoUrl.trim()) {
+      alert('Please fill in title and video stream/embed URL.');
+      return;
+    }
+
+    setIsPosting(true);
+    try {
+      const token = getAuthToken();
+      let formattedUrl = newVideoUrl.trim();
+      // Auto-format standard youtube watch urls to embed
+      if (formattedUrl.includes('youtube.com/watch?v=')) {
+        const id = formattedUrl.split('v=')[1]?.split('&')[0];
+        formattedUrl = `https://www.youtube-nocookie.com/embed/${id}`;
+      } else if (formattedUrl.includes('youtu.be/')) {
+        const id = formattedUrl.split('youtu.be/')[1]?.split('?')[0];
+        formattedUrl = `https://www.youtube-nocookie.com/embed/${id}`;
+      }
+
+      const res = await axios.post(
+        '/api/modules/videos',
+        {
+          title: newTitle.trim(),
+          description: newDescription.trim(),
+          videoUrl: formattedUrl,
+          thumbnailUrl: newThumbnailUrl.trim() || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+          category: newCategory,
+          price: Number(newPrice) || 0
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.video) {
+        const addedVideo: VideoItem = {
+          id: res.data.video.id,
+          title: res.data.video.title,
+          creator: res.data.video.channelName || user.name || 'Verified Creator',
+          channelName: res.data.video.channelName || user.name || 'Verified Creator',
+          channelAvatar: user.name ? '/logo.png' : '/logo.png',
+          thumbnail: res.data.video.thumbnailUrl,
+          duration: '5:00',
+          views: 0,
+          likes: 0,
+          category: res.data.video.category,
+          price: res.data.video.price,
+          embedUrl: res.data.video.videoUrl,
+          commission_pct: res.data.video.price > 0 ? 15 : 0,
+          description: res.data.video.description
+        };
+
+        setVideos((prev) => [addedVideo, ...prev]);
+        setShowPostModal(false);
+        setNewTitle('');
+        setNewDescription('');
+        setNewVideoUrl('');
+        setNewThumbnailUrl('');
+        setNewPrice(0);
+        setStatusMessage('🚀 Your video has been published to Benix Creator Studio & Video Hub!');
+        handleSelectVideo(addedVideo);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to publish video');
+    } finally {
+      setIsPosting(false);
+    }
   };
 
-  const getAffiliateShareLink = (video: VideoItem) => {
-    const refParam = user?.referral_code || user?.id || 'BENIX-INVITE';
-    const origin = window.location.origin;
-    return `${origin}/videos?ref=${refParam}&v=${video.id}`;
-  };
-
-  const handleCopyAffiliateLink = (video: VideoItem) => {
-    const link = getAffiliateShareLink(video);
-    navigator.clipboard.writeText(link);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 3000);
+  const getAffiliateShareLink = (vid: VideoItem): string => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://benix.space';
+    const myRef = user?.referral_code || 'BENIX-PREMIUM';
+    return `${origin}/videos/${vid.id}?ref=${encodeURIComponent(myRef)}`;
   };
 
   const filteredVideos = videos.filter((vid) => {
     const matchesSearch =
       vid.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vid.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (vid.description && vid.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      vid.category.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
     if (selectedCategory === 'All') return true;
     if (selectedCategory === 'Free to Watch') return vid.price <= 0;
     if (selectedCategory === 'Premium') return vid.price > 0;
-    return vid.category.toLowerCase().includes(selectedCategory.toLowerCase());
+    return vid.category.toLowerCase() === selectedCategory.toLowerCase();
   });
 
   return (
-    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-24 font-sans selection:bg-purple-600 selection:text-white">
+    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-purple-600 selection:text-white">
       <SeoHead
-        title="Creator Studio & Video Hub — BenixSpace"
-        description="Stream exclusive Rwandan creator shows, live choir concerts, series, and comedy. Share videos to earn affiliate commissions directly into your real wallet."
+        title={
+          activeVideo
+            ? `${activeVideo.title} — Watch on BenixSpace`
+            : "Creator Studio & Video Hub — BenixSpace"
+        }
+        description="Stream Rwandan concert streams, exclusive comedy shows, choir harmonies, and documentaries. Monetize with 15% instant affiliate commissions."
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         
-        {/* Top Breadcrumb Navigation */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Home</span>
-          </Link>
+        {/* Top Navigation Bar & Action Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {activeVideo ? (
+              <button
+                onClick={() => {
+                  setActiveVideo(null);
+                  navigate('/videos');
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>All Videos</span>
+              </button>
+            ) : (
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Home</span>
+              </Link>
+            )}
 
-          {/* Dual Wallet Display in Header */}
-          <div className="flex items-center gap-3">
+            <span className="text-xs text-purple-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+              <Film className="w-3.5 h-3.5" />
+              <span>Creator Studio & Video Hub</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (!user) setShowWizardModal(true);
+                else setShowPostModal(true);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Post / Upload Video</span>
+            </button>
+
             <button
               onClick={() => setShowWalletModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-[#131E2C] hover:bg-[#1A2A3E] border border-blue-500/30 text-xs font-bold text-blue-400 transition-all shadow-md"
+              className="px-3.5 py-1.5 rounded-xl bg-[#121824] border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-2 transition-all shadow-md"
             >
-              <DollarSign className="w-3.5 h-3.5" />
-              <span>Real: {(wallet?.balance || 0).toLocaleString()} RWF</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Wallet: {(wallet?.balance || 0).toLocaleString()} RWF</span>
               {Boolean(wallet?.bonus_balance) && (
                 <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-black border border-amber-500/30">
                   +{(wallet?.bonus_balance || 0).toLocaleString()} Bonus
@@ -356,388 +546,611 @@ export const VideosPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Hero Section */}
-        <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#1C0F38] via-[#120B24] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-purple-600/15 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 -mb-16 w-72 h-72 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-4 max-w-2xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-600 text-white shadow-lg shadow-purple-600/30">
-                  <Film className="w-3.5 h-3.5" />
-                  Creator Studio & Video Hub
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                  15% Affiliate Commission
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  Bonus Wallet Usable First
-                </span>
-              </div>
-
-              <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-                Watch Exclusive Rwandan Shows, <br />
-                <span className="bg-gradient-to-r from-purple-400 via-pink-300 to-indigo-300 bg-clip-text text-transparent">
-                  Choral Concerts & Earn Commissions
-                </span>
-              </h1>
-
-              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                Stream verified high-definition Rwandan concerts, comedy, and cinema. Share your unique link to earn instant 15% cash commissions directly to your real wallet on every unlock!
-              </p>
-            </div>
-
-            <div className="w-full md:w-80 p-5 rounded-2xl bg-[#1C1236]/90 border border-purple-500/30 shadow-2xl backdrop-blur-md space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center">
-                  <Award className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-sm text-white">Affiliate Partner Hub</h4>
-                  <p className="text-[11px] text-slate-400">Share any video to monetize</p>
-                </div>
-              </div>
-              <ul className="text-xs text-slate-300 space-y-2 pt-2 border-t border-slate-800">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
-                  <span>15% commission on paid unlocks</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Credited to Real Wallet for withdrawal</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Cross-platform tracking & WhatsApp share</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
         {/* Status Notification */}
         {statusMessage && (
-          <div className="p-4 rounded-2xl bg-purple-950/80 border border-purple-500/50 text-purple-200 text-xs font-bold flex items-center gap-2 shadow-lg animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-purple-400" />
-            <span>{statusMessage}</span>
+          <div className="p-4 rounded-2xl bg-purple-950/80 border border-purple-500/50 text-purple-200 text-xs font-bold flex items-center justify-between gap-2 shadow-lg animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+              <span>{statusMessage}</span>
+            </div>
+            <button onClick={() => setStatusMessage('')} className="text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        {/* Categories Strip & Search */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-2">
-          <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-none">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  selectedCategory === cat
-                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                    : 'bg-[#131926] text-slate-400 hover:text-white hover:bg-[#1a2234] border border-slate-800'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search videos, choirs, shows..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#131926] border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Video Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredVideos.map((video) => {
-            const unlocked = isVideoUnlocked(video);
-            return (
-              <div
-                key={video.id}
-                className="group rounded-3xl bg-[#131926] border border-slate-800/80 hover:border-purple-500/50 p-4 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-950/30 flex flex-col justify-between"
-              >
-                <div>
-                  {/* Thumbnail & Player Overlay */}
-                  <div
-                    onClick={() => {
-                      if (unlocked) setActiveVideo(video);
-                      else handleUnlockVideo(video);
-                    }}
-                    className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden cursor-pointer border border-slate-800/80 group-hover:border-purple-500/30 transition-all"
-                  >
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
+        {/* ============================================================== */}
+        {/* 1. YOUTUBE-STYLE WATCH VIEW (When Active Video is Selected)    */}
+        {/* ============================================================== */}
+        {activeVideo ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Left Column: Player, Title, Channel, Meta, Description & Comments */}
+            <div className="lg:col-span-8 space-y-4">
+              
+              {/* 16:9 Cinema Player Screen */}
+              <div className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl">
+                {isVideoUnlocked(activeVideo) ? (
+                  activeVideo.embedUrl.includes('youtube') || activeVideo.embedUrl.includes('embed') ? (
+                    <iframe
+                      src={activeVideo.embedUrl.includes('?') ? `${activeVideo.embedUrl}&autoplay=1` : `${activeVideo.embedUrl}?autoplay=1`}
+                      title={activeVideo.title}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
                     />
-
-                    {/* Duration Badge */}
-                    <span className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[10px] font-bold text-slate-200">
-                      {video.duration}
-                    </span>
-
-                    {/* Price / Unlocked Status Badge */}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                      {video.price <= 0 ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-600 text-white shadow-md">
-                          Free
-                        </span>
-                      ) : unlocked ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-600 text-white shadow-md flex items-center gap-1">
-                          <Unlock className="w-3 h-3" />
-                          Unlocked
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
-                          <Lock className="w-3 h-3" />
-                          {video.price.toLocaleString()} RWF
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Play Hover Overlay */}
-                    <div className="absolute inset-0 bg-purple-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-xl shadow-purple-600/50 transform group-hover:scale-110 transition-transform">
-                        <Play className="w-5 h-5 fill-white ml-0.5" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Metadata */}
-                  <div className="mt-3.5 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-purple-400 font-semibold">
-                      <span>{video.category}</span>
-                      <span className="text-slate-400 flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        {(video.views || 0).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <h3
-                      onClick={() => {
-                        if (unlocked) setActiveVideo(video);
-                        else handleUnlockVideo(video);
-                      }}
-                      className="font-black text-sm text-white group-hover:text-purple-300 transition-colors line-clamp-2 cursor-pointer"
-                    >
-                      {video.title}
-                    </h3>
-
-                    <p className="text-xs text-slate-400 font-medium">
-                      {video.creator}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Bottom Actions Bar */}
-                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleLike(video)}
-                      className="text-xs text-slate-400 hover:text-rose-400 flex items-center gap-1 transition-colors"
-                      title="Like Video"
-                    >
-                      <Heart className="w-3.5 h-3.5" />
-                      <span>{video.likes.toLocaleString()}</span>
-                    </button>
-
-                    {/* Share & Earn Affiliate Link */}
-                    <button
-                      onClick={() => setShareVideo(video)}
-                      className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 transition-colors px-2.5 py-1 rounded-xl bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/20"
-                      title="Share & Earn 15% Affiliate Commission"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>Share & Earn</span>
-                    </button>
-                  </div>
-
-                  {unlocked ? (
-                    <button
-                      onClick={() => setActiveVideo(video)}
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-md"
-                    >
-                      <Play className="w-3 h-3 fill-white" />
-                      <span>Watch</span>
-                    </button>
                   ) : (
+                    <video
+                      src={activeVideo.embedUrl}
+                      controls
+                      autoPlay
+                      className="w-full h-full object-cover"
+                      poster={activeVideo.thumbnail}
+                    />
+                  )
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-slate-950/80 via-black to-slate-950">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-2xl mb-4">
+                      <Lock className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white">Premium Creator Video</h3>
+                    <p className="text-xs text-slate-300 mt-2 max-w-md">
+                      Unlock full access to "{activeVideo.title}". You can pay using your unified wallet balance (bonus wallet is used first!).
+                    </p>
                     <button
-                      onClick={() => handleUnlockVideo(video)}
-                      disabled={unlockingId === video.id}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1 transition-all shadow-md disabled:opacity-50"
+                      onClick={() => handleUnlockVideo(activeVideo)}
+                      disabled={unlockingId === activeVideo.id}
+                      className="mt-5 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 hover:from-amber-400 hover:to-amber-500 transition scale-100 hover:scale-105"
                     >
-                      <Unlock className="w-3 h-3" />
-                      <span>{unlockingId === video.id ? 'Unlocking...' : `Unlock ${video.price} RWF`}</span>
+                      <Unlock className="w-4 h-4 inline-block mr-2" />
+                      {unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock Video for ${activeVideo.price.toLocaleString()} RWF`}
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
 
-      </div>
+              {/* Video Title */}
+              <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">
+                {activeVideo.title}
+              </h1>
 
-      {/* Video Player Modal */}
-      {activeVideo && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-4xl rounded-3xl bg-[#121824] border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <Film className="w-5 h-5 text-purple-400" />
-                <h3 className="font-extrabold text-base text-white line-clamp-1">
-                  {activeVideo.title}
-                </h3>
-              </div>
-              <button
-                onClick={() => setActiveVideo(null)}
-                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+              {/* Channel Row & Action Buttons (YouTube Style) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                {/* Channel Info */}
+                <div className="flex items-center gap-3">
+                  <img
+                    src={activeVideo.channelAvatar || '/logo.png'}
+                    alt={activeVideo.creator}
+                    className="w-11 h-11 rounded-full object-cover border border-purple-500/30"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-sm text-white">{activeVideo.channelName || activeVideo.creator}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 fill-purple-400/20" />
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      {((activeVideo.views || 1000) * 1.4).toLocaleString(undefined, { maximumFractionDigits: 0 })} subscribers
+                    </span>
+                  </div>
 
-            {/* Video Frame */}
-            <div className="relative aspect-video w-full bg-black">
-              <iframe
-                src={activeVideo.embedUrl}
-                title={activeVideo.title}
-                className="w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-
-            {/* Details Footer */}
-            <div className="p-4 sm:p-6 space-y-3 overflow-y-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="font-extrabold text-lg text-white">{activeVideo.title}</h4>
-                  <p className="text-xs text-slate-400">{activeVideo.creator} • {activeVideo.category}</p>
+                  <button
+                    onClick={() => handleToggleSubscribe(activeVideo.channelName || activeVideo.creator)}
+                    className={`ml-3 px-4 py-2 rounded-full text-xs font-black transition-all ${
+                      subscribedChannels.includes(activeVideo.channelName || activeVideo.creator)
+                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        : 'bg-white hover:bg-slate-200 text-slate-950 shadow-md'
+                    }`}
+                  >
+                    {subscribedChannels.includes(activeVideo.channelName || activeVideo.creator) ? (
+                      <span className="flex items-center gap-1">
+                        <Bell className="w-3 h-3 fill-current" /> Subscribed
+                      </span>
+                    ) : (
+                      'Subscribe'
+                    )}
+                  </button>
                 </div>
-                <div className="flex items-center gap-2">
+
+                {/* Actions: Like, Share & Earn, Unlock */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Like Button */}
+                  <button
+                    onClick={() => handleToggleLike(activeVideo)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      likedVideoIds.includes(activeVideo.id)
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                        : 'bg-[#141B29] hover:bg-slate-800 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    <ThumbsUp className={`w-3.5 h-3.5 ${likedVideoIds.includes(activeVideo.id) ? 'fill-current' : ''}`} />
+                    <span>{activeVideo.likes.toLocaleString()}</span>
+                  </button>
+
+                  {/* Share & Earn 15% Affiliate Button */}
                   <button
                     onClick={() => setShareVideo(activeVideo)}
-                    className="px-4 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+                    className="px-4 py-2 rounded-full bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                    title="Earn 15% cash commission when friends unlock through your link"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Share & Earn 15%</span>
                   </button>
+
+                  {/* Unlock Button if Paid and Locked */}
+                  {!isVideoUnlocked(activeVideo) && (
+                    <button
+                      onClick={() => handleUnlockVideo(activeVideo)}
+                      disabled={unlockingId === activeVideo.id}
+                      className="px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>{unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock (${activeVideo.price} RWF)`}</span>
+                    </button>
+                  )}
                 </div>
               </div>
-              {activeVideo.description && (
-                <p className="text-xs text-slate-300 leading-relaxed pt-2 border-t border-slate-800">
-                  {activeVideo.description}
+
+              {/* Collapsible Video Description Box (YouTube Style) */}
+              <div className="p-4 rounded-2xl bg-[#131926] border border-slate-800/80 space-y-2">
+                <div className="flex items-center gap-3 text-xs font-extrabold text-slate-300">
+                  <span>{(activeVideo.views || 0).toLocaleString()} views</span>
+                  <span>&bull;</span>
+                  <span>{activeVideo.category}</span>
+                  {activeVideo.price > 0 && (
+                    <>
+                      <span>&bull;</span>
+                      <span className="text-amber-400">15% Affiliate Commission Available</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                  {activeVideo.description || 'Verified high definition creator broadcast on BenixSpace.'}
                 </p>
-              )}
+              </div>
+
+              {/* YouTube-Style Threaded Comments & Live Replies with Multilingual Moderation */}
+              <div className="pt-2">
+                <TVLiveChat videoId={activeVideo.id} title={activeVideo.title} />
+              </div>
+
             </div>
+
+            {/* Right Column: Recommended Videos (YouTube Sidebar) Mixed with Ads */}
+            <div className="lg:col-span-4 space-y-4">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-purple-400" />
+                <span>Up Next & Recommendations</span>
+              </h3>
+
+              <SidebarRecommendationsMixedAds
+                items={videos.map((v) => ({
+                  id: v.id,
+                  title: v.title,
+                  name: v.title,
+                  thumbnail: v.thumbnail,
+                  category: v.category
+                }))}
+                type="video"
+                activeItemId={activeVideo.id}
+                onSelectItem={(item) => {
+                  const target = videos.find((x) => x.id === item.id);
+                  if (target) handleSelectVideo(target);
+                }}
+              />
+            </div>
+
           </div>
-        </div>
-      )}
+        ) : (
+          /* ============================================================== */
+          /* 2. CATALOG BROWSE VIEW (When No Active Video is Open)          */
+          /* ============================================================== */
+          <>
+            {/* Hero Banner */}
+            <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#1C0F38] via-[#120B24] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
+              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-purple-600/15 blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-1/3 -mb-16 w-72 h-72 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-4 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-600 text-white shadow-lg shadow-purple-600/30">
+                      <Film className="w-3.5 h-3.5" />
+                      Creator Studio & Video Hub
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                      15% Affiliate Commission
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      Bonus Wallet Usable First
+                    </span>
+                  </div>
+
+                  <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
+                    Watch Exclusive Rwandan Shows, <br />
+                    <span className="bg-gradient-to-r from-purple-400 via-pink-300 to-indigo-300 bg-clip-text text-transparent">
+                      Choral Concerts & Earn Commissions
+                    </span>
+                  </h1>
+
+                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+                    Stream verified high-definition Rwandan concerts, comedy, and cinema. Share your unique link to earn instant 15% cash commissions directly to your real wallet on every unlock!
+                  </p>
+                </div>
+
+                <div className="w-full md:w-80 p-5 rounded-2xl bg-[#1C1236]/90 border border-purple-500/30 shadow-2xl backdrop-blur-md space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center">
+                      <Award className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">Affiliate Partner Hub</h4>
+                      <p className="text-[11px] text-slate-400">Share any video to monetize</p>
+                    </div>
+                  </div>
+                  <ul className="text-xs text-slate-300 space-y-2 pt-2 border-t border-slate-800">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                      <span>15% commission on paid unlocks</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Credited to Real Wallet for withdrawal</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Cross-platform tracking & WhatsApp share</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Categories Strip & Search */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-2">
+              <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-none">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      selectedCategory === cat
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                        : 'bg-[#131926] text-slate-400 hover:text-white hover:bg-[#1a2234] border border-slate-800'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full md:w-72">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search videos, choirs, shows..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#131926] border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Video Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredVideos.map((video) => {
+                const unlocked = isVideoUnlocked(video);
+                return (
+                  <div
+                    key={video.id}
+                    className="group rounded-3xl bg-[#131926] border border-slate-800/80 hover:border-purple-500/50 p-4 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-950/30 flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Thumbnail & Click to Watch */}
+                      <div
+                        onClick={() => handleSelectVideo(video)}
+                        className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden cursor-pointer border border-slate-800/80 group-hover:border-purple-500/30 transition-all"
+                      >
+                        <img
+                          src={video.thumbnail}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+
+                        {/* Duration Badge */}
+                        <span className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[10px] font-bold text-slate-200">
+                          {video.duration}
+                        </span>
+
+                        {/* Price / Unlocked Status Badge */}
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                          {video.price <= 0 ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-600 text-white shadow-md">
+                              Free
+                            </span>
+                          ) : unlocked ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-600 text-white shadow-md flex items-center gap-1">
+                              <Unlock className="w-3 h-3" />
+                              Unlocked
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              {video.price.toLocaleString()} RWF
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Play Hover Overlay */}
+                        <div className="absolute inset-0 bg-purple-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-xl shadow-purple-600/50 transform group-hover:scale-110 transition-transform">
+                            <Play className="w-5 h-5 fill-white ml-0.5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Metadata */}
+                      <div className="mt-3.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] text-purple-400 font-semibold">
+                          <span>{video.category}</span>
+                          <span className="text-slate-400 flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            {(video.views || 0).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <h3
+                          onClick={() => handleSelectVideo(video)}
+                          className="font-black text-sm text-white group-hover:text-purple-300 transition-colors line-clamp-2 cursor-pointer"
+                        >
+                          {video.title}
+                        </h3>
+
+                        <p className="text-xs text-slate-400 font-medium">
+                          {video.channelName || video.creator}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bottom Actions Bar */}
+                    <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleToggleLike(video)}
+                          className="text-xs text-slate-400 hover:text-rose-400 flex items-center gap-1 transition-colors"
+                          title="Like Video"
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${likedVideoIds.includes(video.id) ? 'fill-rose-500 text-rose-500' : ''}`} />
+                          <span>{video.likes.toLocaleString()}</span>
+                        </button>
+
+                        <button
+                          onClick={() => setShareVideo(video)}
+                          className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 transition-colors px-2.5 py-1 rounded-xl bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/20"
+                          title="Share & Earn 15% Affiliate Commission"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>Share & Earn</span>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => handleSelectVideo(video)}
+                        className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-md"
+                      >
+                        <Play className="w-3 h-3 fill-white" />
+                        <span>Watch</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+      </div>
 
       {/* Share & Earn Affiliate Modal */}
       {shareVideo && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#121824] border border-slate-700 shadow-2xl p-6 space-y-5">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-600/20 text-purple-400 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-base text-white">Share & Earn 15% Commission</h3>
-                  <p className="text-xs text-slate-400">Paid straight to your Real Wallet</p>
-                </div>
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#121824] border border-purple-500/40 p-6 sm:p-8 shadow-2xl space-y-5">
+            <button
+              onClick={() => {
+                setShareVideo(null);
+                setCopiedLink(false);
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-purple-600/20 text-purple-400 flex items-center justify-center">
+                <Share2 className="w-6 h-6" />
               </div>
-              <button
-                onClick={() => setShareVideo(null)}
-                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div>
+                <h3 className="font-black text-lg text-white">Share & Earn 15% Cash</h3>
+                <p className="text-xs text-slate-400">Unique cross-platform affiliate referral tracking</p>
+              </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[#182133] border border-slate-700/80 space-y-1">
-              <p className="text-[11px] uppercase font-bold text-purple-400 tracking-wider">Video</p>
-              <h4 className="font-bold text-sm text-white line-clamp-1">{shareVideo.title}</h4>
-              <p className="text-xs text-slate-400">By {shareVideo.creator}</p>
+            <div className="p-4 rounded-2xl bg-[#1C1236]/80 border border-purple-500/30 text-xs text-purple-200 space-y-1">
+              <p className="font-bold">How it works:</p>
+              <p className="text-slate-300">
+                When anyone clicks your link and unlocks this video ({shareVideo.price > 0 ? `${shareVideo.price} RWF` : 'paid catalog items'}), you instantly receive <strong className="text-amber-400">15% cash commission</strong> directly credited to your real withdrawal wallet!
+              </p>
             </div>
 
+            {/* Generated Shareable Link Box */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 block">Your Unique Affiliate Link</label>
+              <label className="text-xs font-bold text-slate-400">Your Shareable Affiliate Link:</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   readOnly
                   value={getAffiliateShareLink(shareVideo)}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#0B0E14] border border-slate-700 text-xs text-slate-200 font-mono focus:outline-none"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-purple-300 font-mono focus:outline-none"
                 />
                 <button
-                  onClick={() => handleCopyAffiliateLink(shareVideo)}
-                  className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md flex items-center gap-1.5 transition-all shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(getAffiliateShareLink(shareVideo));
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 3000);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all ${
+                    copiedLink
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-md'
+                  }`}
                 >
-                  {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   <span>{copiedLink ? 'Copied!' : 'Copy'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Quick Share to Socials */}
-            <div className="space-y-2 pt-2 border-t border-slate-800">
-              <p className="text-xs font-semibold text-slate-400">Instant One-Click Share:</p>
-              <div className="grid grid-cols-2 gap-3">
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(
-                    `Watch "${shareVideo.title}" on BenixSpace: ${getAffiliateShareLink(shareVideo)}`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
-                >
-                  <span>WhatsApp</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-
-                <a
-                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                    `Check out "${shareVideo.title}" on BenixSpace Video Hub: ${getAffiliateShareLink(shareVideo)}`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
-                >
-                  <span>Twitter / X</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-
-            {!user && (
-              <p className="text-[11px] text-amber-300 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 text-center">
-                Log in or sign up to ensure commissions are credited to your personal account wallet.
-              </p>
-            )}
+            {/* Instant WhatsApp Share Button */}
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(
+                `Reba iyi video nziza "${shareVideo.title}" kuri BenixSpace Video Hub: ${getAffiliateShareLink(shareVideo)}`
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Share to WhatsApp Contacts & Groups</span>
+            </a>
           </div>
         </div>
       )}
 
-      {/* Modals */}
-      <WalletModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />
+      {/* Creator Upload / Post Video Modal */}
+      {showPostModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#121824] border border-purple-500/40 p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowPostModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-purple-600/20 text-purple-400 flex items-center justify-center">
+                <Upload className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-white">Post / Upload Video</h3>
+                <p className="text-xs text-slate-400">Share your Rwandan concerts, shows, or tutorials</p>
+              </div>
+            </div>
+
+            <form onSubmit={handlePostVideo} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Video Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Live Worship Concert in Kigali"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Video Stream / YouTube URL *</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://www.youtube.com/watch?v=... or HLS/MP4 link"
+                  value={newVideoUrl}
+                  onChange={(e) => setNewVideoUrl(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Category</label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="Gospel & Choirs">Gospel & Choirs</option>
+                    <option value="Series & Comedy">Series & Comedy</option>
+                    <option value="Culture & Documentaries">Culture & Documentaries</option>
+                    <option value="Music & Shows">Music & Shows</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Unlock Price (RWF)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    placeholder="0 for Free"
+                    value={newPrice}
+                    onChange={(e) => setNewPrice(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Thumbnail Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://... (Optional cover photo)"
+                  value={newThumbnailUrl}
+                  onChange={(e) => setNewThumbnailUrl(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  placeholder="Provide context, performers, date, and details..."
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500 resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isPosting}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-purple-600/30 transition-all disabled:opacity-50"
+              >
+                {isPosting ? 'Publishing Video...' : 'Publish Video to Hub 🎬'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Central Wallet Modal */}
+      <WalletModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
+
+      {/* Access Wizard Modal for Authentication Prompt */}
       <AppAccessWizardModal
         isOpen={showWizardModal}
         targetAppKey="videos"
         onClose={() => setShowWizardModal(false)}
-        onSuccess={() => setShowWizardModal(false)}
+        onSuccess={() => {
+          setShowWizardModal(false);
+          refreshMe();
+        }}
       />
     </div>
   );

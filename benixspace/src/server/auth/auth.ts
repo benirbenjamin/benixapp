@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response, NextFunction } from 'express';
 
-const JWT_SECRET = process.env.AUTH_SECRET || 'benixspace-super-secret-jwt-key-2026-nebelurw';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || 'benixspace-super-secret-jwt-key-2026-nebelurw';
 
 export interface AuthenticatedRequest extends Request {
   user?: {

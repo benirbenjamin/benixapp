@@ -101,7 +101,7 @@ export const BottomNav: React.FC = () => {
             <User className="w-5 h-5" />
           )}
           <span className="text-[10px] font-bold mt-1 tracking-tight">
-            {isAdmin ? 'Admin' : (user ? 'Profile' : 'Log In')}
+            {isAdmin ? 'Admin' : (user ? 'Profile' : 'Join')}
           </span>
         </Link>
 

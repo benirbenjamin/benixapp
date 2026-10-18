@@ -396,36 +396,98 @@ export class SearchService {
       } catch (err2) {}
     }
 
-    // 2. Query database: stations (TV & Radio)
+    // 2. Query database: tv_stations and radio_stations
     try {
-      const stnRes = await query(
-        `SELECT id, name, slug, description, station_type, frequency, logo_url
-         FROM stations 
-         WHERE (name ~* $1 OR description ~* $1 OR frequency ~* $1)
-         ORDER BY display_order ASC LIMIT 8`,
+      const tvRes = await query(
+        `SELECT id, name, slug, description, logo_url
+         FROM tv_stations 
+         WHERE (name ~* $1 OR description ~* $1)
+         LIMIT 8`,
         [regexPattern]
       );
-      stnRes.rows.forEach((r: any) => {
-        const isTv = (r.station_type || '').toUpperCase() === 'TV';
+      tvRes.rows.forEach((r: any) => {
         addResult({
-          id: (isTv ? 'tv-' : 'radio-') + r.id,
-          module: isTv ? 'tv' : 'radio',
+          id: 'tv-' + r.id,
+          module: 'tv',
           title: r.name,
-          description: r.description || r.frequency || '',
-          url: isTv ? `/tv?station=${r.slug}` : `/radio?station=${r.slug}`,
+          description: r.description || 'Live Rwandan Television Broadcast',
+          url: `/tv?station=${r.slug}`,
           thumbnail: r.logo_url,
-          category: isTv ? 'Live TV' : 'Live Radio'
+          category: 'Live TV'
         });
       });
     } catch (e) {}
 
-    // 3. Query database: core_users (Creators, Verified Members)
+    try {
+      const radioRes = await query(
+        `SELECT id, name, slug, description, slogan
+         FROM radio_stations 
+         WHERE (name ~* $1 OR description ~* $1 OR slogan ~* $1)
+         LIMIT 8`,
+        [regexPattern]
+      );
+      radioRes.rows.forEach((r: any) => {
+        addResult({
+          id: 'radio-' + r.id,
+          module: 'radio',
+          title: r.name,
+          description: r.description || r.slogan || 'Live FM Radio Station',
+          url: `/radio?station=${r.slug}`,
+          category: 'Live Radio'
+        });
+      });
+    } catch (e) {}
+
+    // 3. Query database: tv_videos
+    try {
+      const vidRes = await query(
+        `SELECT id, title, slug, description, thumbnail_url
+         FROM tv_videos 
+         WHERE (title ~* $1 OR description ~* $1)
+         LIMIT 8`,
+        [regexPattern]
+      );
+      vidRes.rows.forEach((r: any) => {
+        addResult({
+          id: 'vid-' + r.id,
+          module: 'videos',
+          title: r.title,
+          description: r.description || 'Benix Creator Studio Video',
+          url: `/videos/${r.slug || r.id}`,
+          thumbnail: r.thumbnail_url,
+          category: 'Videos'
+        });
+      });
+    } catch (e) {}
+
+    // 4. Query database: mkt_products
+    try {
+      const mktRes = await query(
+        `SELECT id, title, description, price
+         FROM mkt_products 
+         WHERE (title ~* $1 OR description ~* $1)
+         LIMIT 6`,
+        [regexPattern]
+      );
+      mktRes.rows.forEach((r: any) => {
+        addResult({
+          id: 'mkt-' + r.id,
+          module: 'marketplace',
+          title: r.title,
+          description: `${r.price} RWF • ${r.description || ''}`,
+          url: `/marketplace`,
+          category: 'Marketplace'
+        });
+      });
+    } catch (e) {}
+
+    // 5. Query database: core_users (Creators, Verified Members)
     try {
       const uRes = await query(
         `SELECT id, name, email, role 
          FROM core_users 
          WHERE (name ~* $1 OR email ~* $1) 
-         LIMIT 4`,
+         LIMIT 6`,
         [regexPattern]
       );
       uRes.rows.forEach((r: any) => {
@@ -440,7 +502,7 @@ export class SearchService {
       });
     } catch (e) {}
 
-    // 4. Match against built-in ecosystem catalog with JS Regex
+    // 6. Match against built-in ecosystem catalog with JS Regex
     for (const item of ECOSYSTEM_CATALOG) {
       if (
         jsRegex.test(item.title) ||
@@ -453,4 +515,12 @@ export class SearchService {
 
     return results;
   }
+
+  /**
+   * Alias for searchGlobal
+   */
+  static async search(keyword: string): Promise<SearchResult[]> {
+    return this.searchGlobal(keyword);
+  }
 }
+

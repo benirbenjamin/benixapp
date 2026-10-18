@@ -342,13 +342,13 @@ export const MessagesPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {isUnlocked ? (
                       <a
-                        href="https://wa.me/250788894120"
+                        href="https://wa.me/250783987223"
                         target="_blank"
                         rel="noreferrer"
                         className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
                       >
                         <Phone className="w-3.5 h-3.5" />
-                        <span>Chat WhatsApp (+250 788 894 120)</span>
+                        <span>Chat WhatsApp (+250783987223)</span>
                       </a>
                     ) : (
                       <button

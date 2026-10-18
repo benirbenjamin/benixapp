@@ -283,10 +283,10 @@ export const KundaChatModal: React.FC<Props> = ({
             <div className="flex items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 text-emerald-400 font-bold">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Verified Direct Phone: <strong className="text-white font-black ml-1">{allowances.partnerPhone || '+250 788 894 120'}</strong></span>
+                <span>Verified Direct Phone: <strong className="text-white font-black ml-1">{allowances.partnerPhone || '+250783987223'}</strong></span>
               </div>
               <a
-                href={`https://wa.me/250788894120?text=Muraho%20${encodeURIComponent(partner.name)}!%20Connected%20via%20Benix%20Kunda%20Space.`}
+                href={`https://wa.me/250783987223?text=Muraho%20${encodeURIComponent(partner.name)}!%20Connected%20via%20Benix%20Kunda%20Space.`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 shrink-0"

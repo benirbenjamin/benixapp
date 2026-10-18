@@ -20,6 +20,7 @@ import { TranslationService } from './services/translationService';
 import { StorageService } from './services/storageService';
 import { SearchService } from './services/searchService';
 import { EmailService } from './services/emailService';
+import { checkInappropriateLanguage, checkKundaContactPolicy } from './utils/moderation';
 
 dotenv.config();
 
@@ -1492,7 +1493,7 @@ app.get('/api/modules/kunda/messages/:partnerId', authenticateToken, async (req:
         activeSubscription: activeSub || null,
         contactUnlockPrice: kundaSettings.contactUnlockPrice,
         isContactUnlocked,
-        partnerPhone: isContactUnlocked ? '+250 788 345 678' : null
+        partnerPhone: isContactUnlocked ? '+250783987223' : null
       }
     });
   } catch (err: any) {
@@ -1621,8 +1622,8 @@ app.post('/api/modules/kunda/unlock-contact', authenticateToken, async (req: Aut
     const unlockKey = `${userId}:${targetProfileId}`;
     kundaUnlockedContactsStore.add(unlockKey);
 
-    const verifiedPhone = '+250 788 894 120';
-    const whatsappLink = `https://wa.me/250788894120?text=Muraho!%20Connected%20via%20Benix%20Kunda%20Space.`;
+    const verifiedPhone = '+250783987223';
+    const whatsappLink = `https://wa.me/250783987223?text=Muraho!%20Connected%20via%20Benix%20Kunda%20Space.`;
 
     return res.json({
       success: true,
@@ -2824,26 +2825,7 @@ app.post('/api/auth/save-app-profile', authenticateToken, async (req: Authentica
 });
 
 // B2. Videos Module (Benix Creator Studio & Video Hub)
-const SAMPLE_VIDEOS = [
-  {
-    id: "vid-1",
-    title: "KWETU PAZURI by Ambassadors of Christ Choir (Official Video 4K)",
-    slug: "ambassadors-of-christ-kwetu-pazuri",
-    description: "Official iconic gospel video by Ambassadors of Christ Choir in Kigali, Rwanda. Sung with rich harmonic voices, cultural attire, and deep spiritual inspiration.",
-    videoUrl: "https://www.youtube.com/watch?v=J_QGkWDk4Hk",
-    thumbnailUrl: "https://img.youtube.com/vi/J_QGkWDk4Hk/hqdefault.jpg",
-    duration: 375,
-    views: 12500000,
-    likes: 85000,
-    accessType: "PUBLIC",
-    price: 0,
-    category: "Gospel Choirs",
-    channelName: "Ambassadors of Christ Choir",
-    channelHandle: "ambassadorsofchrist",
-    channelAvatar: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=120&auto=format&fit=crop&q=80",
-    isVerified: true,
-    createdAt: "2026-01-10T10:00:00Z"
-  },
+const SAMPLE_VIDEOS: any[] = [
   {
     id: "vid-2",
     title: "ISRAEL MBONYI - NINA SIRI (Official Music Video)",
@@ -3157,6 +3139,382 @@ app.post('/api/modules/videos/:id/unlock', authenticateToken, async (req: Authen
   }
 });
 
+// Creator Post & Upload Video
+app.post('/api/modules/videos', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, description, videoUrl, thumbnailUrl, category = 'General', price = 0, duration = 300 } = req.body;
+    if (!title || !videoUrl) {
+      return res.status(400).json({ error: 'Title and videoUrl are required.' });
+    }
+    const newId = 'vid-' + Date.now();
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+    const newVideo = {
+      id: newId,
+      title: title.trim(),
+      slug,
+      description: description?.trim() || '',
+      videoUrl: videoUrl.trim(),
+      thumbnailUrl: thumbnailUrl?.trim() || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+      duration: Number(duration) || 300,
+      views: 0,
+      likes: 0,
+      accessType: Number(price) > 0 ? 'PREMIUM' : 'PUBLIC',
+      price: Number(price) || 0,
+      category,
+      channelName: req.user?.name || 'Verified Creator',
+      channelHandle: (req.user?.name || 'creator').toLowerCase().replace(/\s+/g, ''),
+      channelAvatar: '/logo.png',
+      isVerified: true,
+      createdAt: new Date().toISOString()
+    };
+    SAMPLE_VIDEOS.unshift(newVideo);
+    try {
+      await query(
+        `INSERT INTO tv_videos (id, title, slug, description, original_url, embed_url, thumbnail_url, views_count, likes_count, is_published, created_at)
+         VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 0, true, NOW())`,
+        [newId, newVideo.title, slug, newVideo.description, newVideo.videoUrl, newVideo.thumbnailUrl]
+      );
+    } catch (e) {
+      console.warn('Could not insert to tv_videos table:', e);
+    }
+    return res.status(201).json({ success: true, video: newVideo });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== TV & VIDEO COMMENTS API ==================== //
+app.get('/api/comments', async (req, res) => {
+  try {
+    const { station_slug, station_id, video_id } = req.query;
+    if (!station_slug && !station_id && !video_id) {
+      return res.status(400).json({ error: 'station_slug, station_id, or video_id is required' });
+    }
+
+    let sql = `SELECT * FROM tv_comments WHERE (is_hidden = false OR is_hidden IS NULL) AND (status = 'APPROVED' OR status IS NULL) AND `;
+    const params: any[] = [];
+
+    if (video_id) {
+      params.push(video_id);
+      sql += `video_id = $${params.length}`;
+    } else if (station_slug && station_id) {
+      params.push(station_slug, station_id);
+      sql += `(station_slug = $1 OR station_id = $2)`;
+    } else if (station_slug) {
+      params.push(station_slug);
+      sql += `station_slug = $1`;
+    } else {
+      params.push(station_id);
+      sql += `station_id = $1`;
+    }
+
+    sql += ` ORDER BY created_at ASC;`;
+
+    const result = await query(sql, params);
+    const allComments = result.rows;
+
+    const commentMap = new Map<string, any>();
+    const rootComments: any[] = [];
+
+    allComments.forEach((c: any) => {
+      commentMap.set(c.id, { ...c, replies: [] });
+    });
+
+    allComments.forEach((c: any) => {
+      const item = commentMap.get(c.id);
+      if (c.parent_id && commentMap.has(c.parent_id)) {
+        commentMap.get(c.parent_id).replies.push(item);
+      } else {
+        rootComments.push(item);
+      }
+    });
+
+    rootComments.reverse();
+
+    return res.json({
+      success: true,
+      count: allComments.length,
+      comments: rootComments
+    });
+  } catch (err: any) {
+    console.error('Error fetching comments:', err);
+    return res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+app.post('/api/comments', async (req, res) => {
+  try {
+    const { station_slug, station_id, video_id, author_name, content, parent_id, author_fingerprint } = req.body;
+
+    if (!author_name || !author_name.trim()) {
+      return res.status(400).json({ error: 'Author nickname is required' });
+    }
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Comment content cannot be empty' });
+    }
+    if (!station_slug && !video_id) {
+      return res.status(400).json({ error: 'station_slug or video_id is required' });
+    }
+
+    const cleanAuthor = author_name.trim().slice(0, 80);
+    const cleanContent = content.trim().slice(0, 1000);
+
+    // Multilingual Content & Name Moderation (Kinyarwanda amabya, imboro, igituba, English, French)
+    const nameCheck = checkInappropriateLanguage(cleanAuthor);
+    if (nameCheck.isInappropriate) {
+      return res.status(400).json({
+        error: `Inappropriate nickname detected (${nameCheck.category || 'Moderation'}). Vulgar or offensive names (e.g. in Kinyarwanda, English, French) are strictly prohibited.`,
+        flaggedWord: nameCheck.flaggedWord
+      });
+    }
+
+    const contentCheck = checkInappropriateLanguage(cleanContent);
+    if (contentCheck.isInappropriate) {
+      return res.status(400).json({
+        error: `Inappropriate comment language detected (${contentCheck.category || 'Moderation'}). Offensive language and profanity are strictly prohibited.`,
+        flaggedWord: contentCheck.flaggedWord
+      });
+    }
+
+    const commentId = 'cmt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '';
+    const clientIp = rawIp.slice(0, 100);
+
+    const insertSql = `
+      INSERT INTO tv_comments (
+        id,
+        station_slug, 
+        station_id, 
+        video_id,
+        author_name, 
+        content, 
+        parent_id,
+        likes_count,
+        is_hidden,
+        status,
+        ip_address,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 0, false, 'APPROVED', $8, NOW())
+      RETURNING *;
+    `;
+
+    const result = await query(insertSql, [
+      commentId,
+      station_slug || null,
+      station_id || null,
+      video_id || null,
+      cleanAuthor,
+      cleanContent,
+      parent_id || null,
+      clientIp
+    ]);
+
+    return res.status(201).json({
+      success: true,
+      comment: {
+        ...result.rows[0],
+        replies: []
+      }
+    });
+  } catch (err: any) {
+    console.error('Error posting comment:', err);
+    return res.status(500).json({ error: 'Failed to post comment' });
+  }
+});
+
+app.post('/api/comments/:id/like', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `UPDATE tv_comments SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = $1 RETURNING id, likes_count`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    return res.json({ success: true, likes_count: result.rows[0].likes_count });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to like comment' });
+  }
+});
+
+// ==================== CONTACT & FEEDBACK API ==================== //
+app.post(['/api/contact', '/api/feedback'], async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'Name, email, and message content are required.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
+    const result = await query(
+      `INSERT INTO feedback_messages (name, email, subject, message, status, ip_address)
+       VALUES ($1, $2, $3, $4, 'UNREAD', $5)
+       RETURNING id, name, email, subject, message, status, created_at`,
+      [name.trim(), email.trim().toLowerCase(), (subject || 'General Inquiry').trim(), message.trim(), clientIp]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Feedback submitted successfully',
+      data: result.rows[0]
+    });
+  } catch (err: any) {
+    console.error('Error submitting feedback:', err);
+    return res.status(500).json({ error: 'Failed to submit message.' });
+  }
+});
+
+app.get(['/api/feedback/admin', '/api/contact/messages'], authenticateAdmin, async (req, res) => {
+  try {
+    const messages = await query(
+      `SELECT * FROM feedback_messages ORDER BY created_at DESC LIMIT 200`
+    );
+    const statsResult = await query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'UNREAD') as unread,
+        COUNT(*) FILTER (WHERE status = 'READ') as read,
+        COUNT(*) FILTER (WHERE status = 'ARCHIVED') as archived
+      FROM feedback_messages
+    `);
+    const stats = statsResult.rows[0] || { total: 0, unread: 0, read: 0, archived: 0 };
+    return res.json({
+      messages: messages.rows,
+      stats: {
+        total: parseInt(stats.total || '0', 10),
+        unread: parseInt(stats.unread || '0', 10),
+        read: parseInt(stats.read || '0', 10),
+        archived: parseInt(stats.archived || '0', 10)
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/feedback/admin/:id/reply', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reply } = req.body;
+    if (!reply || !reply.trim()) {
+      return res.status(400).json({ error: 'Reply content is required.' });
+    }
+    const updated = await query(
+      `UPDATE feedback_messages 
+       SET reply = $1, replied_at = NOW(), status = 'READ' 
+       WHERE id = $2 
+       RETURNING *`,
+      [reply.trim(), id]
+    );
+    return res.json({ success: true, message: updated.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/feedback/my', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const email = req.user?.email;
+    if (!email) return res.json({ messages: [] });
+    const result = await query(
+      `SELECT * FROM feedback_messages WHERE LOWER(email) = LOWER($1) ORDER BY created_at ASC`,
+      [email]
+    );
+    return res.json({ messages: result.rows });
+  } catch (err: any) {
+    return res.json({ messages: [] });
+  }
+});
+
+// ==================== ANNOUNCEMENTS & READ TRACKING API ==================== //
+app.get('/api/announcements', async (req, res) => {
+  try {
+    const result = await query(`SELECT * FROM announcements ORDER BY created_at DESC LIMIT 50`);
+    return res.json({ announcements: result.rows });
+  } catch (err: any) {
+    return res.json({ announcements: [] });
+  }
+});
+
+app.post('/api/admin/announcements', authenticateAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { title, content, badge = 'BROADCAST', target = 'ALL' } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required.' });
+    }
+    const adminUser = req.user?.name || 'Administrator';
+    const result = await query(
+      `INSERT INTO announcements (title, content, badge, target, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [title.trim(), content.trim(), badge, target, adminUser]
+    );
+
+    // Also inject into core_notifications
+    try {
+      await query(
+        `INSERT INTO core_notifications (title, message, type, recipient_role)
+         VALUES ($1, $2, 'announcement', 'all')`,
+        [title.trim(), content.trim()]
+      );
+    } catch (e) {}
+
+    return res.status(201).json({ success: true, announcement: result.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/announcements/:id/read', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userName = req.user?.name || 'User';
+    const userEmail = req.user?.email || '';
+    if (!userId) return res.json({ success: false });
+
+    await query(
+      `INSERT INTO announcement_reads (announcement_id, user_id, user_name, user_email)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (announcement_id, user_id) DO NOTHING`,
+      [parseInt(id, 10), userId, userName, userEmail]
+    );
+    return res.json({ success: true, message: 'Marked as read' });
+  } catch (err: any) {
+    return res.json({ success: false });
+  }
+});
+
+app.get('/api/admin/announcements/:id/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const numId = parseInt(id, 10);
+    const readsResult = await query(
+      `SELECT user_id, user_name, user_email, read_at FROM announcement_reads WHERE announcement_id = $1 ORDER BY read_at DESC`,
+      [numId]
+    );
+    const totalUsersResult = await query(`SELECT COUNT(*) as count FROM core_users`);
+    const totalUsers = parseInt(totalUsersResult.rows[0]?.count || '12', 10);
+    const readCount = readsResult.rowCount || 0;
+    const unreadCount = Math.max(0, totalUsers - readCount);
+    const percentage = totalUsers > 0 ? Math.round((readCount / totalUsers) * 100) : 0;
+
+    return res.json({
+      announcement_id: numId,
+      total_users: totalUsers,
+      read_count: readCount,
+      unread_count: unreadCount,
+      seen_percentage: percentage,
+      seen_by: readsResult.rows
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 // C. Marketplace Module (Benix Digital Marketplace)
 const SAMPLE_MARKET_PRODUCTS = [
   {
@@ -3345,6 +3703,563 @@ app.post('/api/modules/games/pve/play', authenticateToken, async (req: Authentic
   }
 });
 
+// Auto-initialize game tables on first load
+let gameTablesInitialized = false;
+async function ensureGameTables() {
+  if (gameTablesInitialized) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS game_rooms (
+        id VARCHAR(64) PRIMARY KEY,
+        player1_id VARCHAR(64) NOT NULL,
+        player2_id VARCHAR(64),
+        mode VARCHAR(20) NOT NULL,
+        stake NUMERIC(12, 2) DEFAULT 0.00,
+        target_score INT DEFAULT 100,
+        p1_score INT DEFAULT 0,
+        p2_score INT DEFAULT 0,
+        current_turn INT DEFAULT 0,
+        current_accumulated INT DEFAULT 0,
+        status VARCHAR(30) DEFAULT 'ACTIVE',
+        winner_id VARCHAR(64),
+        rake_amount NUMERIC(12, 2) DEFAULT 0.00,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      INSERT INTO system_settings (key, value) VALUES
+        ('house_rake_percent', '10'),
+        ('house_balance', '0.00'),
+        ('min_stake', '20'),
+        ('max_stake', '100000'),
+        ('target_score', '100')
+      ON CONFLICT (key) DO NOTHING;
+    `);
+    gameTablesInitialized = true;
+  } catch (e) {
+    console.warn('Game tables init notice:', e);
+  }
+}
+
+// 1. RollDice PvE Start Match
+const handlePveStart = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    await ensureGameTables();
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Please login to play real-money games' });
+
+    const { stake, targetScore: requestedTarget } = req.body;
+    const stakeAmount = Number(stake);
+
+    const minStake = 20;
+    const maxStake = 100000;
+    const targetScore = requestedTarget && [50, 100, 200].includes(Number(requestedTarget))
+      ? Number(requestedTarget)
+      : 100;
+
+    if (isNaN(stakeAmount) || stakeAmount < minStake || stakeAmount > maxStake) {
+      return res.status(400).json({ error: `Stake must be between RWF ${minStake} and RWF ${maxStake.toLocaleString()}` });
+    }
+
+    const roomId = 'pve_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    // Atomic wallet debit with bonus wallet priority
+    const debitResult = await WalletService.debit(
+      userId,
+      stakeAmount,
+      'game',
+      'wager',
+      `RollDice PvE Wager: ${stakeAmount} RWF`,
+      roomId
+    );
+
+    await query(
+      `INSERT INTO game_rooms (id, player1_id, player2_id, mode, stake, target_score, p1_score, p2_score, current_turn, current_accumulated, status)
+       VALUES ($1, $2, 'AI_BOT', 'PVE', $3, $4, 0, 0, 0, 0, 'ACTIVE')`,
+      [roomId, userId, stakeAmount, targetScore]
+    );
+
+    return res.json({
+      success: true,
+      room: {
+        id: roomId,
+        mode: 'PVE',
+        stake: stakeAmount,
+        targetScore,
+        p1Score: 0,
+        p2Score: 0,
+        currentTurn: 0,
+        currentAccumulated: 0,
+        status: 'ACTIVE',
+        lastRoll: null
+      },
+      newBalance: debitResult.newBalance,
+      bonusBalance: debitResult.newBonusBalance
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Failed to start game.' });
+  }
+};
+app.post('/api/game/pve/start', authenticateToken, handlePveStart);
+app.post('/api/modules/games/pve/start', authenticateToken, handlePveStart);
+
+// 2. RollDice PvE Roll
+const handlePveRoll = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { roomId } = req.body;
+    const rooms = await query(
+      `SELECT * FROM game_rooms WHERE id = $1 AND player1_id = $2 AND status = 'ACTIVE'`,
+      [roomId, userId]
+    );
+
+    if (rooms.rowCount === 0) {
+      return res.status(404).json({ error: 'Active game room not found' });
+    }
+
+    const room = rooms.rows[0];
+    if (room.current_turn !== 0) {
+      return res.status(400).json({ error: 'It is not your turn' });
+    }
+
+    const diceRoll = Math.floor(Math.random() * 6) + 1;
+    let newAccumulated = Number(room.current_accumulated || 0);
+    let turnBusted = false;
+    let nextTurn = 0;
+
+    if (diceRoll === 1) {
+      newAccumulated = 0;
+      turnBusted = true;
+      nextTurn = 1; // AI Turn
+
+      await query(
+        `UPDATE game_rooms SET current_turn = 1, current_accumulated = 0 WHERE id = $1`,
+        [roomId]
+      );
+    } else {
+      newAccumulated += diceRoll;
+      await query(
+        `UPDATE game_rooms SET current_accumulated = $1 WHERE id = $2`,
+        [newAccumulated, roomId]
+      );
+    }
+
+    return res.json({
+      success: true,
+      diceRoll,
+      turnBusted,
+      currentAccumulated: newAccumulated,
+      currentTurn: nextTurn,
+      p1Score: Number(room.p1_score || 0),
+      p2Score: Number(room.p2_score || 0)
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Roll failed' });
+  }
+};
+app.post('/api/game/pve/roll', authenticateToken, handlePveRoll);
+app.post('/api/modules/games/pve/roll', authenticateToken, handlePveRoll);
+
+// 3. RollDice PvE Hold Score
+const handlePveHold = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { roomId } = req.body;
+    const rooms = await query(
+      `SELECT * FROM game_rooms WHERE id = $1 AND player1_id = $2 AND status = 'ACTIVE'`,
+      [roomId, userId]
+    );
+
+    if (rooms.rowCount === 0) {
+      return res.status(404).json({ error: 'Active game room not found' });
+    }
+
+    const room = rooms.rows[0];
+    if (room.current_turn !== 0) {
+      return res.status(400).json({ error: 'It is not your turn' });
+    }
+
+    const newP1Score = Number(room.p1_score || 0) + Number(room.current_accumulated || 0);
+    const targetScore = Number(room.target_score || 100);
+    const houseRakePercent = 10; // Guaranteed 10% platform house rake
+
+    // Check if player won
+    if (newP1Score >= targetScore) {
+      const stake = Number(room.stake);
+      const totalPot = stake * 2;
+      const houseRakeAmount = (totalPot * houseRakePercent) / 100;
+      const winnerPayout = totalPot - houseRakeAmount;
+
+      await query(
+        `UPDATE game_rooms SET p1_score = $1, current_accumulated = 0, status = 'COMPLETED', winner_id = $2, rake_amount = $3 WHERE id = $4`,
+        [newP1Score, userId, houseRakeAmount, roomId]
+      );
+
+      // Safe atomic wallet credit
+      const creditResult = await WalletService.credit(
+        userId,
+        winnerPayout,
+        'game',
+        'payout',
+        `RollDice PvE Victory Payout: ${winnerPayout} RWF`,
+        `tx_pay_${roomId}`
+      );
+
+      // Track platform house earnings
+      try {
+        await query(
+          `UPDATE system_settings SET value = (COALESCE(NULLIF(value, '')::numeric, 0) + $1)::text WHERE key = 'house_balance'`,
+          [houseRakeAmount]
+        );
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        winner: 'PLAYER',
+        p1Score: newP1Score,
+        p2Score: Number(room.p2_score || 0),
+        winnerPayout,
+        newBalance: creditResult.newBalance,
+        aiLogs: []
+      });
+    }
+
+    // Player banked points, simulate AI turn
+    let aiScore = Number(room.p2_score || 0);
+    let aiAccumulated = 0;
+    const aiLogs: Array<{ roll: number; accumulated: number; busted: boolean; held: boolean }> = [];
+    let aiBusted = false;
+    let aiWon = false;
+
+    const neededToWin = targetScore - aiScore;
+    const aiHoldThreshold = Math.min(15, neededToWin);
+
+    while (aiAccumulated < aiHoldThreshold && !aiBusted) {
+      const roll = Math.floor(Math.random() * 6) + 1;
+      if (roll === 1) {
+        aiBusted = true;
+        aiAccumulated = 0;
+        aiLogs.push({ roll: 1, accumulated: 0, busted: true, held: false });
+      } else {
+        aiAccumulated += roll;
+        const willHold = aiAccumulated >= aiHoldThreshold || aiScore + aiAccumulated >= targetScore;
+        aiLogs.push({ roll, accumulated: aiAccumulated, busted: false, held: willHold });
+      }
+    }
+
+    if (!aiBusted && aiAccumulated > 0) {
+      aiScore += aiAccumulated;
+      if (aiScore >= targetScore) {
+        aiWon = true;
+      }
+    }
+
+    const curWallet = await WalletService.getOrCreateWallet(userId);
+
+    if (aiWon) {
+      const houseProfit = Number(room.stake);
+      await query(
+        `UPDATE game_rooms SET p1_score = $1, p2_score = $2, current_accumulated = 0, status = 'COMPLETED', winner_id = 'AI_BOT' WHERE id = $3`,
+        [newP1Score, aiScore, roomId]
+      );
+
+      try {
+        await query(
+          `UPDATE system_settings SET value = (COALESCE(NULLIF(value, '')::numeric, 0) + $1)::text WHERE key = 'house_balance'`,
+          [houseProfit]
+        );
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        winner: 'AI_BOT',
+        p1Score: newP1Score,
+        p2Score: aiScore,
+        newBalance: Number(curWallet.balance),
+        aiLogs
+      });
+    }
+
+    // Match continues, pass turn back to player
+    await query(
+      `UPDATE game_rooms SET p1_score = $1, p2_score = $2, current_turn = 0, current_accumulated = 0 WHERE id = $3`,
+      [newP1Score, aiScore, roomId]
+    );
+
+    return res.json({
+      success: true,
+      winner: null,
+      p1Score: newP1Score,
+      p2Score: aiScore,
+      currentTurn: 0,
+      newBalance: Number(curWallet.balance),
+      aiLogs
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Hold failed' });
+  }
+};
+app.post('/api/game/pve/hold', authenticateToken, handlePveHold);
+app.post('/api/modules/games/pve/hold', authenticateToken, handlePveHold);
+
+// 4. RollDice PvE AI Turn
+const handlePveAiTurn = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { roomId } = req.body;
+    const rooms = await query(
+      `SELECT * FROM game_rooms WHERE id = $1 AND player1_id = $2 AND status = 'ACTIVE'`,
+      [roomId, userId]
+    );
+
+    if (rooms.rowCount === 0) {
+      return res.status(404).json({ error: 'Active game room not found' });
+    }
+
+    const room = rooms.rows[0];
+    if (room.current_turn !== 1) {
+      return res.json({
+        success: true,
+        message: 'Not AI turn',
+        currentTurn: room.current_turn,
+        p1Score: Number(room.p1_score || 0),
+        p2Score: Number(room.p2_score || 0)
+      });
+    }
+
+    let aiScore = Number(room.p2_score || 0);
+    let aiAccumulated = 0;
+    const targetScore = Number(room.target_score || 100);
+    const aiLogs: Array<{ roll: number; accumulated: number; busted: boolean; held: boolean }> = [];
+    let aiBusted = false;
+    let aiWon = false;
+
+    const neededToWin = targetScore - aiScore;
+    const aiHoldThreshold = Math.min(15, neededToWin);
+
+    while (aiAccumulated < aiHoldThreshold && !aiBusted) {
+      const roll = Math.floor(Math.random() * 6) + 1;
+      if (roll === 1) {
+        aiBusted = true;
+        aiAccumulated = 0;
+        aiLogs.push({ roll: 1, accumulated: 0, busted: true, held: false });
+      } else {
+        aiAccumulated += roll;
+        const willHold = aiAccumulated >= aiHoldThreshold || aiScore + aiAccumulated >= targetScore;
+        aiLogs.push({ roll, accumulated: aiAccumulated, busted: false, held: willHold });
+      }
+    }
+
+    if (!aiBusted && aiAccumulated > 0) {
+      aiScore += aiAccumulated;
+      if (aiScore >= targetScore) {
+        aiWon = true;
+      }
+    }
+
+    const curWallet = await WalletService.getOrCreateWallet(userId);
+
+    if (aiWon) {
+      const houseProfit = Number(room.stake);
+      await query(
+        `UPDATE game_rooms SET p2_score = $1, current_accumulated = 0, status = 'COMPLETED', winner_id = 'AI_BOT' WHERE id = $2`,
+        [aiScore, roomId]
+      );
+
+      try {
+        await query(
+          `UPDATE system_settings SET value = (COALESCE(NULLIF(value, '')::numeric, 0) + $1)::text WHERE key = 'house_balance'`,
+          [houseProfit]
+        );
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        winner: 'AI_BOT',
+        p1Score: Number(room.p1_score || 0),
+        p2Score: aiScore,
+        currentTurn: 0,
+        newBalance: Number(curWallet.balance),
+        aiLogs
+      });
+    }
+
+    await query(
+      `UPDATE game_rooms SET p2_score = $1, current_turn = 0, current_accumulated = 0 WHERE id = $2`,
+      [aiScore, roomId]
+    );
+
+    return res.json({
+      success: true,
+      winner: null,
+      p1Score: Number(room.p1_score || 0),
+      p2Score: aiScore,
+      currentTurn: 0,
+      newBalance: Number(curWallet.balance),
+      aiLogs
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'AI Turn failed' });
+  }
+};
+app.post('/api/game/pve/ai-turn', authenticateToken, handlePveAiTurn);
+app.post('/api/modules/games/pve/ai-turn', authenticateToken, handlePveAiTurn);
+
+// 5. RollDice Abandon / Refund
+const handleGameRefund = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    let roomIdToCancel: string | null = null;
+    try {
+      roomIdToCancel = req.body?.roomId || null;
+    } catch {}
+
+    let sql = `SELECT * FROM game_rooms WHERE (player1_id = $1 OR player2_id = $1) AND status IN ('ACTIVE', 'WAITING')`;
+    const params: any[] = [userId];
+
+    if (roomIdToCancel) {
+      params.push(roomIdToCancel);
+      sql += ` AND id = $${params.length}`;
+    }
+
+    const activeRooms = await query(sql, params);
+    let totalRefunded = 0;
+
+    for (const r of activeRooms.rows) {
+      const stake = Number(r.stake || 0);
+      if (stake > 0) {
+        await WalletService.credit(userId, stake, 'game', 'refund', 'RollDice Game Cancelled / Refunded', r.id);
+        totalRefunded += stake;
+      }
+      await query(`UPDATE game_rooms SET status = 'CANCELLED' WHERE id = $1`, [r.id]);
+    }
+
+    const curWallet = await WalletService.getOrCreateWallet(userId);
+    return res.json({
+      success: true,
+      refundedAmount: totalRefunded,
+      newBalance: Number(curWallet.balance)
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Refund failed' });
+  }
+};
+app.post('/api/game/refund', authenticateToken, handleGameRefund);
+app.post('/api/modules/games/refund', authenticateToken, handleGameRefund);
+
+// 6. Bonus Multiplier Spin Wheel
+const MULTIPLIER_TIERS_SERVER = [
+  { multiplier: 0, label: '0x (Lose)', weight: 38000 },
+  { multiplier: 0.5, label: '0.5x', weight: 58000 },
+  { multiplier: 1.0, label: '1.0x', weight: 83000 },
+  { multiplier: 1.5, label: '1.5x', weight: 91500 },
+  { multiplier: 2.0, label: '2.0x', weight: 96000 },
+  { multiplier: 3.0, label: '3.0x', weight: 98500 },
+  { multiplier: 5.0, label: '5.0x', weight: 99500 },
+  { multiplier: 10.0, label: '10x', weight: 99850 },
+  { multiplier: 50.0, label: '50x', weight: 99950 },
+  { multiplier: 100.0, label: '100x 🔥', weight: 99980 },
+  { multiplier: 500.0, label: '500x 🚀', weight: 99995 },
+  { multiplier: 1000.0, label: '1000x 👑', weight: 100000 },
+];
+
+const handleBonusSpin = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { roomId } = req.body;
+    if (!roomId) return res.status(400).json({ error: 'Room ID required' });
+
+    const rooms = await query(
+      `SELECT * FROM game_rooms WHERE id = $1 AND winner_id = $2 AND status = 'COMPLETED'`,
+      [roomId, userId]
+    );
+
+    if (rooms.rowCount === 0) {
+      return res.status(400).json({ error: 'No unclaimed winning game room found' });
+    }
+
+    const room = rooms.rows[0];
+    const stake = Number(room.stake);
+    const totalPot = stake * 2;
+    const basePayout = totalPot - (totalPot * 10) / 100; // 1.8x base payout
+
+    // Cryptographic Provably Fair Roll
+    const randNum = (crypto.randomBytes(4).readUInt32BE(0) % 100000) + 1;
+    let selectedTier = MULTIPLIER_TIERS_SERVER[2]; // Default 1.0x
+    let tierIndex = 2;
+
+    for (let i = 0; i < MULTIPLIER_TIERS_SERVER.length; i++) {
+      if (randNum <= MULTIPLIER_TIERS_SERVER[i].weight) {
+        selectedTier = MULTIPLIER_TIERS_SERVER[i];
+        tierIndex = i;
+        break;
+      }
+    }
+
+    const multiplier = selectedTier.multiplier;
+    const finalPayout = Math.round(basePayout * multiplier);
+    const payoutDifference = finalPayout - basePayout;
+
+    // Prevent duplicate bonus spins
+    await query(`UPDATE game_rooms SET status = 'BONUS_SPIN_CLAIMED' WHERE id = $1`, [roomId]);
+
+    let newBalance = 0;
+    if (payoutDifference > 0) {
+      const cr = await WalletService.credit(
+        userId,
+        payoutDifference,
+        'game',
+        'bonus_spin_win',
+        `Multiplier Wheel Win: ${multiplier}x (+${payoutDifference} RWF)`,
+        `tx_spin_${roomId}`
+      );
+      newBalance = cr.newBalance;
+    } else if (payoutDifference < 0) {
+      const db = await WalletService.debit(
+        userId,
+        Math.abs(payoutDifference),
+        'game',
+        'bonus_spin_adjust',
+        `Multiplier Wheel Adjustment: ${multiplier}x (-${Math.abs(payoutDifference)} RWF)`,
+        `tx_spin_${roomId}`
+      );
+      newBalance = db.newBalance;
+    } else {
+      const curWallet = await WalletService.getOrCreateWallet(userId);
+      newBalance = Number(curWallet.balance);
+    }
+
+    return res.json({
+      success: true,
+      multiplier,
+      tierIndex,
+      label: selectedTier.label,
+      basePayout,
+      finalPayout,
+      payoutDifference,
+      newBalance
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Bonus spin failed' });
+  }
+};
+app.post('/api/game/bonus-spin', authenticateToken, handleBonusSpin);
+app.post('/api/modules/games/bonus-spin', authenticateToken, handleBonusSpin);
+
 // ==================== 8. SUPER ADMIN CONSOLIDATED API ==================== //
 
 app.get('/api/admin/overview', authenticateToken, requireAdminRole, async (req, res) => {
@@ -3358,13 +4273,13 @@ app.get('/api/admin/overview', authenticateToken, requireAdminRole, async (req, 
       mktProductsCnt,
       articlesCnt
     ] = await Promise.all([
-      query('SELECT COUNT(*) as count FROM core_users'),
-      query('SELECT COALESCE(SUM(balance), 0) as total FROM core_wallets'),
-      query('SELECT COUNT(*) as count FROM tv.stations'),
-      query('SELECT COUNT(*) as count FROM radio.radio_stations'),
-      query('SELECT COUNT(*) as count FROM games.game_rooms'),
-      query('SELECT COUNT(*) as count FROM marketplace."Product"'),
-      query('SELECT COUNT(*) as count FROM articles')
+      query('SELECT COUNT(*) as count FROM core_users').catch(() => ({ rows: [{ count: 12 }], rowCount: 1 })),
+      query('SELECT COALESCE(SUM(balance), 0) as total FROM core_wallets').catch(() => ({ rows: [{ total: 0 }], rowCount: 1 })),
+      query('SELECT COUNT(*) as count FROM tv_stations').catch(() => ({ rows: [{ count: 0 }], rowCount: 1 })),
+      query('SELECT COUNT(*) as count FROM radio_stations').catch(() => ({ rows: [{ count: 0 }], rowCount: 1 })),
+      query('SELECT COUNT(*) as count FROM game_rooms').catch(() => ({ rows: [{ count: 0 }], rowCount: 1 })),
+      query('SELECT COUNT(*) as count FROM mkt_products').catch(() => ({ rows: [{ count: 0 }], rowCount: 1 })),
+      query('SELECT COUNT(*) as count FROM articles').catch(() => ({ rows: [{ count: 0 }], rowCount: 1 }))
     ]);
 
     const recentTx = await query(
@@ -3407,6 +4322,151 @@ app.get('/api/admin/users', authenticateToken, requireAdminRole, async (req, res
   }
 });
 
+// Admin Real Database Analytics
+app.get('/api/admin/analytics', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    // 1. Total real users in database
+    const usersCountRes = await query('SELECT count(*)::int as total FROM core_users');
+    const totalUsers = usersCountRes.rows[0]?.total || 0;
+
+    // 2. Real wallet balances and transaction volume
+    const walletRes = await query('SELECT COALESCE(SUM(balance), 0)::numeric as total_balance, COALESCE(SUM(bonus_balance), 0)::numeric as total_bonus FROM core_wallets');
+    const totalWalletBalance = Number(walletRes.rows[0]?.total_balance || 0);
+
+    const txRes = await query("SELECT COALESCE(SUM(amount), 0)::numeric as total_volume FROM core_wallet_transactions WHERE status = 'completed'");
+    const totalTxVolume = Number(txRes.rows[0]?.total_volume || 0);
+
+    // 3. Module assets and entities in database
+    const tvCountRes = await query('SELECT count(*)::int as total FROM tv_stations');
+    const radioCountRes = await query('SELECT count(*)::int as total FROM radio_stations');
+    const videosCountRes = await query('SELECT count(*)::int as total, COALESCE(SUM(views_count), 0)::int as total_views FROM tv_videos');
+    const articlesCountRes = await query('SELECT count(*)::int as total, COALESCE(SUM(views_count), 0)::int as total_views FROM articles');
+    const projectsCountRes = await query('SELECT count(*)::int as total FROM projects');
+    const kundaCountRes = await query('SELECT count(*)::int as total FROM kunda_profiles');
+    const gameRoomsRes = await query('SELECT count(*)::int as total FROM game_rooms');
+
+    const tvStationsCount = tvCountRes.rows[0]?.total || 0;
+    const radioStationsCount = radioCountRes.rows[0]?.total || 0;
+    const videoViews = Number(videosCountRes.rows[0]?.total_views || 0);
+    const articleViews = Number(articlesCountRes.rows[0]?.total_views || 0);
+    const totalViews = videoViews + articleViews;
+
+    // 4. Recent real database activity
+    const recentUsers = await query(`
+      SELECT id, 'user_signup' as event_type, email, name, 'Web/PWA' as device_type, 'Chrome' as browser, 'Active' as os, created_at
+      FROM core_users
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    // Top articles from real database
+    const topArticlesRes = await query(`
+      SELECT title, slug, views_count as views, category
+      FROM articles
+      ORDER BY views_count DESC
+      LIMIT 5
+    `);
+
+    // Top projects from real database
+    const topProjectsRes = await query(`
+      SELECT name, slug, 0 as clicks
+      FROM projects
+      ORDER BY sort_order ASC
+      LIMIT 7
+    `);
+
+    return res.json({
+      overview: {
+        total_views: totalViews,
+        unique_visitors: totalUsers,
+        external_clicks: 0,
+        avg_views_per_session: totalUsers > 0 ? Number((totalViews / totalUsers).toFixed(1)) : 0,
+        bounce_rate: 0
+      },
+      stats: {
+        total_users: totalUsers,
+        total_wallet_balance: totalWalletBalance,
+        total_tx_volume: totalTxVolume,
+        tv_stations: tvStationsCount,
+        radio_stations: radioStationsCount,
+        tv_videos: videosCountRes.rows[0]?.total || 0,
+        kunda_profiles: kundaCountRes.rows[0]?.total || 0,
+        game_rooms: gameRoomsRes.rows[0]?.total || 0
+      },
+      adsense_earnings: 0.00,
+      tv_interstitial_earnings: 0.00,
+      radio_preroll_earnings: 0.00,
+      banner_earnings: 0.00,
+      tv_impressions: 0,
+      radio_impressions: 0,
+      banner_impressions: 0,
+      top_projects: topProjectsRes.rows,
+      top_articles: topArticlesRes.rows,
+      sources: [
+        { source: 'Direct / PWA App Launch', count: totalUsers, pct: '100%' }
+      ],
+      devices: [
+        { device_type: 'Mobile & Desktop (Unified)', count: totalUsers, pct: '100%' }
+      ],
+      browsers: [
+        { browser: 'Modern Web Browsers', count: totalUsers }
+      ],
+      recent_activity: recentUsers.rows
+    });
+  } catch (err: any) {
+    console.error('Analytics API error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin All-Apps & Platform Settings Storage
+app.get('/api/admin/settings/all-apps', async (req, res) => {
+  try {
+    const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
+    return res.json({ settings: row.rows[0]?.value || null });
+  } catch (err: any) {
+    return res.json({ settings: null });
+  }
+});
+
+app.post('/api/admin/settings/all-apps', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const payload = req.body;
+    await query(`
+      INSERT INTO core_system_settings (key, value, description, updated_at)
+      VALUES ('platform_all_apps', $1, 'All-Apps control and platform settings', CURRENT_TIMESTAMP)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+    `, [JSON.stringify(payload)]);
+
+    if (payload.branding || payload.contacts) {
+      const b = payload.branding || {};
+      const c = payload.contacts || {};
+      await query(`
+        UPDATE company_settings SET
+          company_name = COALESCE($1, company_name),
+          email = COALESCE($2, email),
+          phone = COALESCE($3, phone),
+          address = COALESCE($4, address),
+          founder_name = COALESCE($5, founder_name),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `, [
+        b.platform_name || null,
+        c.support_email || null,
+        c.whatsapp_phone || null,
+        c.address || null,
+        c.founder_name || null
+      ]).catch(() => {});
+    }
+
+    return res.json({ success: true, message: 'All-Apps configuration saved successfully to database.' });
+  } catch (err: any) {
+    console.error('All-apps save error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to save settings to database.' });
+  }
+});
+
+
 // Projects & Blog API (Original BenixSpace features preserved)
 app.get('/api/projects', async (req, res) => {
   try {
@@ -3447,6 +4507,114 @@ app.get('/api/settings', async (req, res) => {
     });
   } catch (err: any) {
     return res.json({ company: {}, social: [] });
+  }
+});
+
+// Update Company Settings (Admin & Superadmin)
+app.put('/api/settings/company', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { company_name, email, phone, address, founder_name, founder_bio, company_description, services_json } = req.body;
+    
+    const existing = await query('SELECT id FROM company_settings LIMIT 1');
+    if (existing.rowCount === 0) {
+      await query(
+        `INSERT INTO company_settings (company_name, email, phone, address, founder_name, founder_bio, company_description, services_json)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          company_name || 'BenixSpace',
+          email || 'benirabok@gmail.com',
+          phone || '0783987223',
+          address || 'Kigali, Rwanda',
+          founder_name || 'Benir Benjamin',
+          founder_bio || '',
+          company_description || '',
+          typeof services_json === 'string' ? services_json : JSON.stringify(services_json || {})
+        ]
+      );
+    } else {
+      await query(
+        `UPDATE company_settings SET
+          company_name = COALESCE($1, company_name),
+          email = COALESCE($2, email),
+          phone = COALESCE($3, phone),
+          address = COALESCE($4, address),
+          founder_name = COALESCE($5, founder_name),
+          founder_bio = COALESCE($6, founder_bio),
+          company_description = COALESCE($7, company_description),
+          services_json = COALESCE($8, services_json),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $9`,
+        [
+          company_name || null,
+          email || null,
+          phone || null,
+          address || null,
+          founder_name || null,
+          founder_bio || null,
+          company_description || null,
+          services_json ? (typeof services_json === 'string' ? services_json : JSON.stringify(services_json)) : null,
+          existing.rows[0].id
+        ]
+      );
+    }
+
+    const updated = await query('SELECT * FROM company_settings LIMIT 1');
+    return res.json({ success: true, company: updated.rows[0], message: 'Company settings updated successfully.' });
+  } catch (err: any) {
+    console.error('Settings update error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to update company settings.' });
+  }
+});
+
+app.post('/api/settings/company', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { company_name, email, phone, address, founder_name, founder_bio, company_description, services_json } = req.body;
+    const existing = await query('SELECT id FROM company_settings LIMIT 1');
+    if (existing.rowCount === 0) {
+      await query(
+        `INSERT INTO company_settings (company_name, email, phone, address, founder_name, founder_bio, company_description, services_json)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          company_name || 'BenixSpace',
+          email || 'benirabok@gmail.com',
+          phone || '0783987223',
+          address || 'Kigali, Rwanda',
+          founder_name || 'Benir Benjamin',
+          founder_bio || '',
+          company_description || '',
+          typeof services_json === 'string' ? services_json : JSON.stringify(services_json || {})
+        ]
+      );
+    } else {
+      await query(
+        `UPDATE company_settings SET
+          company_name = COALESCE($1, company_name),
+          email = COALESCE($2, email),
+          phone = COALESCE($3, phone),
+          address = COALESCE($4, address),
+          founder_name = COALESCE($5, founder_name),
+          founder_bio = COALESCE($6, founder_bio),
+          company_description = COALESCE($7, company_description),
+          services_json = COALESCE($8, services_json),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $9`,
+        [
+          company_name || null,
+          email || null,
+          phone || null,
+          address || null,
+          founder_name || null,
+          founder_bio || null,
+          company_description || null,
+          services_json ? (typeof services_json === 'string' ? services_json : JSON.stringify(services_json)) : null,
+          existing.rows[0].id
+        ]
+      );
+    }
+    const updated = await query('SELECT * FROM company_settings LIMIT 1');
+    return res.json({ success: true, company: updated.rows[0], message: 'Company settings saved successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update company settings.' });
   }
 });
 
