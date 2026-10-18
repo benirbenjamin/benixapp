@@ -33,6 +33,7 @@ interface PlayerContextType {
   isTvPipDismissed: boolean;
   hasTvStarted: boolean;
   playTv: (station: Station) => void;
+  playTvChannel: (station: Station) => void;
   pauseTv: () => void;
   toggleTvPlay: () => void;
   toggleTvMute: () => void;
@@ -324,6 +325,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isTvPipDismissed,
         hasTvStarted,
         playTv,
+        playTvChannel: playTv,
         pauseTv,
         toggleTvPlay,
         toggleTvMute,

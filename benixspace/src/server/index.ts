@@ -459,7 +459,7 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
     const userRes = await query('SELECT * FROM core_users WHERE id = $1', [req.user?.id]);
     if (userRes.rowCount === 0) {
       // If superadmin token
-      if (req.user?.email === 'benirabok@gmail.com') {
+      if (req.user?.email === 'benirabok@gmail.com' || req.user?.email === 'admin@benix.space') {
         return res.json({
           user: {
             id: req.user.id,
@@ -3217,6 +3217,8 @@ app.get('/api/settings', async (req, res) => {
   } catch (err: any) {
     return res.json({ company: {}, social: [] });
   }
+});
+
 // Universal Search API across all 9 integrated super-app platforms
 app.get('/api/search', async (req, res) => {
   try {
