@@ -69,10 +69,12 @@ export const KundaChatModal: React.FC<Props> = ({
   });
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -322,8 +324,8 @@ export const KundaChatModal: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Message Thread Scroll Area */}
-        <div className="flex-1 p-4 overflow-y-auto space-y-3">
+        {/* Message Thread Scroll Area (Container-only scroll) */}
+        <div ref={messagesContainerRef} className="flex-1 p-4 overflow-y-auto space-y-3">
           {loading ? (
             <div className="flex items-center justify-center h-full text-slate-500 text-xs">
               <span>Loading encrypted chat...</span>
@@ -362,7 +364,6 @@ export const KundaChatModal: React.FC<Props> = ({
               );
             })
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Quick Emojis Strip */}

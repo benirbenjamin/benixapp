@@ -83,12 +83,15 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     }
   }, [initialTab, isOpen]);
 
+  const normalizedKey = targetAppKey === 'dating' ? 'kunda' : (targetAppKey === 'music' ? 'voxify' : (targetAppKey === 'videos' ? 'tv' : (targetAppKey || 'tv')));
+  const appConfig: AppRequirementConfig = APP_REQUIREMENTS[normalizedKey] || APP_REQUIREMENTS[targetAppKey || 'tv'] || APP_REQUIREMENTS['tv'];
+  const AppIcon = (appConfig && ICON_MAP[appConfig.icon]) || Sparkles;
+
   // Pre-populate wizard data with defaults (e.g. favorite_content multiselect for TV)
   useEffect(() => {
-    if (targetAppKey && APP_REQUIREMENTS[targetAppKey]) {
-      const cfg = APP_REQUIREMENTS[targetAppKey];
+    if (appConfig) {
       const initial: Record<string, any> = {};
-      cfg.fields.forEach((f) => {
+      appConfig.fields?.forEach((f) => {
         if (f.defaultValue !== undefined) {
           initial[f.name] = f.defaultValue;
         } else if (f.type === 'multiselect') {
@@ -97,12 +100,9 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
       });
       setWizardData((prev) => ({ ...initial, ...prev }));
     }
-  }, [targetAppKey, isOpen]);
+  }, [targetAppKey, isOpen, appConfig]);
 
   if (!isOpen || !targetAppKey) return null;
-
-  const appConfig: AppRequirementConfig | undefined = APP_REQUIREMENTS[targetAppKey];
-  const AppIcon = (appConfig && ICON_MAP[appConfig.icon]) || Sparkles;
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,7 +245,7 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
       setTimeout(() => {
         setWizardSuccess(false);
         onClose();
-        navigate(appConfig.route);
+        navigate(appConfig?.route || `/${targetAppKey}`);
         if (onSuccess) onSuccess();
       }, 1000);
     } else {

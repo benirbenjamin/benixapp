@@ -21,6 +21,7 @@ import { StorageService } from './services/storageService';
 import { SearchService } from './services/searchService';
 import { EmailService } from './services/emailService';
 import { checkInappropriateLanguage, checkKundaContactPolicy } from './utils/moderation';
+import realVideosData from '../client/config/realVideos.json';
 
 dotenv.config();
 
@@ -239,7 +240,19 @@ app.post('/api/auth/verify-login-otp', async (req, res) => {
           name: 'Benir Benjamin (Super Admin)',
           role: 'superadmin',
           referral_code: 'BENIX-SUPERADMIN',
-          selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']
+          selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
+          app_profiles: {
+            kunda: { completed: true },
+            dating: { completed: true },
+            voxify: { completed: true },
+            music: { completed: true },
+            marketplace: { completed: true },
+            tv: { completed: true },
+            videos: { completed: true },
+            radio: { completed: true },
+            games: { completed: true },
+            calc: { completed: true }
+          }
         },
         wallet: { balance: 100000.00, currency: 'RWF' }
       });
@@ -271,7 +284,8 @@ app.post('/api/auth/verify-login-otp', async (req, res) => {
         preferred_language: user.preferred_language,
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
-        referral_code: user.referral_code
+        referral_code: user.referral_code,
+        app_profiles: user.app_profiles || {}
       },
       wallet: {
         balance: Number(wallet.balance || 100.00),
@@ -336,7 +350,8 @@ app.post('/api/auth/verify-account', async (req, res) => {
         preferred_language: user.preferred_language,
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
-        referral_code: user.referral_code
+        referral_code: user.referral_code,
+        app_profiles: user.app_profiles || {}
       },
       wallet: {
         balance: Number(wallet.balance || 0),
@@ -689,7 +704,8 @@ app.post('/api/auth/login', async (req, res) => {
         preferred_language: user.preferred_language,
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
-        referral_code: user.referral_code
+        referral_code: user.referral_code,
+        app_profiles: user.app_profiles || {}
       },
       wallet: {
         balance: Number(wallet.balance || 0),
@@ -764,7 +780,8 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
         preferred_language: user.preferred_language,
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
-        referral_code: user.referral_code
+        referral_code: user.referral_code,
+        app_profiles: user.app_profiles || {}
       },
       wallet: {
         balance: Number(wallet.balance || 0),
@@ -1905,12 +1922,13 @@ app.get('/api/stories', async (req, res) => {
         user_id VARCHAR(255),
         author_name VARCHAR(255) NOT NULL,
         author_avatar VARCHAR(500),
-        media_url VARCHAR(1000) NOT NULL,
+        media_url TEXT NOT NULL,
         caption TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
       );
     `).catch(() => {});
+    await query('ALTER TABLE core_stories ALTER COLUMN media_url TYPE TEXT;').catch(() => {});
 
     const result = await query(
       `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
@@ -1941,12 +1959,13 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
         user_id VARCHAR(255),
         author_name VARCHAR(255) NOT NULL,
         author_avatar VARCHAR(500),
-        media_url VARCHAR(1000) NOT NULL,
+        media_url TEXT NOT NULL,
         caption TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
       );
     `).catch(() => {});
+    await query('ALTER TABLE core_stories ALTER COLUMN media_url TYPE TEXT;').catch(() => {});
 
     let authorName = req.user!.email?.split('@')[0] || 'Benix Creator';
     let authorAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
@@ -2548,42 +2567,40 @@ app.get('/api/modules/tv/stations', async (req, res) => {
   return res.json({ stations: tvList });
 });
 
+// Real Catalogue Videos (Populated with 94 Real YouTube Videos)
+const REAL_CATALOGUE_VIDEOS: any[] = (realVideosData as any[]).map((v) => ({
+  id: v.id,
+  title: v.title,
+  slug: v.id,
+  description: v.description || v.title,
+  videoUrl: v.embedUrl ? v.embedUrl.replace('/embed/', '/watch?v=') : `https://www.youtube.com/watch?v=${v.id}`,
+  embedUrl: v.embedUrl || `https://www.youtube.com/embed/${v.id}`,
+  thumbnailUrl: v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
+  thumbnail: v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
+  duration: 600,
+  durationLabel: v.duration || '10:00',
+  views: v.views || 0,
+  likes: v.likes || 0,
+  accessType: (v.price && v.price > 0) ? 'PREMIUM' : 'PUBLIC',
+  price: v.price || 0,
+  category: v.category || 'General',
+  channelName: v.channelName || v.creator || 'Benix Space Channel',
+  channelHandle: (v.creator || 'benixspace').toLowerCase().replace(/\s+/g, ''),
+  channelAvatar: v.channelAvatar || '/logo.png',
+  creator: v.creator || 'Benix Space Channel',
+  isVerified: true,
+  createdAt: '2026-03-01T12:00:00Z'
+}));
+
+const SAMPLE_VIDEOS: any[] = [...REAL_CATALOGUE_VIDEOS];
+
 app.get('/api/modules/tv/videos', async (req, res) => {
   try {
     const result = await query('SELECT * FROM tv.videos ORDER BY publication_date DESC, created_at DESC LIMIT 30');
     if (result.rowCount > 0) return res.json({ videos: result.rows });
   } catch (err: any) {}
   
-  return res.json({
-    videos: [
-      {
-        id: 'vid-rtv-news-1',
-        title: 'RTV Tele-Amakuru: Amakuru yo ku mugoroba',
-        slug: 'rtv-tele-amakuru-umugoroba',
-        description: 'Amakuru yose agezweho mu gihugu no hanze yacyo atambutswa live kuri Rwanda Television.',
-        thumbnail_url: 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=600&auto=format&fit=crop&q=80',
-        stream_url: 'https://5c46fa289c89f.streamlock.net/rtv25/rtv/playlist.m3u8',
-        duration_seconds: 2700,
-        duration_label: '45:00',
-        views_count: 14500,
-        category: 'News & Current Affairs',
-        publication_date: 'Today'
-      },
-      {
-        id: 'vid-kc2-sports-2',
-        title: 'KC2 Sports Zone: Rwanda Premier League & Tour du Rwanda Highlights',
-        slug: 'kc2-sports-zone-highlights',
-        description: 'Inshamake z’imikino yabaye muri shampiyona y’u Rwanda n’isiganwa mpuzamahanga ry’amagare.',
-        thumbnail_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=80',
-        stream_url: 'https://5c46fa289c89f.streamlock.net/kc2/kc2/playlist.m3u8',
-        duration_seconds: 3600,
-        duration_label: '1:00:00',
-        views_count: 18200,
-        category: 'Sports',
-        publication_date: 'Yesterday'
-      }
-    ]
-  });
+  return res.json({ videos: SAMPLE_VIDEOS });
 });
 
 // B. Radio Module
@@ -2850,8 +2867,9 @@ app.post('/api/auth/save-app-profile', authenticateToken, async (req: Authentica
   }
 });
 
-// B2. Videos Module (Benix Creator Studio & Video Hub)
-const SAMPLE_VIDEOS: any[] = [
+// B2. Videos Module (Benix Creator Studio & Video Hub - Uses REAL_CATALOGUE_VIDEOS)
+/* OLD_DUMMY_VIDEOS_REPLACED_BY_94_REAL_VIDEOS
+const DUMMY_SAMPLE_VIDEOS: any[] = [
   {
     id: "vid-2",
     title: "ISRAEL MBONYI - NINA SIRI (Official Music Video)",
@@ -3062,6 +3080,7 @@ const SAMPLE_VIDEOS: any[] = [
     createdAt: "2026-06-20T17:00:00Z"
   }
 ];
+*/
 
 const unlockedVideosByUser = new Map<string, Set<string>>();
 
@@ -4522,17 +4541,37 @@ app.get('/api/blog/:slug', async (req, res) => {
   }
 });
 
-// Company Settings
+// Company & System Settings (Dynamic configuration for rewards, bonuses, and contacts)
 app.get('/api/settings', async (req, res) => {
   try {
     const companyRes = await query('SELECT * FROM company_settings LIMIT 1');
     const socialRes = await query('SELECT * FROM social_links ORDER BY sort_order ASC');
+    const sysRes = await query('SELECT key, value FROM core_system_settings').catch(() => ({ rows: [] }));
+    const systemSettings: Record<string, any> = {
+      welcome_bonus_amount: 1000,
+      referral_reward: 1000,
+      affiliate_commission_percentage: 15
+    };
+    if (sysRes && sysRes.rows) {
+      for (const row of sysRes.rows) {
+        systemSettings[row.key] = row.value;
+      }
+    }
     return res.json({
-      company: companyRes.rows[0],
-      social: socialRes.rows
+      company: companyRes.rows[0] || {},
+      social: socialRes.rows || [],
+      system: systemSettings
     });
   } catch (err: any) {
-    return res.json({ company: {}, social: [] });
+    return res.json({
+      company: {},
+      social: [],
+      system: {
+        welcome_bonus_amount: 1000,
+        referral_reward: 1000,
+        affiliate_commission_percentage: 15
+      }
+    });
   }
 });
 

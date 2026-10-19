@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Home, Search, Plus, MessageSquare, User, ShieldCheck, LogIn, UserPlus } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
+import { CreateMediaModal } from '../modals/CreateMediaModal';
 
 export const BottomNav: React.FC = () => {
   const { user } = useAuth();
@@ -14,6 +15,7 @@ export const BottomNav: React.FC = () => {
   const [showWizard, setShowWizard] = useState(false);
   const [wizardTab, setWizardTab] = useState<'register' | 'login'>('login');
   const [showInboxNotice, setShowInboxNotice] = useState(false);
+  const [showCreateMedia, setShowCreateMedia] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
   const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
@@ -44,7 +46,7 @@ export const BottomNav: React.FC = () => {
           <span className="text-[10px] font-bold mt-1 tracking-tight">Search</span>
         </button>
 
-        {/* 3. Elevated Center Action Button (+) */}
+        {/* 3. Elevated Center Action Button (+) - Post Story or Video */}
         <div className="relative -top-4 flex items-center justify-center">
           <button
             onClick={() => {
@@ -52,11 +54,11 @@ export const BottomNav: React.FC = () => {
                 setWizardTab('register');
                 setShowWizard(true);
               } else {
-                navigate('/dashboard');
+                setShowCreateMedia(true);
               }
             }}
             className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 hover:from-blue-500 hover:to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/40 border-4 border-[#0B0E14] active:scale-95 transition-all"
-            title="Create & Explore"
+            title="Post Story or Video"
           >
             <Plus className="w-6 h-6 stroke-[2.5]" />
           </button>
@@ -129,6 +131,14 @@ export const BottomNav: React.FC = () => {
           targetAppKey="tv"
           initialTab={wizardTab}
           onSuccess={() => setShowWizard(false)}
+        />
+      )}
+
+      {/* Creator Media Modal (Post Story / Upload Video) */}
+      {showCreateMedia && (
+        <CreateMediaModal
+          isOpen={showCreateMedia}
+          onClose={() => setShowCreateMedia(false)}
         />
       )}
     </>

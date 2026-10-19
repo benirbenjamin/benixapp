@@ -16,7 +16,10 @@ import {
   Users,
   ShieldCheck,
   Eye,
-  Film
+  Film,
+  Link as LinkIcon,
+  Search,
+  FileVideo
 } from 'lucide-react';
 
 interface Props {
@@ -24,6 +27,56 @@ interface Props {
   onClose: () => void;
   onSuccess?: () => void;
 }
+
+/**
+ * Client-side Canvas Image Compression
+ * Scales image to maximum 1080px and applies 0.75 JPEG compression
+ * Drastically reduces memory usage, upload payload, and fits cleanly into PostgreSQL
+ */
+const compressImage = (file: File, maxDimension = 1080, quality = 0.75): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+};
 
 export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const { user, token } = useAuth();
@@ -37,13 +90,17 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   const [storyPreview, setStoryPreview] = useState<string | null>(null);
 
   // Video Form State
+  const [videoSourceMode, setVideoSourceMode] = useState<'youtube' | 'file'>('youtube');
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDesc, setVideoDesc] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [videoCategory, setVideoCategory] = useState('Entertainment');
+  const [videoCategory, setVideoCategory] = useState('Entertainment & Movies');
   const [isPaidVideo, setIsPaidVideo] = useState(false);
   const [videoPrice, setVideoPrice] = useState('500');
   const [driveAccount, setDriveAccount] = useState('drive-primary');
+  const [videoThumbnailUrl, setVideoThumbnailUrl] = useState('');
+  const [isFetchingYouTube, setIsFetchingYouTube] = useState(false);
+  const [selectedVideoFileName, setSelectedVideoFileName] = useState('');
 
   // Creator Monetization Criteria
   const [monetization, setMonetization] = useState<{
@@ -73,23 +130,28 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
   if (!isOpen) return null;
 
-  const handleStoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Story File Upload with Canvas Compression
+  const handleStoryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setStoryPreview(result);
-      setStoryMediaUrl(result);
-    };
-    reader.readAsDataURL(file);
+
+    setStatusMsg({ text: 'Compressing image to save memory & bandwidth...' });
+    try {
+      const compressed = await compressImage(file, 1080, 0.75);
+      setStoryPreview(compressed);
+      setStoryMediaUrl(compressed);
+      setStatusMsg({ text: 'Image compressed ready for 24h story broadcast!' });
+    } catch {
+      setStatusMsg({ text: 'Failed to compress image.', error: true });
+    }
   };
 
+  // Publish 24h Story to PostgreSQL
   const handleCreateStory = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMsg(null);
     if (!storyMediaUrl) {
-      setStatusMsg({ text: 'Please upload a photo or video clip for your story.', error: true });
+      setStatusMsg({ text: 'Please upload a photo or short clip for your story.', error: true });
       return;
     }
 
@@ -103,13 +165,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         },
         body: JSON.stringify({
           mediaUrl: storyMediaUrl,
-          caption: storyCaption
+          caption: storyCaption.trim()
         })
       });
       const data = await res.json();
       if (res.ok) {
         notificationSound.playNotificationChime();
-        setStatusMsg({ text: 'Story published successfully! Visible on homepage for 24h.' });
+        setStatusMsg({ text: 'Story published successfully! Visible on homepage for 24 hours.' });
         setTimeout(() => {
           onClose();
           if (onSuccess) onSuccess();
@@ -124,16 +186,115 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     }
   };
 
+  // Fetch YouTube Metadata (Title, Author, Thumbnail) automatically via oEmbed
+  const fetchYouTubeInfo = async (rawUrl: string) => {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return;
+
+    const isYouTube = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)/i.test(trimmed);
+    if (!isYouTube) return;
+
+    setIsFetchingYouTube(true);
+    setStatusMsg({ text: 'Fetching YouTube title, description and thumbnail...' });
+
+    try {
+      const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(trimmed)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.title) {
+          setVideoTitle(data.title);
+        }
+        if (data.author_name) {
+          setVideoDesc(`Video by ${data.author_name} — broadcasted on Benix.Space.`);
+        }
+        if (data.thumbnail_url) {
+          setVideoThumbnailUrl(data.thumbnail_url);
+        }
+        setStatusMsg({ text: '✨ Details fetched! You can freely edit the title and description below.' });
+      } else {
+        // Fallback: extract ID directly for thumbnail
+        let vidId = '';
+        if (trimmed.includes('youtu.be/')) vidId = trimmed.split('youtu.be/')[1]?.split('?')[0];
+        else if (trimmed.includes('v=')) vidId = trimmed.split('v=')[1]?.split('&')[0];
+        if (vidId) {
+          setVideoThumbnailUrl(`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`);
+          setStatusMsg({ text: 'YouTube link detected. Please enter a title and description.' });
+        }
+      }
+    } catch {
+      let vidId = '';
+      if (trimmed.includes('youtu.be/')) vidId = trimmed.split('youtu.be/')[1]?.split('?')[0];
+      else if (trimmed.includes('v=')) vidId = trimmed.split('v=')[1]?.split('&')[0];
+      if (vidId) {
+        setVideoThumbnailUrl(`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`);
+      }
+      setStatusMsg({ text: 'YouTube link detected. Please enter a title.' });
+    } finally {
+      setIsFetchingYouTube(false);
+    }
+  };
+
+  // Handle local video file selection
+  const handleLocalVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedVideoFileName(file.name);
+    // Use cleaned file name as initial title if empty
+    if (!videoTitle) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      setVideoTitle(cleanName);
+    }
+    // Create object URL for local streaming/preview
+    const objectUrl = URL.createObjectURL(file);
+    setVideoUrl(objectUrl);
+    setStatusMsg({ text: `Selected local video: "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)` });
+  };
+
+  // Handle Video Broadcast submission
   const handleUploadVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMsg(null);
+
     if (!videoTitle.trim() || !videoUrl.trim()) {
-      setStatusMsg({ text: 'Video Title and Video Stream URL / File are required.', error: true });
+      setStatusMsg({ text: 'Video Title and Video Stream / YouTube Link are required.', error: true });
       return;
     }
 
     try {
       setLoading(true);
+
+      // Clean / Format YouTube embed URL if applicable
+      let formattedUrl = videoUrl.trim();
+      let thumb = videoThumbnailUrl.trim();
+      if (formattedUrl.includes('youtube.com/watch?v=')) {
+        const id = formattedUrl.split('v=')[1]?.split('&')[0];
+        formattedUrl = `https://www.youtube.com/embed/${id}`;
+        if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+      } else if (formattedUrl.includes('youtu.be/')) {
+        const id = formattedUrl.split('youtu.be/')[1]?.split('?')[0];
+        formattedUrl = `https://www.youtube.com/embed/${id}`;
+        if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+      }
+
+      // 1. Post to module videos endpoint
+      await fetch('/api/modules/videos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: videoTitle.trim(),
+          description: videoDesc.trim(),
+          videoUrl: formattedUrl,
+          thumbnailUrl: thumb || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+          category: videoCategory,
+          price: isPaidVideo ? parseFloat(videoPrice) || 0 : 0
+        })
+      }).catch(() => {});
+
+      // 2. Also record in user video uploads
       const res = await fetch('/api/videos/upload', {
         method: 'POST',
         headers: {
@@ -143,16 +304,17 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         body: JSON.stringify({
           title: videoTitle.trim(),
           description: videoDesc.trim(),
-          videoUrl: videoUrl.trim(),
+          videoUrl: formattedUrl,
           category: videoCategory,
           price: isPaidVideo ? parseFloat(videoPrice) || 0 : 0,
           driveFolder: driveAccount
         })
       });
+
       const data = await res.json();
       if (res.ok) {
         notificationSound.playNotificationChime();
-        setStatusMsg({ text: 'Video published to Benix.Space and stored in cloud drive!' });
+        setStatusMsg({ text: 'Video published to Benix Creator Hub & ready for broadcast!' });
         setTimeout(() => {
           onClose();
           if (onSuccess) onSuccess();
@@ -168,18 +330,18 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#0F1420] rounded-3xl shadow-2xl border border-slate-800 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] text-white font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-[#0F1420] rounded-3xl shadow-2xl border border-slate-800 w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] text-white font-sans">
         
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-[#131926]">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#131926]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md">
               <Plus className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
               <h3 className="text-base font-black text-white">Create on Benix.Space</h3>
-              <p className="text-[11px] text-slate-400">Share stories and broadcast monetized videos</p>
+              <p className="text-[11px] text-slate-400">Share 24h stories and broadcast monetized videos</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-800/60 transition-colors">
@@ -188,7 +350,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         </div>
 
         {/* Tab Controls: Story vs Video */}
-        <div className="px-6 flex gap-2 border-b border-slate-800 pb-3 pt-4">
+        <div className="px-6 flex gap-2 border-b border-slate-800 pb-3 pt-3">
           <button
             onClick={() => { setTab('story'); setStatusMsg(null); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
@@ -222,7 +384,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
             </div>
           )}
 
-          {/* TAB 1: POST STORY */}
+          {/* TAB 1: POST STORY (With Canvas Compression) */}
           {tab === 'story' && (
             <form onSubmit={handleCreateStory} className="space-y-4">
               <div>
@@ -231,12 +393,12 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 </label>
                 <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 text-center hover:border-pink-500 transition-colors bg-[#121824] relative overflow-hidden">
                   {storyPreview ? (
-                    <div className="relative aspect-[9/16] max-h-60 mx-auto rounded-xl overflow-hidden">
+                    <div className="relative aspect-[9/16] max-h-60 mx-auto rounded-xl overflow-hidden shadow-lg border border-slate-700">
                       <img src={storyPreview} alt="Story Preview" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => { setStoryPreview(null); setStoryMediaUrl(''); }}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white"
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-black"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -245,7 +407,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                     <label className="cursor-pointer block py-6">
                       <Camera className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                       <span className="text-xs font-bold text-white block">Click to select photo or clip</span>
-                      <span className="text-[10px] text-slate-400">PNG, JPG, MP4 up to 50MB</span>
+                      <span className="text-[10px] text-slate-400 block mt-1">
+                        Automatically compressed to high-efficiency format (max 1080px)
+                      </span>
                       <input
                         type="file"
                         accept="image/*,video/*"
@@ -265,7 +429,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                   type="text"
                   value={storyCaption}
                   onChange={(e) => setStoryCaption(e.target.value)}
-                  placeholder="Add a caption to your story..."
+                  placeholder="Add an engaging caption to your story..."
                   className="w-full px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-pink-500"
                 />
               </div>
@@ -277,7 +441,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !storyMediaUrl}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50"
               >
                 {loading ? 'Publishing Story...' : 'Publish Story to Homepage'}
@@ -285,12 +449,118 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
             </form>
           )}
 
-          {/* TAB 2: UPLOAD VIDEO & MONETIZATION */}
+          {/* TAB 2: UPLOAD VIDEO (YouTube Auto-Fetch or Local Video Selection) */}
           {tab === 'video' && (
             <form onSubmit={handleUploadVideo} className="space-y-4">
+              
+              {/* Video Source Selector: YouTube vs Local File */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                  Choose Video Source
+                </label>
+                <div className="grid grid-cols-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setVideoSourceMode('youtube')}
+                    className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+                      videoSourceMode === 'youtube'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                    <span>YouTube Link</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoSourceMode('file')}
+                    className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+                      videoSourceMode === 'file'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FileVideo className="w-3.5 h-3.5" />
+                    <span>Select Video File</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* YouTube Link Input with Auto-Fetch */}
+              {videoSourceMode === 'youtube' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    YouTube Video URL *
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={videoUrl}
+                      onChange={(e) => {
+                        setVideoUrl(e.target.value);
+                      }}
+                      onBlur={() => fetchYouTubeInfo(videoUrl)}
+                      placeholder="https://youtu.be/... or https://youtube.com/watch?v=..."
+                      required
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      disabled={isFetchingYouTube || !videoUrl.trim()}
+                      onClick={() => fetchYouTubeInfo(videoUrl)}
+                      className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                      <span>{isFetchingYouTube ? 'Fetching...' : 'Fetch Info'}</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Paste any YouTube URL — we will automatically fetch the video title, description, and thumbnail!
+                  </span>
+                </div>
+              ) : (
+                /* Local Video File Picker */
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    Select Video from Device *
+                  </label>
+                  <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 text-center hover:border-blue-500 transition-colors bg-[#121824]">
+                    <label className="cursor-pointer block py-4">
+                      <FileVideo className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                      <span className="text-xs font-bold text-white block">
+                        {selectedVideoFileName || 'Click to choose video from device'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-1">MP4, WebM, MOV video files</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleLocalVideoChange}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Thumbnail Preview if available */}
+              {videoThumbnailUrl && (
+                <div className="flex items-center gap-3 p-3 bg-[#131926] border border-slate-800 rounded-2xl">
+                  <img
+                    src={videoThumbnailUrl}
+                    alt="Thumbnail Preview"
+                    className="w-20 aspect-video rounded-lg object-cover border border-slate-700 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block">Thumbnail Fetched</span>
+                    <p className="text-xs font-bold text-white truncate">{videoTitle || 'Untitled Video'}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Editable Video Title */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Video Title *
+                  Video Title * (Editable)
                 </label>
                 <input
                   type="text"
@@ -298,21 +568,21 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                   onChange={(e) => setVideoTitle(e.target.value)}
                   placeholder="e.g. Rwandan Premier League Highlights"
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
+              {/* Editable Video Description */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Video Stream URL or YouTube Link *
+                  Video Description (Editable)
                 </label>
-                <input
-                  type="text"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="https://... or YouTube video URL"
-                  required
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 font-mono"
+                <textarea
+                  rows={2}
+                  value={videoDesc}
+                  onChange={(e) => setVideoDesc(e.target.value)}
+                  placeholder="Describe your video broadcast..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -326,11 +596,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                     onChange={(e) => setVideoCategory(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
                   >
-                    <option value="Live TV">Live TV & News</option>
+                    <option value="Gospel & Choirs">Gospel & Choirs</option>
+                    <option value="Series & Comedy">Series & Comedy</option>
+                    <option value="Culture & Documentaries">Culture & Documentaries</option>
+                    <option value="Music & Shows">Music & Shows</option>
+                    <option value="Entertainment & Movies">Entertainment & Movies</option>
                     <option value="Sports">Sports Highlights</option>
-                    <option value="Entertainment">Entertainment & Movies</option>
-                    <option value="Music">Music & Choirs</option>
-                    <option value="Tech">Technology & Dev</option>
+                    <option value="Live TV">Live TV & News</option>
                   </select>
                 </div>
 
@@ -420,13 +692,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-400 pt-1">
-                  Once reached, Google AdSense & direct sponsor video ads generate automatic revenue into your central wallet.
+                  Once reached, Google AdSense & submitted ads generate automatic revenue into your central wallet.
                 </p>
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !videoTitle.trim() || !videoUrl.trim()}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
               >
                 {loading ? 'Publishing Video...' : 'Publish Video & Save to Drive'}

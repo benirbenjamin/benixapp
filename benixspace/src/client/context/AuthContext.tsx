@@ -105,12 +105,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data?.user) {
-        setUser(res.data.user);
+        let cachedAppProfiles = {};
+        try {
+          const savedUser = JSON.parse(localStorage.getItem('benix_user') || '{}');
+          if (savedUser.app_profiles) cachedAppProfiles = savedUser.app_profiles;
+        } catch {}
+
+        const mergedUser = {
+          ...res.data.user,
+          app_profiles: {
+            ...cachedAppProfiles,
+            ...(res.data.user.app_profiles || {})
+          }
+        };
+
+        setUser(mergedUser);
         if (res.data.wallet) {
           setWallet(res.data.wallet);
           localStorage.setItem('benix_wallet', JSON.stringify(res.data.wallet));
         }
-        localStorage.setItem('benix_user', JSON.stringify(res.data.user));
+        localStorage.setItem('benix_user', JSON.stringify(mergedUser));
         if (res.data.user.role === 'superadmin' || res.data.user.role === 'admin') {
           localStorage.setItem('benix_admin_token', token);
         }
@@ -146,8 +160,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               localStorage.setItem('benix_wallet', JSON.stringify(res.data.wallet));
             }
             if (res.data?.user) {
-              setUser(res.data.user);
-              localStorage.setItem('benix_user', JSON.stringify(res.data.user));
+              let cachedProfiles = {};
+              try {
+                const s = JSON.parse(localStorage.getItem('benix_user') || '{}');
+                if (s.app_profiles) cachedProfiles = s.app_profiles;
+              } catch {}
+              const merged = {
+                ...res.data.user,
+                app_profiles: {
+                  ...cachedProfiles,
+                  ...(res.data.user.app_profiles || {})
+                }
+              };
+              setUser(merged);
+              localStorage.setItem('benix_user', JSON.stringify(merged));
             }
           })
           .catch(() => {});
@@ -400,9 +426,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please log in first' };
     }
 
+    const normalizedKey = appKey === 'dating' ? 'kunda' : (appKey === 'music' ? 'voxify' : (appKey === 'videos' ? 'tv' : appKey));
+    try {
+      localStorage.setItem(`benix_profile_${appKey}_completed`, 'true');
+      localStorage.setItem(`benix_profile_${normalizedKey}_completed`, 'true');
+    } catch {}
+
     const updatedProfiles = {
       ...(user.app_profiles || {}),
-      [appKey]: { ...profileData, completed: true, updated_at: new Date().toISOString() }
+      [appKey]: { ...profileData, completed: true, updated_at: new Date().toISOString() },
+      [normalizedKey]: { ...profileData, completed: true, updated_at: new Date().toISOString() }
     };
 
     const updatedUser = { ...user, app_profiles: updatedProfiles };
@@ -427,7 +460,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasAppProfile = (appKey: string): boolean => {
     if (!user) return false;
     if (user.role === 'superadmin' || user.role === 'admin') return true;
-    return !!(user.app_profiles && user.app_profiles[appKey]?.completed);
+    const normalizedKey = appKey === 'dating' ? 'kunda' : (appKey === 'music' ? 'voxify' : (appKey === 'videos' ? 'tv' : appKey));
+    const inProfile = !!(
+      (user.app_profiles && (user.app_profiles[appKey]?.completed || user.app_profiles[normalizedKey]?.completed))
+    );
+    if (inProfile) return true;
+    try {
+      return localStorage.getItem(`benix_profile_${appKey}_completed`) === 'true' ||
+             localStorage.getItem(`benix_profile_${normalizedKey}_completed`) === 'true';
+    } catch {
+      return false;
+    }
   };
 
   const logout = () => {

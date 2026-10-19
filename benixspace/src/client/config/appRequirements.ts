@@ -275,3 +275,8 @@ export const APP_REQUIREMENTS: Record<string, AppRequirementConfig> = {
     ]
   }
 };
+
+// Aliases for seamless route / feature mapping so APP_REQUIREMENTS[key] is never undefined
+APP_REQUIREMENTS.dating = APP_REQUIREMENTS.kunda;
+APP_REQUIREMENTS.music = APP_REQUIREMENTS.voxify;
+APP_REQUIREMENTS.videos = APP_REQUIREMENTS.tv;

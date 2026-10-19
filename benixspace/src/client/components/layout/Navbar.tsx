@@ -38,6 +38,7 @@ import { NotificationTray } from '../modals/NotificationTray';
 import { MessagesDrawer } from '../modals/MessagesDrawer';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
 import { usePwa } from '../../context/PwaContext';
+import { formatCurrencyCompact } from '../../utils/formatCurrency';
 
 export const Navbar: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -154,7 +155,7 @@ export const Navbar: React.FC = () => {
                   title="View Central Wallet & Transactions"
                 >
                   <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[11px] sm:text-xs">{Number(wallet?.balance ?? 0).toLocaleString()} RWF</span>
+                  <span className="text-[11px] sm:text-xs font-bold">{formatCurrencyCompact(Number(wallet?.balance ?? 0))}</span>
                 </button>
               )}
 

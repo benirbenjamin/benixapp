@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { checkInappropriateLanguage } from '../../utils/moderation';
 import { useCoffee } from '../../context/CoffeeContext';
+import { useAuth } from '../../context/AuthContext';
 
 export interface Comment {
   id: string;
@@ -99,14 +100,24 @@ function formatTimeAgo(dateString: string): string {
 
 export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title }) => {
   const { openCoffeeModal } = useCoffee();
+  const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // User nickname state stored in localStorage
+  // User nickname state stored in localStorage (or database name if logged in)
   const [userName, setUserName] = useState<string>(() => {
     return localStorage.getItem('benix_chat_username') || '';
   });
+
+  // Automatically keep user name synced with registered database name
+  useEffect(() => {
+    if (user?.name) {
+      setUserName(user.name);
+      localStorage.setItem('benix_chat_username', user.name);
+    }
+  }, [user]);
+
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -235,7 +246,7 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
 
   // Submit comment or reply with multilingual filter check
   const postCommentOrReply = async (text: string, parentId?: string, overrideName?: string) => {
-    const activeName = overrideName || userName;
+    const activeName = (overrideName || user?.name || userName || '').trim();
 
     if (!activeName) {
       pendingActionRef.current = {

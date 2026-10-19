@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { notificationSound } from '../utils/notificationSound';
 import { SeoHead } from '../components/common/SeoHead';
 import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal';
+import { formatCurrencyCompact } from '../utils/formatCurrency';
 import {
   MessageSquare,
   Send,
@@ -70,13 +71,14 @@ export const MessagesPage: React.FC = () => {
 
   const [conversations, setConversations] = useState<ChatConversation[]>(INITIAL_CONVERSATIONS);
   const [activePartnerId, setActivePartnerId] = useState<string>(queryUserId || 'support');
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>(queryUserId ? 'chat' : 'list');
   const [inputMessage, setInputMessage] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [animatingHeartId, setAnimatingHeartId] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   // If navigated with query params (e.g. from Kunda dating profile "Private Chat")
   useEffect(() => {
@@ -110,10 +112,12 @@ export const MessagesPage: React.FC = () => {
     }
   }, [queryUserId, queryUserName, queryUserAvatar]);
 
-  // Scroll to bottom when messages update
+  // Container-only smooth scroll to bottom without triggering window/footer scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversations, activePartnerId]);
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [conversations, activePartnerId, mobileView]);
 
   const activeConversation =
     conversations.find((c) => c.partnerId === activePartnerId) || conversations[0];
@@ -237,16 +241,16 @@ export const MessagesPage: React.FC = () => {
               className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all"
             >
               <WalletIcon className="w-3.5 h-3.5" />
-              <span>{Number(wallet?.balance || 100).toLocaleString()} RWF</span>
+              <span>{formatCurrencyCompact(Number(wallet?.balance || 100))}</span>
             </Link>
           </div>
         </div>
 
-        {/* Unified 2-Column Split: Conversations Drawer & Active Thread Room */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 bg-[#0F1420] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl min-h-[600px]">
+        {/* Unified 2-Column Split: WhatsApp Style Conversation List & Active Thread Room */}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 bg-[#0F1420] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl min-h-[580px]">
           
-          {/* LEFT COLUMN: Conversation List (4 cols on desktop, hidden on mobile if thread active) */}
-          <div className="md:col-span-4 border-r border-slate-800 flex flex-col bg-[#0B0E14]/80">
+          {/* LEFT COLUMN: Conversation List (WhatsApp Style: full width on mobile when mobileView === 'list', 4 cols on desktop) */}
+          <div className={`${mobileView === 'chat' ? 'hidden md:flex' : 'flex'} md:col-span-4 border-r border-slate-800 flex-col bg-[#0B0E14]/80 h-[75vh] md:h-auto`}>
             {/* Search Input */}
             <div className="p-3 border-b border-slate-800 bg-[#0F1420]">
               <div className="relative">
@@ -268,7 +272,10 @@ export const MessagesPage: React.FC = () => {
                 return (
                   <div
                     key={convo.partnerId}
-                    onClick={() => setActivePartnerId(convo.partnerId)}
+                    onClick={() => {
+                      setActivePartnerId(convo.partnerId);
+                      setMobileView('chat');
+                    }}
                     className={`p-3.5 flex items-start gap-3 cursor-pointer transition-colors ${
                       isActive
                         ? 'bg-blue-600/15 border-l-4 border-blue-500'
@@ -306,13 +313,22 @@ export const MessagesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Active Chat Thread Room (8 cols) */}
-          <div className="md:col-span-8 flex flex-col bg-[#121824] h-[650px] md:h-auto">
+          {/* RIGHT COLUMN: Active Chat Thread Room (WhatsApp Style: full width on mobile when mobileView === 'chat', 8 cols on desktop) */}
+          <div className={`${mobileView === 'list' ? 'hidden md:flex' : 'flex'} md:col-span-8 flex-col bg-[#121824] h-[75vh] md:h-auto`}>
             {activeConversation ? (
               <>
                 {/* Chat Room Header */}
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#151D2C]">
-                  <div className="flex items-center gap-3">
+                <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-[#151D2C]">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    {/* WhatsApp Back Button to chat list on mobile */}
+                    <button
+                      onClick={() => setMobileView('list')}
+                      className="md:hidden p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                      title="Back to Chat List"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+
                     <div className="relative">
                       <img
                         src={activeConversation.partnerAvatar}
@@ -363,8 +379,8 @@ export const MessagesPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Messages Stream Container */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-[#0B0E14]/40">
+                {/* Messages Stream Container (Contained-only scroll, zero window footer jump) */}
+                <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 bg-[#0B0E14]/40">
                   <div className="text-center py-2">
                     <span className="text-[10px] bg-slate-800/80 text-slate-400 px-3 py-1 rounded-full">
                       Messages are encrypted & protected by Benix Privacy
@@ -416,7 +432,6 @@ export const MessagesPage: React.FC = () => {
                       </div>
                     );
                   })}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Quick Emojis Strip */}
