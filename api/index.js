@@ -53995,7 +53995,7 @@ app.post("/api/auth/save-app-profile", authenticateToken, async (req, res) => {
   }
 });
 var unlockedVideosByUser = /* @__PURE__ */ new Map();
-app.get("/api/modules/videos", async (req, res) => {
+app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
   try {
     const category = req.query.category;
     let list = SAMPLE_VIDEOS;
@@ -54007,7 +54007,7 @@ app.get("/api/modules/videos", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-app.get("/api/modules/videos/:id", async (req, res) => {
+app.get(["/api/modules/videos/:id", "/api/videos/:id"], async (req, res) => {
   try {
     const { id } = req.params;
     const video = SAMPLE_VIDEOS.find((v2) => v2.id === id || v2.slug === id);

@@ -14,6 +14,7 @@ import { ReferralModal } from '../components/modals/ReferralModal';
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { CompanionAdBanner } from '../components/ads/CompanionAdBanner';
 import { SeoHead } from '../components/common/SeoHead';
+import realVideosData from '../config/realVideos.json';
 import {
   Tv,
   Play,
@@ -55,9 +56,9 @@ export const HomePage: React.FC = () => {
   const [radioStations, setRadioStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Stories & Creator Media State (loaded exclusively from real database API)
+  // Stories & Creator Media State (populated with real YouTube catalogue videos)
   const [stories, setStories] = useState<any[]>([]);
-  const [creatorVideos, setCreatorVideos] = useState<any[]>([]);
+  const [creatorVideos, setCreatorVideos] = useState<any[]>(() => (realVideosData as any[]).slice(0, 8));
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
 
@@ -73,7 +74,7 @@ export const HomePage: React.FC = () => {
     try {
       const [storyRes, vidRes] = await Promise.all([
         fetch('/api/stories').catch(() => null),
-        fetch('/api/videos').catch(() => null)
+        fetch('/api/modules/videos').catch(() => fetch('/api/videos').catch(() => null))
       ]);
       if (storyRes && storyRes.ok) {
         const sData = await storyRes.json();
@@ -83,7 +84,9 @@ export const HomePage: React.FC = () => {
       }
       if (vidRes && vidRes.ok) {
         const vData = await vidRes.json();
-        setCreatorVideos(vData.videos || []);
+        if (vData.videos && Array.isArray(vData.videos) && vData.videos.length > 0) {
+          setCreatorVideos(vData.videos.slice(0, 8));
+        }
       }
     } catch (err) {
       console.warn('Stories/Videos load error:', err);
@@ -615,70 +618,53 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {[
-              {
-                id: 'vid-01',
-                title: 'Ambassadors of Christ — Kwetu Pazuri Live 4K',
-                creator: 'Ambassadors of Christ Choir',
-                thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
-                views: '482K',
-                category: 'Gospel & Choirs',
-                price: 'Free'
-              },
-              {
-                id: 'vid-02',
-                title: 'Israel Mbonyi — Nina Siri Live BK Arena',
-                creator: 'Israel Mbonyi Official',
-                thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
-                views: '890K',
-                category: 'Gospel & Choirs',
-                price: 'Free'
-              },
-              {
-                id: 'vid-03',
-                title: 'Seburikoko Season 18 Episode 1 (Afrifame Pictures)',
-                creator: 'Afrifame Pictures',
-                thumbnail: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
-                views: '312K',
-                category: 'Series & Comedy',
-                price: '300 RWF'
-              },
-              {
-                id: 'vid-04',
-                title: 'Bamenya Series Episode 142 — Byakaze mu Mujyi',
-                creator: 'Zacu TV',
-                thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=80',
-                views: '520K',
-                category: 'Series & Comedy',
-                price: 'Free'
-              }
-            ].map((vid) => (
-              <div
-                key={vid.id}
-                onClick={() => navigate(`/videos?v=${vid.id}`)}
-                className="rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-purple-500/50 overflow-hidden shadow-lg p-3 space-y-2 group cursor-pointer transition-all hover:shadow-purple-950/20"
-              >
-                <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden">
-                  <img src={vid.thumbnail} alt={vid.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <div className="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
-                      <Play className="w-4 h-4 fill-white ml-0.5" />
+            {(creatorVideos.length > 0 ? creatorVideos : (realVideosData as any[])).slice(0, 8).map((vid) => {
+              const videoId = vid.id || vid.slug;
+              const title = vid.title;
+              const creator = vid.channelName || vid.creator || 'Benix Space';
+              const thumbnail = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+              const viewsCount = typeof vid.views === 'number' ? (vid.views > 999 ? `${Math.floor(vid.views / 1000)}K` : vid.views) : (vid.views || 'Verified');
+              const priceLabel = Number(vid.price) > 0 ? `${Number(vid.price).toLocaleString()} RWF` : 'Free';
+
+              return (
+                <div
+                  key={videoId}
+                  onClick={() => navigate(`/videos/${videoId}`)}
+                  className="rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-purple-500/50 overflow-hidden shadow-lg p-3 space-y-2 group cursor-pointer transition-all hover:shadow-purple-950/20"
+                >
+                  <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden">
+                    <img
+                      src={thumbnail}
+                      alt={title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <div className="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
+                        <Play className="w-4 h-4 fill-white ml-0.5" />
+                      </div>
+                    </div>
+                    <div className="absolute top-2 left-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        priceLabel === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
+                      }`}>
+                        {priceLabel}
+                      </span>
                     </div>
                   </div>
-                  <div className="absolute top-2 left-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      vid.price === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
-                    }`}>
-                      {vid.price}
-                    </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors" title={title}>
+                      {title}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 truncate">
+                      {creator} • {viewsCount} {typeof vid.views === 'number' && vid.views > 0 ? 'views' : ''}
+                    </p>
                   </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors">{vid.title}</h4>
-                  <p className="text-[10px] text-slate-400 truncate">{vid.creator} • {vid.views} views</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 

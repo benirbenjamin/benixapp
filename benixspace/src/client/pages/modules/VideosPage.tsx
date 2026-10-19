@@ -56,6 +56,37 @@ interface VideoItem {
 // 94 Real YouTube videos provided by user (real creators & titles, 0 fake subscriber counters)
 const FALLBACK_VIDEOS: VideoItem[] = realVideosData as VideoItem[];
 
+export function getSafeYouTubeEmbedUrl(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): string {
+  if (!video) return '';
+  const vidId = video.id?.trim();
+
+  // If video id is a standard 11-char YouTube ID (e.g. B0xTrgyZGeM)
+  if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId)) {
+    return `https://www.youtube.com/embed/${vidId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+  }
+
+  // Check in embedUrl or videoUrl
+  const urlCandidate = (video.embedUrl || video.videoUrl || '').trim();
+  const ytMatch = urlCandidate.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch && ytMatch[1]) {
+    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+  }
+
+  if (urlCandidate.includes('/embed/')) {
+    const separator = urlCandidate.includes('?') ? '&' : '?';
+    return `${urlCandidate}${separator}autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+  }
+
+  return urlCandidate;
+}
+
+export function isYouTubeVideo(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): boolean {
+  if (!video) return false;
+  if (video.id && /^[a-zA-Z0-9_-]{11}$/.test(video.id)) return true;
+  const str = (video.embedUrl || video.videoUrl || '').toLowerCase();
+  return str.includes('youtube') || str.includes('youtu.be') || str.includes('/embed/');
+}
+
 const CATEGORIES = [
   'All',
   'Gospel & Choirs',
@@ -140,13 +171,13 @@ export const VideosPage: React.FC = () => {
             creator: v.channelName || v.creator || 'Verified Creator',
             channelName: v.channelName || v.creator || 'Verified Creator',
             channelAvatar: v.channelAvatar || '/logo.png',
-            thumbnail: v.thumbnailUrl || v.thumbnail || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+            thumbnail: v.thumbnailUrl || v.thumbnail || (v.id ? `https://img.youtube.com/vi/${v.id}/hqdefault.jpg` : 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80'),
             duration: v.durationLabel || (v.duration ? `${Math.floor(v.duration / 60)}:${v.duration % 60 < 10 ? '0' : ''}${v.duration % 60}` : '10:00'),
             views: v.views || 0,
             likes: v.likes || 0,
             category: v.category || 'General',
             price: v.price || 0,
-            embedUrl: v.videoUrl || v.embedUrl || '',
+            embedUrl: v.embedUrl || (v.id ? `https://www.youtube.com/embed/${v.id}` : v.videoUrl) || '',
             commission_pct: v.price > 0 ? 15 : 0,
             description: v.description || ''
           }));
@@ -160,9 +191,29 @@ export const VideosPage: React.FC = () => {
   useEffect(() => {
     const targetId = routeVideoId || searchParams.get('v');
     if (targetId) {
-      const found = videos.find((v) => v.id === targetId);
+      const found = videos.find((v) => v.id === targetId || v.id.toLowerCase() === targetId.toLowerCase());
       if (found) {
         setActiveVideo(found);
+      } else {
+        const fb = FALLBACK_VIDEOS.find((v) => v.id === targetId || v.id.toLowerCase() === targetId.toLowerCase());
+        if (fb) {
+          setActiveVideo(fb);
+        } else if (/^[a-zA-Z0-9_-]{11}$/.test(targetId)) {
+          setActiveVideo({
+            id: targetId,
+            title: 'YouTube Video Broadcast',
+            creator: 'Benix Space Channel',
+            channelName: 'Benix Space Channel',
+            channelAvatar: '/logo.png',
+            thumbnail: `https://img.youtube.com/vi/${targetId}/hqdefault.jpg`,
+            duration: '10:00',
+            views: 0,
+            likes: 0,
+            category: 'General',
+            price: 0,
+            embedUrl: `https://www.youtube.com/embed/${targetId}`
+          });
+        }
       }
     } else {
       setActiveVideo(null);
@@ -448,9 +499,9 @@ export const VideosPage: React.FC = () => {
               {/* 16:9 Cinema Player Screen */}
               <div className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl">
                 {isVideoUnlocked(activeVideo) ? (
-                  activeVideo.embedUrl.includes('youtube') || activeVideo.embedUrl.includes('embed') ? (
+                  isYouTubeVideo(activeVideo) ? (
                     <iframe
-                      src={activeVideo.embedUrl.includes('?') ? `${activeVideo.embedUrl}&autoplay=1` : `${activeVideo.embedUrl}?autoplay=1`}
+                      src={getSafeYouTubeEmbedUrl(activeVideo)}
                       title={activeVideo.title}
                       className="w-full h-full border-0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -734,10 +785,13 @@ export const VideosPage: React.FC = () => {
                         className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden cursor-pointer border border-slate-800/80 group-hover:border-purple-500/30 transition-all"
                       >
                         <img
-                          src={video.thumbnail}
+                          src={video.thumbnail || `https://img.youtube.com/vi/${video.id}/hqdefault.jpg`}
                           alt={video.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           loading="lazy"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${video.id}/hqdefault.jpg`;
+                          }}
                         />
 
                         {/* Duration Badge */}

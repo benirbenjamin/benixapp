@@ -3084,8 +3084,8 @@ const DUMMY_SAMPLE_VIDEOS: any[] = [
 
 const unlockedVideosByUser = new Map<string, Set<string>>();
 
-// Videos endpoints
-app.get('/api/modules/videos', async (req, res) => {
+// Videos endpoints (supporting /api/modules/videos and /api/videos)
+app.get(['/api/modules/videos', '/api/videos'], async (req, res) => {
   try {
     const category = req.query.category as string;
     let list = SAMPLE_VIDEOS;
@@ -3098,7 +3098,7 @@ app.get('/api/modules/videos', async (req, res) => {
   }
 });
 
-app.get('/api/modules/videos/:id', async (req, res) => {
+app.get(['/api/modules/videos/:id', '/api/videos/:id'], async (req, res) => {
   try {
     const { id } = req.params;
     const video = SAMPLE_VIDEOS.find(v => v.id === id || v.slug === id);
