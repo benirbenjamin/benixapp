@@ -51889,6 +51889,8 @@ app.post("/api/auth/register-wizard", async (req, res) => {
       email,
       password,
       name: name2,
+      channel_name,
+      nickname,
       phone,
       country = "Rwanda",
       phone_code = "+250",
@@ -51902,6 +51904,9 @@ app.post("/api/auth/register-wizard", async (req, res) => {
       return res.status(400).json({ error: "Email, password, and full name are required." });
     }
     const cleanEmail = String(email).trim().toLowerCase();
+    const cleanChannelName = String(channel_name || nickname || name2).trim().slice(0, 100);
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
+    });
     const existing = await query("SELECT id, is_verified, name FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
     if (existing.rowCount > 0) {
       const existingUser = existing.rows[0];
@@ -51954,15 +51959,16 @@ app.post("/api/auth/register-wizard", async (req, res) => {
     }
     const userRes = await query(
       `INSERT INTO core_users (
-        id, email, password_hash, name, phone, country, preferred_language,
+        id, email, password_hash, name, channel_name, phone, country, preferred_language,
         selected_modules, homepage_layout, referral_code, is_verified
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING id, email, name, role, phone, country, preferred_language, selected_modules, homepage_layout, referral_code, is_verified`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id, email, name, channel_name, role, phone, country, preferred_language, selected_modules, homepage_layout, referral_code, is_verified`,
       [
         userId,
         cleanEmail,
         pwdHash,
         name2.trim(),
+        cleanChannelName,
         phone || null,
         country || "Rwanda",
         preferred_language,
@@ -52248,6 +52254,26 @@ app.put("/api/auth/preferences", authenticateToken, async (req, res) => {
       ]
     );
     return res.json({ success: true, message: "Preferences updated successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.put("/api/auth/profile", authenticateToken, async (req, res) => {
+  try {
+    const { name: name2, phone, channel_name } = req.body;
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
+    });
+    await query(
+      `UPDATE core_users SET
+        name = COALESCE($1, name),
+        phone = COALESCE($2, phone),
+        channel_name = COALESCE($3, channel_name),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, req.user?.id]
+    );
+    const updated = await query("SELECT id, email, name, channel_name, role, phone FROM core_users WHERE id = $1", [req.user?.id]);
+    return res.json({ success: true, user: updated.rows[0], message: "Channel profile updated successfully." });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -53148,23 +53174,32 @@ app.post("/api/admin/users/:id/role", authenticateToken, requireAdminRole, async
   }
 });
 var userVideosList = [];
+async function ensureStoriesTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_stories (
+      id VARCHAR(255) PRIMARY KEY,
+      user_id VARCHAR(255),
+      author_name TEXT NOT NULL,
+      author_avatar TEXT,
+      media_url TEXT NOT NULL,
+      caption TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
+    );
+  `).catch(() => {
+  });
+  await query("ALTER TABLE core_stories ALTER COLUMN media_url TYPE TEXT;").catch(() => {
+  });
+  await query("ALTER TABLE core_stories ALTER COLUMN author_avatar TYPE TEXT;").catch(() => {
+  });
+  await query("ALTER TABLE core_stories ALTER COLUMN caption TYPE TEXT;").catch(() => {
+  });
+  await query("ALTER TABLE core_stories ALTER COLUMN author_name TYPE TEXT;").catch(() => {
+  });
+}
 app.get("/api/stories", async (req, res) => {
   try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS core_stories (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255),
-        author_name VARCHAR(255) NOT NULL,
-        author_avatar VARCHAR(500),
-        media_url TEXT NOT NULL,
-        caption TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
-      );
-    `).catch(() => {
-    });
-    await query("ALTER TABLE core_stories ALTER COLUMN media_url TYPE TEXT;").catch(() => {
-    });
+    await ensureStoriesTable();
     const result = await query(
       `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
               media_url as "mediaUrl", caption, created_at,
@@ -53184,27 +53219,14 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
   try {
     const { mediaUrl, caption } = req.body;
     if (!mediaUrl) return res.status(400).json({ error: "Story media is required." });
-    await query(`
-      CREATE TABLE IF NOT EXISTS core_stories (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255),
-        author_name VARCHAR(255) NOT NULL,
-        author_avatar VARCHAR(500),
-        media_url TEXT NOT NULL,
-        caption TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
-      );
-    `).catch(() => {
-    });
-    await query("ALTER TABLE core_stories ALTER COLUMN media_url TYPE TEXT;").catch(() => {
-    });
+    await ensureStoriesTable();
     let authorName = req.user.email?.split("@")[0] || "Benix Creator";
     let authorAvatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80";
     try {
-      const uRes = await query("SELECT name FROM core_users WHERE id = $1", [req.user.id]);
-      if (uRes.rowCount > 0 && uRes.rows[0].name) {
-        authorName = uRes.rows[0].name;
+      const uRes = await query("SELECT name, channel_name, avatar_url FROM core_users WHERE id = $1", [req.user.id]);
+      if (uRes.rowCount > 0) {
+        authorName = uRes.rows[0].channel_name || uRes.rows[0].name || authorName;
+        if (uRes.rows[0].avatar_url) authorAvatar = uRes.rows[0].avatar_url;
       }
     } catch {
     }
@@ -54002,6 +54024,31 @@ app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
     if (category && category !== "All") {
       list = list.filter((v2) => v2.category.toLowerCase() === category.toLowerCase());
     }
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS core_video_likes (
+          id SERIAL PRIMARY KEY,
+          video_id VARCHAR(255) NOT NULL,
+          user_id VARCHAR(255),
+          ip_address VARCHAR(100),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `).catch(() => {
+      });
+      const likesRes = await query(`SELECT video_id, COUNT(*) as count FROM core_video_likes GROUP BY video_id`);
+      const likesMap = /* @__PURE__ */ new Map();
+      likesRes.rows.forEach((r) => likesMap.set(r.video_id, parseInt(r.count, 10)));
+      list = list.map((v2) => {
+        const added = likesMap.get(v2.id) || 0;
+        const base2 = v2.baseLikes !== void 0 ? v2.baseLikes : v2.likes;
+        return {
+          ...v2,
+          baseLikes: base2,
+          likes: base2 + added
+        };
+      });
+    } catch {
+    }
     return res.json({ videos: list });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -54020,13 +54067,81 @@ app.get(["/api/modules/videos/:id", "/api/videos/:id"], async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-app.post("/api/modules/videos/:id/like", authenticateToken, async (req, res) => {
+app.get("/api/modules/videos-liked-ids", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      userId = decoded?.id || null;
+    }
+    const rawIp = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress || "";
+    const clientIp = rawIp.slice(0, 100);
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_video_likes (
+        id SERIAL PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255),
+        ip_address VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const likesRes = await query(
+      `SELECT video_id FROM core_video_likes WHERE (user_id = $1 AND $1 IS NOT NULL) OR ($1 IS NULL AND ip_address = $2)`,
+      [userId, clientIp]
+    );
+    return res.json({ likedVideoIds: likesRes.rows.map((r) => r.video_id) });
+  } catch {
+    return res.json({ likedVideoIds: [] });
+  }
+});
+app.post("/api/modules/videos/:id/like", async (req, res) => {
   try {
     const { id } = req.params;
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      userId = decoded?.id || null;
+    }
+    const rawIp = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress || "";
+    const clientIp = rawIp.slice(0, 100);
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_video_likes (
+        id SERIAL PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255),
+        ip_address VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_core_video_likes_uniq ON core_video_likes(video_id, COALESCE(user_id, ip_address));
+    `).catch(() => {
+    });
+    const existing = await query(
+      `SELECT id FROM core_video_likes WHERE video_id = $1 AND ((user_id = $2 AND $2 IS NOT NULL) OR ($2 IS NULL AND ip_address = $3))`,
+      [id, userId, clientIp]
+    );
+    let isLiked = false;
+    if (existing.rowCount > 0) {
+      await query(`DELETE FROM core_video_likes WHERE id = $1`, [existing.rows[0].id]);
+      isLiked = false;
+    } else {
+      await query(
+        `INSERT INTO core_video_likes (video_id, user_id, ip_address) VALUES ($1, $2, $3)`,
+        [id, userId, clientIp]
+      );
+      isLiked = true;
+    }
+    const countRes = await query(`SELECT COUNT(*) as total FROM core_video_likes WHERE video_id = $1`, [id]);
+    const addedLikes = parseInt(countRes.rows[0]?.total || "0", 10);
     const video = SAMPLE_VIDEOS.find((v2) => v2.id === id || v2.slug === id);
-    if (!video) return res.status(404).json({ error: "Video not found." });
-    video.likes += 1;
-    return res.json({ success: true, likes: video.likes });
+    if (video) {
+      if (video.baseLikes === void 0) video.baseLikes = video.likes || 0;
+      video.likes = video.baseLikes + addedLikes;
+    }
+    const currentLikes = video ? video.likes : addedLikes;
+    return res.json({ success: true, isLiked, likes: currentLikes });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -54124,8 +54239,31 @@ app.post("/api/modules/videos", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+async function ensureTvCommentsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS tv_comments (
+      id VARCHAR(255) PRIMARY KEY,
+      station_slug VARCHAR(255),
+      station_id VARCHAR(255),
+      video_id VARCHAR(255),
+      user_id VARCHAR(255),
+      author_name VARCHAR(255) NOT NULL,
+      author_avatar TEXT,
+      content TEXT NOT NULL,
+      parent_id VARCHAR(255),
+      likes_count INT DEFAULT 0,
+      is_hidden BOOLEAN DEFAULT false,
+      status VARCHAR(50) DEFAULT 'APPROVED',
+      ip_address VARCHAR(100),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tv_comments_station ON tv_comments(station_slug);
+    CREATE INDEX IF NOT EXISTS idx_tv_comments_video ON tv_comments(video_id);
+  `).catch((err) => console.warn("Could not ensure tv_comments table:", err?.message));
+}
 app.get("/api/comments", async (req, res) => {
   try {
+    await ensureTvCommentsTable();
     const { station_slug, station_id, video_id } = req.query;
     if (!station_slug && !station_id && !video_id) {
       return res.status(400).json({ error: "station_slug, station_id, or video_id is required" });
@@ -54174,9 +54312,10 @@ app.get("/api/comments", async (req, res) => {
 });
 app.post("/api/comments", async (req, res) => {
   try {
-    const { station_slug, station_id, video_id, author_name, content, parent_id, author_fingerprint } = req.body;
+    await ensureTvCommentsTable();
+    const { station_slug, station_id, video_id, author_name, content, parent_id } = req.body;
     if (!author_name || !author_name.trim()) {
-      return res.status(400).json({ error: "Author nickname is required" });
+      return res.status(400).json({ error: "Author nickname or channel name is required" });
     }
     if (!content || !content.trim()) {
       return res.status(400).json({ error: "Comment content cannot be empty" });
@@ -54200,6 +54339,24 @@ app.post("/api/comments", async (req, res) => {
         flaggedWord: contentCheck.flaggedWord
       });
     }
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    let resolvedAuthor = cleanAuthor;
+    let resolvedAvatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80";
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) {
+        userId = decoded.id;
+        try {
+          const uRes = await query("SELECT name, channel_name, avatar_url FROM core_users WHERE id = $1", [userId]);
+          if (uRes.rowCount > 0) {
+            resolvedAuthor = uRes.rows[0].channel_name || uRes.rows[0].name || resolvedAuthor;
+            if (uRes.rows[0].avatar_url) resolvedAvatar = uRes.rows[0].avatar_url;
+          }
+        } catch {
+        }
+      }
+    }
     const commentId = "cmt_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
     const rawIp = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress || "";
     const clientIp = rawIp.slice(0, 100);
@@ -54209,7 +54366,9 @@ app.post("/api/comments", async (req, res) => {
         station_slug, 
         station_id, 
         video_id,
-        author_name, 
+        user_id,
+        author_name,
+        author_avatar,
         content, 
         parent_id,
         likes_count,
@@ -54218,7 +54377,7 @@ app.post("/api/comments", async (req, res) => {
         ip_address,
         created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 0, false, 'APPROVED', $8, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, false, 'APPROVED', $10, NOW())
       RETURNING *;
     `;
     const result = await query(insertSql, [
@@ -54226,7 +54385,9 @@ app.post("/api/comments", async (req, res) => {
       station_slug || null,
       station_id || null,
       video_id || null,
-      cleanAuthor,
+      userId,
+      resolvedAuthor,
+      resolvedAvatar,
       cleanContent,
       parent_id || null,
       clientIp
@@ -54240,7 +54401,7 @@ app.post("/api/comments", async (req, res) => {
     });
   } catch (err) {
     console.error("Error posting comment:", err);
-    return res.status(500).json({ error: "Failed to post comment" });
+    return res.status(500).json({ error: err.message || "Failed to post comment" });
   }
 });
 app.post("/api/comments/:id/like", async (req, res) => {

@@ -145,6 +145,31 @@ CREATE TABLE IF NOT EXISTS social_links (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS tv_comments (
+  id VARCHAR(255) PRIMARY KEY,
+  station_slug VARCHAR(255),
+  station_id VARCHAR(255),
+  video_id VARCHAR(255),
+  user_id VARCHAR(255),
+  author_name VARCHAR(255) NOT NULL,
+  author_avatar TEXT,
+  content TEXT NOT NULL,
+  parent_id VARCHAR(255),
+  likes_count INT DEFAULT 0,
+  is_hidden BOOLEAN DEFAULT false,
+  status VARCHAR(50) DEFAULT 'APPROVED',
+  ip_address VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS core_video_likes (
+  id SERIAL PRIMARY KEY,
+  video_id VARCHAR(255) NOT NULL,
+  user_id VARCHAR(255),
+  ip_address VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);

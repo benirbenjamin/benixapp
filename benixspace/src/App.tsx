@@ -9,6 +9,7 @@ import { Footer } from './client/components/layout/Footer';
 import { BottomNav } from './client/components/layout/BottomNav';
 import { PlayerProvider, usePlayer } from './client/context/PlayerContext';
 import { PwaProvider } from './client/context/PwaContext';
+import { ActionNotificationProvider } from './client/context/ActionNotificationContext';
 import { GlobalRadioPlayer } from './client/components/player/GlobalRadioPlayer';
 import { FloatingPipTV } from './client/components/player/FloatingPipTV';
 import { RadioAdModal } from './client/components/ads/RadioAdModal';
@@ -95,7 +96,8 @@ export const App: React.FC = () => {
           <AuthProvider>
             <CoffeeProvider>
               <PwaProvider>
-                <PlayerProvider>
+                <ActionNotificationProvider>
+                  <PlayerProvider>
                 <Router>
               <RouteAnalyticsTracker />
               <Routes>
@@ -245,6 +247,7 @@ export const App: React.FC = () => {
               </Routes>
             </Router>
           </PlayerProvider>
+        </ActionNotificationProvider>
         </PwaProvider>
       </CoffeeProvider>
       </AuthProvider>

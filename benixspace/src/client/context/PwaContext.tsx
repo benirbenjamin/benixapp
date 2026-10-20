@@ -29,8 +29,11 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const checkIsInstalled = () => {
       const isStandalone =
         window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.matchMedia('(display-mode: minimal-ui)').matches ||
         (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
+        document.referrer.includes('android-app://') ||
+        localStorage.getItem('benix_pwa_installed') === 'true';
       setIsInstalled(isStandalone);
     };
 
@@ -39,12 +42,16 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. Listen to media query changes (e.g. if opened in standalone)
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
     const handleMediaChange = (e: MediaQueryListEvent) => {
-      setIsInstalled(e.matches);
+      setIsInstalled(e.matches || localStorage.getItem('benix_pwa_installed') === 'true');
     };
     mediaQuery.addEventListener('change', handleMediaChange);
 
     // 3. Listen to beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
+      // If already installed or dismissed, do not offer install
+      if (localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true') {
+        return;
+      }
       e.preventDefault();
       setDeferredPrompt(e);
       setCanInstall(true);
@@ -53,6 +60,7 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 4. Listen to appinstalled event
     const handleAppInstalled = () => {
       setIsInstalled(true);
+      localStorage.setItem('benix_pwa_installed', 'true');
       setCanInstall(false);
       setDeferredPrompt(null);
       console.log('🎉 BenixSpace PWA successfully installed!');
@@ -84,6 +92,7 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const choiceResult = await deferredPrompt.userChoice;
       if (choiceResult.outcome === 'accepted') {
         setIsInstalled(true);
+        localStorage.setItem('benix_pwa_installed', 'true');
         setCanInstall(false);
         setDeferredPrompt(null);
         return true;

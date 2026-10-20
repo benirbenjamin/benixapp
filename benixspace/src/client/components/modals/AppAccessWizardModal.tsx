@@ -65,6 +65,7 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
 
   // 5-field registration form state
   const [name, setName] = useState('');
+  const [channelName, setChannelName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
@@ -158,6 +159,8 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     setAuthLoading(true);
     const res = await registerWizard({
       name,
+      channel_name: channelName.trim() || name.trim(),
+      nickname: channelName.trim() || name.trim(),
       email,
       password,
       whatsapp: phone,
@@ -434,6 +437,24 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                         className="w-full pl-9 pr-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                      Nickname / Creator Channel Name *
+                    </label>
+                    <div className="relative">
+                      <Sparkles className="absolute left-3 top-3 w-4 h-4 text-purple-400" />
+                      <input
+                        type="text"
+                        required
+                        value={channelName}
+                        onChange={(e) => setChannelName(e.target.value)}
+                        placeholder="e.g. KigaliBeats or @jeanpaul"
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">YouTube-style channel name used for video uploads and live comments.</p>
                   </div>
 
                   <div>

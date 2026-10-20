@@ -10,6 +10,13 @@ import { getAuthToken } from '../../services/api';
 import {
   Film,
   Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
+  SkipForward,
+  SkipBack,
   Heart,
   Share2,
   Lock,
@@ -151,6 +158,17 @@ export const VideosPage: React.FC = () => {
   const [newPrice, setNewPrice] = useState(0);
   const [isPosting, setIsPosting] = useState(false);
 
+  // Media Player Ref & Playback Controls State
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [centerFeedback, setCenterFeedback] = useState<'play' | 'pause' | null>(null);
+  const feedbackTimerRef = useRef<any>(null);
+
   // Cross-Platform Referral Tracking
   useEffect(() => {
     const refCode = searchParams.get('ref');
@@ -229,28 +247,219 @@ export const VideosPage: React.FC = () => {
 
   const handleSelectVideo = (video: VideoItem) => {
     setActiveVideo(video);
+    setIsPlaying(true);
     navigate(`/videos/${video.id}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleToggleLike = (vid: VideoItem) => {
+  // Sync user's liked videos from database
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      axios
+        .get('/api/modules/videos-liked-ids', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (res.data?.likedVideoIds && Array.isArray(res.data.likedVideoIds)) {
+            const merged = Array.from(new Set([...likedVideoIds, ...res.data.likedVideoIds]));
+            setLikedVideoIds(merged);
+            localStorage.setItem('benix_liked_videos', JSON.stringify(merged));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
+  // Persistent Video Like Toggle
+  const handleToggleLike = async (vid: VideoItem) => {
     if (!user) {
       setShowWizardModal(true);
       return;
     }
-    const isLiked = likedVideoIds.includes(vid.id);
-    const updated = isLiked ? likedVideoIds.filter((id) => id !== vid.id) : [...likedVideoIds, vid.id];
-    setLikedVideoIds(updated);
-    localStorage.setItem('benix_liked_videos', JSON.stringify(updated));
 
-    setVideos((prev) =>
-      prev.map((v) => (v.id === vid.id ? { ...v, likes: isLiked ? Math.max(0, v.likes - 1) : v.likes + 1 } : v))
-    );
+    const token = getAuthToken();
+    try {
+      const res = await axios.post(`/api/modules/videos/${vid.id}/like`, {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
+      const serverLiked = res.data?.isLiked;
+      const serverLikes = res.data?.likes;
 
-    if (activeVideo && activeVideo.id === vid.id) {
-      setActiveVideo((prev) => (prev ? { ...prev, likes: isLiked ? Math.max(0, prev.likes - 1) : prev.likes + 1 } : prev));
+      const updated = serverLiked
+        ? Array.from(new Set([...likedVideoIds, vid.id]))
+        : likedVideoIds.filter((id) => id !== vid.id);
+
+      setLikedVideoIds(updated);
+      localStorage.setItem('benix_liked_videos', JSON.stringify(updated));
+
+      setVideos((prev) =>
+        prev.map((v) => (v.id === vid.id ? { ...v, likes: serverLikes !== undefined ? serverLikes : (serverLiked ? v.likes + 1 : Math.max(0, v.likes - 1)) } : v))
+      );
+
+      if (activeVideo && activeVideo.id === vid.id) {
+        setActiveVideo((prev) => (prev ? { ...prev, likes: serverLikes !== undefined ? serverLikes : (serverLiked ? prev.likes + 1 : Math.max(0, prev.likes - 1)) } : prev));
+      }
+    } catch {
+      // Local optimistic fallback
+      const isLiked = likedVideoIds.includes(vid.id);
+      const updated = isLiked ? likedVideoIds.filter((id) => id !== vid.id) : [...likedVideoIds, vid.id];
+      setLikedVideoIds(updated);
+      localStorage.setItem('benix_liked_videos', JSON.stringify(updated));
+
+      setVideos((prev) =>
+        prev.map((v) => (v.id === vid.id ? { ...v, likes: isLiked ? Math.max(0, v.likes - 1) : v.likes + 1 } : v))
+      );
+
+      if (activeVideo && activeVideo.id === vid.id) {
+        setActiveVideo((prev) => (prev ? { ...prev, likes: isLiked ? Math.max(0, prev.likes - 1) : prev.likes + 1 } : prev));
+      }
     }
   };
+
+  const triggerCenterFeedback = (type: 'play' | 'pause') => {
+    setCenterFeedback(type);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => {
+      setCenterFeedback(null);
+    }, 600);
+  };
+
+  const togglePlayPause = () => {
+    if (!activeVideo || !isVideoUnlocked(activeVideo)) return;
+    const nextPlaying = !isPlaying;
+    setIsPlaying(nextPlaying);
+    triggerCenterFeedback(nextPlaying ? 'play' : 'pause');
+
+    if (isYouTubeVideo(activeVideo)) {
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: nextPlaying ? 'playVideo' : 'pauseVideo',
+            args: ''
+          }),
+          '*'
+        );
+      }
+    } else if (videoRef.current) {
+      if (nextPlaying) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  };
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+
+    if (isYouTubeVideo(activeVideo)) {
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: nextMuted ? 'mute' : 'unMute',
+            args: ''
+          }),
+          '*'
+        );
+      }
+    } else if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+    }
+  };
+
+  const playNextVideo = () => {
+    if (!activeVideo || filteredVideos.length === 0) return;
+    const currentIdx = filteredVideos.findIndex(v => v.id === activeVideo.id);
+    const nextIdx = (currentIdx + 1) % filteredVideos.length;
+    handleSelectVideo(filteredVideos[nextIdx]);
+  };
+
+  const playPreviousVideo = () => {
+    if (!activeVideo || filteredVideos.length === 0) return;
+    const currentIdx = filteredVideos.findIndex(v => v.id === activeVideo.id);
+    const prevIdx = (currentIdx - 1 + filteredVideos.length) % filteredVideos.length;
+    handleSelectVideo(filteredVideos[prevIdx]);
+  };
+
+  const toggleFullscreen = async () => {
+    const container = playerContainerRef.current;
+    if (!container) return;
+
+    if (!document.fullscreenElement) {
+      try {
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+        } else if ((container as any).webkitRequestFullscreen) {
+          await (container as any).webkitRequestFullscreen();
+        }
+        setIsFullscreen(true);
+        // Force Landscape screen orientation
+        if (screen.orientation && 'lock' in screen.orientation) {
+          await (screen.orientation as any).lock('landscape').catch(() => {});
+        }
+      } catch (err) {}
+    } else {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        }
+        setIsFullscreen(false);
+        if (screen.orientation && 'unlock' in screen.orientation) {
+          screen.orientation.unlock();
+        }
+      } catch (err) {}
+    }
+  };
+
+  // Fullscreen event listener
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+      if (!document.fullscreenElement && screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch {}
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  // Keyboard Shortcuts: Space (Play/Pause), N (Next), P (Prev), M (Mute), F (Fullscreen)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        playNextVideo();
+      } else if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        playPreviousVideo();
+      } else if (e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, isMuted, isFullscreen, activeVideo, filteredVideos]);
 
   const handleToggleSubscribe = (channelName: string) => {
     if (!user) {
@@ -497,25 +706,115 @@ export const VideosPage: React.FC = () => {
             <div className="lg:col-span-8 space-y-4">
               
               {/* 16:9 Cinema Player Screen */}
-              <div className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl">
+              <div
+                ref={playerContainerRef}
+                className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl group select-none"
+              >
                 {isVideoUnlocked(activeVideo) ? (
-                  isYouTubeVideo(activeVideo) ? (
-                    <iframe
-                      src={getSafeYouTubeEmbedUrl(activeVideo)}
-                      title={activeVideo.title}
-                      className="w-full h-full border-0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
+                  <>
+                    {isYouTubeVideo(activeVideo) ? (
+                      <iframe
+                        ref={iframeRef}
+                        src={getSafeYouTubeEmbedUrl(activeVideo)}
+                        title={activeVideo.title}
+                        className="w-full h-full border-0 pointer-events-auto"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        ref={videoRef}
+                        src={activeVideo.embedUrl}
+                        controls
+                        autoPlay
+                        className="w-full h-full object-cover"
+                        poster={activeVideo.thumbnail}
+                      />
+                    )}
+
+                    {/* Middle Player Click Area: Click to Toggle Play/Pause, Double Click for Landscape Fullscreen */}
+                    <div
+                      onClick={togglePlayPause}
+                      onDoubleClick={toggleFullscreen}
+                      className="absolute inset-0 z-10 cursor-pointer pointer-events-auto"
+                      title="Click middle to Pause/Play • Double Click for Landscape Fullscreen"
                     />
-                  ) : (
-                    <video
-                      src={activeVideo.embedUrl}
-                      controls
-                      autoPlay
-                      className="w-full h-full object-cover"
-                      poster={activeVideo.thumbnail}
-                    />
-                  )
+
+                    {/* Middle Ripple Icon Feedback (Play / Pause) */}
+                    {centerFeedback && (
+                      <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+                        <div className="p-5 rounded-full bg-black/80 backdrop-blur-md text-white border border-white/20 shadow-2xl animate-in zoom-in duration-200">
+                          {centerFeedback === 'play' ? (
+                            <Play className="w-12 h-12 fill-current ml-1 text-purple-400" />
+                          ) : (
+                            <Pause className="w-12 h-12 fill-current text-purple-400" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fullscreen Floating Exit Button */}
+                    {isFullscreen && (
+                      <div className="absolute top-4 right-4 z-40 flex items-center gap-3">
+                        <button
+                          onClick={toggleFullscreen}
+                          className="px-4 py-2.5 rounded-2xl bg-black/85 hover:bg-black text-white font-extrabold text-xs border border-white/30 flex items-center gap-2 shadow-2xl backdrop-blur-md transition-all active:scale-95"
+                        >
+                          <Minimize className="w-4 h-4 text-purple-400" />
+                          <span>Exit Fullscreen</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* On-Screen Bottom Control Strip (Hover) */}
+                    <div className="absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <button
+                          onClick={togglePlayPause}
+                          className="p-2 sm:p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                        >
+                          {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                        </button>
+
+                        <button
+                          onClick={playPreviousVideo}
+                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                          title="Previous Video (P)"
+                        >
+                          <SkipBack className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={playNextVideo}
+                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                          title="Next Video (N)"
+                        >
+                          <SkipForward className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={toggleMute}
+                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                          title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+                        >
+                          {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
+                        </button>
+
+                        <span className="hidden md:inline-block text-[11px] text-slate-400 font-mono pl-2">
+                          Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={toggleFullscreen}
+                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        title="Toggle Landscape Fullscreen (F)"
+                      >
+                        {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-slate-950/80 via-black to-slate-950">
                     <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-2xl mb-4">

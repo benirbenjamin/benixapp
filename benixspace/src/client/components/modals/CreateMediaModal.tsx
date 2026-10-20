@@ -79,7 +79,7 @@ const compressImage = (file: File, maxDimension = 1080, quality = 0.75): Promise
 };
 
 export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
-  const { user, token } = useAuth();
+  const { user, token, updateProfile } = useAuth();
   const [tab, setTab] = useState<'story' | 'video'>('story');
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -90,6 +90,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   const [storyPreview, setStoryPreview] = useState<string | null>(null);
 
   // Video Form State
+  const [channelNameInput, setChannelNameInput] = useState(user?.channel_name || user?.name || '');
   const [videoSourceMode, setVideoSourceMode] = useState<'youtube' | 'file'>('youtube');
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDesc, setVideoDesc] = useState('');
@@ -168,8 +169,16 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           caption: storyCaption.trim()
         })
       });
-      const data = await res.json();
-      if (res.ok) {
+
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text.slice(0, 150) || 'Server returned invalid response');
+      }
+
+      if (res.ok && data.success) {
         notificationSound.playNotificationChime();
         setStatusMsg({ text: 'Story published successfully! Visible on homepage for 24 hours.' });
         setTimeout(() => {
@@ -256,6 +265,11 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     e.preventDefault();
     setStatusMsg(null);
 
+    if (!channelNameInput.trim()) {
+      setStatusMsg({ text: 'Please set your Creator Channel Name first before publishing videos.', error: true });
+      return;
+    }
+
     if (!videoTitle.trim() || !videoUrl.trim()) {
       setStatusMsg({ text: 'Video Title and Video Stream / YouTube Link are required.', error: true });
       return;
@@ -263,6 +277,11 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
     try {
       setLoading(true);
+
+      // Save channel name if changed
+      if (channelNameInput.trim() !== user?.channel_name) {
+        await updateProfile({ channel_name: channelNameInput.trim() });
+      }
 
       // Clean / Format YouTube embed URL if applicable
       let formattedUrl = videoUrl.trim();
@@ -556,6 +575,25 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                   </div>
                 </div>
               )}
+
+              {/* Creator Channel Name Requirement */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  Creator Channel Name *
+                </label>
+                <div className="relative">
+                  <Sparkles className="absolute left-3 top-2.5 w-4 h-4 text-purple-400" />
+                  <input
+                    type="text"
+                    value={channelNameInput}
+                    onChange={(e) => setChannelNameInput(e.target.value)}
+                    placeholder="e.g. KigaliBeats, Isibo Creator, or @channel"
+                    required
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-purple-500 font-bold"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">Your creator identity for this broadcast.</span>
+              </div>
 
               {/* Editable Video Title */}
               <div>

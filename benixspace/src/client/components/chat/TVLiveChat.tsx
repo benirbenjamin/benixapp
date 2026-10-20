@@ -14,11 +14,13 @@ import {
   X,
   AlertTriangle,
   Coffee,
-  ShieldAlert
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
 import { checkInappropriateLanguage } from '../../utils/moderation';
 import { useCoffee } from '../../context/CoffeeContext';
 import { useAuth } from '../../context/AuthContext';
+import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 
 export interface Comment {
   id: string;
@@ -104,17 +106,19 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // User nickname state stored in localStorage (or database name if logged in)
+  // User channel / nickname state (strictly from registered super-account or channel)
   const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem('benix_chat_username') || '';
+    return user?.channel_name || user?.name || localStorage.getItem('benix_chat_username') || '';
   });
 
-  // Automatically keep user name synced with registered database name
+  // Automatically keep user name synced with registered database channel / name
   useEffect(() => {
-    if (user?.name) {
-      setUserName(user.name);
-      localStorage.setItem('benix_chat_username', user.name);
+    if (user) {
+      const active = user.channel_name || user.name;
+      setUserName(active);
+      localStorage.setItem('benix_chat_username', active);
     }
   }, [user]);
 
@@ -246,7 +250,18 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
 
   // Submit comment or reply with multilingual filter check
   const postCommentOrReply = async (text: string, parentId?: string, overrideName?: string) => {
-    const activeName = (overrideName || user?.name || userName || '').trim();
+    // Comments strictly require verified login account
+    if (!user) {
+      pendingActionRef.current = {
+        type: parentId ? 'reply' : 'comment',
+        parentId,
+        text,
+      };
+      setShowAuthModal(true);
+      return;
+    }
+
+    const activeName = (overrideName || user.channel_name || user.name || userName || '').trim();
 
     if (!activeName) {
       pendingActionRef.current = {
@@ -290,9 +305,13 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
         payload.station_id = station?.id;
       }
 
+      const token = localStorage.getItem('benix_auth_token');
       const res = await fetch('/api/comments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload),
       });
 
@@ -331,6 +350,10 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
 
   // Like a comment
   const handleLike = async (commentId: string) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (likedIds.has(commentId)) return;
 
     const newLiked = new Set(likedIds);
@@ -492,6 +515,10 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
 
                           <button
                             onClick={() => {
+                              if (!user) {
+                                setShowAuthModal(true);
+                                return;
+                              }
                               if (replyingToId === comment.id) {
                                 setReplyingToId(null);
                               } else {
@@ -607,49 +634,76 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
 
       {/* Bottom Main Composer & Coffee Support */}
       <div className="p-3 bg-[#141A29] border-t border-slate-800 space-y-2">
-        <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-          <span className="flex items-center gap-1">
-            <span>Speaking as:</span>
-            <strong className="text-white">{userName || 'Guest User'}</strong>
-          </span>
-          <button
-            onClick={() => openCoffeeModal(1)}
-            className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 text-[10px] transition-colors"
-          >
-            <Coffee className="w-3.5 h-3.5" />
-            <span>Buy Us a Coffee</span>
-          </button>
-        </div>
+        {!user ? (
+          <div className="p-3.5 bg-gradient-to-r from-blue-900/30 via-[#101726] to-purple-900/30 border border-blue-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div>
+              <h5 className="font-extrabold text-xs text-white flex items-center justify-center sm:justify-start gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-blue-400" />
+                <span>Log in to Comment or Reply</span>
+              </h5>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Join live TV & video chats using your verified creator channel.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition-all shrink-0"
+            >
+              Sign In / Register
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+              <span className="flex items-center gap-1.5">
+                <span>Commenting as:</span>
+                <strong className="text-white font-bold">{user.channel_name || user.name}</strong>
+                <button
+                  onClick={() => {
+                    setNameInput(user.channel_name || user.name);
+                    setIsNameModalOpen(true);
+                  }}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 underline font-medium ml-1"
+                >
+                  (Edit Channel)
+                </button>
+              </span>
+              <button
+                onClick={() => openCoffeeModal(1)}
+                className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 text-[10px] transition-colors"
+              >
+                <Coffee className="w-3.5 h-3.5" />
+                <span>Buy Us a Coffee</span>
+              </button>
+            </div>
 
-        <div className="flex gap-2">
-          <textarea
-            ref={mainInputRef}
-            rows={2}
-            value={mainCommentText}
-            onChange={(e) => setMainCommentText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                postCommentOrReply(mainCommentText);
-              }
-            }}
-            placeholder={
-              userName
-                ? `Join the live chat as ${userName}...`
-                : 'Type your message (you will pick a nickname)...'
-            }
-            className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-          />
+            <div className="flex gap-2">
+              <textarea
+                ref={mainInputRef}
+                rows={2}
+                value={mainCommentText}
+                onChange={(e) => setMainCommentText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    postCommentOrReply(mainCommentText);
+                  }
+                }}
+                placeholder={`Comment as ${user.channel_name || user.name}...`}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              />
 
-          <button
-            onClick={() => postCommentOrReply(mainCommentText)}
-            disabled={submitting || !mainCommentText.trim()}
-            className="px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs disabled:opacity-50 transition-all flex flex-col items-center justify-center gap-1 shadow-lg shadow-blue-600/20 shrink-0"
-          >
-            <Send className="w-4 h-4" />
-            <span>Post</span>
-          </button>
-        </div>
+              <button
+                onClick={() => postCommentOrReply(mainCommentText)}
+                disabled={submitting || !mainCommentText.trim()}
+                className="px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs disabled:opacity-50 transition-all flex flex-col items-center justify-center gap-1 shadow-lg shadow-blue-600/20 shrink-0"
+              >
+                <Send className="w-4 h-4" />
+                <span>Post</span>
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Nickname Selection Modal */}
@@ -659,7 +713,7 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
             <div className="flex items-center justify-between">
               <h4 className="font-black text-base flex items-center gap-2">
                 <User className="w-4 h-4 text-blue-400" />
-                <span>Choose Your Nickname</span>
+                <span>Set Your Channel / Nickname</span>
               </h4>
               <button
                 onClick={() => setIsNameModalOpen(false)}
@@ -670,7 +724,7 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
             </div>
 
             <p className="text-xs text-slate-400">
-              Pick a respectful nickname to participate in live TV and video comments.
+              Pick your creator channel name to participate in live TV and video discussions.
             </p>
 
             {nameError && (
@@ -687,7 +741,7 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
                 maxLength={40}
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
-                placeholder="e.g. Mugabo Kigali"
+                placeholder="e.g. KigaliBeats or Mugabo"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
               />
 
@@ -696,11 +750,22 @@ export const TVLiveChat: React.FC<TVLiveChatProps> = ({ station, videoId, title 
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Continue to Chat</span>
+                <span>Save Channel Name</span>
               </button>
             </form>
           </div>
         </div>
+      )}
+
+      {/* Auth / Login Modal for Live Comments */}
+      {showAuthModal && (
+        <AppAccessWizardModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          targetAppKey="tv"
+          initialTab="login"
+          onSuccess={() => setShowAuthModal(false)}
+        />
       )}
 
     </div>

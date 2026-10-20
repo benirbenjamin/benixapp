@@ -5,6 +5,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  channel_name?: string;
   role: string;
   phone?: string;
   whatsapp?: string;
@@ -53,6 +54,7 @@ interface AuthContextType {
   updatePreferences: (modules: string[], layout?: any) => Promise<void>;
   updateWalletBalance: (newBalance: number, newBonusBalance?: number) => void;
   claimDailyBonus: () => Promise<{ success: boolean; bonusAmount?: number; message?: string }>;
+  updateProfile: (data: { name?: string; phone?: string; channel_name?: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -71,7 +73,8 @@ const AuthContext = createContext<AuthContextType>({
   refreshWallet: async () => {},
   updatePreferences: async () => {},
   updateWalletBalance: () => {},
-  claimDailyBonus: async () => ({ success: false })
+  claimDailyBonus: async () => ({ success: false }),
+  updateProfile: async () => ({ success: false })
 });
 
 // Configure Axios instance
@@ -315,6 +318,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const cleanData = {
         name: data.name.trim(),
+        channel_name: (data.channel_name || data.nickname || data.name).trim(),
         email: cleanEmail,
         password: data.password,
         phone: (data.whatsapp || data.phone || '').trim(),
@@ -526,6 +530,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateProfile = async (profileData: { name?: string; phone?: string; channel_name?: string }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await apiClient.put('/api/auth/profile', profileData, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
+      if (res.data?.success && res.data?.user) {
+        setUser((prev) => (prev ? { ...prev, ...res.data.user } : res.data.user));
+        localStorage.setItem('benix_user', JSON.stringify({ ...user, ...res.data.user }));
+        return { success: true };
+      }
+      return { success: false, error: res.data?.error || 'Failed to update profile' };
+    } catch (err: any) {
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  };
+
+  const claimDailyBonus = async (): Promise<{ success: boolean; bonusAmount?: number; message?: string }> => {
+    try {
+      const res = await apiClient.post('/api/wallet/claim-daily-bonus', {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
+      if (res.data?.success) {
+        await refreshMe();
+        return { success: true, bonusAmount: res.data.bonusAmount, message: res.data.message };
+      }
+      return { success: false, message: res.data?.message || 'Could not claim daily bonus.' };
+    } catch (err: any) {
+      return { success: false, message: err.response?.data?.error || err.message };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -543,7 +578,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshMe,
         refreshWallet: refreshMe,
         updatePreferences,
-        updateWalletBalance
+        updateWalletBalance,
+        claimDailyBonus,
+        updateProfile
       }}
     >
       {children}

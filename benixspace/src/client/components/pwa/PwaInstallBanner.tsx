@@ -7,43 +7,36 @@ export const PwaInstallBanner: React.FC = () => {
   const [isVisible, setIsVisible] = useState<boolean>(false);
 
   useEffect(() => {
-    // If app is already installed in standalone mode, NEVER show
-    if (isInstalled) {
+    // If app is already installed in standalone mode or recorded in localStorage, NEVER show
+    if (isInstalled || localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true') {
       setIsVisible(false);
       return;
     }
 
-    // Check if dismissed today
-    const today = new Date().toISOString().split('T')[0];
-    const dismissedDate = localStorage.getItem('benix_pwa_dismissed_date');
-
-    if (dismissedDate === today) {
-      setIsVisible(false);
-      return;
-    }
-
-    // Show after a polite 1.5s delay
+    // Show after a polite delay only on first non-installed visit
     const timer = setTimeout(() => {
-      setIsVisible(true);
-    }, 1500);
+      if (!isInstalled && localStorage.getItem('benix_pwa_installed') !== 'true' && localStorage.getItem('benix_pwa_dismissed') !== 'true') {
+        setIsVisible(true);
+      }
+    }, 4000);
 
     return () => clearTimeout(timer);
   }, [isInstalled]);
 
   const handleDismiss = () => {
-    const today = new Date().toISOString().split('T')[0];
-    localStorage.setItem('benix_pwa_dismissed_date', today);
+    localStorage.setItem('benix_pwa_dismissed', 'true');
     setIsVisible(false);
   };
 
   const handleInstall = async () => {
     const success = await installApp();
     if (success) {
+      localStorage.setItem('benix_pwa_installed', 'true');
       setIsVisible(false);
     }
   };
 
-  if (!isVisible || isInstalled) {
+  if (!isVisible || isInstalled || (typeof window !== 'undefined' && (localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true'))) {
     return null;
   }
 

@@ -47,7 +47,20 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
+  const [centerFeedback, setCenterFeedback] = useState<'play' | 'pause' | null>(null);
+  const feedbackTimerRef = useRef<any>(null);
   const controlsTimeoutRef = useRef<any>(null);
+
+  const triggerFeedback = (type: 'play' | 'pause') => {
+    setCenterFeedback(type);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setCenterFeedback(null), 600);
+  };
+
+  const handleToggleTvPlay = () => {
+    triggerFeedback(!isTvPlaying ? 'play' : 'pause');
+    toggleTvPlay();
+  };
 
   const streamUrl = station.stream_url || station.streamUrl || '';
 
@@ -153,14 +166,72 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
     }, 3500);
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      try {
+        if (containerRef.current.requestFullscreen) {
+          await containerRef.current.requestFullscreen();
+        } else if ((containerRef.current as any).webkitRequestFullscreen) {
+          await (containerRef.current as any).webkitRequestFullscreen();
+        }
+        setIsFullscreen(true);
+        if (screen.orientation && 'lock' in screen.orientation) {
+          await (screen.orientation as any).lock('landscape').catch(() => {});
+        }
+      } catch (e) {}
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        }
+        setIsFullscreen(false);
+        if (screen.orientation && 'unlock' in screen.orientation) {
+          screen.orientation.unlock();
+        }
+      } catch (e) {}
     }
   };
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const onFs = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+      if (!document.fullscreenElement && screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch {}
+      }
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+    };
+  }, []);
+
+  // Keyboard Shortcuts: Space (Play/Pause), M (Mute/Unmute), F (Landscape Fullscreen)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        handleToggleTvPlay();
+      } else if (e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleTvMute();
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTvPlaying, isTvMuted, isFullscreen]);
 
   const retryPlayback = () => {
     setError(null);
@@ -185,6 +256,40 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
         autoPlay={autoPlay}
         muted={isTvMuted}
       />
+
+      {/* Middle Player Click Area: Click to Toggle Play/Pause, Double-Click for Landscape Fullscreen */}
+      <div
+        onClick={handleToggleTvPlay}
+        onDoubleClick={toggleFullscreen}
+        className="absolute inset-0 z-10 cursor-pointer pointer-events-auto"
+        title="Click to Pause/Play • Double-Click for Landscape Fullscreen"
+      />
+
+      {/* Center Ripple Feedback (Play / Pause) */}
+      {centerFeedback && (
+        <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+          <div className="p-5 rounded-full bg-black/80 backdrop-blur-md text-white border border-white/20 shadow-2xl animate-in zoom-in duration-200">
+            {centerFeedback === 'play' ? (
+              <Play className="w-12 h-12 fill-current ml-1 text-blue-400" />
+            ) : (
+              <Pause className="w-12 h-12 fill-current text-blue-400" />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Visible Exit Button */}
+      {isFullscreen && (
+        <div className="absolute top-4 right-4 z-40 flex items-center gap-3">
+          <button
+            onClick={toggleFullscreen}
+            className="px-4 py-2.5 rounded-2xl bg-black/85 hover:bg-black text-white font-extrabold text-xs border border-white/30 flex items-center gap-2 shadow-2xl backdrop-blur-md transition-all active:scale-95"
+          >
+            <Minimize className="w-4 h-4 text-blue-400" />
+            <span>Exit Fullscreen</span>
+          </button>
+        </div>
+      )}
 
       {/* Benix Space Watermark Branding */}
       <div className="absolute top-4 left-4 z-20 pointer-events-none flex items-center gap-2 bg-[#0B0E14]/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 shadow-lg">
@@ -238,9 +343,10 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
         {/* Left: Play/Pause & Live Station Pill */}
         <div className="flex items-center gap-3">
           <button
-            onClick={toggleTvPlay}
+            onClick={handleToggleTvPlay}
             className="p-2 sm:p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
-            aria-label={isTvPlaying ? 'Pause' : 'Play'}
+            aria-label={isTvPlaying ? 'Pause (Space)' : 'Play (Space)'}
+            title={isTvPlaying ? 'Pause (Space)' : 'Play (Space)'}
           >
             {isTvPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-current" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current ml-0.5" />}
           </button>
@@ -252,6 +358,10 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
               LIVE HD
             </span>
           </div>
+
+          <span className="hidden md:inline-block text-[11px] text-slate-400 font-mono pl-2">
+            Space: Pause • M: Mute • F: Fullscreen
+          </span>
         </div>
 
         {/* Right: Volume & Fullscreen */}
@@ -259,7 +369,7 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
           <button
             onClick={toggleTvMute}
             className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-            title={isTvMuted ? 'Unmute' : 'Mute'}
+            title={isTvMuted ? 'Unmute (M)' : 'Mute (M)'}
           >
             {isTvMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
           </button>
@@ -267,7 +377,7 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
           <button
             onClick={toggleFullscreen}
             className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-            title="Fullscreen"
+            title="Toggle Landscape Fullscreen (F)"
           >
             {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
           </button>

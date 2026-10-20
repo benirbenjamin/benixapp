@@ -38,6 +38,7 @@ import { NotificationTray } from '../modals/NotificationTray';
 import { MessagesDrawer } from '../modals/MessagesDrawer';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
 import { usePwa } from '../../context/PwaContext';
+import { useInAppActions } from '../../context/ActionNotificationContext';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
 
 export const Navbar: React.FC = () => {
@@ -64,6 +65,7 @@ export const Navbar: React.FC = () => {
 
   const { user, wallet, logout, hasAppProfile } = useAuth();
   const { isInstalled, installApp } = usePwa();
+  const { totalBadgeCount, inboxBadgeCount } = useInAppActions();
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -93,10 +95,13 @@ export const Navbar: React.FC = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsDrawerOpen(true)}
-                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
+                className="relative p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
                 title="Open Navigation Menu"
               >
                 <Menu className="w-5 h-5" />
+                {totalBadgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-[#0B0E14] animate-pulse" />
+                )}
               </button>
 
               <Link to="/" className="flex items-center gap-2.5 group">
@@ -172,17 +177,24 @@ export const Navbar: React.FC = () => {
                 title="Direct Messages"
               >
                 <MessageSquare className="w-5 h-5" />
+                {inboxBadgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-[10px] font-black text-white flex items-center justify-center border-2 border-[#0B0E14] shadow-md">
+                    {inboxBadgeCount}
+                  </span>
+                )}
               </button>
 
               {/* Notification Bell */}
               <button
                 onClick={() => setShowNotifications(true)}
                 className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
-                title="Notifications"
+                title="In-App Notifications & Actions"
               >
                 <Bell className="w-5 h-5" />
-                {user && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-[#0B0E14]" />
+                {totalBadgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-[10px] font-black text-white flex items-center justify-center border-2 border-[#0B0E14] shadow-md animate-pulse">
+                    {totalBadgeCount}
+                  </span>
                 )}
               </button>
 
@@ -377,6 +389,79 @@ export const Navbar: React.FC = () => {
                 </Link>
               )}
 
+              {/* Actions & Inbox Menu Strip */}
+              <div className="space-y-1.5 pb-2 border-b border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
+                  Actions & Inbox
+                </span>
+
+                <button
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    setShowNotifications(true);
+                  }}
+                  className="w-full p-2.5 rounded-2xl bg-[#121927] hover:bg-slate-800 border border-slate-700/60 flex items-center justify-between text-xs font-bold text-white transition-all text-left shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400">
+                      <Bell className="w-4 h-4" />
+                    </div>
+                    <span>Action Center & Alerts</span>
+                  </div>
+                  {totalBadgeCount > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black animate-pulse shadow-md">
+                      {totalBadgeCount} New
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">All clear</span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    if (!user) {
+                      setWizardAppKey('dating');
+                    } else {
+                      navigate('/messages');
+                    }
+                  }}
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-blue-500/15 text-blue-400">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <span>Inbox & Messages</span>
+                  </div>
+                  {inboxBadgeCount > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-black shadow-md">
+                      {inboxBadgeCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {user && (
+                  <button
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      navigate('/dashboard#wallet');
+                    }}
+                    className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400">
+                        <WalletIcon className="w-4 h-4" />
+                      </div>
+                      <span>Central Wallet</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-400">
+                      {formatCurrencyCompact(Number(wallet?.balance ?? 0))}
+                    </span>
+                  </button>
+                )}
+              </div>
+
               {/* App Navigation Modules */}
               <div className="space-y-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
@@ -415,12 +500,19 @@ export const Navbar: React.FC = () => {
 
                 <button
                   onClick={() => handleAppClick('kunda', '/dating')}
-                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
                 >
-                  <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400">
-                    <Heart className="w-4 h-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400">
+                      <Heart className="w-4 h-4" />
+                    </div>
+                    <span>Kunda Space Dating</span>
                   </div>
-                  <span>Kunda Space Dating</span>
+                  {user && !hasAppProfile('dating') && !hasAppProfile('kunda') && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[9px] font-black uppercase border border-rose-500/30 animate-pulse">
+                      Action
+                    </span>
+                  )}
                 </button>
 
                 <button
