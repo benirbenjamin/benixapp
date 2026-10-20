@@ -101,43 +101,102 @@ const INITIAL_CONVERSATIONS: ChatConversation[] = [
 
 const QUICK_EMOJIS = ['❤️', '🔥', '😂', '😍', '👋', '✨', '🌹', '👍', '🙏', '💯'];
 
-// Contact Moderation Rule: Block sending phone numbers directly in chat
+const ALL_NUMBER_WORDS_MAP: Record<string, string> = {
+  // English
+  zero: '0', oh: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
+  six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+  // Kinyarwanda
+  zeru: '0', rimwe: '1', kabiri: '2', gatatu: '3', kane: '4',
+  gatanu: '5', gatandatu: '6', karindwi: '7', umunani: '8', icyenda: '9', icumi: '10', mirongo: '',
+  // French
+  zéro: '0', un: '1', une: '1', deux: '2', trois: '3',
+  quatre: '4', cinq: '5', sept: '7', huit: '8', neuf: '9', dix: '10',
+  // Swahili
+  sifuri: '0', moja: '1', mbili: '2', tatu: '3', nne: '4',
+  tano: '5', sita: '6', saba: '7', nane: '8', tisa: '9', kumi: '10'
+};
+
+const SOCIAL_MEDIA_KEYWORDS = [
+  'whatsapp', 'whatsap', 'whats app', 'wa.me', 'watsapp',
+  'instagram', 'insta', 'telegram', 't.me', 'snapchat', 'facebook', 'tiktok',
+  'call me on', 'reach me at', 'text me on',
+  'hamagara kuri', 'unyandikire kuri', 'nimero yanjye', 'nimero yange',
+  'appelle moi sur', 'mon numero est'
+];
+
+// Contact Moderation Rule: Block sending phone numbers in digits or words
 function checkContactModerationText(message: string): { isViolation: boolean; reason?: string } {
   if (!message || typeof message !== 'string') return { isViolation: false };
 
-  // Detect 7+ consecutive digits (e.g. 0783987223, +250788123456)
+  const rawLower = message.toLowerCase();
+
+  // 1. Detect external links / social redirection keywords
+  for (const p of SOCIAL_MEDIA_KEYWORDS) {
+    if (rawLower.includes(p)) {
+      return {
+        isViolation: true,
+        reason: `Direct contact redirection (${p}) is restricted. Use the official Unlock Phone button.`
+      };
+    }
+  }
+
+  // 2. Detect 7+ consecutive digits (e.g. 0783987223, +250788123456)
   const cleanedDigits = message.replace(/[\s.\-()+_]/g, '');
   if (cleanedDigits.match(/\d{7,15}/)) {
     return {
       isViolation: true,
-      reason: 'Sharing personal phone numbers directly in chat is restricted by Benix privacy policy. Use the Unlock Phone button (500 RWF) to securely view verified contact information.'
+      reason: 'Sharing personal phone numbers directly in chat is restricted by Benix privacy policy. Use the Unlock Phone button to securely view verified contact information.'
     };
   }
 
-  // Detect spelled numbers
-  const numWords = ['zero', 'zeru', 'rimwe', 'kabiri', 'gatatu', 'kane', 'gatanu', 'gatandatu', 'karindwi', 'umunani', 'icyenda', 'icumi', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
-  const words = message.toLowerCase().split(/[\s,.;:!?\-/]+/);
-  let count = 0;
-  for (const w of words) {
-    if (numWords.includes(w)) {
-      count++;
-      if (count >= 4) {
-        return {
-          isViolation: true,
-          reason: 'Spelling out phone numbers is prohibited. Please use the secure Unlock Contact Phone option.'
-        };
-      }
+  // 3. Robust Number Words & Spelled Digits Detection across all languages
+  const normalizedText = message
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s,.;:!?\-_/\\*~()+=@#]+/g, ' ')
+    .trim();
+
+  const tokens = normalizedText.split(' ').filter(Boolean);
+
+  let numberWordsCount = 0;
+  let translatedDigitStream = '';
+
+  for (const token of tokens) {
+    if (/^\d+$/.test(token)) {
+      numberWordsCount++;
+      translatedDigitStream += token;
+    } else if (ALL_NUMBER_WORDS_MAP[token] !== undefined) {
+      numberWordsCount++;
+      translatedDigitStream += ALL_NUMBER_WORDS_MAP[token];
     }
   }
 
-  // Detect direct external link invites
-  const lower = message.toLowerCase();
-  const prohibited = ['wa.me/', 'whatsapp.com/channel', 't.me/', 'call me on', 'reach me at', 'hamagara kuri', 'nimero yanjye'];
-  for (const p of prohibited) {
-    if (lower.includes(p)) {
+  // If 3 or more number words/digits appear anywhere in the message
+  if (numberWordsCount >= 3) {
+    return {
+      isViolation: true,
+      reason: 'Spelling out phone numbers in words or digits is prohibited. Please use the secure Unlock Contact Phone option.'
+    };
+  }
+
+  // If translated stream contains 6 or more digits or matches Rwandan mobile patterns (07... / 2507...)
+  if (translatedDigitStream.length >= 6 || /07\d{4,}/.test(translatedDigitStream) || /2507\d{4,}/.test(translatedDigitStream)) {
+    return {
+      isViolation: true,
+      reason: 'Sharing contact information in words or digits is restricted. Please use the official Unlock Phone feature.'
+    };
+  }
+
+  // 4. Contact solicitation keywords combined with any digits/number words
+  const solicitationPhrases = [
+    'call me', 'hamagara', 'reach me', 'unyandikire', 'nimero', 'numero', 'contact me', 'text me'
+  ];
+  for (const phrase of solicitationPhrases) {
+    if (rawLower.includes(phrase) && (numberWordsCount >= 2 || /\d{2,}/.test(message))) {
       return {
         isViolation: true,
-        reason: 'Direct contact redirection is restricted. Use the official Unlock Contact Phone feature.'
+        reason: 'Sharing direct contact information is prohibited. Use the verified Unlock Phone feature.'
       };
     }
   }
@@ -215,6 +274,9 @@ export const MessagesPage: React.FC = () => {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
 
+  // Broadcasts list from database
+  const [broadcastsList, setBroadcastsList] = useState<any[]>([]);
+
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Load user's unlocked contacts list
@@ -246,9 +308,120 @@ export const MessagesPage: React.FC = () => {
       .catch(() => {});
   };
 
+  // Load conversations from PostgreSQL chat_direct_messages
+  const fetchConversations = () => {
+    const token = getAuthToken();
+    if (!token) return;
+    axios
+      .get('/api/chat/conversations', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (res.data?.conversations && Array.isArray(res.data.conversations)) {
+          setConversations((prev) => {
+            const map = new Map<string, ChatConversation>();
+            const supportConvo = prev.find((c) => c.partnerId === 'support') || INITIAL_CONVERSATIONS[0];
+            map.set('support', supportConvo);
+
+            for (const c of res.data.conversations) {
+              const existing = prev.find((p) => p.partnerId === c.partnerId);
+              map.set(c.partnerId, {
+                ...c,
+                messages: existing?.messages && existing.messages.length > 0 ? existing.messages : []
+              });
+            }
+
+            for (const p of prev) {
+              if (!map.has(p.partnerId)) map.set(p.partnerId, p);
+            }
+
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+  };
+
+  // Load message history with specific partner from PostgreSQL
+  const fetchMessages = (partnerId: string) => {
+    if (!partnerId) return;
+    const token = getAuthToken();
+    if (!token) return;
+    axios
+      .get(`/api/chat/messages/${partnerId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (res.data?.messages && Array.isArray(res.data.messages)) {
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.partnerId === partnerId) {
+                return {
+                  ...c,
+                  messages: res.data.messages
+                };
+              }
+              return c;
+            })
+          );
+        }
+      })
+      .catch(() => {});
+  };
+
+  // Load groups from PostgreSQL chat_groups
+  const fetchGroups = () => {
+    const token = getAuthToken();
+    if (!token) return;
+    axios
+      .get('/api/chat/groups', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (res.data?.groups && Array.isArray(res.data.groups)) {
+          setConversations((prev) => {
+            const map = new Map<string, ChatConversation>();
+            for (const c of prev) map.set(c.partnerId, c);
+            for (const g of res.data.groups) {
+              if (!map.has(g.id)) {
+                map.set(g.id, {
+                  partnerId: g.id,
+                  partnerName: g.name,
+                  partnerAvatar: g.avatarUrl || '/logo.png',
+                  partnerCity: `${g.membersCount || g.members?.length || 1} members`,
+                  tag: 'Group Chat',
+                  unreadCount: 0,
+                  lastMessage: 'Group active',
+                  lastMessageTime: 'Today',
+                  verified: true,
+                  online: true,
+                  isGroup: true,
+                  messages: []
+                });
+              }
+            }
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+  };
+
+  // Load broadcasts from PostgreSQL chat_broadcasts
+  const fetchBroadcasts = () => {
+    const token = getAuthToken();
+    if (!token) return;
+    axios
+      .get('/api/chat/broadcasts', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (res.data?.broadcasts && Array.isArray(res.data.broadcasts)) {
+          setBroadcastsList(res.data.broadcasts);
+        }
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     fetchUnlockedContacts();
     fetchContacts();
+    fetchConversations();
+    fetchGroups();
+    fetchBroadcasts();
+
     const token = getAuthToken();
     if (token) {
       axios
@@ -271,6 +444,13 @@ export const MessagesPage: React.FC = () => {
       })
       .catch(() => {});
   }, [user]);
+
+  // Load messages when active partner changes
+  useEffect(() => {
+    if (activePartnerId) {
+      fetchMessages(activePartnerId);
+    }
+  }, [activePartnerId]);
 
   // Sync active partner's privacy mode & message restrictions
   useEffect(() => {
@@ -313,6 +493,9 @@ export const MessagesPage: React.FC = () => {
             revSharePct: res.data.revSharePct || 15,
             sentCount: res.data.sentCount || 0
           });
+          if (res.data.contactUnlockPrice) {
+            setContactUnlockPrice(Number(res.data.contactUnlockPrice));
+          }
         }
       })
       .catch(() => {});
@@ -519,38 +702,13 @@ export const MessagesPage: React.FC = () => {
             freeRemaining: prev.freeRemaining !== null ? Math.max(0, prev.freeRemaining - 1) : null,
             isFree: prev.freeRemaining !== null ? prev.freeRemaining - 1 > 0 : prev.isFree
           }));
+          fetchConversations();
         })
         .catch((err) => {
           if (err.response?.data?.error === 'INSUFFICIENT_FUNDS') {
             setShowWalletModal(true);
           }
         });
-    }
-
-    // Auto-reply simulation for responsive interactive feel
-    if (activeConversation.partnerId !== 'support') {
-      setTimeout(() => {
-        const replyMsg: ChatMessage = {
-          id: 'rep_' + Date.now(),
-          sender: 'them',
-          text: `Thank you for your message! Connected via Benix.Space.`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.partnerId === activeConversation.partnerId) {
-              return {
-                ...c,
-                lastMessage: replyMsg.text,
-                lastMessageTime: 'Just now',
-                messages: [...c.messages, replyMsg]
-              };
-            }
-            return c;
-          })
-        );
-        notificationSound.playNotificationChime();
-      }, 1400);
     }
   };
 
@@ -599,7 +757,8 @@ export const MessagesPage: React.FC = () => {
         setGroupName('');
         setSelectedGroupMemberIds([]);
         setMobileView('chat');
-        setActiveTab('chats');
+        setActiveTab('groups');
+        fetchGroups();
       }
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to create group');
@@ -629,9 +788,11 @@ export const MessagesPage: React.FC = () => {
         setShowBroadcastModal(false);
         setBroadcastMessage('');
         setSelectedBroadcastRecipientIds([]);
+        fetchBroadcasts();
+        fetchConversations();
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to dispatch broadcast');
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to dispatch broadcast');
     }
   };
 
@@ -649,19 +810,14 @@ export const MessagesPage: React.FC = () => {
         lastMessageTime: 'Just now',
         verified: true,
         online: contact.online,
-        messages: [
-          {
-            id: 'convo_' + Date.now(),
-            sender: 'them',
-            text: `Muraho! Happy to connect with you on Benix.Space.`,
-            time: 'Just now'
-          }
-        ],
-        phone: contact.phone
+        messages: [],
+        phone: contact.phone,
+        privacyMode: contact.privacyMode
       };
       setConversations((prev) => [newConvo, ...prev]);
     }
     setActivePartnerId(contact.id);
+    fetchMessages(contact.id);
     setMobileView('chat');
     setActiveTab('chats');
   };
@@ -873,6 +1029,9 @@ export const MessagesPage: React.FC = () => {
                           <img
                             src={contact.avatar}
                             alt={contact.name}
+                            onError={(e) => {
+                              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name || 'Member')}&background=10B981&color=fff&bold=true`;
+                            }}
                             className="w-10 h-10 rounded-full object-cover border border-[#2A3942]"
                           />
                           {contact.online && (
@@ -911,48 +1070,113 @@ export const MessagesPage: React.FC = () => {
                     </div>
                   ))
                 )
-              ) : (
-                filteredConversations.map((convo) => {
-                  const isActive = convo.partnerId === activePartnerId;
-                  return (
-                    <div
-                      key={convo.partnerId}
-                      onClick={() => {
-                        setActivePartnerId(convo.partnerId);
-                        setMobileView('chat');
-                      }}
-                      className={`p-3.5 flex items-start gap-3 cursor-pointer transition-colors ${
-                        isActive ? 'bg-[#2A3942]/70 border-l-4 border-emerald-500' : 'hover:bg-[#202C33]/40'
-                      }`}
+              ) : activeTab === 'broadcasts' ? (
+                broadcastsList.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs space-y-3">
+                    <Radio className="w-8 h-8 text-emerald-400/60 mx-auto" />
+                    <p>No past broadcast blasts. Create a broadcast to message multiple contacts at once.</p>
+                    <button
+                      onClick={() => setShowBroadcastModal(true)}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
                     >
-                      <div className="relative shrink-0">
-                        <img
-                          src={convo.partnerAvatar}
-                          alt={convo.partnerName}
-                          className="w-11 h-11 rounded-full object-cover border border-[#2A3942]"
-                        />
-                        {convo.online && (
-                          <span className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#111B21] absolute bottom-0 right-0" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-white truncate flex items-center gap-1">
-                            <span>{convo.partnerName}</span>
-                            {convo.verified && <ShieldCheck className="w-3 h-3 text-emerald-400" />}
-                          </h4>
-                          <span className="text-[10px] text-slate-400">{convo.lastMessageTime}</span>
-                        </div>
-                        <span className="text-[9px] font-semibold text-emerald-400 block mt-0.5">
-                          {convo.tag}
+                      New Broadcast Blast
+                    </button>
+                  </div>
+                ) : (
+                  broadcastsList.map((b) => (
+                    <div key={b.id} className="p-3.5 space-y-1 hover:bg-[#202C33]/40 border-b border-[#202C33]/50">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                          <Radio className="w-3.5 h-3.5" /> Broadcast to {b.recipientsCount} recipient(s)
                         </span>
-                        <p className="text-[11px] text-slate-300 truncate mt-1">
-                          {convo.lastMessage}
-                        </p>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(b.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
+                      <p className="text-xs text-white line-clamp-2">{b.message}</p>
                     </div>
-                  );
-                })
+                  ))
+                )
+              ) : (
+                (activeTab === 'groups'
+                  ? filteredConversations.filter((c) => c.isGroup)
+                  : filteredConversations.filter((c) => !c.isGroup)
+                ).length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs space-y-3">
+                    {activeTab === 'groups' ? (
+                      <>
+                        <Users className="w-8 h-8 text-emerald-400/60 mx-auto" />
+                        <p>No group chats yet.</p>
+                        <button
+                          onClick={() => setShowGroupModal(true)}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
+                        >
+                          Create Group
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="w-8 h-8 text-emerald-400/60 mx-auto" />
+                        <p>No direct chats yet. Pick a contact from the Contacts tab to start chatting.</p>
+                        <button
+                          onClick={() => setActiveTab('contacts')}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
+                        >
+                          View Contacts
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  (activeTab === 'groups'
+                    ? filteredConversations.filter((c) => c.isGroup)
+                    : filteredConversations.filter((c) => !c.isGroup)
+                  ).map((convo) => {
+                    const isActive = convo.partnerId === activePartnerId;
+                    return (
+                      <div
+                        key={convo.partnerId}
+                        onClick={() => {
+                          setActivePartnerId(convo.partnerId);
+                          fetchMessages(convo.partnerId);
+                          setMobileView('chat');
+                        }}
+                        className={`p-3.5 flex items-start gap-3 cursor-pointer transition-colors ${
+                          isActive ? 'bg-[#2A3942]/70 border-l-4 border-emerald-500' : 'hover:bg-[#202C33]/40'
+                        }`}
+                      >
+                        <div className="relative shrink-0">
+                          <img
+                            src={convo.partnerAvatar}
+                            alt={convo.partnerName}
+                            onError={(e) => {
+                              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(convo.partnerName || 'Member')}&background=0D8ABC&color=fff&bold=true`;
+                            }}
+                            className="w-11 h-11 rounded-full object-cover border border-[#2A3942]"
+                          />
+                          {convo.online && (
+                            <span className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#111B21] absolute bottom-0 right-0" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-white truncate flex items-center gap-1">
+                              <span>{convo.partnerName}</span>
+                              {convo.verified && <ShieldCheck className="w-3 h-3 text-emerald-400" />}
+                            </h4>
+                            <span className="text-[10px] text-slate-400">{convo.lastMessageTime}</span>
+                          </div>
+                          <span className="text-[9px] font-semibold text-emerald-400 block mt-0.5">
+                            {convo.tag}
+                          </span>
+                          <p className="text-[11px] text-slate-300 truncate mt-1">
+                            {convo.lastMessage}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
               )}
             </div>
           </div>
@@ -978,6 +1202,9 @@ export const MessagesPage: React.FC = () => {
                       <img
                         src={activeConversation.partnerAvatar}
                         alt={activeConversation.partnerName}
+                        onError={(e) => {
+                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(activeConversation.partnerName || 'Member')}&background=0D8ABC&color=fff&bold=true`;
+                        }}
                         className="w-10 h-10 rounded-full object-cover border border-[#2A3942]"
                       />
                       {activeConversation.online && (
@@ -1304,7 +1531,14 @@ export const MessagesPage: React.FC = () => {
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <img src={c.avatar} alt={c.name} className="w-6 h-6 rounded-full object-cover" />
+                          <img
+                            src={c.avatar}
+                            alt={c.name}
+                            onError={(e) => {
+                              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name || 'Member')}&background=10B981&color=fff&bold=true`;
+                            }}
+                            className="w-6 h-6 rounded-full object-cover"
+                          />
                           <span>{c.name}</span>
                         </div>
                         {isSelected && <Check className="w-4 h-4 text-emerald-400" />}

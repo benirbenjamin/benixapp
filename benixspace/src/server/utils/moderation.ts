@@ -94,31 +94,96 @@ export function checkInappropriateLanguage(input: string, customWords: string[] 
   return { isInappropriate: false };
 }
 
-export function checkContactModeration(message: string) {
+export const ALL_NUMBER_WORDS_MAP: Record<string, string> = {
+  // English
+  zero: '0', oh: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
+  six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+  // Kinyarwanda
+  zeru: '0', rimwe: '1', kabiri: '2', gatatu: '3', kane: '4',
+  gatanu: '5', gatandatu: '6', karindwi: '7', umunani: '8', icyenda: '9', icumi: '10', mirongo: '',
+  // French
+  zéro: '0', un: '1', une: '1', deux: '2', trois: '3',
+  quatre: '4', cinq: '5', sept: '7', huit: '8', neuf: '9', dix: '10',
+  // Swahili
+  sifuri: '0', moja: '1', mbili: '2', tatu: '3', nne: '4',
+  tano: '5', sita: '6', saba: '7', nane: '8', tisa: '9', kumi: '10'
+};
+
+export function checkContactModeration(message: string): { isViolation: boolean; reason?: string } {
   if (!message || typeof message !== 'string') return { isViolation: false };
 
-  const cleaned = message.replace(/[\s.\-()+_]/g, '');
-  if (cleaned.match(/\d{7,15}/)) {
-    return { isViolation: true, reason: 'Sharing phone numbers directly in chat is restricted.' };
-  }
+  const rawLower = message.toLowerCase();
 
-  const normWords = message.toLowerCase().split(/[\s,.;:!?\-/]+/);
-  let count = 0;
-  for (const w of normWords) {
-    if (EN_NUMBER_WORDS[w] || RW_NUMBER_WORDS[w] || FR_NUMBER_WORDS[w]) {
-      count++;
-      if (count >= 4) {
-        return { isViolation: true, reason: 'Spelling out phone numbers is restricted.' };
-      }
-    } else if (count > 0 && w !== 'and' && w !== 'na' && w !== 'et') {
-      count = 0;
+  // 1. Check for external links or social redirection keywords
+  for (const kw of SOCIAL_MEDIA_KEYWORDS) {
+    if (rawLower.includes(kw)) {
+      return {
+        isViolation: true,
+        reason: `Direct contact redirection (${kw}) is restricted. Use the official Unlock Phone button.`
+      };
     }
   }
 
-  const lower = message.toLowerCase();
-  for (const kw of SOCIAL_MEDIA_KEYWORDS) {
-    if (lower.includes(kw)) {
-      return { isViolation: true, reason: `External platform redirection (${kw}) is restricted.` };
+  // 2. Direct contiguous digits check (e.g. 0783987223, +250788123456)
+  const cleanedDigits = message.replace(/[\s.\-()+_]/g, '');
+  if (cleanedDigits.match(/\d{7,15}/)) {
+    return {
+      isViolation: true,
+      reason: 'Sharing personal phone numbers directly in chat is restricted by Benix privacy policy. Use the Unlock Phone button to securely view verified contact information.'
+    };
+  }
+
+  // 3. Robust Number Words & Spelled Digits Detection across all languages
+  // Normalize punctuation and symbols to spaces
+  const normalizedText = message
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s,.;:!?\-_/\\*~()+=@#]+/g, ' ')
+    .trim();
+
+  const tokens = normalizedText.split(' ').filter(Boolean);
+
+  let numberWordsCount = 0;
+  let translatedDigitStream = '';
+
+  for (const token of tokens) {
+    // If token is already numeric digits
+    if (/^\d+$/.test(token)) {
+      numberWordsCount++;
+      translatedDigitStream += token;
+    } else if (ALL_NUMBER_WORDS_MAP[token] !== undefined) {
+      numberWordsCount++;
+      translatedDigitStream += ALL_NUMBER_WORDS_MAP[token];
+    }
+  }
+
+  // If 3 or more number words/digits appear anywhere in the message, flag violation!
+  if (numberWordsCount >= 3) {
+    return {
+      isViolation: true,
+      reason: 'Spelling out phone numbers in words or digits is prohibited. Please use the secure Unlock Contact Phone option.'
+    };
+  }
+
+  // If translated stream contains 6 or more digits or matches Rwandan mobile patterns (07... / 2507...)
+  if (translatedDigitStream.length >= 6 || /07\d{4,}/.test(translatedDigitStream) || /2507\d{4,}/.test(translatedDigitStream)) {
+    return {
+      isViolation: true,
+      reason: 'Sharing contact information in words or digits is restricted. Please use the official Unlock Phone feature.'
+    };
+  }
+
+  // 4. Contact solicitation keywords combined with any numbers
+  const solicitationPhrases = [
+    'call me', 'hamagara', 'reach me', 'unyandikire', 'nimero', 'numero', 'contact me', 'text me'
+  ];
+  for (const phrase of solicitationPhrases) {
+    if (rawLower.includes(phrase) && (numberWordsCount >= 2 || /\d{2,}/.test(message))) {
+      return {
+        isViolation: true,
+        reason: 'Sharing direct contact information is prohibited. Use the verified Unlock Phone feature.'
+      };
     }
   }
 

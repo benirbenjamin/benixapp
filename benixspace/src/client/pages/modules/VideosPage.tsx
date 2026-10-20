@@ -200,6 +200,15 @@ export const VideosPage: React.FC = () => {
   const [centerFeedback, setCenterFeedback] = useState<'play' | 'pause' | null>(null);
   const feedbackTimerRef = useRef<any>(null);
 
+  // 20% Preview for Premium Videos
+  const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
+  const [isPreviewEnded, setIsPreviewEnded] = useState<boolean>(false);
+
+  useEffect(() => {
+    setVideoCurrentTime(0);
+    setIsPreviewEnded(false);
+  }, [activeVideo?.id]);
+
   // Adaptive Video Quality State (Low -> Medium -> HD automatically based on connection)
   const [networkQuality, setNetworkQuality] = useState<'360p' | '480p' | '720p' | '1080p'>('720p');
   const [qualityMode, setQualityMode] = useState<'auto' | '360p' | '480p' | '720p' | '1080p'>('auto');
@@ -208,7 +217,21 @@ export const VideosPage: React.FC = () => {
 
   const activeQuality = qualityMode === 'auto' ? networkQuality : qualityMode;
 
-  // Adaptive Connection Detection
+  // Timer for 20% preview on YouTube videos
+  useEffect(() => {
+    if (!activeVideo || isVideoUnlocked(activeVideo) || isPreviewEnded || !isPlaying || !isYouTubeVideo(activeVideo)) return;
+    const limit = Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20));
+    const timer = setInterval(() => {
+      setVideoCurrentTime((prev) => {
+        const next = prev + 1;
+        if (next >= limit) {
+          setIsPreviewEnded(true);
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [activeVideo, unlockedVideoIds, isPreviewEnded, isPlaying]);
   useEffect(() => {
     const detectConnection = () => {
       const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
@@ -796,188 +819,209 @@ export const VideosPage: React.FC = () => {
                 ref={playerContainerRef}
                 className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl group select-none"
               >
-                {isVideoUnlocked(activeVideo) ? (
-                  <>
-                    {isYouTubeVideo(activeVideo) ? (
-                      <iframe
-                        ref={iframeRef}
-                        src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
-                        title={activeVideo.title}
-                        className="w-full h-full border-0 relative z-10 pointer-events-auto"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        src={activeVideo.embedUrl}
-                        controls
-                        autoPlay
-                        playsInline
-                        preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
-                        className="w-full h-full object-contain bg-black relative z-10"
-                        poster={activeVideo.thumbnail}
-                      />
-                    )}
-
-                    {/* In-Stream Real Google AdSense & Submitted Ad Overlay (2:1 Rotation) */}
-                    {showVideoAd && (
-                      <UniversalMediaAdOverlay
-                        isOpen={showVideoAd}
-                        onClose={() => setShowVideoAd(false)}
-                        mediaType="video"
-                        title={activeVideo.title}
-                        creatorId={(activeVideo as any).userId || (activeVideo as any).user_id || activeVideo.channelName || activeVideo.creator}
-                        videoId={activeVideo.id}
-                        slot={ADS_CONFIG.SLOTS.VIDEO_WATCH_BANNER}
-                        countdownDuration={10}
-                      />
-                    )}
-
-                    {/* Middle Ripple Icon Feedback (Play / Pause) */}
-                    {centerFeedback && (
-                      <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
-                        <div className="p-5 rounded-full bg-black/80 backdrop-blur-md text-white border border-white/20 shadow-2xl animate-in zoom-in duration-200">
-                          {centerFeedback === 'play' ? (
-                            <Play className="w-12 h-12 fill-current ml-1 text-purple-400" />
-                          ) : (
-                            <Pause className="w-12 h-12 fill-current text-purple-400" />
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Fullscreen Floating Exit Button */}
-                    {isFullscreen && (
-                      <div className="absolute top-4 right-4 z-40 flex items-center gap-3">
-                        <button
-                          onClick={toggleFullscreen}
-                          className="px-4 py-2.5 rounded-2xl bg-black/85 hover:bg-black text-white font-extrabold text-xs border border-white/30 flex items-center gap-2 shadow-2xl backdrop-blur-md transition-all active:scale-95"
-                        >
-                          <Minimize className="w-4 h-4 text-purple-400" />
-                          <span>Exit Fullscreen</span>
-                        </button>
-                      </div>
-                    )}
-
-                    {/* On-Screen Bottom Control Strip (Hover) */}
-                    <div className="absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <button
-                          onClick={togglePlayPause}
-                          className="p-2 sm:p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
-                          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-                        >
-                          {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-                        </button>
-
-                        <button
-                          onClick={playPreviousVideo}
-                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                          title="Previous Video (P)"
-                        >
-                          <SkipBack className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={playNextVideo}
-                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                          title="Next Video (N)"
-                        >
-                          <SkipForward className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={toggleMute}
-                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                          title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
-                        >
-                          {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-                        </button>
-
-                        <span className="hidden md:inline-block text-[11px] text-slate-400 font-mono pl-2">
-                          Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Adaptive Stream Quality Dropdown */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowQualityMenu((prev) => !prev)}
-                            className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
-                            title="Video Stream Quality (Adaptive)"
-                          >
-                            <Wifi className="w-3.5 h-3.5 text-purple-400" />
-                            <span className="font-mono text-[11px]">
-                              {qualityMode === 'auto' ? `Auto (${activeQuality})` : activeQuality}
-                            </span>
-                          </button>
-
-                          {showQualityMenu && (
-                            <div className="absolute bottom-11 right-0 z-50 w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
-                              <div className="px-2.5 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
-                                <span>Adaptive Quality</span>
-                                <span className="text-[10px] text-purple-400 font-mono truncate max-w-[110px]" title={connectionSpeedLabel}>
-                                  {connectionSpeedLabel}
-                                </span>
-                              </div>
-                              {[
-                                { id: 'auto', label: `Auto (Adaptive - ${networkQuality})` },
-                                { id: '1080p', label: '1080p Full HD' },
-                                { id: '720p', label: '720p HD' },
-                                { id: '480p', label: '480p Medium (Data Saver)' },
-                                { id: '360p', label: '360p Low (Ultra Saver)' }
-                              ].map((opt) => (
-                                <button
-                                  key={opt.id}
-                                  onClick={() => {
-                                    setQualityMode(opt.id as any);
-                                    setShowQualityMenu(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition ${
-                                    qualityMode === opt.id
-                                      ? 'bg-purple-600/30 text-purple-300 font-bold'
-                                      : 'hover:bg-slate-800/80 text-slate-300'
-                                  }`}
-                                >
-                                  <span>{opt.label}</span>
-                                  {qualityMode === opt.id && <Check className="w-3.5 h-3.5 text-purple-400" />}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={toggleFullscreen}
-                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                          title="Toggle Landscape Fullscreen (F)"
-                        >
-                          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  </>
+                {/* Media Screen (YouTube / Direct Video) */}
+                {isYouTubeVideo(activeVideo) ? (
+                  <iframe
+                    ref={iframeRef}
+                    src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
+                    title={activeVideo.title}
+                    className="w-full h-full border-0 relative z-10 pointer-events-auto"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
                 ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-slate-950/80 via-black to-slate-950">
-                    <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-2xl mb-4">
+                  <video
+                    ref={videoRef}
+                    src={activeVideo.embedUrl}
+                    controls={isVideoUnlocked(activeVideo) || !isPreviewEnded}
+                    autoPlay
+                    playsInline
+                    preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
+                    className="w-full h-full object-contain bg-black relative z-10"
+                    poster={activeVideo.thumbnail}
+                    onTimeUpdate={(e) => {
+                      const cur = e.currentTarget.currentTime;
+                      setVideoCurrentTime(cur);
+                      const limitSec = Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20));
+                      if (!isVideoUnlocked(activeVideo) && cur >= limitSec) {
+                        e.currentTarget.pause();
+                        e.currentTarget.currentTime = limitSec;
+                        setIsPreviewEnded(true);
+                      }
+                    }}
+                  />
+                )}
+
+                {/* 20% Free Preview Remaining Banner (before unlock) */}
+                {!isVideoUnlocked(activeVideo) && !isPreviewEnded && (
+                  <div className="absolute top-3 left-3 z-30 pointer-events-none px-3 py-1 rounded-full bg-black/85 border border-amber-400/40 text-[11px] font-bold text-amber-300 flex items-center gap-1.5 backdrop-blur-md shadow-lg">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>20% Free Preview ({Math.max(0, Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20)) - Math.floor(videoCurrentTime))}s left)</span>
+                  </div>
+                )}
+
+                {/* 20% Preview Ended - Unlock Screen */}
+                {!isVideoUnlocked(activeVideo) && isPreviewEnded && (
+                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-black/90 backdrop-blur-md animate-fadeIn">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-2xl mb-3">
                       <Lock className="w-8 h-8" />
                     </div>
-                    <h3 className="text-xl sm:text-2xl font-black text-white">Premium Creator Video</h3>
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full mb-2">
+                      20% Free Preview Finished ({Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20))}s)
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-black text-white">Unlock Full Video to Continue</h3>
                     <p className="text-xs text-slate-300 mt-2 max-w-md">
-                      Unlock full access to "{activeVideo.title}". You can pay using your unified wallet balance (bonus wallet is used first!).
+                      Unlock full access to "{activeVideo.title}". Creator {activeVideo.channelName || 'channel'} receives direct revenue split on your purchase.
                     </p>
                     <button
                       onClick={() => handleUnlockVideo(activeVideo)}
                       disabled={unlockingId === activeVideo.id}
-                      className="mt-5 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 hover:from-amber-400 hover:to-amber-500 transition scale-100 hover:scale-105"
+                      className="mt-5 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 hover:from-amber-400 hover:to-amber-500 transition scale-100 hover:scale-105 flex items-center gap-2 cursor-pointer"
                     >
-                      <Unlock className="w-4 h-4 inline-block mr-2" />
-                      {unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock Video for ${activeVideo.price.toLocaleString()} RWF`}
+                      <Unlock className="w-4 h-4 inline-block mr-1" />
+                      <span>{unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock Video for ${activeVideo.price.toLocaleString()} RWF`}</span>
                     </button>
                   </div>
                 )}
+
+                {/* In-Stream Real Google AdSense & Submitted Ad Overlay (2:1 Rotation) */}
+                {showVideoAd && (
+                  <UniversalMediaAdOverlay
+                    isOpen={showVideoAd}
+                    onClose={() => setShowVideoAd(false)}
+                    mediaType="video"
+                    title={activeVideo.title}
+                    creatorId={(activeVideo as any).userId || (activeVideo as any).user_id || activeVideo.channelName || activeVideo.creator}
+                    videoId={activeVideo.id}
+                    slot={ADS_CONFIG.SLOTS.VIDEO_WATCH_BANNER}
+                    countdownDuration={10}
+                  />
+                )}
+
+                {/* Middle Ripple Icon Feedback (Play / Pause) */}
+                {centerFeedback && (
+                  <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+                    <div className="p-5 rounded-full bg-black/80 backdrop-blur-md text-white border border-white/20 shadow-2xl animate-in zoom-in duration-200">
+                      {centerFeedback === 'play' ? (
+                        <Play className="w-12 h-12 fill-current ml-1 text-purple-400" />
+                      ) : (
+                        <Pause className="w-12 h-12 fill-current text-purple-400" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fullscreen Floating Exit Button */}
+                {isFullscreen && (
+                  <div className="absolute top-4 right-4 z-40 flex items-center gap-3">
+                    <button
+                      onClick={toggleFullscreen}
+                      className="px-4 py-2.5 rounded-2xl bg-black/85 hover:bg-black text-white font-extrabold text-xs border border-white/30 flex items-center gap-2 shadow-2xl backdrop-blur-md transition-all active:scale-95"
+                    >
+                      <Minimize className="w-4 h-4 text-purple-400" />
+                      <span>Exit Fullscreen</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* On-Screen Bottom Control Strip (Hover) */}
+                <div className="absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <button
+                      onClick={togglePlayPause}
+                      className="p-2 sm:p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                      title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                    >
+                      {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                    </button>
+
+                    <button
+                      onClick={playPreviousVideo}
+                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                      title="Previous Video (P)"
+                    >
+                      <SkipBack className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={playNextVideo}
+                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                      title="Next Video (N)"
+                    >
+                      <SkipForward className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={toggleMute}
+                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                      title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+                    >
+                      {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+
+                    <span className="hidden md:inline-block text-[11px] text-slate-400 font-mono pl-2">
+                      Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Adaptive Stream Quality Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowQualityMenu((prev) => !prev)}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
+                        title="Video Stream Quality (Adaptive)"
+                      >
+                        <Wifi className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="font-mono text-[11px]">
+                          {qualityMode === 'auto' ? `Auto (${activeQuality})` : activeQuality}
+                        </span>
+                      </button>
+
+                      {showQualityMenu && (
+                        <div className="absolute bottom-11 right-0 z-50 w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
+                          <div className="px-2.5 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                            <span>Adaptive Quality</span>
+                            <span className="text-[10px] text-purple-400 font-mono truncate max-w-[110px]" title={connectionSpeedLabel}>
+                              {connectionSpeedLabel}
+                            </span>
+                          </div>
+                          {[
+                            { id: 'auto', label: `Auto (Adaptive - ${networkQuality})` },
+                            { id: '1080p', label: '1080p Full HD' },
+                            { id: '720p', label: '720p HD' },
+                            { id: '480p', label: '480p Medium (Data Saver)' },
+                            { id: '360p', label: '360p Low (Ultra Saver)' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.id}
+                              onClick={() => {
+                                setQualityMode(opt.id as any);
+                                setShowQualityMenu(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition ${
+                                qualityMode === opt.id
+                                  ? 'bg-purple-600/30 text-purple-300 font-bold'
+                                  : 'hover:bg-slate-800/80 text-slate-300'
+                              }`}
+                            >
+                              <span>{opt.label}</span>
+                              {qualityMode === opt.id && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={toggleFullscreen}
+                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                      title="Toggle Landscape Fullscreen (F)"
+                    >
+                      {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Video Title */}

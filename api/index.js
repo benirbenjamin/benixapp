@@ -50381,6 +50381,34 @@ var DEFAULT_FRENCH_BLOCKED = [
   "gueule",
   "abruti"
 ];
+var SOCIAL_MEDIA_KEYWORDS = [
+  "whatsapp",
+  "whatsap",
+  "whats app",
+  "wa.me",
+  "watsapp",
+  "instagram",
+  "insta",
+  "ig:",
+  "ig :",
+  "telegram",
+  "t.me",
+  "tele:",
+  "snapchat",
+  "snap:",
+  "facebook",
+  "fb:",
+  "tiktok",
+  "tik tok",
+  "call me on",
+  "reach me at",
+  "text me on",
+  "hamagara kuri",
+  "unyandikire kuri",
+  "nimero yanjye",
+  "appelle moi sur",
+  "mon numero est"
+];
 function normalizeText(raw) {
   if (!raw) return "";
   let text = raw.toLowerCase();
@@ -50414,6 +50442,121 @@ function checkInappropriateLanguage(input, customWords = []) {
     }
   }
   return { isInappropriate: false };
+}
+var ALL_NUMBER_WORDS_MAP = {
+  // English
+  zero: "0",
+  oh: "0",
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+  seven: "7",
+  eight: "8",
+  nine: "9",
+  ten: "10",
+  // Kinyarwanda
+  zeru: "0",
+  rimwe: "1",
+  kabiri: "2",
+  gatatu: "3",
+  kane: "4",
+  gatanu: "5",
+  gatandatu: "6",
+  karindwi: "7",
+  umunani: "8",
+  icyenda: "9",
+  icumi: "10",
+  mirongo: "",
+  // French
+  z\u00E9ro: "0",
+  un: "1",
+  une: "1",
+  deux: "2",
+  trois: "3",
+  quatre: "4",
+  cinq: "5",
+  sept: "7",
+  huit: "8",
+  neuf: "9",
+  dix: "10",
+  // Swahili
+  sifuri: "0",
+  moja: "1",
+  mbili: "2",
+  tatu: "3",
+  nne: "4",
+  tano: "5",
+  sita: "6",
+  saba: "7",
+  nane: "8",
+  tisa: "9",
+  kumi: "10"
+};
+function checkContactModeration(message) {
+  if (!message || typeof message !== "string") return { isViolation: false };
+  const rawLower = message.toLowerCase();
+  for (const kw of SOCIAL_MEDIA_KEYWORDS) {
+    if (rawLower.includes(kw)) {
+      return {
+        isViolation: true,
+        reason: `Direct contact redirection (${kw}) is restricted. Use the official Unlock Phone button.`
+      };
+    }
+  }
+  const cleanedDigits = message.replace(/[\s.\-()+_]/g, "");
+  if (cleanedDigits.match(/\d{7,15}/)) {
+    return {
+      isViolation: true,
+      reason: "Sharing personal phone numbers directly in chat is restricted by Benix privacy policy. Use the Unlock Phone button to securely view verified contact information."
+    };
+  }
+  const normalizedText = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s,.;:!?\-_/\\*~()+=@#]+/g, " ").trim();
+  const tokens = normalizedText.split(" ").filter(Boolean);
+  let numberWordsCount = 0;
+  let translatedDigitStream = "";
+  for (const token of tokens) {
+    if (/^\d+$/.test(token)) {
+      numberWordsCount++;
+      translatedDigitStream += token;
+    } else if (ALL_NUMBER_WORDS_MAP[token] !== void 0) {
+      numberWordsCount++;
+      translatedDigitStream += ALL_NUMBER_WORDS_MAP[token];
+    }
+  }
+  if (numberWordsCount >= 3) {
+    return {
+      isViolation: true,
+      reason: "Spelling out phone numbers in words or digits is prohibited. Please use the secure Unlock Contact Phone option."
+    };
+  }
+  if (translatedDigitStream.length >= 6 || /07\d{4,}/.test(translatedDigitStream) || /2507\d{4,}/.test(translatedDigitStream)) {
+    return {
+      isViolation: true,
+      reason: "Sharing contact information in words or digits is restricted. Please use the official Unlock Phone feature."
+    };
+  }
+  const solicitationPhrases = [
+    "call me",
+    "hamagara",
+    "reach me",
+    "unyandikire",
+    "nimero",
+    "numero",
+    "contact me",
+    "text me"
+  ];
+  for (const phrase of solicitationPhrases) {
+    if (rawLower.includes(phrase) && (numberWordsCount >= 2 || /\d{2,}/.test(message))) {
+      return {
+        isViolation: true,
+        reason: "Sharing direct contact information is prohibited. Use the verified Unlock Phone feature."
+      };
+    }
+  }
+  return { isViolation: false };
 }
 
 // src/client/config/realVideos.json
@@ -53401,6 +53544,15 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
     if (!recipientId || !message && !isVoice) {
       return res.status(400).json({ error: "Recipient and message content required." });
     }
+    if (message && !isVoice) {
+      const moderation = checkContactModeration(message);
+      if (moderation.isViolation) {
+        return res.status(400).json({
+          error: "CONTACT_MODERATION_BLOCKED",
+          message: moderation.reason || "Sharing phone numbers directly in chat is restricted by Benix privacy policy. Use the Unlock Phone button to securely view verified contact information."
+        });
+      }
+    }
     await query(`
       CREATE TABLE IF NOT EXISTS chat_direct_messages (
         id VARCHAR(255) PRIMARY KEY,
@@ -53415,6 +53567,10 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `).catch(() => {
+    });
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;").catch(() => {
+    });
+    await query("UPDATE core_users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1", [senderId]).catch(() => {
     });
     let recipientPrivacy = "public";
     let recipientName = "Recipient";
@@ -53581,24 +53737,28 @@ app.get("/api/chat/contacts", async (req, res) => {
     }
     await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS chat_privacy_mode VARCHAR(20) DEFAULT 'public';").catch(() => {
     });
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;").catch(() => {
+    });
     const users = await query(
-      `SELECT id, name, email, phone, channel_name, app_profiles, created_at, COALESCE(chat_privacy_mode, 'public') as chat_privacy_mode
+      `SELECT id, name, email, phone, channel_name, app_profiles, created_at, last_seen_at, COALESCE(chat_privacy_mode, 'public') as chat_privacy_mode
        FROM core_users
        WHERE id != COALESCE($1, 'none')
        ORDER BY created_at DESC
-       LIMIT 30`,
+       LIMIT 40`,
       [currentUserId]
     );
-    const contacts = users.rows.map((u, idx) => {
+    const contacts = users.rows.map((u) => {
       const kundaProfile = u.app_profiles?.kunda || {};
+      const displayName = u.channel_name || kundaProfile.displayName || u.name || "Member";
+      const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10B981&color=fff&bold=true`;
+      const isOnline = u.last_seen_at ? Date.now() - new Date(u.last_seen_at).getTime() < 10 * 60 * 1e3 : false;
       return {
         id: u.id,
-        name: u.channel_name || kundaProfile.displayName || u.name,
+        name: displayName,
         email: u.email,
         phone: u.phone,
-        avatar: kundaProfile.avatarUrl || u.app_profiles?.avatar || `https://images.unsplash.com/photo-${1534528741775 + idx}?w=150`,
-        online: idx % 2 === 0,
-        // dynamic online simulation
+        avatar: kundaProfile.avatarUrl || u.app_profiles?.avatar || defaultAvatar,
+        online: Boolean(isOnline),
         tag: u.channel_name ? "Subscribed Creator" : "Member",
         city: kundaProfile.city || "Kigali, Rwanda",
         privacyMode: u.chat_privacy_mode || "public"
@@ -53607,6 +53767,159 @@ app.get("/api/chat/contacts", async (req, res) => {
     return res.json({ success: true, contacts });
   } catch (err) {
     return res.status(500).json({ error: err.message, contacts: [] });
+  }
+});
+app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_direct_messages (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipient_id VARCHAR(255) NOT NULL,
+        message TEXT,
+        is_voice BOOLEAN DEFAULT FALSE,
+        voice_duration VARCHAR(50),
+        is_paid BOOLEAN DEFAULT FALSE,
+        amount_paid NUMERIC(15,2) DEFAULT 0,
+        creator_earning NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const partnersRes = await query(`
+      SELECT DISTINCT 
+        CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as partner_id
+      FROM chat_direct_messages
+      WHERE sender_id = $1 OR recipient_id = $1
+    `, [userId]);
+    const partnerIds = partnersRes.rows.map((r) => r.partner_id).filter(Boolean);
+    const conversations = [];
+    for (const pid of partnerIds) {
+      if (pid === "support") continue;
+      const lastMsgRes = await query(`
+        SELECT message, is_voice, created_at, sender_id
+        FROM chat_direct_messages
+        WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, [userId, pid]);
+      const lastMsg = lastMsgRes.rows[0];
+      const uRes = await query(`
+        SELECT id, name, email, phone, channel_name, app_profiles, chat_privacy_mode, last_seen_at
+        FROM core_users WHERE id = $1
+      `, [pid]);
+      if (uRes.rowCount > 0) {
+        const u = uRes.rows[0];
+        const kunda = u.app_profiles?.kunda || {};
+        const isOnline = u.last_seen_at ? Date.now() - new Date(u.last_seen_at).getTime() < 10 * 60 * 1e3 : false;
+        const displayName = u.channel_name || kunda.displayName || u.name || "Member";
+        const avatar = kunda.avatarUrl || u.app_profiles?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0D8ABC&color=fff&bold=true`;
+        conversations.push({
+          partnerId: u.id,
+          partnerName: displayName,
+          partnerAvatar: avatar,
+          partnerCity: kunda.city || "Kigali, Rwanda",
+          tag: u.channel_name ? "Subscribed Creator" : "Member",
+          unreadCount: 0,
+          lastMessage: lastMsg ? lastMsg.is_voice ? "\u{1F3A4} Voice message" : lastMsg.message : "Conversation started",
+          lastMessageTime: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today",
+          verified: true,
+          online: Boolean(isOnline),
+          privacyMode: u.chat_privacy_mode || "public",
+          phone: u.phone,
+          messages: []
+        });
+      }
+    }
+    return res.json({ success: true, conversations });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, conversations: [] });
+  }
+});
+app.get("/api/chat/messages/:partnerId", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const partnerId = req.params.partnerId;
+    if (partnerId === "support") {
+      return res.json({
+        success: true,
+        messages: [
+          { id: "s1", sender: "them", text: "Muraho! Welcome to Benix.Space Unified Platform.", time: "Today" },
+          { id: "s2", sender: "them", text: "Our concierge team is available 24/7 if you need any assistance.", time: "Today" }
+        ]
+      });
+    }
+    const rows = await query(`
+      SELECT id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, created_at
+      FROM chat_direct_messages
+      WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
+      ORDER BY created_at ASC
+      LIMIT 150
+    `, [userId, partnerId]);
+    const messages = rows.rows.map((r) => ({
+      id: r.id,
+      sender: r.sender_id === userId ? "me" : "them",
+      text: r.message,
+      time: new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isVoice: Boolean(r.is_voice),
+      voiceDuration: r.voice_duration || void 0,
+      isPaid: Boolean(r.is_paid)
+    }));
+    return res.json({ success: true, messages });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, messages: [] });
+  }
+});
+app.get("/api/chat/groups", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_groups (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        avatar_url TEXT,
+        creator_id VARCHAR(255) NOT NULL,
+        members JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const groupsRes = await query(`
+      SELECT id, name, avatar_url, creator_id, members, created_at
+      FROM chat_groups
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    const groups = groupsRes.rows.filter((g) => {
+      let membersList = [];
+      try {
+        membersList = typeof g.members === "string" ? JSON.parse(g.members) : g.members || [];
+      } catch {
+        membersList = [];
+      }
+      return g.creator_id === userId || membersList.includes(userId);
+    }).map((g) => {
+      let membersList = [];
+      try {
+        membersList = typeof g.members === "string" ? JSON.parse(g.members) : g.members || [];
+      } catch {
+        membersList = [];
+      }
+      return {
+        id: g.id,
+        name: g.name,
+        avatarUrl: g.avatar_url || "/logo.png",
+        creatorId: g.creator_id,
+        members: membersList,
+        membersCount: membersList.length,
+        createdAt: g.created_at,
+        isGroup: true
+      };
+    });
+    return res.json({ success: true, groups });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, groups: [] });
   }
 });
 app.post("/api/chat/groups/create", authenticateToken, async (req, res) => {
@@ -53649,6 +53962,46 @@ app.post("/api/chat/groups/create", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+app.get("/api/chat/broadcasts", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_broadcasts (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipients JSONB NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const bRes = await query(`
+      SELECT id, sender_id, recipients, message, created_at
+      FROM chat_broadcasts
+      WHERE sender_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [userId]);
+    const broadcasts = bRes.rows.map((b2) => {
+      let recList = [];
+      try {
+        recList = typeof b2.recipients === "string" ? JSON.parse(b2.recipients) : b2.recipients || [];
+      } catch {
+        recList = [];
+      }
+      return {
+        id: b2.id,
+        senderId: b2.sender_id,
+        recipientsCount: recList.length,
+        message: b2.message,
+        createdAt: b2.created_at
+      };
+    });
+    return res.json({ success: true, broadcasts });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, broadcasts: [] });
+  }
+});
 app.post("/api/chat/broadcast", authenticateToken, async (req, res) => {
   try {
     const { recipientIds = [], message } = req.body;
@@ -53657,6 +54010,13 @@ app.post("/api/chat/broadcast", authenticateToken, async (req, res) => {
     }
     if (!Array.isArray(recipientIds) || recipientIds.length === 0) {
       return res.status(400).json({ error: "Please select at least one recipient." });
+    }
+    const moderation = checkContactModeration(message);
+    if (moderation.isViolation) {
+      return res.status(400).json({
+        error: "CONTACT_MODERATION_BLOCKED",
+        message: moderation.reason || "Sharing phone numbers directly in chat is restricted by Benix privacy policy."
+      });
     }
     await query(`
       CREATE TABLE IF NOT EXISTS chat_broadcasts (
@@ -53668,12 +54028,36 @@ app.post("/api/chat/broadcast", authenticateToken, async (req, res) => {
       );
     `).catch(() => {
     });
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_direct_messages (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipient_id VARCHAR(255) NOT NULL,
+        message TEXT,
+        is_voice BOOLEAN DEFAULT FALSE,
+        voice_duration VARCHAR(50),
+        is_paid BOOLEAN DEFAULT FALSE,
+        amount_paid NUMERIC(15,2) DEFAULT 0,
+        creator_earning NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
     const broadcastId = `bcast_${Date.now()}`;
     await query(
       `INSERT INTO chat_broadcasts (id, sender_id, recipients, message)
        VALUES ($1, $2, $3, $4)`,
       [broadcastId, req.user.id, JSON.stringify(recipientIds), message.trim()]
     );
+    for (const rId of recipientIds) {
+      const msgId = "bcast_msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+      await query(
+        `INSERT INTO chat_direct_messages (id, sender_id, recipient_id, message, is_voice, is_paid)
+         VALUES ($1, $2, $3, $4, false, false)`,
+        [msgId, req.user.id, rId, `\u{1F4E2} Broadcast: ${message.trim()}`]
+      ).catch(() => {
+      });
+    }
     return res.json({
       success: true,
       recipientsCount: recipientIds.length,
@@ -55427,6 +55811,56 @@ app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
   try {
     const category = req.query.category;
     let list = SAMPLE_VIDEOS;
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS user_videos (
+          id VARCHAR(255) PRIMARY KEY,
+          title VARCHAR(500) NOT NULL,
+          slug VARCHAR(500) NOT NULL,
+          description TEXT,
+          video_url TEXT NOT NULL,
+          thumbnail_url TEXT,
+          duration INT DEFAULT 300,
+          views INT DEFAULT 0,
+          likes INT DEFAULT 0,
+          access_type VARCHAR(50) DEFAULT 'PUBLIC',
+          price NUMERIC(15,2) DEFAULT 0,
+          category VARCHAR(100) DEFAULT 'General',
+          user_id VARCHAR(255) NOT NULL,
+          channel_name VARCHAR(255),
+          channel_handle VARCHAR(255),
+          channel_avatar TEXT,
+          is_verified BOOLEAN DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `).catch(() => {
+      });
+      const dbVideosRes = await query("SELECT * FROM user_videos ORDER BY created_at DESC LIMIT 60");
+      const dbVideos = dbVideosRes.rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        slug: r.slug,
+        description: r.description || "",
+        videoUrl: r.video_url,
+        thumbnailUrl: r.thumbnail_url || "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80",
+        duration: Number(r.duration) || 300,
+        views: Number(r.views) || 0,
+        likes: Number(r.likes) || 0,
+        accessType: r.access_type || (Number(r.price) > 0 ? "PREMIUM" : "PUBLIC"),
+        price: Number(r.price) || 0,
+        category: r.category || "General",
+        userId: r.user_id,
+        user_id: r.user_id,
+        channelName: r.channel_name || "Creator",
+        channelHandle: r.channel_handle || "creator",
+        channelAvatar: r.channel_avatar || "/logo.png",
+        isVerified: Boolean(r.is_verified),
+        createdAt: r.created_at
+      }));
+      const dbIds = new Set(dbVideos.map((v2) => v2.id));
+      list = [...dbVideos, ...list.filter((v2) => !dbIds.has(v2.id))];
+    } catch {
+    }
     if (category && category !== "All") {
       list = list.filter((v2) => v2.category.toLowerCase() === category.toLowerCase());
     }
@@ -55575,6 +56009,20 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
     );
     userUnlocked.add(video.id);
     unlockedVideosByUser.set(req.user.id, userUnlocked);
+    const platformCommissionPct = Number(await getSystemSetting("video_affiliate_commission_pct", "15")) || 15;
+    const creatorCutPct = Math.max(0, 100 - platformCommissionPct);
+    const creatorEarned = Math.round(video.price * creatorCutPct / 100);
+    const videoCreatorId = video.userId || video.user_id;
+    if (videoCreatorId && videoCreatorId !== req.user.id && creatorEarned > 0) {
+      await WalletService.credit(
+        videoCreatorId,
+        creatorEarned,
+        "videos",
+        "video_sale_revenue",
+        `Earned ${creatorCutPct}% (${creatorEarned} RWF) from sale of premium video "${video.title}"`
+      ).catch(() => {
+      });
+    }
     if (ref) {
       try {
         await ReferralService.recordAffiliateSale(
@@ -55593,6 +56041,8 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
     return res.json({
       success: true,
       message: `Successfully unlocked "${video.title}"!`,
+      creatorEarned,
+      creatorSharePct: creatorCutPct,
       wallet: {
         balance: debitResult.newBalance,
         bonus_balance: debitResult.newBonusBalance,
@@ -55605,10 +56055,15 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
 });
 app.post("/api/modules/videos", authenticateToken, async (req, res) => {
   try {
-    const { title, description, videoUrl, thumbnailUrl, category = "General", price = 0, duration = 300 } = req.body;
+    const { title, description, videoUrl, thumbnailUrl, category = "General", price = 0, duration = 300, channelName, channelAvatar } = req.body;
     if (!title || !videoUrl) {
       return res.status(400).json({ error: "Title and videoUrl are required." });
     }
+    const userRow = await query("SELECT name, email, channel_name, app_profiles FROM core_users WHERE id = $1", [req.user.id]).catch(() => ({ rows: [] }));
+    const u = userRow.rows[0] || {};
+    const effectiveChannelName = channelName || u.channel_name || req.user?.name || u.name || "Verified Creator";
+    const effectiveAvatar = channelAvatar || u.app_profiles?.avatar || req.user?.avatar_url || "/logo.png";
+    const effectiveHandle = effectiveChannelName.toLowerCase().replace(/[^a-z0-9]/g, "");
     const newId = "vid-" + Date.now();
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80);
     const newVideo = {
@@ -55624,21 +56079,52 @@ app.post("/api/modules/videos", authenticateToken, async (req, res) => {
       accessType: Number(price) > 0 ? "PREMIUM" : "PUBLIC",
       price: Number(price) || 0,
       category,
-      channelName: req.user?.name || "Verified Creator",
-      channelHandle: (req.user?.name || "creator").toLowerCase().replace(/\s+/g, ""),
-      channelAvatar: "/logo.png",
+      userId: req.user.id,
+      user_id: req.user.id,
+      channelName: effectiveChannelName,
+      channelHandle: effectiveHandle,
+      channelAvatar: effectiveAvatar,
       isVerified: true,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     SAMPLE_VIDEOS.unshift(newVideo);
     try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS user_videos (
+          id VARCHAR(255) PRIMARY KEY,
+          title VARCHAR(500) NOT NULL,
+          slug VARCHAR(500) NOT NULL,
+          description TEXT,
+          video_url TEXT NOT NULL,
+          thumbnail_url TEXT,
+          duration INT DEFAULT 300,
+          views INT DEFAULT 0,
+          likes INT DEFAULT 0,
+          access_type VARCHAR(50) DEFAULT 'PUBLIC',
+          price NUMERIC(15,2) DEFAULT 0,
+          category VARCHAR(100) DEFAULT 'General',
+          user_id VARCHAR(255) NOT NULL,
+          channel_name VARCHAR(255),
+          channel_handle VARCHAR(255),
+          channel_avatar TEXT,
+          is_verified BOOLEAN DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `).catch(() => {
+      });
+      await query(
+        `INSERT INTO user_videos (id, title, slug, description, video_url, thumbnail_url, duration, views, likes, access_type, price, category, user_id, channel_name, channel_handle, channel_avatar, is_verified, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0, $8, $9, $10, $11, $12, $13, $14, true, NOW())`,
+        [newId, newVideo.title, slug, newVideo.description, newVideo.videoUrl, newVideo.thumbnailUrl, newVideo.duration, newVideo.accessType, newVideo.price, newVideo.category, req.user.id, effectiveChannelName, effectiveHandle, effectiveAvatar]
+      );
       await query(
         `INSERT INTO tv_videos (id, title, slug, description, original_url, embed_url, thumbnail_url, views_count, likes_count, is_published, created_at)
          VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 0, true, NOW())`,
         [newId, newVideo.title, slug, newVideo.description, newVideo.videoUrl, newVideo.thumbnailUrl]
-      );
+      ).catch(() => {
+      });
     } catch (e) {
-      console.warn("Could not insert to tv_videos table:", e);
+      console.warn("Could not insert to user_videos/tv_videos table:", e);
     }
     return res.status(201).json({ success: true, video: newVideo });
   } catch (err) {
@@ -55663,6 +56149,18 @@ async function ensureTvCommentsTable() {
       ip_address VARCHAR(100),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS video_id VARCHAR(255);
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS station_id VARCHAR(255);
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS station_slug VARCHAR(255);
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS author_name VARCHAR(255);
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS author_avatar TEXT;
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS content TEXT;
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS parent_id VARCHAR(255);
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS likes_count INT DEFAULT 0;
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'APPROVED';
+    ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100);
     CREATE INDEX IF NOT EXISTS idx_tv_comments_station ON tv_comments(station_slug);
     CREATE INDEX IF NOT EXISTS idx_tv_comments_video ON tv_comments(video_id);
   `).catch((err) => console.warn("Could not ensure tv_comments table:", err?.message));
@@ -56815,6 +57313,21 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
         c.founder_name || null
       ]).catch(() => {
       });
+    }
+    if (payload.modules) {
+      const m = payload.modules;
+      if (m.kunda_contact_unlock_price !== void 0) {
+        await setSystemSetting("contact_unlock_price", String(Math.max(0, Number(m.kunda_contact_unlock_price) || 500)));
+      }
+      if (m.kunda_creator_rev_share_pct !== void 0) {
+        await setSystemSetting("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m.kunda_creator_rev_share_pct) || 15))));
+      }
+      if (m.kunda_message_cost !== void 0) {
+        await setSystemSetting("kunda_message_cost", String(Math.max(0, Number(m.kunda_message_cost) || 50)));
+      }
+      if (m.kunda_free_messages !== void 0) {
+        await setSystemSetting("kunda_free_messages", String(Math.max(0, Number(m.kunda_free_messages) || 3)));
+      }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });
   } catch (err) {

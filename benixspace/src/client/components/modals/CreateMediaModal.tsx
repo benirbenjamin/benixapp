@@ -368,7 +368,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           videoUrl: formattedUrl,
           thumbnailUrl: thumb || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
           category: categoryToUpload,
-          price: priceToUpload
+          price: priceToUpload,
+          channelName: channelNameToUpdate || user?.channel_name || user?.name,
+          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png'
         })
       }).catch(() => {});
 
@@ -386,7 +388,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           description: descToUpload,
           videoUrl: formattedUrl,
           category: categoryToUpload,
-          price: priceToUpload
+          price: priceToUpload,
+          channelName: channelNameToUpdate || user?.channel_name || user?.name,
+          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png'
         })
       });
 

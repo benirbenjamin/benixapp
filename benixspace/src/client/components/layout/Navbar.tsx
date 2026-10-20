@@ -643,6 +643,12 @@ export const Navbar: React.FC = () => {
       {/* Global Modals */}
       {showSearch && <SearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />}
       {showWallet && <WalletModal isOpen={showWallet} onClose={() => setShowWallet(false)} />}
+      {showCreateMedia && (
+        <CreateMediaModal
+          isOpen={showCreateMedia}
+          onClose={() => setShowCreateMedia(false)}
+        />
+      )}
       {wizardAppKey && (
         <AppAccessWizardModal
           isOpen={!!wizardAppKey}
