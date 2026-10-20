@@ -88,8 +88,11 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
   }, [initialTab]);
 
   useEffect(() => {
-    if (isOpen && token) {
-      loadTransactions();
+    if (isOpen) {
+      if (token) {
+        loadTransactions();
+      }
+      ensureFlutterwaveReady();
     }
   }, [isOpen, token]);
 
@@ -204,12 +207,25 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
     }
   };
 
-  const loadFlutterwaveScript = () => {
-    if (window.FlutterwaveCheckout) return;
-    const script = document.createElement('script');
-    script.src = 'https://checkout.flutterwave.com/v3.js';
-    script.async = true;
-    document.body.appendChild(script);
+  const ensureFlutterwaveReady = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if ((window as any).FlutterwaveCheckout) return resolve(true);
+      const existing = document.getElementById('flutterwave-checkout-script');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(true));
+        existing.addEventListener('error', () => resolve(false));
+        setTimeout(() => resolve(!!(window as any).FlutterwaveCheckout), 4000);
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'flutterwave-checkout-script';
+      script.src = 'https://checkout.flutterwave.com/v3.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+      setTimeout(() => resolve(!!(window as any).FlutterwaveCheckout), 4000);
+    });
   };
 
   const handleDeposit = async () => {
@@ -234,9 +250,19 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
 
     try {
       setLoading(true);
-      loadFlutterwaveScript();
 
-      // 1. Initialize real transaction reference with backend
+      // 1. Ensure Flutterwave checkout script is ready
+      const isReady = await ensureFlutterwaveReady();
+      if (!isReady && !(window as any).FlutterwaveCheckout) {
+        setStatusMsg({
+          text: 'Payment gateway script failed to load. Please check your internet connection or ad-blocker and try again.',
+          error: true
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 2. Initialize real transaction reference with backend & retrieve active public key
       const initRes = await fetch('/api/wallet/flutterwave/initialize', {
         method: 'POST',
         headers: {
@@ -250,12 +276,31 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
       });
 
       const initData = await initRes.json();
-      const txRef = initData.txRef || `FLW-BENIX-${Date.now()}`;
+      if (!initRes.ok || !initData.success) {
+        setStatusMsg({
+          text: initData.error || 'Failed to initialize deposit gateway. Please retry.',
+          error: true
+        });
+        setLoading(false);
+        return;
+      }
 
-      // 2. Open Flutterwave checkout popup
-      if (window.FlutterwaveCheckout) {
+      const txRef = initData.txRef || initData.tx_ref || `FLW-BENIX-${Date.now()}`;
+      const flwPublicKey = (initData.publicKey || initData.public_key || '').trim();
+
+      if (!flwPublicKey || flwPublicKey.includes('SANDBOXDEMO')) {
+        setStatusMsg({
+          text: 'Flutterwave public key is not configured in Admin Settings. Please contact the administrator.',
+          error: true
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 3. Open Flutterwave checkout popup with verified public key
+      if (typeof window.FlutterwaveCheckout === 'function') {
         window.FlutterwaveCheckout({
-          public_key: 'FLWPUBK_TEST-SANDBOXDEMO-X',
+          public_key: flwPublicKey,
           tx_ref: txRef,
           amount: num,
           currency: depositCurrency.code,
@@ -271,7 +316,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
             logo: `${window.location.origin}/logo.png`
           },
           callback: async (response: any) => {
-            // 3. Verify payment reference on backend & credit wallet
+            // 4. Verify payment reference on backend & credit wallet
             try {
               const verifyRes = await fetch('/api/wallet/flutterwave/verify', {
                 method: 'POST',
@@ -311,7 +356,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         });
       } else {
         setStatusMsg({
-          text: 'Payment engine is loading. Please click "Confirm Deposit via Flutterwave" once more.',
+          text: 'Payment engine is still preparing. Please click "Confirm Deposit via Flutterwave" once more.',
           error: true
         });
         setLoading(false);

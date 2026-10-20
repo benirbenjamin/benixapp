@@ -52,6 +52,7 @@ export const BuyCoffeeModal: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<any>(null);
+  const [flwPublicKey, setFlwPublicKey] = useState<string>('');
 
   useEffect(() => {
     if (isCoffeeModalOpen) {
@@ -60,6 +61,15 @@ export const BuyCoffeeModal: React.FC = () => {
       setErrorMessage(null);
       setSuccessData(null);
       loadFlutterwaveScript();
+
+      fetch('/api/settings/public')
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.flutterwave_public_key) {
+            setFlwPublicKey(d.flutterwave_public_key);
+          }
+        })
+        .catch(() => {});
     }
   }, [isCoffeeModalOpen, initialCups]);
 
@@ -108,9 +118,11 @@ export const BuyCoffeeModal: React.FC = () => {
     try {
       const tx_ref = `coffee_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
+      const activeKey = (flwPublicKey || 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X').trim();
+
       if (window.FlutterwaveCheckout) {
         window.FlutterwaveCheckout({
-          public_key: 'FLWPUBK_TEST-SANDBOXDEMO-X',
+          public_key: activeKey,
           tx_ref: tx_ref,
           amount: finalAmount,
           currency: selectedCurrency.code,

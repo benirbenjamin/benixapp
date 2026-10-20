@@ -86,10 +86,10 @@ export const AdminSettingsPage: React.FC = () => {
   // 5. Flutterwave Payment Gateway Configuration
   const [flutterwave, setFlutterwave] = useState({
     enabled: true,
-    public_key: 'FLWPUBK_TEST-SANDBOXDEMO-X',
+    public_key: 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X',
     secret_key: '',
     encryption_key: '',
-    is_live: false,
+    is_live: true,
     testing: false,
     test_result: ''
   });
@@ -238,14 +238,15 @@ export const AdminSettingsPage: React.FC = () => {
       })
         .then((r) => r.json())
         .then((data) => {
-          if (data?.settings) {
+          const cfg = data?.settings || data;
+          if (cfg && cfg.public_key !== undefined) {
             setFlutterwave((f) => ({
               ...f,
-              public_key: data.settings.public_key || f.public_key,
-              secret_key: data.settings.secret_key ? '••••••••••••••••' : f.secret_key,
-              encryption_key: data.settings.encryption_key ? '••••••••••••••••' : f.encryption_key,
-              is_live: !!data.settings.is_live,
-              enabled: data.settings.enabled !== false
+              public_key: cfg.public_key || f.public_key,
+              secret_key: cfg.secret_key ? '••••••••••••••••' : f.secret_key,
+              encryption_key: cfg.encryption_key ? '••••••••••••••••' : f.encryption_key,
+              is_live: !!cfg.is_live,
+              enabled: cfg.enabled !== false
             }));
           }
         })
@@ -382,6 +383,18 @@ export const AdminSettingsPage: React.FC = () => {
             passMonthlyPrice: Number(modules.kunda_pass_monthly_price)
           })
         }).catch(() => {});
+
+        // 4. Sync Flutterwave payment gateway credentials
+        if (flutterwave?.public_key) {
+          await fetch('/api/admin/settings/flutterwave', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(flutterwave)
+          }).catch(() => {});
+        }
       }
 
       setSuccess('All platform configurations, AdSense variables, Drive setup, and footer contacts saved successfully!');
