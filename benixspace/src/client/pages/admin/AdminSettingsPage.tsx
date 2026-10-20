@@ -123,6 +123,7 @@ export const AdminSettingsPage: React.FC = () => {
     radio_preroll_interval_sec: 180,
     radio_buffer_sec: 5,
     // Kunda Dating settings
+    kunda_creator_rev_share_pct: 15,
     kunda_message_cost: 50,
     kunda_free_messages: 3,
     kunda_contact_unlock_price: 2000,
@@ -211,8 +212,14 @@ export const AdminSettingsPage: React.FC = () => {
     fetch('/api/chat/settings')
       .then((r) => r.json())
       .then((data) => {
-        if (data?.contactUnlockPrice) {
-          setModules((m) => ({ ...m, kunda_contact_unlock_price: Number(data.contactUnlockPrice) }));
+        if (data) {
+          setModules((m) => ({
+            ...m,
+            kunda_contact_unlock_price: data.contactUnlockPrice !== undefined ? Number(data.contactUnlockPrice) : m.kunda_contact_unlock_price,
+            kunda_creator_rev_share_pct: data.creatorRevSharePct !== undefined ? Number(data.creatorRevSharePct) : m.kunda_creator_rev_share_pct,
+            kunda_message_cost: data.messageCost !== undefined ? Number(data.messageCost) : m.kunda_message_cost,
+            kunda_free_messages: data.freeMessages !== undefined ? Number(data.freeMessages) : m.kunda_free_messages
+          }));
         }
       })
       .catch(() => {});
@@ -334,7 +341,10 @@ export const AdminSettingsPage: React.FC = () => {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            contactUnlockPrice: Number(modules.kunda_contact_unlock_price) || 500
+            contactUnlockPrice: Number(modules.kunda_contact_unlock_price) || 500,
+            creatorRevSharePct: Number(modules.kunda_creator_rev_share_pct) || 15,
+            messageCost: Number(modules.kunda_message_cost) || 50,
+            freeMessages: Number(modules.kunda_free_messages) || 3
           })
         }).catch(() => {});
       }
@@ -1767,9 +1777,23 @@ export const AdminSettingsPage: React.FC = () => {
                       <input
                         type="number"
                         value={modules.kunda_contact_unlock_price}
-                        onChange={(e) => setModules({ ...modules, kunda_contact_unlock_price: Number(e.target.value) || 2000 })}
+                        onChange={(e) => setModules({ ...modules, kunda_contact_unlock_price: Number(e.target.value) || 500 })}
                         className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-amber-400 font-bold"
                       />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Creator Revenue Share % (Chat & Unlocks)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={modules.kunda_creator_rev_share_pct}
+                        onChange={(e) => setModules({ ...modules, kunda_creator_rev_share_pct: Number(e.target.value) || 15 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-emerald-400 font-bold"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        Percentage earned by user when receiving paid messages or having WhatsApp contact unlocked (default: 15%).
+                      </span>
                     </div>
                     <div>
                       <label className="text-slate-400 block mb-1">24-Hour Pass (RWF)</label>

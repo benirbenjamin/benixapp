@@ -52038,6 +52038,7 @@ app.post("/api/auth/verify-login-otp", async (req, res) => {
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
         referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
         app_profiles: user.app_profiles || {}
       },
       wallet: {
@@ -52090,6 +52091,7 @@ app.post("/api/auth/verify-account", async (req, res) => {
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
         referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
         app_profiles: user.app_profiles || {}
       },
       wallet: {
@@ -52402,6 +52404,7 @@ app.post("/api/auth/login", async (req, res) => {
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
         referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
         app_profiles: user.app_profiles || {}
       },
       wallet: {
@@ -52471,6 +52474,7 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
         selected_modules: user.selected_modules,
         homepage_layout: user.homepage_layout,
         referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
         app_profiles: user.app_profiles || {}
       },
       wallet: {
@@ -53254,31 +53258,236 @@ async function setSystemSetting(key, value) {
 }
 app.get("/api/chat/settings", async (req, res) => {
   try {
-    const priceStr = await getSystemSetting("contact_unlock_price", "500");
+    const contactUnlockPrice = Number(await getSystemSetting("contact_unlock_price", "500")) || 500;
+    const creatorRevSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+    const messageCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
+    const freeMessages = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
-      contactUnlockPrice: Number(priceStr) || 500,
+      contactUnlockPrice,
+      creatorRevSharePct,
+      messageCost,
+      freeMessages,
       currency: "RWF"
     });
   } catch {
-    return res.json({ success: true, contactUnlockPrice: 500, currency: "RWF" });
+    return res.json({
+      success: true,
+      contactUnlockPrice: 500,
+      creatorRevSharePct: 15,
+      messageCost: 50,
+      freeMessages: 3,
+      currency: "RWF"
+    });
   }
 });
 app.post("/api/admin/settings/chat", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { contactUnlockPrice } = req.body;
+    const { contactUnlockPrice, creatorRevSharePct, messageCost, freeMessages } = req.body;
     if (contactUnlockPrice !== void 0) {
-      const p2 = Math.max(0, Number(contactUnlockPrice) || 0);
-      await setSystemSetting("contact_unlock_price", String(p2));
+      await setSystemSetting("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
     }
-    const currentPrice = await getSystemSetting("contact_unlock_price", "500");
+    if (creatorRevSharePct !== void 0) {
+      await setSystemSetting("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
+    }
+    if (messageCost !== void 0) {
+      await setSystemSetting("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
+    }
+    if (freeMessages !== void 0) {
+      await setSystemSetting("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
+    }
+    const currentPrice = Number(await getSystemSetting("contact_unlock_price", "500")) || 500;
+    const currentShare = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+    const currentCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
+    const currentFree = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
-      contactUnlockPrice: Number(currentPrice) || 500,
-      message: "Chat settings saved successfully."
+      contactUnlockPrice: currentPrice,
+      creatorRevSharePct: currentShare,
+      messageCost: currentCost,
+      freeMessages: currentFree,
+      message: "Chat & Kunda monetization settings saved successfully."
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/chat/privacy-mode", authenticateToken, async (req, res) => {
+  try {
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS chat_privacy_mode VARCHAR(20) DEFAULT 'public';").catch(() => {
+    });
+    const r = await query("SELECT chat_privacy_mode FROM core_users WHERE id = $1", [req.user.id]);
+    return res.json({ success: true, mode: r.rows[0]?.chat_privacy_mode || "public" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, mode: "public" });
+  }
+});
+app.post("/api/chat/privacy-mode", authenticateToken, async (req, res) => {
+  try {
+    const { mode } = req.body;
+    const targetMode = mode === "private" ? "private" : "public";
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS chat_privacy_mode VARCHAR(20) DEFAULT 'public';").catch(() => {
+    });
+    await query("UPDATE core_users SET chat_privacy_mode = $1 WHERE id = $2", [targetMode, req.user.id]);
+    return res.json({
+      success: true,
+      mode: targetMode,
+      message: targetMode === "private" ? "Switched to Private Account! You now earn revenue on received paid messages and contact unlocks." : "Switched to Public Account! Anyone can message you for free."
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/chat/partner-status/:partnerId", authenticateToken, async (req, res) => {
+  try {
+    const partnerId = req.params.partnerId;
+    const senderId = req.user.id;
+    const freeLimit = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
+    const messageCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
+    const revSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+    const contactUnlockPrice = Number(await getSystemSetting("contact_unlock_price", "500")) || 500;
+    let partnerPrivacy = "public";
+    let partnerName = "Member";
+    if (partnerId !== "support") {
+      const u = await query("SELECT chat_privacy_mode, name, channel_name FROM core_users WHERE id = $1", [partnerId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (u.rowCount > 0) {
+        partnerPrivacy = u.rows[0].chat_privacy_mode || "public";
+        partnerName = u.rows[0].channel_name || u.rows[0].name || "Member";
+      }
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_direct_messages (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipient_id VARCHAR(255) NOT NULL,
+        message TEXT,
+        is_voice BOOLEAN DEFAULT FALSE,
+        voice_duration VARCHAR(50),
+        is_paid BOOLEAN DEFAULT FALSE,
+        amount_paid NUMERIC(15,2) DEFAULT 0,
+        creator_earning NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const countRes = await query(
+      `SELECT COUNT(*) as count FROM chat_direct_messages WHERE sender_id = $1 AND recipient_id = $2`,
+      [senderId, partnerId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    const sentCount = Number(countRes.rows[0]?.count || 0);
+    const isFree = partnerPrivacy === "public" || partnerId === "support" || sentCount < freeLimit;
+    const freeRemaining = partnerPrivacy === "private" && partnerId !== "support" ? Math.max(0, freeLimit - sentCount) : null;
+    return res.json({
+      success: true,
+      partnerId,
+      partnerPrivacy,
+      partnerName,
+      sentCount,
+      freeLimit,
+      freeRemaining,
+      isFree,
+      messageCost,
+      revSharePct,
+      contactUnlockPrice
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const { recipientId, message, isVoice, voiceDuration } = req.body;
+    if (!recipientId || !message && !isVoice) {
+      return res.status(400).json({ error: "Recipient and message content required." });
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_direct_messages (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipient_id VARCHAR(255) NOT NULL,
+        message TEXT,
+        is_voice BOOLEAN DEFAULT FALSE,
+        voice_duration VARCHAR(50),
+        is_paid BOOLEAN DEFAULT FALSE,
+        amount_paid NUMERIC(15,2) DEFAULT 0,
+        creator_earning NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    let recipientPrivacy = "public";
+    let recipientName = "Recipient";
+    if (recipientId !== "support") {
+      const recRes = await query("SELECT chat_privacy_mode, name, email FROM core_users WHERE id = $1", [recipientId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (recRes.rowCount > 0) {
+        recipientPrivacy = recRes.rows[0].chat_privacy_mode || "public";
+        recipientName = recRes.rows[0].name || recRes.rows[0].email || "Creator";
+      }
+    }
+    let isPaid = false;
+    let amountPaid = 0;
+    let creatorEarning = 0;
+    let newBalance = void 0;
+    let newBonusBalance = void 0;
+    if (recipientPrivacy === "private" && recipientId !== "support" && recipientId !== senderId) {
+      const countRes = await query(
+        `SELECT COUNT(*) as count FROM chat_direct_messages WHERE sender_id = $1 AND recipient_id = $2`,
+        [senderId, recipientId]
+      );
+      const sentCount = Number(countRes.rows[0]?.count || 0);
+      const freeLimit = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
+      const messageCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
+      if (sentCount >= freeLimit && messageCost > 0) {
+        const revSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+        creatorEarning = Math.round(messageCost * revSharePct / 100);
+        amountPaid = messageCost;
+        isPaid = true;
+        const debitRes = await WalletService.debit(
+          senderId,
+          messageCost,
+          "chat",
+          "paid_chat_message",
+          `Pay-as-you-chat message to private creator ${recipientName}`,
+          `tx_chat_msg_${Date.now()}`
+        );
+        newBalance = debitRes.newBalance;
+        newBonusBalance = debitRes.newBonusBalance;
+        if (creatorEarning > 0) {
+          await WalletService.credit(
+            recipientId,
+            creatorEarning,
+            "chat",
+            "chat_message_royalty",
+            `Earned ${revSharePct}% (${creatorEarning} RWF) from paid message sent by ${req.user.email || "a member"}`
+          ).catch(() => {
+          });
+        }
+      }
+    }
+    const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+    await query(
+      `INSERT INTO chat_direct_messages (id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, amount_paid, creator_earning)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [msgId, senderId, recipientId, message || "", !!isVoice, voiceDuration || null, isPaid, amountPaid, creatorEarning]
+    );
+    return res.json({
+      success: true,
+      messageId: msgId,
+      isPaid,
+      amountPaid,
+      creatorEarning,
+      newBalance,
+      newBonusBalance
+    });
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes("insufficient")) {
+      return res.status(400).json({
+        error: "INSUFFICIENT_FUNDS",
+        message: "Insufficient balance to send paid message to private creator. Please top up your wallet."
+      });
+    }
+    return res.status(500).json({ error: err.message || "Failed to send message." });
   }
 });
 app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
@@ -53296,6 +53505,19 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       `Unlocked direct contact phone number for member #${contactId}`,
       `tx_chat_unl_${Date.now()}`
     );
+    const revSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+    const creatorCut = Math.round(unlockPrice * revSharePct / 100);
+    if (creatorCut > 0 && contactId !== "support" && contactId !== userId) {
+      await WalletService.credit(
+        contactId,
+        creatorCut,
+        "chat",
+        "contact_unlock_royalty",
+        `Earned ${revSharePct}% commission (${creatorCut} RWF) from WhatsApp phone unlock by member`,
+        `tx_chat_cr_${Date.now()}`
+      ).catch(() => {
+      });
+    }
     await query(`
       CREATE TABLE IF NOT EXISTS chat_unlocked_contacts (
         id SERIAL PRIMARY KEY,
@@ -53323,6 +53545,8 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       newBonusBalance: debitRes.newBonusBalance,
       totalBalance: debitRes.totalBalance,
       unlockedPrice: unlockPrice,
+      creatorEarned: creatorCut,
+      creatorSharePct: revSharePct,
       message: `Verified phone number unlocked for ${unlockPrice} RWF!`
     });
   } catch (err) {
@@ -53355,8 +53579,10 @@ app.get("/api/chat/contacts", async (req, res) => {
       const decoded = verifyToken(authHeader.substring(7));
       currentUserId = decoded?.id || null;
     }
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS chat_privacy_mode VARCHAR(20) DEFAULT 'public';").catch(() => {
+    });
     const users = await query(
-      `SELECT id, name, email, phone, channel_name, app_profiles, created_at
+      `SELECT id, name, email, phone, channel_name, app_profiles, created_at, COALESCE(chat_privacy_mode, 'public') as chat_privacy_mode
        FROM core_users
        WHERE id != COALESCE($1, 'none')
        ORDER BY created_at DESC
@@ -53374,7 +53600,8 @@ app.get("/api/chat/contacts", async (req, res) => {
         online: idx % 2 === 0,
         // dynamic online simulation
         tag: u.channel_name ? "Subscribed Creator" : "Member",
-        city: kundaProfile.city || "Kigali, Rwanda"
+        city: kundaProfile.city || "Kigali, Rwanda",
+        privacyMode: u.chat_privacy_mode || "public"
       };
     });
     return res.json({ success: true, contacts });

@@ -34,7 +34,11 @@ import {
   Pause,
   AlertTriangle,
   ExternalLink,
-  CircleDot
+  CircleDot,
+  Globe,
+  Sparkles,
+  DollarSign,
+  Info
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -61,6 +65,7 @@ interface ChatConversation {
   isGroup?: boolean;
   messages: ChatMessage[];
   phone?: string;
+  privacyMode?: 'public' | 'private';
 }
 
 interface DirectoryContact {
@@ -72,6 +77,7 @@ interface DirectoryContact {
   online: boolean;
   tag: string;
   city: string;
+  privacyMode?: 'public' | 'private';
 }
 
 const INITIAL_CONVERSATIONS: ChatConversation[] = [
@@ -164,6 +170,32 @@ export const MessagesPage: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [contactUnlockPrice, setContactUnlockPrice] = useState<number>(500);
+  const [creatorRevSharePct, setCreatorRevSharePct] = useState<number>(15);
+  const [messageCost, setMessageCost] = useState<number>(50);
+  const [freeMessagesLimit, setFreeMessagesLimit] = useState<number>(3);
+
+  // Account Privacy & Monetization State (Public vs Private VIP Account)
+  const [myPrivacyMode, setMyPrivacyMode] = useState<'public' | 'private'>((user as any)?.chat_privacy_mode || 'public');
+  const [showPrivacyModal, setShowPrivacyModal] = useState<boolean>(false);
+  const [isSwitchingPrivacy, setIsSwitchingPrivacy] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Partner Quota & Restriction State
+  const [partnerStatus, setPartnerStatus] = useState<{
+    partnerPrivacy: 'public' | 'private';
+    isFree: boolean;
+    freeRemaining: number | null;
+    messageCost: number;
+    revSharePct: number;
+    sentCount: number;
+  }>({
+    partnerPrivacy: 'public',
+    isFree: true,
+    freeRemaining: null,
+    messageCost: 50,
+    revSharePct: 15,
+    sentCount: 0
+  });
 
   // Moderation violation warning
   const [moderationWarning, setModerationWarning] = useState<string | null>(null);
@@ -217,15 +249,102 @@ export const MessagesPage: React.FC = () => {
   useEffect(() => {
     fetchUnlockedContacts();
     fetchContacts();
+    const token = getAuthToken();
+    if (token) {
+      axios
+        .get('/api/chat/privacy-mode', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (res.data?.mode) setMyPrivacyMode(res.data.mode);
+        })
+        .catch(() => {});
+    }
+
     axios
       .get('/api/chat/settings')
       .then((res) => {
-        if (res.data?.contactUnlockPrice) {
-          setContactUnlockPrice(Number(res.data.contactUnlockPrice));
+        if (res.data) {
+          if (res.data.contactUnlockPrice) setContactUnlockPrice(Number(res.data.contactUnlockPrice));
+          if (res.data.creatorRevSharePct) setCreatorRevSharePct(Number(res.data.creatorRevSharePct));
+          if (res.data.messageCost) setMessageCost(Number(res.data.messageCost));
+          if (res.data.freeMessages) setFreeMessagesLimit(Number(res.data.freeMessages));
         }
       })
       .catch(() => {});
   }, [user]);
+
+  // Sync active partner's privacy mode & message restrictions
+  useEffect(() => {
+    if (!activePartnerId || activePartnerId === 'support') {
+      setPartnerStatus({
+        partnerPrivacy: 'public',
+        isFree: true,
+        freeRemaining: null,
+        messageCost,
+        revSharePct: creatorRevSharePct,
+        sentCount: 0
+      });
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      setPartnerStatus({
+        partnerPrivacy: 'public',
+        isFree: true,
+        freeRemaining: null,
+        messageCost,
+        revSharePct: creatorRevSharePct,
+        sentCount: 0
+      });
+      return;
+    }
+
+    axios
+      .get(`/api/chat/partner-status/${activePartnerId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then((res) => {
+        if (res.data?.success) {
+          setPartnerStatus({
+            partnerPrivacy: res.data.partnerPrivacy || 'public',
+            isFree: !!res.data.isFree,
+            freeRemaining: res.data.freeRemaining,
+            messageCost: res.data.messageCost || 50,
+            revSharePct: res.data.revSharePct || 15,
+            sentCount: res.data.sentCount || 0
+          });
+        }
+      })
+      .catch(() => {});
+  }, [activePartnerId, user, messageCost, creatorRevSharePct]);
+
+  // Handle Privacy Mode Switching (Public vs Private Account)
+  const handleTogglePrivacyMode = async (targetMode: 'public' | 'private') => {
+    const token = getAuthToken();
+    if (!token) {
+      setShowAuthModal(true);
+      return;
+    }
+    setIsSwitchingPrivacy(true);
+    try {
+      const res = await axios.post(
+        '/api/chat/privacy-mode',
+        { mode: targetMode },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data?.success) {
+        setMyPrivacyMode(targetMode);
+        setToastMessage(res.data.message);
+        setShowPrivacyModal(false);
+        refreshMe();
+        notificationSound.playNotificationChime();
+      }
+    } catch {
+      alert('Failed to update account privacy mode. Please try again.');
+    } finally {
+      setIsSwitchingPrivacy(false);
+    }
+  };
 
   // If navigated with query params (e.g. from Kunda dating profile "Private Chat")
   useEffect(() => {
@@ -306,6 +425,9 @@ export const MessagesPage: React.FC = () => {
         }
         refreshMe();
         notificationSound.playNotificationChime();
+        if (res.data.creatorEarned) {
+          setToastMessage(`🎉 Contact unlocked! ${activeConversation.partnerName} received ${res.data.creatorEarned} RWF (${res.data.creatorSharePct}%) commission in their wallet.`);
+        }
       }
     } catch (err: any) {
       if (err.response?.data?.error === 'INSUFFICIENT_FUNDS') {
@@ -332,6 +454,13 @@ export const MessagesPage: React.FC = () => {
         setModerationWarning(moderation.reason || 'Direct phone sharing is restricted. Use the Unlock Phone button.');
         return;
       }
+    }
+
+    // Check Wallet Balance for Paid Messages to Private VIP Accounts
+    const available = (wallet?.balance || 0) + (wallet?.bonus_balance || 0);
+    if (activeConversation.partnerId !== 'support' && !partnerStatus.isFree && available < partnerStatus.messageCost) {
+      setShowWalletModal(true);
+      return;
     }
 
     setModerationWarning(null);
@@ -361,6 +490,42 @@ export const MessagesPage: React.FC = () => {
 
     if (!textToSend) setInputMessage('');
     notificationSound.playNotificationChime();
+
+    // Call backend to handle pay-as-you-chat & creator split
+    const token = getAuthToken();
+    if (token && activeConversation.partnerId !== 'support') {
+      axios
+        .post(
+          '/api/chat/send-message',
+          {
+            recipientId: activeConversation.partnerId,
+            message: text,
+            isVoice,
+            voiceDuration: isVoice ? '0:07' : undefined
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .then((res) => {
+          if (res.data?.isPaid) {
+            if (res.data.newBalance !== undefined) {
+              updateWalletBalance(res.data.newBalance, res.data.newBonusBalance);
+            }
+            refreshMe();
+            setToastMessage(`💸 Paid message sent (${res.data.amountPaid} RWF). ${activeConversation.partnerName} received ${res.data.creatorEarning} RWF!`);
+          }
+          setPartnerStatus((prev) => ({
+            ...prev,
+            sentCount: prev.sentCount + 1,
+            freeRemaining: prev.freeRemaining !== null ? Math.max(0, prev.freeRemaining - 1) : null,
+            isFree: prev.freeRemaining !== null ? prev.freeRemaining - 1 > 0 : prev.isFree
+          }));
+        })
+        .catch((err) => {
+          if (err.response?.data?.error === 'INSUFFICIENT_FUNDS') {
+            setShowWalletModal(true);
+          }
+        });
+    }
 
     // Auto-reply simulation for responsive interactive feel
     if (activeConversation.partnerId !== 'support') {
@@ -544,6 +709,35 @@ export const MessagesPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Account Privacy & Monetization Switcher */}
+            <button
+              onClick={() => setShowPrivacyModal(true)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all shadow-sm ${
+                myPrivacyMode === 'private'
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                  : 'bg-blue-500/15 border-blue-500/30 text-blue-300 hover:bg-blue-500/25'
+              }`}
+              title="Click to view benefits and switch between Public & Private VIP account anytime"
+            >
+              {myPrivacyMode === 'private' ? (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Private VIP</span>
+                  <span className="hidden sm:inline text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-extrabold">
+                    Earning {creatorRevSharePct}%
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Public Account</span>
+                  <span className="hidden sm:inline text-[9px] px-1.5 py-0.5 rounded-full bg-blue-400/20 text-blue-200 font-extrabold">
+                    Free Chat
+                  </span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setShowWalletModal(true)}
               className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all"
@@ -553,6 +747,19 @@ export const MessagesPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Global Toast Alert */}
+        {toastMessage && (
+          <div className="mb-3 p-3 bg-emerald-950/80 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs flex items-center justify-between shadow-xl animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+            <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Unified 2-Column Split WhatsApp Layout */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 bg-[#111B21] border border-[#202C33] rounded-3xl overflow-hidden shadow-2xl min-h-[620px]">
@@ -678,6 +885,15 @@ export const MessagesPage: React.FC = () => {
                             <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                               {contact.tag}
                             </span>
+                            {contact.privacyMode === 'private' ? (
+                              <span className="text-[8px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                🔒 VIP
+                              </span>
+                            ) : (
+                              <span className="text-[8px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
+                                🌐 Free
+                              </span>
+                            )}
                           </h4>
                           <p className="text-[10px] text-slate-400">{contact.city}</p>
                         </div>
@@ -783,8 +999,28 @@ export const MessagesPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Header Actions: Contact Unlocking (500 RWF) */}
+                  {/* Header Actions: Contact Unlocking & Privacy Status */}
                   <div className="flex items-center gap-2">
+                    {activeConversation.partnerId !== 'support' && (
+                      <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl flex items-center gap-1 border ${
+                        partnerStatus.partnerPrivacy === 'private'
+                          ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                          : 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+                      }`}>
+                        {partnerStatus.partnerPrivacy === 'private' ? (
+                          <>
+                            <ShieldCheck className="w-3 h-3 text-amber-400" />
+                            <span>Private VIP</span>
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="w-3 h-3 text-blue-400" />
+                            <span>Public</span>
+                          </>
+                        )}
+                      </span>
+                    )}
+
                     {activeConversation.partnerId === 'support' ? (
                       <span className="text-[11px] font-bold text-slate-400 bg-[#111B21] px-3 py-1.5 rounded-xl border border-[#2A3942]">
                         24/7 Concierge
@@ -805,7 +1041,7 @@ export const MessagesPage: React.FC = () => {
                       <button
                         onClick={() => handleUnlockContact(activeConversation.partnerId)}
                         className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                        title={`Unlock verified personal WhatsApp phone number for ${contactUnlockPrice} RWF`}
+                        title={`Unlock verified personal WhatsApp phone number for ${contactUnlockPrice} RWF (${creatorRevSharePct}% goes to creator)`}
                       >
                         <Lock className="w-3.5 h-3.5 text-amber-400" />
                         <span>Unlock Phone ({contactUnlockPrice} RWF)</span>
@@ -813,6 +1049,43 @@ export const MessagesPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Partner Quota & Restriction Notice */}
+                {activeConversation.partnerId !== 'support' && (
+                  partnerStatus.partnerPrivacy === 'private' ? (
+                    <div className="px-3.5 py-1.5 bg-amber-950/40 border-b border-amber-500/30 text-amber-200 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>
+                          {partnerStatus.isFree ? (
+                            <>
+                              <strong>Private VIP Account</strong>: First {freeMessagesLimit} messages free ({partnerStatus.freeRemaining ?? 3} left). Then {messageCost} RWF/msg ({creatorRevSharePct}% goes directly to {activeConversation.partnerName}).
+                            </>
+                          ) : (
+                            <>
+                              💎 <strong>Pay-As-You-Chat Active</strong>: {messageCost} RWF per message ({creatorRevSharePct}% goes to {activeConversation.partnerName}'s wallet).
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 shrink-0">
+                        {partnerStatus.isFree ? `${partnerStatus.freeRemaining} free left` : `${messageCost} RWF/msg`}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="px-3.5 py-1.5 bg-emerald-950/30 border-b border-emerald-500/20 text-emerald-300 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          <strong>Public Account</strong>: All messages are 100% free! Unlocking WhatsApp ({contactUnlockPrice} RWF) rewards {activeConversation.partnerName} with {creatorRevSharePct}% commission.
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
+                        Free Chat
+                      </span>
+                    </div>
+                  )
+                )}
 
                 {/* Moderation Warning Toast */}
                 {moderationWarning && (
@@ -951,14 +1224,26 @@ export const MessagesPage: React.FC = () => {
                       <Mic className="w-4 h-4" />
                     </button>
 
-                    <button
-                      type="submit"
-                      disabled={!inputMessage.trim()}
-                      className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Send Message"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
+                    {activeConversation.partnerId !== 'support' && partnerStatus.partnerPrivacy === 'private' && !partnerStatus.isFree ? (
+                      <button
+                        type="submit"
+                        disabled={!inputMessage.trim()}
+                        className="px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-black text-xs shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        title={`Send Paid Message (${messageCost} RWF)`}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline font-mono text-[11px]">{messageCost} RWF</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={!inputMessage.trim()}
+                        className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Send Message"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
                   </form>
                 )}
               </>
@@ -1117,6 +1402,164 @@ export const MessagesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Account Privacy & Monetization Benefits Modal */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#111B21] border border-[#202C33] rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl relative space-y-5 animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowPrivacyModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white bg-[#202C33]/60 hover:bg-[#202C33] transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-black uppercase tracking-wider mb-2">
+                <Sparkles className="w-3 h-3" /> Account Privacy & Earnings Model
+              </div>
+              <h2 className="text-xl font-black text-white">Choose Your Chat Account Mode</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                You can switch between <strong>Public Account</strong> and <strong>Private VIP Account</strong> anytime.
+              </p>
+            </div>
+
+            <div className="space-y-3.5">
+              {/* PRIVATE VIP OPTION */}
+              <div
+                onClick={() => handleTogglePrivacyMode('private')}
+                className={`p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all ${
+                  myPrivacyMode === 'private'
+                    ? 'bg-amber-500/10 border-amber-500/60 shadow-xl shadow-amber-500/10'
+                    : 'bg-[#202C33]/40 border-[#2A3942] hover:border-amber-500/40 hover:bg-[#202C33]/80'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                        <span>Private VIP Account</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-extrabold">
+                          Recommended for Creators
+                        </span>
+                      </h4>
+                      <p className="text-xs text-amber-300/90 font-bold">
+                        Earn {creatorRevSharePct}% on Paid Messages & WhatsApp Unlocks
+                      </p>
+                    </div>
+                  </div>
+                  {myPrivacyMode === 'private' && (
+                    <span className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[10px] font-black flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Active
+                    </span>
+                  )}
+                </div>
+
+                <ul className="text-xs text-slate-300 space-y-2 pt-2.5 pl-1 border-t border-slate-700/50">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-black">✓</span>
+                    <span>
+                      <strong>Earn {creatorRevSharePct}% on Every Paid Message</strong>: Members receive {freeMessagesLimit} free messages. After that, they pay {messageCost} RWF per message, and <strong>{creatorRevSharePct}% ({Math.round(messageCost * creatorRevSharePct / 100)} RWF)</strong> is credited directly into your Central Wallet!
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-black">✓</span>
+                    <span>
+                      <strong>Earn {creatorRevSharePct}% on WhatsApp Unlocks</strong>: When someone pays {contactUnlockPrice} RWF to unlock your direct WhatsApp contact, you automatically receive <strong>{Math.round(contactUnlockPrice * creatorRevSharePct / 100)} RWF</strong>!
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-black">✓</span>
+                    <span>
+                      <strong>Spam & Distraction Shield</strong>: Filters out spam; only serious connections who truly value your time will message you.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-400 font-black">⭐</span>
+                    <span>
+                      <strong>VIP Gold Badge</strong>: Stand out across all chat, video, and dating directories as a verified creator.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* PUBLIC OPTION */}
+              <div
+                onClick={() => handleTogglePrivacyMode('public')}
+                className={`p-4 sm:p-5 rounded-2xl border cursor-pointer transition-all ${
+                  myPrivacyMode === 'public'
+                    ? 'bg-blue-500/10 border-blue-500/60 shadow-xl shadow-blue-500/10'
+                    : 'bg-[#202C33]/40 border-[#2A3942] hover:border-blue-500/40 hover:bg-[#202C33]/80'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                      <Globe className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                        <span>Public Account</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-extrabold">
+                          Free Open Chat
+                        </span>
+                      </h4>
+                      <p className="text-xs text-blue-300/90 font-bold">
+                        Anyone can message you for free • Still earn on WhatsApp unlocks
+                      </p>
+                    </div>
+                  </div>
+                  {myPrivacyMode === 'public' && (
+                    <span className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-[10px] font-black flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Active
+                    </span>
+                  )}
+                </div>
+
+                <ul className="text-xs text-slate-300 space-y-2 pt-2.5 pl-1 border-t border-slate-700/50">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 font-black">✓</span>
+                    <span>
+                      <strong>100% Free Messages</strong>: Any member or creator can send unlimited messages to you at zero cost, maximizing reach and networking.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-black">✓</span>
+                    <span>
+                      <strong>You STILL Earn {creatorRevSharePct}% on WhatsApp Unlocks</strong>: When a member unlocks your verified phone number ({contactUnlockPrice} RWF), you still receive your <strong>{creatorRevSharePct}% ({Math.round(contactUnlockPrice * creatorRevSharePct / 100)} RWF)</strong> cash reward!
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPrivacyModal(false)}
+                className="flex-1 py-3 rounded-2xl bg-[#202C33] hover:bg-[#2A3942] text-slate-300 font-bold text-xs transition"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTogglePrivacyMode(myPrivacyMode === 'public' ? 'private' : 'public')}
+                disabled={isSwitchingPrivacy}
+                className={`flex-1 py-3 rounded-2xl font-black text-xs text-white shadow-xl transition-all ${
+                  myPrivacyMode === 'public'
+                    ? 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 shadow-amber-600/30'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
+                }`}
+              >
+                {isSwitchingPrivacy ? 'Updating...' : myPrivacyMode === 'public' ? 'Activate Private VIP (Earn 15%)' : 'Switch to Public (Free Messages)'}
+              </button>
+            </div>
           </div>
         </div>
       )}
