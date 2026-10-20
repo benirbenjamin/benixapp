@@ -35948,7 +35948,16 @@ var WalletService = class {
     const txRef = reference || `tx_db_${Date.now()}_${crypto2.randomBytes(4).toString("hex")}`;
     const txId = "cwt-" + crypto2.randomUUID();
     return await withTransaction(async (client) => {
-      const walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
+      let walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ["wallet-" + userId, userId]
+        );
+        walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
+      }
       if (walletRes.rowCount === 0) {
         throw new Error("Wallet not found.");
       }
@@ -36015,7 +36024,16 @@ var WalletService = class {
     if (amount < 500) throw new Error("Minimum withdrawal amount is 500 RWF.");
     const withdrawalId = "wd-" + crypto2.randomUUID();
     return await withTransaction(async (client) => {
-      const walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
+      let walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ["wallet-" + userId, userId]
+        );
+        walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
+      }
       if (walletRes.rowCount === 0) throw new Error("Wallet not found.");
       const wallet = walletRes.rows[0];
       const currentBalance = Number(wallet.balance);
@@ -53197,11 +53215,78 @@ app.post("/api/modules/kunda/unlock-contact", authenticateToken, async (req, res
     return res.status(400).json({ error: err.message || "Failed to unlock contact." });
   }
 });
+async function getSystemSetting(key, defaultValue) {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]);
+    if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0) {
+      return String(res.rows[0].value);
+    }
+  } catch {
+  }
+  return defaultValue;
+}
+async function setSystemSetting(key, value) {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+      [key, String(value)]
+    );
+  } catch {
+  }
+}
+app.get("/api/chat/settings", async (req, res) => {
+  try {
+    const priceStr = await getSystemSetting("contact_unlock_price", "500");
+    return res.json({
+      success: true,
+      contactUnlockPrice: Number(priceStr) || 500,
+      currency: "RWF"
+    });
+  } catch {
+    return res.json({ success: true, contactUnlockPrice: 500, currency: "RWF" });
+  }
+});
+app.post("/api/admin/settings/chat", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { contactUnlockPrice } = req.body;
+    if (contactUnlockPrice !== void 0) {
+      const p2 = Math.max(0, Number(contactUnlockPrice) || 0);
+      await setSystemSetting("contact_unlock_price", String(p2));
+    }
+    const currentPrice = await getSystemSetting("contact_unlock_price", "500");
+    return res.json({
+      success: true,
+      contactUnlockPrice: Number(currentPrice) || 500,
+      message: "Chat settings saved successfully."
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
   try {
-    const { contactId, price = 500 } = req.body;
+    const { contactId } = req.body;
     if (!contactId) return res.status(400).json({ error: "contactId is required." });
-    const unlockPrice = Number(price) || 500;
+    const dbPriceStr = await getSystemSetting("contact_unlock_price", "500");
+    const unlockPrice = Math.max(0, Number(dbPriceStr) || 500);
     const userId = req.user.id;
     const debitRes = await WalletService.debit(
       userId,
@@ -53235,11 +53320,18 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       phone,
       whatsappUrl: `https://wa.me/${cleanPhone}?text=Muraho!%20Connected%20via%20BenixSpace.`,
       newBalance: debitRes.newBalance,
+      newBonusBalance: debitRes.newBonusBalance,
+      totalBalance: debitRes.totalBalance,
+      unlockedPrice: unlockPrice,
       message: `Verified phone number unlocked for ${unlockPrice} RWF!`
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      return res.status(400).json({ error: "INSUFFICIENT_FUNDS", message: "Insufficient wallet balance. Unlocking contact requires 500 RWF." });
+      const dbPrice = await getSystemSetting("contact_unlock_price", "500");
+      return res.status(400).json({
+        error: "INSUFFICIENT_FUNDS",
+        message: `Insufficient wallet balance. Unlocking contact requires ${dbPrice} RWF. Please top up your wallet.`
+      });
     }
     return res.status(400).json({ error: err.message || "Failed to unlock contact." });
   }
@@ -53638,6 +53730,64 @@ app.post("/api/admin/users/:id/role", authenticateToken, requireAdminRole, async
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+async function ensureUploadChunksTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS upload_chunks (
+      upload_id VARCHAR(255) NOT NULL,
+      chunk_index INT NOT NULL,
+      total_chunks INT NOT NULL,
+      chunk_data TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (upload_id, chunk_index)
+    );
+  `).catch(() => {
+  });
+}
+app.post("/api/upload/chunk", async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, fileName, fileType, chunkData, folder = "media" } = req.body;
+    if (!uploadId || chunkIndex === void 0 || !totalChunks || !chunkData) {
+      return res.status(400).json({ error: "Missing chunk upload metadata." });
+    }
+    await ensureUploadChunksTable();
+    await query(
+      `INSERT INTO upload_chunks (upload_id, chunk_index, total_chunks, chunk_data)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (upload_id, chunk_index) DO UPDATE SET chunk_data = $4`,
+      [uploadId, Number(chunkIndex), Number(totalChunks), chunkData]
+    );
+    if (Number(chunkIndex) < Number(totalChunks) - 1) {
+      return res.json({ success: true, chunkReceived: Number(chunkIndex) });
+    }
+    const allChunksRes = await query(
+      `SELECT chunk_index, chunk_data FROM upload_chunks WHERE upload_id = $1 ORDER BY chunk_index ASC`,
+      [uploadId]
+    );
+    if (allChunksRes.rowCount < Number(totalChunks)) {
+      return res.status(400).json({
+        error: `Incomplete chunks. Received ${allChunksRes.rowCount} of ${totalChunks}.`
+      });
+    }
+    const bufferParts = allChunksRes.rows.map((r) => Buffer.from(r.chunk_data, "base64"));
+    const fullBuffer = Buffer.concat(bufferParts);
+    await query(`DELETE FROM upload_chunks WHERE upload_id = $1`, [uploadId]).catch(() => {
+    });
+    const mime = fileType || (fileName?.endsWith(".mp4") ? "video/mp4" : "application/octet-stream");
+    const safeFileName = `${Date.now()}_${(fileName || "media.mp4").replace(/[^a-zA-Z0-9_\.-]/g, "_")}`;
+    const uploadResult = await StorageService.uploadFile(safeFileName, mime, fullBuffer);
+    query(`DELETE FROM upload_chunks WHERE created_at < NOW() - INTERVAL '2 hours'`).catch(() => {
+    });
+    return res.json({
+      success: true,
+      url: uploadResult.fileUrl,
+      provider: uploadResult.provider,
+      sizeBytes: fullBuffer.length
+    });
+  } catch (err) {
+    console.error("Chunk upload error:", err);
+    return res.status(500).json({ error: err.message || "Chunk upload failed." });
   }
 });
 var userVideosList = [];

@@ -36,7 +36,9 @@ import {
   Bell,
   UserPlus,
   Plus,
-  X
+  X,
+  Wifi,
+  Settings
 } from 'lucide-react';
 import axios from 'axios';
 import { GoogleAdSense } from '../../components/ads/GoogleAdSense';
@@ -63,25 +65,35 @@ interface VideoItem {
 // 94 Real YouTube videos provided by user (real creators & titles, 0 fake subscriber counters)
 const FALLBACK_VIDEOS: VideoItem[] = realVideosData as VideoItem[];
 
-export function getSafeYouTubeEmbedUrl(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): string {
+export function getSafeYouTubeEmbedUrl(
+  video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined,
+  quality: string = '720p'
+): string {
   if (!video) return '';
   const vidId = video.id?.trim();
+  const vqMap: Record<string, string> = {
+    '1080p': 'hd1080',
+    '720p': 'hd720',
+    '480p': 'large',
+    '360p': 'medium'
+  };
+  const vq = vqMap[quality] || 'hd720';
 
   // If video id is a standard 11-char YouTube ID (e.g. B0xTrgyZGeM)
   if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId)) {
-    return `https://www.youtube.com/embed/${vidId}?autoplay=1&enablejsapi=1`;
+    return `https://www.youtube.com/embed/${vidId}?autoplay=1&enablejsapi=1&vq=${vq}`;
   }
 
   // Check in embedUrl or videoUrl
   const urlCandidate = (video.embedUrl || video.videoUrl || '').trim();
   const ytMatch = urlCandidate.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch && ytMatch[1]) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1`;
+    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&vq=${vq}`;
   }
 
   if (urlCandidate.includes('/embed/')) {
     const separator = urlCandidate.includes('?') ? '&' : '?';
-    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1`;
+    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1&vq=${vq}`;
   }
 
   return urlCandidate;
@@ -113,6 +125,21 @@ export const VideosPage: React.FC = () => {
   const [videos, setVideos] = useState<VideoItem[]>(FALLBACK_VIDEOS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const filteredVideos = videos.filter((vid) => {
+    const matchesSearch =
+      vid.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vid.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vid.category.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (selectedCategory === 'All') return true;
+    if (selectedCategory === 'Free to Watch') return vid.price <= 0;
+    if (selectedCategory === 'Premium') return vid.price > 0;
+    return vid.category.toLowerCase() === selectedCategory.toLowerCase();
+  });
+
   const [activeVideo, setActiveVideo] = useState<VideoItem | null>(null);
   const [unlockedVideoIds, setUnlockedVideoIds] = useState<string[]>(() => {
     try {
@@ -168,6 +195,71 @@ export const VideosPage: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [centerFeedback, setCenterFeedback] = useState<'play' | 'pause' | null>(null);
   const feedbackTimerRef = useRef<any>(null);
+
+  // Adaptive Video Quality State (Low -> Medium -> HD automatically based on connection)
+  const [networkQuality, setNetworkQuality] = useState<'360p' | '480p' | '720p' | '1080p'>('720p');
+  const [qualityMode, setQualityMode] = useState<'auto' | '360p' | '480p' | '720p' | '1080p'>('auto');
+  const [connectionSpeedLabel, setConnectionSpeedLabel] = useState<string>('Adaptive Auto');
+  const [showQualityMenu, setShowQualityMenu] = useState<boolean>(false);
+
+  const activeQuality = qualityMode === 'auto' ? networkQuality : qualityMode;
+
+  // Adaptive Connection Detection
+  useEffect(() => {
+    const detectConnection = () => {
+      const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
+      const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+      if (conn) {
+        const type = conn.effectiveType; // 'slow-2g', '2g', '3g', '4g'
+        const downlink = conn.downlink; // speed in Mbps
+        if (type === 'slow-2g' || type === '2g' || (downlink && downlink < 1.0)) {
+          setNetworkQuality('360p');
+          setConnectionSpeedLabel(`Low Speed (${type || '<1 Mbps'}) • 360p`);
+        } else if (type === '3g' || (downlink && downlink < 2.5)) {
+          setNetworkQuality('480p');
+          setConnectionSpeedLabel(`Medium Speed (${type || '1-3 Mbps'}) • 480p`);
+        } else if (downlink && downlink >= 6.0) {
+          setNetworkQuality('1080p');
+          setConnectionSpeedLabel(`High Speed (${downlink} Mbps) • 1080p HD`);
+        } else {
+          setNetworkQuality('720p');
+          setConnectionSpeedLabel(`Standard 4G • 720p HD`);
+        }
+      } else {
+        setNetworkQuality('720p');
+        setConnectionSpeedLabel('Standard • 720p HD');
+      }
+    };
+
+    detectConnection();
+    const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
+    const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+    if (conn?.addEventListener) {
+      conn.addEventListener('change', detectConnection);
+      return () => conn.removeEventListener('change', detectConnection);
+    }
+  }, []);
+
+  // Sync quality to active YouTube iframe if playing
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow) {
+      const vqMap: Record<string, string> = {
+        '1080p': 'hd1080',
+        '720p': 'hd720',
+        '480p': 'large',
+        '360p': 'medium'
+      };
+      const vq = vqMap[activeQuality] || 'hd720';
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({
+          event: 'command',
+          func: 'setPlaybackQuality',
+          args: [vq]
+        }),
+        '*'
+      );
+    }
+  }, [activeQuality, activeVideo]);
 
   // Cross-Platform Referral Tracking
   useEffect(() => {
@@ -617,20 +709,6 @@ export const VideosPage: React.FC = () => {
     return `${origin}/videos/${vid.id}?ref=${encodeURIComponent(myRef)}`;
   };
 
-  const filteredVideos = videos.filter((vid) => {
-    const matchesSearch =
-      vid.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vid.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vid.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-    if (!matchesSearch) return false;
-
-    if (selectedCategory === 'All') return true;
-    if (selectedCategory === 'Free to Watch') return vid.price <= 0;
-    if (selectedCategory === 'Premium') return vid.price > 0;
-    return vid.category.toLowerCase() === selectedCategory.toLowerCase();
-  });
-
   return (
     <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-purple-600 selection:text-white">
       <SeoHead
@@ -741,7 +819,7 @@ export const VideosPage: React.FC = () => {
                     {isYouTubeVideo(activeVideo) ? (
                       <iframe
                         ref={iframeRef}
-                        src={getSafeYouTubeEmbedUrl(activeVideo)}
+                        src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
                         title={activeVideo.title}
                         className="w-full h-full border-0 relative z-10 pointer-events-auto"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -754,6 +832,7 @@ export const VideosPage: React.FC = () => {
                         controls
                         autoPlay
                         playsInline
+                        preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
                         className="w-full h-full object-contain bg-black relative z-10"
                         poster={activeVideo.thumbnail}
                       />
@@ -825,13 +904,63 @@ export const VideosPage: React.FC = () => {
                         </span>
                       </div>
 
-                      <button
-                        onClick={toggleFullscreen}
-                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                        title="Toggle Landscape Fullscreen (F)"
-                      >
-                        {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {/* Adaptive Stream Quality Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowQualityMenu((prev) => !prev)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
+                            title="Video Stream Quality (Adaptive)"
+                          >
+                            <Wifi className="w-3.5 h-3.5 text-purple-400" />
+                            <span className="font-mono text-[11px]">
+                              {qualityMode === 'auto' ? `Auto (${activeQuality})` : activeQuality}
+                            </span>
+                          </button>
+
+                          {showQualityMenu && (
+                            <div className="absolute bottom-11 right-0 z-50 w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
+                              <div className="px-2.5 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                                <span>Adaptive Quality</span>
+                                <span className="text-[10px] text-purple-400 font-mono truncate max-w-[110px]" title={connectionSpeedLabel}>
+                                  {connectionSpeedLabel}
+                                </span>
+                              </div>
+                              {[
+                                { id: 'auto', label: `Auto (Adaptive - ${networkQuality})` },
+                                { id: '1080p', label: '1080p Full HD' },
+                                { id: '720p', label: '720p HD' },
+                                { id: '480p', label: '480p Medium (Data Saver)' },
+                                { id: '360p', label: '360p Low (Ultra Saver)' }
+                              ].map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  onClick={() => {
+                                    setQualityMode(opt.id as any);
+                                    setShowQualityMenu(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition ${
+                                    qualityMode === opt.id
+                                      ? 'bg-purple-600/30 text-purple-300 font-bold'
+                                      : 'hover:bg-slate-800/80 text-slate-300'
+                                  }`}
+                                >
+                                  <span>{opt.label}</span>
+                                  {qualityMode === opt.id && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={toggleFullscreen}
+                          className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                          title="Toggle Landscape Fullscreen (F)"
+                        >
+                          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
                   </>
                 ) : (

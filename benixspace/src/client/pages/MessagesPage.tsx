@@ -163,6 +163,7 @@ export const MessagesPage: React.FC = () => {
   const [animatingHeartId, setAnimatingHeartId] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [contactUnlockPrice, setContactUnlockPrice] = useState<number>(500);
 
   // Moderation violation warning
   const [moderationWarning, setModerationWarning] = useState<string | null>(null);
@@ -216,6 +217,14 @@ export const MessagesPage: React.FC = () => {
   useEffect(() => {
     fetchUnlockedContacts();
     fetchContacts();
+    axios
+      .get('/api/chat/settings')
+      .then((res) => {
+        if (res.data?.contactUnlockPrice) {
+          setContactUnlockPrice(Number(res.data.contactUnlockPrice));
+        }
+      })
+      .catch(() => {});
   }, [user]);
 
   // If navigated with query params (e.g. from Kunda dating profile "Private Chat")
@@ -266,7 +275,7 @@ export const MessagesPage: React.FC = () => {
     return unlockedContactIds.includes(partnerId);
   };
 
-  // Unlock contact phone handler (Deducts 500 RWF via central wallet)
+  // Unlock contact phone handler (Deducts contactUnlockPrice RWF via central wallet)
   const handleUnlockContact = async (partnerId: string) => {
     if (!user) {
       setShowAuthModal(true);
@@ -274,7 +283,7 @@ export const MessagesPage: React.FC = () => {
     }
 
     const available = (wallet?.balance || 0) + (wallet?.bonus_balance || 0);
-    if (available < 500) {
+    if (available < contactUnlockPrice) {
       setShowWalletModal(true);
       return;
     }
@@ -283,7 +292,7 @@ export const MessagesPage: React.FC = () => {
       const token = getAuthToken();
       const res = await axios.post(
         '/api/chat/unlock-contact',
-        { contactId: partnerId, price: 500 },
+        { contactId: partnerId, price: contactUnlockPrice },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -293,10 +302,9 @@ export const MessagesPage: React.FC = () => {
           setUnlockedPhones((prev) => ({ ...prev, [partnerId]: res.data.phone }));
         }
         if (res.data.newBalance !== undefined) {
-          updateWalletBalance(res.data.newBalance);
-        } else {
-          refreshMe();
+          updateWalletBalance(res.data.newBalance, res.data.newBonusBalance);
         }
+        refreshMe();
         notificationSound.playNotificationChime();
       }
     } catch (err: any) {
@@ -797,10 +805,10 @@ export const MessagesPage: React.FC = () => {
                       <button
                         onClick={() => handleUnlockContact(activeConversation.partnerId)}
                         className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                        title="Unlock verified personal WhatsApp phone number for 500 RWF"
+                        title={`Unlock verified personal WhatsApp phone number for ${contactUnlockPrice} RWF`}
                       >
                         <Lock className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Unlock Phone (500 RWF)</span>
+                        <span>Unlock Phone ({contactUnlockPrice} RWF)</span>
                       </button>
                     )}
                   </div>

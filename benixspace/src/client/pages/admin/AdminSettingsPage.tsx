@@ -6,7 +6,7 @@ import {
   Settings, Save, CheckCircle2, AlertCircle, Building2, User, Mail, Phone,
   MapPin, ShieldCheck, Tv, Radio, Heart, Music, ShoppingBag, Dices, Calculator,
   Database, Send, Upload, Image, HardDrive, DollarSign, Globe, ExternalLink,
-  Layers, RefreshCw, Eye, Sparkles, Check, Film
+  Layers, RefreshCw, Eye, Sparkles, Check, Film, Plus, Trash2, X
 } from 'lucide-react';
 
 export const AdminSettingsPage: React.FC = () => {
@@ -207,6 +207,47 @@ export const AdminSettingsPage: React.FC = () => {
         }
       })
       .catch(() => {});
+
+    fetch('/api/chat/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.contactUnlockPrice) {
+          setModules((m) => ({ ...m, kunda_contact_unlock_price: Number(data.contactUnlockPrice) }));
+        }
+      })
+      .catch(() => {});
+
+    const token = getAuthToken();
+    if (token) {
+      fetch('/api/admin/settings/flutterwave', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.settings) {
+            setFlutterwave((f) => ({
+              ...f,
+              public_key: data.settings.public_key || f.public_key,
+              secret_key: data.settings.secret_key ? '••••••••••••••••' : f.secret_key,
+              encryption_key: data.settings.encryption_key ? '••••••••••••••••' : f.encryption_key,
+              is_live: !!data.settings.is_live,
+              enabled: data.settings.enabled !== false
+            }));
+          }
+        })
+        .catch(() => {});
+
+      fetch('/api/admin/settings/storage', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.accounts && Array.isArray(data.accounts)) {
+            setDriveAccounts(data.accounts);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   // Handle Logo & Image File Upload
@@ -283,6 +324,17 @@ export const AdminSettingsPage: React.FC = () => {
             drive,
             modules,
             emailConfig
+          })
+        }).catch(() => {});
+
+        await fetch('/api/admin/settings/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            contactUnlockPrice: Number(modules.kunda_contact_unlock_price) || 500
           })
         }).catch(() => {});
       }

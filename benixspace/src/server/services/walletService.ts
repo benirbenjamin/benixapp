@@ -317,7 +317,16 @@ export class WalletService {
 
     return await withTransaction(async (client) => {
       // Lock wallet row for update
-      const walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ['wallet-' + userId, userId]
+        );
+        walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      }
       if (walletRes.rowCount === 0) {
         throw new Error('Wallet not found.');
       }
@@ -404,7 +413,16 @@ export class WalletService {
 
     return await withTransaction(async (client) => {
       // Debit from available balance
-      const walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      if (walletRes.rowCount === 0) {
+        await client.query(
+          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings)
+           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00)
+           ON CONFLICT (user_id) DO NOTHING`,
+          ['wallet-' + userId, userId]
+        );
+        walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      }
       if (walletRes.rowCount === 0) throw new Error('Wallet not found.');
 
       const wallet = walletRes.rows[0];

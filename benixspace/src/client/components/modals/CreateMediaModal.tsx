@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useUpload } from '../../context/UploadContext';
+import { uploadFileInChunks } from '../../utils/chunkedUpload';
 import { notificationSound } from '../../utils/notificationSound';
 import {
   X,
@@ -88,6 +89,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
   // Story Form State
   const [storyMediaUrl, setStoryMediaUrl] = useState('');
+  const [selectedStoryFile, setSelectedStoryFile] = useState<File | null>(null);
   const [storyCaption, setStoryCaption] = useState('');
   const [storyPreview, setStoryPreview] = useState<string | null>(null);
 
@@ -97,6 +99,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDesc, setVideoDesc] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [videoCategory, setVideoCategory] = useState('Entertainment & Movies');
   const [isPaidVideo, setIsPaidVideo] = useState(false);
   const [videoPrice, setVideoPrice] = useState('500');
@@ -132,39 +135,52 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
   if (!isOpen) return null;
 
-  // Handle Story File Upload with Canvas Compression
-  const handleStoryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Story File Upload with Fast Preview & Chunk Preparation
+  const handleStoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedStoryFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setStoryPreview(objectUrl);
+    setStoryMediaUrl(objectUrl);
+
     const isVid = file.type.startsWith('video/');
-    setStatusMsg({ text: isVid ? 'Preparing video clip...' : 'Optimizing image for fast broadcast...' });
-    try {
-      const compressed = await compressImage(file, 1080, 0.75);
-      setStoryPreview(compressed);
-      setStoryMediaUrl(compressed);
-      setStatusMsg({ text: isVid ? 'Video clip ready for 24h story broadcast!' : 'Image optimized ready for 24h story broadcast!' });
-    } catch {
-      setStatusMsg({ text: 'Failed to process media file.', error: true });
-    }
+    setStatusMsg({
+      text: isVid
+        ? `Video clip ready: "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
+        : `Photo ready for story broadcast!`
+    });
   };
 
-  // Publish 24h Story in Background with Live Progress Line
+  // Publish 24h Story in Background with Chunked Upload & Live Progress Line
   const handleCreateStory = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMsg(null);
-    if (!storyMediaUrl) {
+    if (!selectedStoryFile && !storyMediaUrl) {
       setStatusMsg({ text: 'Please upload a photo or short clip for your story.', error: true });
       return;
     }
 
     const title = storyCaption.trim() ? `Story: "${storyCaption.trim().slice(0, 24)}..."` : '24h Story';
-    const mediaToUpload = storyMediaUrl;
     const captionToUpload = storyCaption.trim();
+    const fileToUpload = selectedStoryFile;
+    const fallbackUrl = storyMediaUrl;
 
     // Start background upload & close modal so user can browse freely
     startUpload(title, 'story', async (updateProgress) => {
-      updateProgress(20);
+      let finalMediaUrl = fallbackUrl;
+
+      // If local file selected, upload in resilient chunks (avoids Vercel 413 error completely!)
+      if (fileToUpload) {
+        updateProgress(10);
+        finalMediaUrl = await uploadFileInChunks(fileToUpload, {
+          folder: 'stories',
+          onProgress: (pct) => updateProgress(Math.round(10 + pct * 0.75))
+        });
+      }
+
+      updateProgress(88);
       const res = await fetch('/api/stories', {
         method: 'POST',
         headers: {
@@ -172,12 +188,12 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          mediaUrl: mediaToUpload,
+          mediaUrl: finalMediaUrl,
           caption: captionToUpload
         })
       });
 
-      updateProgress(70);
+      updateProgress(96);
       const text = await res.text();
       let data: any = {};
       try {
@@ -251,6 +267,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedVideoFile(file);
     setSelectedVideoFileName(file.name);
     // Use cleaned file name as initial title if empty
     if (!videoTitle) {
@@ -273,8 +290,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
       return;
     }
 
-    if (!videoTitle.trim() || !videoUrl.trim()) {
-      setStatusMsg({ text: 'Video Title and Video Stream / YouTube Link are required.', error: true });
+    if (!videoTitle.trim() || (!videoUrl.trim() && !selectedVideoFile)) {
+      setStatusMsg({ text: 'Video Title and Video Stream / File / YouTube Link are required.', error: true });
       return;
     }
 
@@ -282,6 +299,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     const titleToUpload = videoTitle.trim();
     const descToUpload = videoDesc.trim();
     const rawUrlToUpload = videoUrl.trim();
+    const fileToUpload = videoSourceMode === 'file' ? selectedVideoFile : null;
     const categoryToUpload = videoCategory;
     const isPaidToUpload = isPaidVideo;
     const priceToUpload = isPaidVideo ? parseFloat(videoPrice) || 0 : 0;
@@ -290,29 +308,45 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
     // Start background upload & close modal so user can browse anywhere
     startUpload(titleToUpload, 'video', async (updateProgress) => {
-      updateProgress(15);
+      updateProgress(10);
 
       // Save channel name if changed
       if (channelNameToUpdate !== user?.channel_name) {
         await updateProfile({ channel_name: channelNameToUpdate }).catch(() => {});
       }
 
-      updateProgress(35);
+      updateProgress(20);
 
-      // Clean / Format YouTube embed URL if applicable
       let formattedUrl = rawUrlToUpload;
       let thumb = thumbToUpload;
-      if (formattedUrl.includes('youtube.com/watch?v=')) {
-        const id = formattedUrl.split('v=')[1]?.split('&')[0];
-        formattedUrl = `https://www.youtube.com/embed/${id}`;
-        if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-      } else if (formattedUrl.includes('youtu.be/')) {
-        const id = formattedUrl.split('youtu.be/')[1]?.split('?')[0];
-        formattedUrl = `https://www.youtube.com/embed/${id}`;
-        if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+
+      if (fileToUpload) {
+        // Upload video file safely in chunks to bypass Vercel serverless 4.5MB limit
+        updateProgress(25);
+        formattedUrl = await uploadFileInChunks(fileToUpload, {
+          folder: 'videos',
+          onProgress: (pct) => {
+            // Scale progress from 25% to 75%
+            updateProgress(25 + Math.round(pct * 0.5));
+          }
+        });
+        if (!thumb) {
+          thumb = 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80';
+        }
+      } else {
+        // Clean / Format YouTube embed URL if applicable
+        if (formattedUrl.includes('youtube.com/watch?v=')) {
+          const id = formattedUrl.split('v=')[1]?.split('&')[0];
+          formattedUrl = `https://www.youtube.com/embed/${id}`;
+          if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+        } else if (formattedUrl.includes('youtu.be/')) {
+          const id = formattedUrl.split('youtu.be/')[1]?.split('?')[0];
+          formattedUrl = `https://www.youtube.com/embed/${id}`;
+          if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+        }
       }
 
-      updateProgress(55);
+      updateProgress(80);
 
       // 1. Post to module videos endpoint
       await fetch('/api/modules/videos', {
@@ -331,7 +365,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         })
       }).catch(() => {});
 
-      updateProgress(80);
+      updateProgress(90);
 
       // 2. Also record in user video uploads
       const res = await fetch('/api/videos/upload', {

@@ -1691,20 +1691,92 @@ app.post('/api/modules/kunda/unlock-contact', authenticateToken, async (req: Aut
   }
 });
 
+// ==================== SYSTEM SETTINGS (DYNAMIC CONFIGURATION) ==================== //
+
+async function getSystemSetting(key: string, defaultValue: string): Promise<string> {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+    const res = await query('SELECT value FROM system_settings WHERE key = $1', [key]);
+    if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== undefined) {
+      return String(res.rows[0].value);
+    }
+  } catch {}
+  return defaultValue;
+}
+
+async function setSystemSetting(key: string, value: string): Promise<void> {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+    await query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+      [key, String(value)]
+    );
+  } catch {}
+}
+
 /**
  * ==================== WHATSAPP-STYLE MESSAGING & CONTACT ENGINE ====================
  */
 
-// Paid Contact Phone Number Unlock (500 RWF fee deducted from wallet)
+// Get Dynamic Chat Settings (Dynamic contact unlock price from database)
+app.get('/api/chat/settings', async (req, res) => {
+  try {
+    const priceStr = await getSystemSetting('contact_unlock_price', '500');
+    return res.json({
+      success: true,
+      contactUnlockPrice: Number(priceStr) || 500,
+      currency: 'RWF'
+    });
+  } catch {
+    return res.json({ success: true, contactUnlockPrice: 500, currency: 'RWF' });
+  }
+});
+
+// Admin Update Chat Settings
+app.post('/api/admin/settings/chat', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { contactUnlockPrice } = req.body;
+    if (contactUnlockPrice !== undefined) {
+      const p = Math.max(0, Number(contactUnlockPrice) || 0);
+      await setSystemSetting('contact_unlock_price', String(p));
+    }
+    const currentPrice = await getSystemSetting('contact_unlock_price', '500');
+    return res.json({
+      success: true,
+      contactUnlockPrice: Number(currentPrice) || 500,
+      message: 'Chat settings saved successfully.'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Paid Contact Phone Number Unlock (Reads dynamic price from DB and deducts from central wallet)
 app.post('/api/chat/unlock-contact', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { contactId, price = 500 } = req.body;
+    const { contactId } = req.body;
     if (!contactId) return res.status(400).json({ error: 'contactId is required.' });
 
-    const unlockPrice = Number(price) || 500;
+    // Read unlock fee directly from database settings!
+    const dbPriceStr = await getSystemSetting('contact_unlock_price', '500');
+    const unlockPrice = Math.max(0, Number(dbPriceStr) || 500);
     const userId = req.user!.id;
 
-    // Deduct 500 RWF fee from Central Wallet
+    // Deduct exact fee from Central Wallet
     const debitRes = await WalletService.debit(
       userId,
       unlockPrice,
@@ -1741,11 +1813,18 @@ app.post('/api/chat/unlock-contact', authenticateToken, async (req: Authenticate
       phone,
       whatsappUrl: `https://wa.me/${cleanPhone}?text=Muraho!%20Connected%20via%20BenixSpace.`,
       newBalance: debitRes.newBalance,
+      newBonusBalance: debitRes.newBonusBalance,
+      totalBalance: debitRes.totalBalance,
+      unlockedPrice: unlockPrice,
       message: `Verified phone number unlocked for ${unlockPrice} RWF!`
     });
   } catch (err: any) {
     if (err.message && err.message.toLowerCase().includes('insufficient')) {
-      return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient wallet balance. Unlocking contact requires 500 RWF.' });
+      const dbPrice = await getSystemSetting('contact_unlock_price', '500');
+      return res.status(400).json({
+        error: 'INSUFFICIENT_FUNDS',
+        message: `Insufficient wallet balance. Unlocking contact requires ${dbPrice} RWF. Please top up your wallet.`
+      });
     }
     return res.status(400).json({ error: err.message || 'Failed to unlock contact.' });
   }
@@ -2204,6 +2283,83 @@ app.post('/api/admin/users/:id/role', authenticateToken, requireAdminRole, async
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ==================== 2.45 CHUNKED UPLOAD API (VERCEL SERVERLESS RESILIENT) ==================== //
+
+async function ensureUploadChunksTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS upload_chunks (
+      upload_id VARCHAR(255) NOT NULL,
+      chunk_index INT NOT NULL,
+      total_chunks INT NOT NULL,
+      chunk_data TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (upload_id, chunk_index)
+    );
+  `).catch(() => {});
+}
+
+app.post('/api/upload/chunk', async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, fileName, fileType, chunkData, folder = 'media' } = req.body;
+    if (!uploadId || chunkIndex === undefined || !totalChunks || !chunkData) {
+      return res.status(400).json({ error: 'Missing chunk upload metadata.' });
+    }
+
+    await ensureUploadChunksTable();
+
+    // Store this chunk in PostgreSQL
+    await query(
+      `INSERT INTO upload_chunks (upload_id, chunk_index, total_chunks, chunk_data)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (upload_id, chunk_index) DO UPDATE SET chunk_data = $4`,
+      [uploadId, Number(chunkIndex), Number(totalChunks), chunkData]
+    );
+
+    // If not the last chunk, return immediately with progress confirmation
+    if (Number(chunkIndex) < Number(totalChunks) - 1) {
+      return res.json({ success: true, chunkReceived: Number(chunkIndex) });
+    }
+
+    // Last chunk received: assemble all chunks in order
+    const allChunksRes = await query(
+      `SELECT chunk_index, chunk_data FROM upload_chunks WHERE upload_id = $1 ORDER BY chunk_index ASC`,
+      [uploadId]
+    );
+
+    if (allChunksRes.rowCount < Number(totalChunks)) {
+      return res.status(400).json({
+        error: `Incomplete chunks. Received ${allChunksRes.rowCount} of ${totalChunks}.`
+      });
+    }
+
+    // Assemble base64 chunks into full binary Buffer
+    const bufferParts = allChunksRes.rows.map((r: any) => Buffer.from(r.chunk_data, 'base64'));
+    const fullBuffer = Buffer.concat(bufferParts);
+
+    // Clean up temporary chunks from database
+    await query(`DELETE FROM upload_chunks WHERE upload_id = $1`, [uploadId]).catch(() => {});
+
+    // Upload to Multi-Google Drive or Server storage
+    const mime = fileType || (fileName?.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream');
+    const safeFileName = `${Date.now()}_${(fileName || 'media.mp4').replace(/[^a-zA-Z0-9_\.-]/g, '_')}`;
+    const uploadResult = await StorageService.uploadFile(safeFileName, mime, fullBuffer);
+
+    // Clean up any stale chunks older than 2 hours
+    query(`DELETE FROM upload_chunks WHERE created_at < NOW() - INTERVAL '2 hours'`).catch(() => {});
+
+    return res.json({
+      success: true,
+      url: uploadResult.fileUrl,
+      provider: uploadResult.provider,
+      sizeBytes: fullBuffer.length
+    });
+  } catch (err: any) {
+    console.error('Chunk upload error:', err);
+    return res.status(500).json({ error: err.message || 'Chunk upload failed.' });
   }
 });
 
