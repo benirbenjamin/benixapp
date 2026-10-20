@@ -2989,7 +2989,33 @@ app.get('/api/creator/studio-analytics', authenticateToken, async (req: Authenti
        WHERE user_id = $1 AND transaction_type IN ('video_sale', 'creator_commission', 'ad_revenue')`,
       [userId]
     ).catch(() => ({ rows: [{ earnings: 0 }] }));
-    const totalEarnings = Number(earningsRes.rows[0]?.earnings || 0);
+
+    // 6. Real Daily & Lifetime Ad Earnings from creator_daily_ad_earnings
+    const todayStr = new Date().toISOString().split('T')[0];
+    const adEarningsRes = await query(
+      `SELECT 
+         COALESCE(SUM(total_earned), 0) as lifetime_ad_earnings,
+         COALESCE(SUM(CASE WHEN date = $2 THEN total_earned ELSE 0 END), 0) as today_ad_earnings,
+         COALESCE(SUM(CASE WHEN date = $2 THEN google_impressions ELSE 0 END), 0) as today_google_impressions,
+         COALESCE(SUM(CASE WHEN date = $2 THEN google_clicks ELSE 0 END), 0) as today_google_clicks,
+         COALESCE(SUM(CASE WHEN date = $2 THEN custom_impressions ELSE 0 END), 0) as today_custom_impressions,
+         COALESCE(SUM(CASE WHEN date = $2 THEN custom_clicks ELSE 0 END), 0) as today_custom_clicks
+       FROM creator_daily_ad_earnings
+       WHERE creator_id = $1`,
+      [userId, todayStr]
+    ).catch(() => ({
+      rows: [{
+        lifetime_ad_earnings: 0,
+        today_ad_earnings: 0,
+        today_google_impressions: 0,
+        today_google_clicks: 0,
+        today_custom_impressions: 0,
+        today_custom_clicks: 0
+      }]
+    }));
+
+    const adData = adEarningsRes.rows[0] || {};
+    const totalEarnings = Number(earningsRes.rows[0]?.earnings || 0) + Number(adData.lifetime_ad_earnings || 0);
 
     return res.json({
       success: true,
@@ -2998,6 +3024,12 @@ app.get('/api/creator/studio-analytics', authenticateToken, async (req: Authenti
         totalWatchHours,
         totalSubscribers,
         totalEarnings,
+        lifetimeAdEarnings: Number(adData.lifetime_ad_earnings || 0),
+        todayAdEarnings: Number(adData.today_ad_earnings || 0),
+        todayGoogleImpressions: Number(adData.today_google_impressions || 0),
+        todayGoogleClicks: Number(adData.today_google_clicks || 0),
+        todayCustomImpressions: Number(adData.today_custom_impressions || 0),
+        todayCustomClicks: Number(adData.today_custom_clicks || 0),
         videosCount: videosRes.rowCount,
         requiredWatchHours: 300,
         requiredSubscribers: 30,
@@ -3292,6 +3324,203 @@ app.post('/api/ads/submit', authenticateToken, async (req: AuthenticatedRequest,
 app.get('/api/ads/my-campaigns', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const myAds = customAdCampaigns.filter((a) => a.userId === req.user!.id);
   return res.json({ success: true, campaigns: myAds });
+});
+
+// 7. Dynamic Google AdSense & Media Timing Settings (Public Endpoint)
+app.get('/api/ads/settings', async (req, res) => {
+  try {
+    const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
+    let adsenseSettings: any = {
+      enabled: true,
+      client_id: 'ca-pub-4078466828008985',
+      default_slot: '7034214536',
+      radio_preroll_slot: '7034214536',
+      tv_interstitial_slot: '7034214536',
+      tv_companion_slot: '7034214536',
+      video_midroll_slot: '7034214536',
+      radio_countdown_sec: 10,
+      radio_throttle_sec: 240,
+      tv_delay_sec: 30, // 30s initial delay (user specified)
+      tv_interval_sec: 300, // 5m interval (user specified)
+      tv_banner_refresh_sec: 150,
+      video_delay_sec: 10, // 10s initial delay (user specified)
+      video_interval_sec: 300, // 5m interval (user specified)
+      video_countdown_sec: 10,
+      google_ad_view_payout: 2, // 2 RWF for Google Ad view (monetized)
+      google_ad_click_payout: 4, // 4 RWF for Google Ad click
+      custom_ad_view_payout: 10, // 10 RWF for Custom Ad view
+      custom_ad_click_payout: 18 // 18 RWF for Custom Ad click
+    };
+
+    if (row.rows[0]?.value) {
+      try {
+        const parsed = typeof row.rows[0].value === 'string' ? JSON.parse(row.rows[0].value) : row.rows[0].value;
+        if (parsed.adsense) {
+          adsenseSettings = { ...adsenseSettings, ...parsed.adsense };
+        }
+      } catch {}
+    }
+
+    return res.json({ success: true, settings: adsenseSettings });
+  } catch (err: any) {
+    return res.json({
+      success: true,
+      settings: {
+        enabled: true,
+        client_id: 'ca-pub-4078466828008985',
+        tv_delay_sec: 30,
+        tv_interval_sec: 300,
+        radio_throttle_sec: 240,
+        video_delay_sec: 10,
+        video_interval_sec: 300,
+        google_ad_view_payout: 2,
+        google_ad_click_payout: 4,
+        custom_ad_view_payout: 10,
+        custom_ad_click_payout: 18
+      }
+    });
+  }
+});
+
+// 8. Creator Ad Revenue Silent Wallet Credit & Daily Earnings Tracking
+app.post('/api/ads/record-reward', async (req, res) => {
+  try {
+    // Auto-create tracking table if not exists
+    await query(`
+      CREATE TABLE IF NOT EXISTS creator_daily_ad_earnings (
+        id VARCHAR(255) PRIMARY KEY,
+        creator_id VARCHAR(255) NOT NULL,
+        date VARCHAR(20) NOT NULL,
+        total_earned NUMERIC(15,2) DEFAULT 0.00,
+        google_impressions INT DEFAULT 0,
+        google_clicks INT DEFAULT 0,
+        custom_impressions INT DEFAULT 0,
+        custom_clicks INT DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(creator_id, date)
+      );
+    `).catch(() => {});
+
+    const { type = 'view', adType = 'google', creatorId, videoId } = req.body;
+    let targetCreatorId = creatorId;
+
+    // If only videoId is supplied, lookup author
+    if (!targetCreatorId && videoId) {
+      const vidRes = await query('SELECT user_id, channel_name FROM user_videos WHERE id = $1', [videoId]);
+      if (vidRes.rowCount > 0) {
+        targetCreatorId = vidRes.rows[0].user_id || vidRes.rows[0].channel_name;
+      }
+    }
+
+    if (!targetCreatorId) {
+      return res.json({ success: true, credited: false, reason: 'No creator associated' });
+    }
+
+    // Load active payout settings from system settings
+    const settingsRow = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
+    let googleView = 2;
+    let googleClick = 4;
+    let customView = 10;
+    let customClick = 18;
+    let reqWatchHours = 300;
+    let reqSubs = 30;
+
+    if (settingsRow.rows[0]?.value) {
+      try {
+        const parsed = typeof settingsRow.rows[0].value === 'string' ? JSON.parse(settingsRow.rows[0].value) : settingsRow.rows[0].value;
+        if (parsed.adsense) {
+          googleView = Number(parsed.adsense.google_ad_view_payout) || 2;
+          googleClick = Number(parsed.adsense.google_ad_click_payout) || 4;
+          customView = Number(parsed.adsense.custom_ad_view_payout) || 10;
+          customClick = Number(parsed.adsense.custom_ad_click_payout) || 18;
+        }
+        if (parsed.modules) {
+          reqWatchHours = Number(parsed.modules.creator_watch_hours_goal) || 300;
+          reqSubs = Number(parsed.modules.creator_subscribers_goal) || 30;
+        }
+      } catch {}
+    }
+
+    // Check if creator meets monetization criteria (watch hours >= 300, subscribers >= 30)
+    const watchRes = await query(
+      `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds FROM video_watch_time WHERE creator_id = $1`,
+      [targetCreatorId]
+    ).catch(() => ({ rows: [{ total_seconds: 0 }] }));
+    const totalWatchHours = Math.round((Number(watchRes.rows[0]?.total_seconds || 0) / 3600) * 10) / 10;
+
+    const subRes = await query(
+      `SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1`,
+      [targetCreatorId]
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+    const totalSubscribers = Number(subRes.rows[0]?.count || 0);
+
+    const isMonetized = totalWatchHours >= reqWatchHours && totalSubscribers >= reqSubs;
+
+    if (!isMonetized) {
+      // Ads load and display normally, but revenue remains with the platform
+      return res.json({ success: true, monetized: false, credited: false });
+    }
+
+    // Calculate reward based on ad type and interaction type
+    let rewardAmount = 0;
+    if (adType === 'google') {
+      rewardAmount = type === 'click' ? googleClick : googleView;
+    } else {
+      rewardAmount = type === 'click' ? customClick : customView;
+    }
+
+    if (rewardAmount <= 0) {
+      return res.json({ success: true, credited: false });
+    }
+
+    // Quiet atomic credit to creator's central wallet (silent: no transaction log chime/popup)
+    await WalletService.getOrCreateWallet(targetCreatorId);
+    await query(
+      `UPDATE core_wallets 
+       SET balance = balance + $1, total_earnings = total_earnings + $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $2`,
+      [rewardAmount, targetCreatorId]
+    );
+
+    // Record in creator_daily_ad_earnings for end-of-day summary
+    const todayStr = new Date().toISOString().split('T')[0];
+    const recId = `cdae_${targetCreatorId}_${todayStr}`;
+    const isGoogle = adType === 'google';
+    const isClick = type === 'click';
+
+    await query(`
+      INSERT INTO creator_daily_ad_earnings (
+        id, creator_id, date, total_earned, google_impressions, google_clicks, custom_impressions, custom_clicks, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
+      ) ON CONFLICT (creator_id, date) DO UPDATE SET
+        total_earned = creator_daily_ad_earnings.total_earned + EXCLUDED.total_earned,
+        google_impressions = creator_daily_ad_earnings.google_impressions + EXCLUDED.google_impressions,
+        google_clicks = creator_daily_ad_earnings.google_clicks + EXCLUDED.google_clicks,
+        custom_impressions = creator_daily_ad_earnings.custom_impressions + EXCLUDED.custom_impressions,
+        custom_clicks = creator_daily_ad_earnings.custom_clicks + EXCLUDED.custom_clicks,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      recId,
+      targetCreatorId,
+      todayStr,
+      rewardAmount,
+      isGoogle && !isClick ? 1 : 0,
+      isGoogle && isClick ? 1 : 0,
+      !isGoogle && !isClick ? 1 : 0,
+      !isGoogle && isClick ? 1 : 0
+    ]).catch((err) => console.warn('Daily ad earnings record error:', err?.message));
+
+    return res.json({
+      success: true,
+      monetized: true,
+      credited: true,
+      amount: rewardAmount
+    });
+  } catch (err: any) {
+    console.error('Record ad reward error:', err);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 
@@ -5855,10 +6084,21 @@ app.get('/api/settings', async (req, res) => {
         systemSettings[row.key] = row.value;
       }
     }
+
+    let platformSettings = null;
+    if (systemSettings['platform_all_apps']) {
+      try {
+        platformSettings = typeof systemSettings['platform_all_apps'] === 'string'
+          ? JSON.parse(systemSettings['platform_all_apps'])
+          : systemSettings['platform_all_apps'];
+      } catch {}
+    }
+
     return res.json({
       company: companyRes.rows[0] || {},
       social: socialRes.rows || [],
-      system: systemSettings
+      system: systemSettings,
+      platform_settings: platformSettings
     });
   } catch (err: any) {
     return res.json({

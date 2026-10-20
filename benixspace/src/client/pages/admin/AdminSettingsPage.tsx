@@ -35,7 +35,7 @@ export const AdminSettingsPage: React.FC = () => {
     copyright_text: '© 2026 BenixSpace Inc. All rights reserved.'
   });
 
-  // 3. Google AdSense Monetization Variables
+  // 3. Google AdSense Monetization Variables & Creator Payout Sharing
   const [adsense, setAdsense] = useState({
     enabled: true,
     client_id: 'ca-pub-4078466828008985',
@@ -46,9 +46,16 @@ export const AdminSettingsPage: React.FC = () => {
     video_midroll_slot: '7034214536',
     radio_countdown_sec: 10,
     radio_throttle_sec: 240,
-    tv_delay_sec: 60,
-    tv_interval_sec: 300,
-    tv_banner_refresh_sec: 150
+    tv_delay_sec: 30, // 30s initial play delay (as user requested)
+    tv_interval_sec: 300, // 5m interval
+    tv_banner_refresh_sec: 150,
+    video_delay_sec: 10, // 10s initial watch delay (as user requested)
+    video_interval_sec: 300, // 5m interval
+    video_countdown_sec: 10,
+    google_ad_view_payout: 2, // 2 RWF for Google Ad view (monetized channel)
+    google_ad_click_payout: 4, // 4 RWF for Google Ad click
+    custom_ad_view_payout: 10, // 10 RWF for Custom Ad view
+    custom_ad_click_payout: 18 // 18 RWF for Custom Ad click
   });
 
   // 4. Multi-Google Drive Cloud Storage Accounts & Quota Tracking
@@ -780,20 +787,9 @@ export const AdminSettingsPage: React.FC = () => {
               {/* Timing Throttles */}
               <div className="pt-4 border-t border-slate-800 space-y-3">
                 <span className="text-xs font-bold text-white uppercase tracking-wider block">Ad Timing Durations & Throttling (Seconds)</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <label className="text-slate-400 block mb-1">Radio Countdown (s)</label>
-                    <input
-                      type="number"
-                      value={adsense.radio_countdown_sec}
-                      onChange={(e) => setAdsense({ ...adsense, radio_countdown_sec: parseInt(e.target.value) || 10 })}
-                      className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
-                    />
-                    <span className="text-[10px] text-slate-500">Default: 10s</span>
-                  </div>
-
-                  <div>
-                    <label className="text-slate-400 block mb-1">Radio Throttle (s)</label>
+                    <label className="text-slate-400 block mb-1">Radio Ad Throttle (s)</label>
                     <input
                       type="number"
                       value={adsense.radio_throttle_sec}
@@ -804,18 +800,18 @@ export const AdminSettingsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-slate-400 block mb-1">TV Initial Delay (s)</label>
+                    <label className="text-slate-400 block mb-1">TV Initial Ad Delay (s)</label>
                     <input
                       type="number"
                       value={adsense.tv_delay_sec}
-                      onChange={(e) => setAdsense({ ...adsense, tv_delay_sec: parseInt(e.target.value) || 60 })}
+                      onChange={(e) => setAdsense({ ...adsense, tv_delay_sec: parseInt(e.target.value) || 30 })}
                       className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
                     />
-                    <span className="text-[10px] text-slate-500">Default: 60s (1m)</span>
+                    <span className="text-[10px] text-slate-500">Default: 30s</span>
                   </div>
 
                   <div>
-                    <label className="text-slate-400 block mb-1">TV Interstitial Interval (s)</label>
+                    <label className="text-slate-400 block mb-1">TV Ad Repeat Interval (s)</label>
                     <input
                       type="number"
                       value={adsense.tv_interval_sec}
@@ -826,14 +822,120 @@ export const AdminSettingsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-slate-400 block mb-1">TV Banner Refresh (s)</label>
+                    <label className="text-slate-400 block mb-1">Video Initial Delay (s)</label>
                     <input
                       type="number"
-                      value={adsense.tv_banner_refresh_sec}
-                      onChange={(e) => setAdsense({ ...adsense, tv_banner_refresh_sec: parseInt(e.target.value) || 150 })}
+                      value={adsense.video_delay_sec}
+                      onChange={(e) => setAdsense({ ...adsense, video_delay_sec: parseInt(e.target.value) || 10 })}
                       className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
                     />
-                    <span className="text-[10px] text-slate-500">Default: 150s</span>
+                    <span className="text-[10px] text-slate-500">Default: 10s</span>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 block mb-1">Video Ad Interval (s)</label>
+                    <input
+                      type="number"
+                      value={adsense.video_interval_sec}
+                      onChange={(e) => setAdsense({ ...adsense, video_interval_sec: parseInt(e.target.value) || 300 })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                    />
+                    <span className="text-[10px] text-slate-500">Default: 300s (5m)</span>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 block mb-1">Ad Countdown Duration (s)</label>
+                    <input
+                      type="number"
+                      value={adsense.radio_countdown_sec}
+                      onChange={(e) => setAdsense({ ...adsense, radio_countdown_sec: parseInt(e.target.value) || 10 })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                    />
+                    <span className="text-[10px] text-slate-500">Default: 10s</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Creator Monetization Ad Rewards & 2:1 Ad Rotation Ratio */}
+              <div className="pt-4 border-t border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider block">
+                      Creator Monetization Ad Rewards & Revenue Sharing (RWF)
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Rewards credited silently to creator wallets when monetized channels meet 300 watch hours & 30 subscribers.
+                      Rotation ratio: <strong>2 Google AdSense ads : 1 Submitted/Custom ad</strong>.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-xl bg-purple-500/20 text-purple-300 text-[10px] font-black border border-purple-500/30">
+                    2 Google : 1 Custom Cycle
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+                    <label className="text-slate-300 block mb-1 font-bold">Google Ad View Reward</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={adsense.google_ad_view_payout}
+                        onChange={(e) => setAdsense({ ...adsense, google_ad_view_payout: Number(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-emerald-400 font-black text-sm"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 2 RWF per full view</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+                    <label className="text-slate-300 block mb-1 font-bold">Google Ad Click Reward</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={adsense.google_ad_click_payout}
+                        onChange={(e) => setAdsense({ ...adsense, google_ad_click_payout: Number(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-emerald-400 font-black text-sm"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 4 RWF per click</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+                    <label className="text-slate-300 block mb-1 font-bold">Custom Ad View Reward</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={adsense.custom_ad_view_payout}
+                        onChange={(e) => setAdsense({ ...adsense, custom_ad_view_payout: Number(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-amber-400 font-black text-sm"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 10 RWF per full view</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+                    <label className="text-slate-300 block mb-1 font-bold">Custom Ad Click Reward</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={adsense.custom_ad_click_payout}
+                        onChange={(e) => setAdsense({ ...adsense, custom_ad_click_payout: Number(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-amber-400 font-black text-sm"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 18 RWF per click</span>
                   </div>
                 </div>
               </div>

@@ -28,6 +28,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialTab?: 'story' | 'video';
 }
 
 /**
@@ -80,12 +81,18 @@ const compressImage = (file: File, maxDimension = 1080, quality = 0.75): Promise
   });
 };
 
-export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, initialTab = 'story' }) => {
   const { user, token, updateProfile } = useAuth();
   const { startUpload } = useUpload();
-  const [tab, setTab] = useState<'story' | 'video'>('story');
+  const [tab, setTab] = useState<'story' | 'video'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   // Story Form State
   const [storyMediaUrl, setStoryMediaUrl] = useState('');

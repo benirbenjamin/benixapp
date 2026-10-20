@@ -59,9 +59,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-  // Radio Ad State
+  // Radio Ad State & Throttling (Immediate on open, then 4-min repeat)
   const [showRadioAd, setShowRadioAd] = useState<boolean>(false);
   const [pendingRadioStation, setPendingRadioStation] = useState<Station | null>(null);
+  const lastRadioAdTimestampRef = useRef<number>(0);
 
   // TV & Picture-in-Picture State
   const [activeTvStation, setActiveTvStation] = useState<Station | null>(null);
@@ -70,6 +71,69 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isTvPipDismissed, setIsTvPipDismissed] = useState<boolean>(false);
   const [hasTvStarted, setHasTvStarted] = useState<boolean>(false);
   const [showTvAd, setShowTvAd] = useState<boolean>(false);
+
+  // Dynamic Ad Timing Settings from DB / Admin Settings
+  const [adSettings, setAdSettings] = useState({
+    tvDelaySec: 30, // TV Ad starts after 30s of play (or set by admin)
+    tvIntervalSec: 300, // TV Ad repeats every 5 minutes (or set by admin)
+    radioThrottleSec: 240 // Radio Ad throttled to every 4 minutes (or set by admin)
+  });
+
+  const tvInitialTimerRef = useRef<any>(null);
+  const tvIntervalTimerRef = useRef<any>(null);
+
+  // Load dynamic ad settings
+  useEffect(() => {
+    fetch('/api/ads/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings) {
+          setAdSettings({
+            tvDelaySec: Number(data.settings.tv_delay_sec) || 30,
+            tvIntervalSec: Number(data.settings.tv_interval_sec) || 300,
+            radioThrottleSec: Number(data.settings.radio_throttle_sec) || 240
+          });
+        }
+      })
+      .catch(() => {
+        // Fallback to localStorage if cached
+        try {
+          const cached = localStorage.getItem('benix_platform_settings');
+          if (cached) {
+            const p = JSON.parse(cached);
+            if (p.adsense) {
+              setAdSettings({
+                tvDelaySec: Number(p.adsense.tv_delay_sec) || 30,
+                tvIntervalSec: Number(p.adsense.tv_interval_sec) || 300,
+                radioThrottleSec: Number(p.adsense.radio_throttle_sec) || 240
+              });
+            }
+          }
+        } catch {}
+      });
+  }, []);
+
+  // TV Ad Timing: Starts after 30s of TV playback, then repeats every 5 minutes
+  useEffect(() => {
+    if (tvInitialTimerRef.current) clearTimeout(tvInitialTimerRef.current);
+    if (tvIntervalTimerRef.current) clearInterval(tvIntervalTimerRef.current);
+
+    if (isTvPlaying && activeTvStation) {
+      tvInitialTimerRef.current = setTimeout(() => {
+        setShowTvAd(true);
+
+        // Schedule periodic ad repeat every 5 minutes (or admin set interval)
+        tvIntervalTimerRef.current = setInterval(() => {
+          setShowTvAd(true);
+        }, adSettings.tvIntervalSec * 1000);
+      }, adSettings.tvDelaySec * 1000);
+    }
+
+    return () => {
+      if (tvInitialTimerRef.current) clearTimeout(tvInitialTimerRef.current);
+      if (tvIntervalTimerRef.current) clearInterval(tvIntervalTimerRef.current);
+    };
+  }, [isTvPlaying, activeTvStation, adSettings.tvDelaySec, adSettings.tvIntervalSec]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -166,7 +230,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // User requests to play a station -> triggers Radio Ad modal first
+  // User requests to play a station -> triggers Radio Ad modal first (with 4-minute throttle)
   const playStation = (station: Station) => {
     // If same station is already playing, do not show ad again
     if (currentStation?.id === station.id && isPlaying) {
@@ -178,8 +242,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsTvPlaying(false);
     }
 
-    setPendingRadioStation(station);
-    setShowRadioAd(true);
+    // Radio Ad pre-roll on open, then repeat after 4 minutes (or admin set throttle)
+    const now = Date.now();
+    const elapsedSec = (now - lastRadioAdTimestampRef.current) / 1000;
+    if (elapsedSec >= adSettings.radioThrottleSec || lastRadioAdTimestampRef.current === 0) {
+      lastRadioAdTimestampRef.current = now;
+      setPendingRadioStation(station);
+      setShowRadioAd(true);
+    } else {
+      executeAudioPlay(station);
+    }
   };
 
   const closeRadioAdAndPlay = () => {
@@ -260,8 +332,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsTvPlaying(true);
     setIsTvPipDismissed(false);
     setHasTvStarted(true);
-    // Show TV sponsor video ad overlay on play
-    setShowTvAd(true);
+    // TV Ad starts after 30s of play (governed by dynamic timer)
   };
 
   const pauseTv = () => {

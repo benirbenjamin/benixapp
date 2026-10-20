@@ -44,6 +44,12 @@ interface StudioAnalytics {
   totalWatchHours: number;
   totalSubscribers: number;
   totalEarnings: number;
+  lifetimeAdEarnings?: number;
+  todayAdEarnings?: number;
+  todayGoogleImpressions?: number;
+  todayGoogleClicks?: number;
+  todayCustomImpressions?: number;
+  todayCustomClicks?: number;
   videosCount: number;
   requiredWatchHours: number;
   requiredSubscribers: number;
@@ -301,6 +307,53 @@ export const CreatorStudioPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Daily Ad Earnings Breakdown Card */}
+            <div className="p-4 rounded-2xl bg-[#0A0D14] border border-emerald-500/30 space-y-3 mt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white">Daily Ad Revenue (Quiet Wallet Earnings)</span>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  Total Lifetime Ad Revenue: <strong className="text-emerald-400 font-mono font-black">{(analytics?.lifetimeAdEarnings || 0).toLocaleString()} RWF</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-slate-400 text-[10px] block">Today's Total Ad Earned</span>
+                  <span className="text-emerald-400 font-black text-sm font-mono mt-0.5 block">
+                    +{(analytics?.todayAdEarnings || 0).toLocaleString()} RWF
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-slate-400 text-[10px] block">Today's Google Impressions</span>
+                  <span className="text-white font-black text-sm font-mono mt-0.5 block">
+                    {analytics?.todayGoogleImpressions || 0}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-slate-400 text-[10px] block">Today's Google Clicks</span>
+                  <span className="text-blue-400 font-black text-sm font-mono mt-0.5 block">
+                    {analytics?.todayGoogleClicks || 0}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-slate-400 text-[10px] block">Custom Ad Views & Clicks</span>
+                  <span className="text-amber-400 font-black text-sm font-mono mt-0.5 block">
+                    {(analytics?.todayCustomImpressions || 0) + (analytics?.todayCustomClicks || 0)}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-slate-400 italic">
+                * Note: Ad revenue is credited silently and directly to your central wallet without transaction notifications. Aggregated daily totals are displayed automatically at the end of each day.
+              </p>
+            </div>
           </div>
         )}
 
@@ -418,6 +471,7 @@ export const CreatorStudioPage: React.FC = () => {
       {showUploadModal && (
         <CreateMediaModal
           isOpen={showUploadModal}
+          initialTab="video"
           onClose={() => setShowUploadModal(false)}
           onSuccess={() => {
             setShowUploadModal(false);

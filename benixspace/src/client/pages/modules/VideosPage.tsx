@@ -42,6 +42,9 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { GoogleAdSense } from '../../components/ads/GoogleAdSense';
+import { CreateMediaModal } from '../../components/modals/CreateMediaModal';
+import { UniversalMediaAdOverlay } from '../../components/ads/UniversalMediaAdOverlay';
+import { ADS_CONFIG } from '../../config/ads';
 import realVideosData from '../../config/realVideos.json';
 
 interface VideoItem {
@@ -175,15 +178,16 @@ export const VideosPage: React.FC = () => {
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
 
-  // Creator Upload Video Modal State
-  const [showPostModal, setShowPostModal] = useState<boolean>(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newVideoUrl, setNewVideoUrl] = useState('');
-  const [newThumbnailUrl, setNewThumbnailUrl] = useState('');
-  const [newCategory, setNewCategory] = useState('Gospel & Choirs');
-  const [newPrice, setNewPrice] = useState(0);
-  const [isPosting, setIsPosting] = useState(false);
+  // Creator Upload Video Modal State (Unified Chunked + Background Upload Modal)
+  const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
+
+  // In-Stream Video Ad Timing State (10s initial delay, 5m interval)
+  const [showVideoAd, setShowVideoAd] = useState<boolean>(false);
+  const [hasTriggeredInitialVideoAd, setHasTriggeredInitialVideoAd] = useState<boolean>(false);
+  const [videoAdDelaySec, setVideoAdDelaySec] = useState<number>(10);
+  const [videoAdIntervalSec, setVideoAdIntervalSec] = useState<number>(300);
+  const videoAdInitialTimerRef = useRef<any>(null);
+  const videoAdIntervalTimerRef = useRef<any>(null);
 
   // Media Player Ref & Playback Controls State
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -268,6 +272,56 @@ export const VideosPage: React.FC = () => {
       localStorage.setItem('benix_ref', refCode);
     }
   }, [searchParams]);
+
+  // Load dynamic video ad timing settings
+  useEffect(() => {
+    fetch('/api/ads/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings) {
+          setVideoAdDelaySec(Number(data.settings.video_delay_sec) || 10);
+          setVideoAdIntervalSec(Number(data.settings.video_interval_sec) || 300);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Video Ad Timers: 10s initial delay on play, then 5 minutes (300s) repeat interval
+  useEffect(() => {
+    if (videoAdInitialTimerRef.current) clearTimeout(videoAdInitialTimerRef.current);
+    if (videoAdIntervalTimerRef.current) clearInterval(videoAdIntervalTimerRef.current);
+
+    if (activeVideo && isPlaying && !showVideoAd) {
+      if (!hasTriggeredInitialVideoAd) {
+        // Initial 10 seconds ad after start of playback
+        videoAdInitialTimerRef.current = setTimeout(() => {
+          setShowVideoAd(true);
+          setHasTriggeredInitialVideoAd(true);
+
+          // Periodic 5 minutes ad
+          videoAdIntervalTimerRef.current = setInterval(() => {
+            setShowVideoAd(true);
+          }, videoAdIntervalSec * 1000);
+        }, videoAdDelaySec * 1000);
+      } else {
+        // Subsequent periodic ad
+        videoAdIntervalTimerRef.current = setInterval(() => {
+          setShowVideoAd(true);
+        }, videoAdIntervalSec * 1000);
+      }
+    }
+
+    return () => {
+      if (videoAdInitialTimerRef.current) clearTimeout(videoAdInitialTimerRef.current);
+      if (videoAdIntervalTimerRef.current) clearInterval(videoAdIntervalTimerRef.current);
+    };
+  }, [activeVideo?.id, isPlaying, hasTriggeredInitialVideoAd, videoAdDelaySec, videoAdIntervalSec]);
+
+  // When switching videos, reset initial ad trigger state so next video gets its 10s ad
+  useEffect(() => {
+    setHasTriggeredInitialVideoAd(false);
+    setShowVideoAd(false);
+  }, [activeVideo?.id]);
 
   // Load video catalogue from database
   useEffect(() => {
@@ -629,79 +683,7 @@ export const VideosPage: React.FC = () => {
     }
   };
 
-  // Creator Post Video Submission
-  const handlePostVideo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      setShowWizardModal(true);
-      return;
-    }
 
-    if (!newTitle.trim() || !newVideoUrl.trim()) {
-      alert('Please fill in title and video stream/embed URL.');
-      return;
-    }
-
-    setIsPosting(true);
-    try {
-      const token = getAuthToken();
-      let formattedUrl = newVideoUrl.trim();
-      // Auto-format standard youtube watch urls to embed
-      if (formattedUrl.includes('youtube.com/watch?v=')) {
-        const id = formattedUrl.split('v=')[1]?.split('&')[0];
-        formattedUrl = `https://www.youtube-nocookie.com/embed/${id}`;
-      } else if (formattedUrl.includes('youtu.be/')) {
-        const id = formattedUrl.split('youtu.be/')[1]?.split('?')[0];
-        formattedUrl = `https://www.youtube-nocookie.com/embed/${id}`;
-      }
-
-      const res = await axios.post(
-        '/api/modules/videos',
-        {
-          title: newTitle.trim(),
-          description: newDescription.trim(),
-          videoUrl: formattedUrl,
-          thumbnailUrl: newThumbnailUrl.trim() || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
-          category: newCategory,
-          price: Number(newPrice) || 0
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (res.data?.video) {
-        const addedVideo: VideoItem = {
-          id: res.data.video.id,
-          title: res.data.video.title,
-          creator: res.data.video.channelName || user.name || 'Verified Creator',
-          channelName: res.data.video.channelName || user.name || 'Verified Creator',
-          channelAvatar: user.name ? '/logo.png' : '/logo.png',
-          thumbnail: res.data.video.thumbnailUrl,
-          duration: '5:00',
-          views: 0,
-          likes: 0,
-          category: res.data.video.category,
-          price: res.data.video.price,
-          embedUrl: res.data.video.videoUrl,
-          commission_pct: res.data.video.price > 0 ? 15 : 0,
-          description: res.data.video.description
-        };
-
-        setVideos((prev) => [addedVideo, ...prev]);
-        setShowPostModal(false);
-        setNewTitle('');
-        setNewDescription('');
-        setNewVideoUrl('');
-        setNewThumbnailUrl('');
-        setNewPrice(0);
-        setStatusMessage('🚀 Your video has been published to Benix Creator Studio & Video Hub!');
-        handleSelectVideo(addedVideo);
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to publish video');
-    } finally {
-      setIsPosting(false);
-    }
-  };
 
   const getAffiliateShareLink = (vid: VideoItem): string => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://benix.space';
@@ -764,7 +746,7 @@ export const VideosPage: React.FC = () => {
             <button
               onClick={() => {
                 if (!user) setShowWizardModal(true);
-                else setShowPostModal(true);
+                else setShowCreateMediaModal(true);
               }}
               className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
             >
@@ -835,6 +817,20 @@ export const VideosPage: React.FC = () => {
                         preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
                         className="w-full h-full object-contain bg-black relative z-10"
                         poster={activeVideo.thumbnail}
+                      />
+                    )}
+
+                    {/* In-Stream Real Google AdSense & Submitted Ad Overlay (2:1 Rotation) */}
+                    {showVideoAd && (
+                      <UniversalMediaAdOverlay
+                        isOpen={showVideoAd}
+                        onClose={() => setShowVideoAd(false)}
+                        mediaType="video"
+                        title={activeVideo.title}
+                        creatorId={(activeVideo as any).userId || (activeVideo as any).user_id || activeVideo.channelName || activeVideo.creator}
+                        videoId={activeVideo.id}
+                        slot={ADS_CONFIG.SLOTS.VIDEO_WATCH_BANNER}
+                        countdownDuration={10}
                       />
                     )}
 
@@ -1410,113 +1406,25 @@ export const VideosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Creator Upload / Post Video Modal */}
-      {showPostModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#121824] border border-purple-500/40 p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setShowPostModal(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-purple-600/20 text-purple-400 flex items-center justify-center">
-                <Upload className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-black text-lg text-white">Post / Upload Video</h3>
-                <p className="text-xs text-slate-400">Share your Rwandan concerts, shows, or tutorials</p>
-              </div>
-            </div>
-
-            <form onSubmit={handlePostVideo} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Video Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Live Worship Concert in Kigali"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Video Stream / YouTube URL *</label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://www.youtube.com/watch?v=... or HLS/MP4 link"
-                  value={newVideoUrl}
-                  onChange={(e) => setNewVideoUrl(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Category</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="Gospel & Choirs">Gospel & Choirs</option>
-                    <option value="Series & Comedy">Series & Comedy</option>
-                    <option value="Culture & Documentaries">Culture & Documentaries</option>
-                    <option value="Music & Shows">Music & Shows</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Unlock Price (RWF)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="50"
-                    placeholder="0 for Free"
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(Number(e.target.value))}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Thumbnail Image URL</label>
-                <input
-                  type="url"
-                  placeholder="https://... (Optional cover photo)"
-                  value={newThumbnailUrl}
-                  onChange={(e) => setNewThumbnailUrl(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
-                <textarea
-                  rows={3}
-                  placeholder="Provide context, performers, date, and details..."
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-purple-500 resize-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isPosting}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-purple-600/30 transition-all disabled:opacity-50"
-              >
-                {isPosting ? 'Publishing Video...' : 'Publish Video to Hub 🎬'}
-              </button>
-            </form>
-          </div>
-        </div>
+      {/* Unified Creator Upload Modal (Background upload with chunked compression) */}
+      {showCreateMediaModal && (
+        <CreateMediaModal
+          isOpen={showCreateMediaModal}
+          initialTab="video"
+          onClose={() => setShowCreateMediaModal(false)}
+          onSuccess={() => {
+            setShowCreateMediaModal(false);
+            // Refresh video list
+            axios
+              .get('/api/modules/videos')
+              .then((res) => {
+                if (res.data?.videos && Array.isArray(res.data.videos)) {
+                  setVideos(res.data.videos);
+                }
+              })
+              .catch(() => {});
+          }}
+        />
       )}
 
       {/* Central Wallet Modal */}
