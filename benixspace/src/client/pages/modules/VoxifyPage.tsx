@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { SeoHead } from '../../components/common/SeoHead';
+import { getAuthToken } from '../../services/api';
+import axios from 'axios';
 import {
   Music,
   Play,
@@ -18,7 +20,10 @@ import {
   Heart,
   ChevronRight,
   Headphones,
-  ArrowLeft
+  ArrowLeft,
+  Upload,
+  Plus,
+  X
 } from 'lucide-react';
 
 interface ChoirTrack {
@@ -30,78 +35,50 @@ interface ChoirTrack {
   duration: string;
   hasSheetMusic: boolean;
   audioUrl: string;
+  sheetMusicUrl?: string;
 }
-
-const SAMPLE_TRACKS: ChoirTrack[] = [
-  {
-    id: 'vx1',
-    title: 'Mana Ndagushimira (SATB)',
-    choir: 'Chorale de Kigali',
-    category: 'Sacred Classical',
-    voicePart: 'satb',
-    duration: '4:18',
-    hasSheetMusic: true,
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3'
-  },
-  {
-    id: 'vx2',
-    title: 'Umugisha w’Imana (Tenor Solfège)',
-    choir: 'Christus Regnat',
-    category: 'Gospel Hymn',
-    voicePart: 'tenor',
-    duration: '3:45',
-    hasSheetMusic: true,
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8b4b7dd1e.mp3'
-  },
-  {
-    id: 'vx3',
-    title: 'Alleluia Glorious (Soprano Lead)',
-    choir: 'Ambassadors of Christ Choir',
-    category: 'Adventist Choral',
-    voicePart: 'soprano',
-    duration: '5:02',
-    hasSheetMusic: true,
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/05/16/audio_db6591201e.mp3'
-  },
-  {
-    id: 'vx4',
-    title: 'Uhoraho Niwe Mwunguzi (Alto Harmony)',
-    choir: 'Chorale Shalom',
-    category: 'Protestant Choral',
-    voicePart: 'alto',
-    duration: '3:20',
-    hasSheetMusic: false,
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_12b0c7443c.mp3'
-  },
-  {
-    id: 'vx5',
-    title: 'Kumbuka Muumbaji (Bass Rehearsal)',
-    choir: 'Goshen Choir',
-    category: 'Swahili Sacred',
-    voicePart: 'bass',
-    duration: '4:35',
-    hasSheetMusic: true,
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3'
-  },
-  {
-    id: 'vx6',
-    title: 'Misa ya Bikira Mariya (Conductor Score)',
-    choir: 'Chorale Sainte Famille',
-    category: 'Catholic Liturgy',
-    voicePart: 'satb',
-    duration: '6:12',
-    hasSheetMusic: true,
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8b4b7dd1e.mp3'
-  }
-];
 
 export const VoxifyPage: React.FC = () => {
   const { user, hasAppProfile } = useAuth();
+  const [tracks, setTracks] = useState<ChoirTrack[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [selectedPart, setSelectedPart] = useState<string>('all');
-  const [currentTrack, setCurrentTrack] = useState<ChoirTrack | null>(SAMPLE_TRACKS[0]);
+  const [currentTrack, setCurrentTrack] = useState<ChoirTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [actionSuccess, setActionSuccess] = useState<string>('');
+
+  // Upload Track Modal State
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newChoir, setNewChoir] = useState('');
+  const [newCategory, setNewCategory] = useState('Sacred Classical');
+  const [newVoicePart, setNewVoicePart] = useState<'soprano' | 'alto' | 'tenor' | 'bass' | 'satb'>('satb');
+  const [newDuration, setNewDuration] = useState('3:45');
+  const [newAudioUrl, setNewAudioUrl] = useState('');
+  const [newSheetUrl, setNewSheetUrl] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch real tracks from DB
+  const fetchTracks = () => {
+    setLoading(true);
+    axios
+      .get('/api/modules/voxify/tracks')
+      .then((res) => {
+        if (res.data?.tracks && Array.isArray(res.data.tracks)) {
+          setTracks(res.data.tracks);
+          if (res.data.tracks.length > 0 && !currentTrack) {
+            setCurrentTrack(res.data.tracks[0]);
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTracks();
+  }, []);
 
   const handleProtectedAction = (track: ChoirTrack, action: 'play' | 'sheet' | 'join') => {
     if (!user || !hasAppProfile('voxify')) {
@@ -115,15 +92,66 @@ export const VoxifyPage: React.FC = () => {
       setActionSuccess(`Now rehearsing: ${track.title} (${track.choir})`);
       setTimeout(() => setActionSuccess(''), 4000);
     } else if (action === 'sheet') {
-      setActionSuccess(`Sheet music PDF for "${track.title}" prepared for your vocal part!`);
-      setTimeout(() => setActionSuccess(''), 4000);
+      if (track.sheetMusicUrl) {
+        window.open(track.sheetMusicUrl, '_blank');
+      } else {
+        setActionSuccess(`Sheet music PDF for "${track.title}" is being synchronized.`);
+        setTimeout(() => setActionSuccess(''), 4000);
+      }
     } else {
       setActionSuccess('Joined rehearsal session. Audio sync active.');
       setTimeout(() => setActionSuccess(''), 4000);
     }
   };
 
-  const filteredTracks = SAMPLE_TRACKS.filter((t) => {
+  const handleUploadTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      setWizardTarget('voxify');
+      return;
+    }
+    if (!newTitle.trim() || !newAudioUrl.trim()) {
+      alert('Please provide song title and audio stream URL.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = getAuthToken();
+      const res = await axios.post(
+        '/api/modules/voxify/tracks',
+        {
+          title: newTitle.trim(),
+          choir: newChoir.trim() || user.name || 'Verified Choir',
+          category: newCategory,
+          voicePart: newVoicePart,
+          duration: newDuration.trim() || '3:30',
+          hasSheetMusic: Boolean(newSheetUrl.trim()),
+          audioUrl: newAudioUrl.trim(),
+          sheetMusicUrl: newSheetUrl.trim() || null
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+      );
+
+      if (res.data?.track) {
+        setTracks((prev) => [res.data.track, ...prev]);
+        setCurrentTrack(res.data.track);
+        setShowUploadModal(false);
+        setNewTitle('');
+        setNewChoir('');
+        setNewAudioUrl('');
+        setNewSheetUrl('');
+        setActionSuccess('🎉 Choir track published to Voxify successfully!');
+        setTimeout(() => setActionSuccess(''), 5000);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to publish track.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredTracks = tracks.filter((t) => {
     if (selectedPart === 'all') return true;
     return t.voicePart === selectedPart;
   });
@@ -137,19 +165,32 @@ export const VoxifyPage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
         
-        {/* Prominent Back to Home Button */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+        {/* Prominent Back to Home Button & Publish */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Home</span>
+            </Link>
+            <span className="text-xs text-indigo-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+              <Mic2 className="w-3.5 h-3.5" />
+              <span>Voxify Rwandan Choir Studio</span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              if (!user) setWizardTarget('voxify');
+              else setShowUploadModal(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Home</span>
-          </Link>
-          <span className="text-xs text-indigo-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
-            <Mic2 className="w-3.5 h-3.5" />
-            <span>Voxify Rwandan Choir Studio</span>
-          </span>
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload Choir Track / Score</span>
+          </button>
         </div>
 
         {/* Top Hero Banner */}
@@ -270,58 +311,80 @@ export const VoxifyPage: React.FC = () => {
         </div>
 
         {/* Tracks List */}
-        <div className="space-y-3">
-          {filteredTracks.map((track) => (
-            <div
-              key={track.id}
-              className="p-4 sm:p-5 rounded-2xl bg-[#131926] border border-slate-800/80 hover:border-indigo-500/40 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 text-xs">Loading choir rehearsal tracks...</div>
+        ) : filteredTracks.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-[#131926] border border-slate-800 space-y-3">
+            <Music className="w-10 h-10 text-indigo-400 mx-auto" />
+            <h3 className="text-base font-bold text-white">No Choir Tracks Published Yet</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              Be the first Rwandan choir director or vocalist to publish an SATB rehearsal track and score sheet to Voxify.
+            </p>
+            <button
+              onClick={() => {
+                if (!user) setWizardTarget('voxify');
+                else setShowUploadModal(true);
+              }}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition-all inline-flex items-center gap-2"
             >
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => handleProtectedAction(track, 'play')}
-                  className="w-12 h-12 rounded-2xl bg-[#1A2234] group-hover:bg-indigo-600 text-slate-300 group-hover:text-white flex items-center justify-center transition-all flex-shrink-0 shadow-md"
-                >
-                  <Play className="w-5 h-5 fill-current ml-0.5" />
-                </button>
+              <Upload className="w-4 h-4" />
+              <span>Upload Track</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredTracks.map((track) => (
+              <div
+                key={track.id}
+                className="p-4 sm:p-5 rounded-2xl bg-[#131926] border border-slate-800/80 hover:border-indigo-500/40 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+              >
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => handleProtectedAction(track, 'play')}
+                    className="w-12 h-12 rounded-2xl bg-[#1A2234] group-hover:bg-indigo-600 text-slate-300 group-hover:text-white flex items-center justify-center transition-all flex-shrink-0 shadow-md"
+                  >
+                    <Play className="w-5 h-5 fill-current ml-0.5" />
+                  </button>
 
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-sm text-white group-hover:text-indigo-400 transition-colors">
-                      {track.title}
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      {track.voicePart}
-                    </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-sm text-white group-hover:text-indigo-400 transition-colors">
+                        {track.title}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {track.voicePart}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {track.choir} • <span className="text-slate-500">{track.category}</span>
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {track.choir} • <span className="text-slate-500">{track.category}</span>
-                  </p>
+                </div>
+
+                {/* Right Side Actions */}
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  {track.hasSheetMusic && (
+                    <button
+                      onClick={() => handleProtectedAction(track, 'sheet')}
+                      className="px-3.5 py-2 rounded-xl bg-[#1C2538] hover:bg-[#25324c] text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Sheet PDF
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => handleProtectedAction(track, 'join')}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all"
+                  >
+                    <Headphones className="w-3.5 h-3.5" />
+                    Rehearse
+                  </button>
                 </div>
               </div>
-
-              {/* Right Side Actions */}
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {track.hasSheetMusic && (
-                  <button
-                    onClick={() => handleProtectedAction(track, 'sheet')}
-                    className="px-3.5 py-2 rounded-xl bg-[#1C2538] hover:bg-[#25324c] text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Sheet PDF
-                  </button>
-                )}
-
-                <button
-                  onClick={() => handleProtectedAction(track, 'join')}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all"
-                >
-                  <Headphones className="w-3.5 h-3.5" />
-                  Rehearse
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Non-Logged In Callout */}
         {!user && (
@@ -342,6 +405,116 @@ export const VoxifyPage: React.FC = () => {
         )}
 
       </div>
+
+      {/* Upload Track Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#121824] border border-slate-800 rounded-3xl p-6 w-full max-w-lg shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Mic2 className="w-5 h-5 text-indigo-400" />
+                <span>Upload Choir Track / Sheet Music</span>
+              </h3>
+              <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadTrack} className="space-y-4 pt-4">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Song / Choral Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Mana Ndagushimira"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Choir / Vocalist Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Chorale de Kigali"
+                  value={newChoir}
+                  onChange={(e) => setNewChoir(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Voice Part</label>
+                  <select
+                    value={newVoicePart}
+                    onChange={(e) => setNewVoicePart(e.target.value as any)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="satb">SATB (Full Choir)</option>
+                    <option value="soprano">Soprano</option>
+                    <option value="alto">Alto</option>
+                    <option value="tenor">Tenor</option>
+                    <option value="bass">Bass</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Duration</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 4:18"
+                    value={newDuration}
+                    onChange={(e) => setNewDuration(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Audio Stream / MP3 URL *</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://... audio file URL"
+                  value={newAudioUrl}
+                  onChange={(e) => setNewAudioUrl(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Sheet Music PDF URL (Optional)</label>
+                <input
+                  type="url"
+                  placeholder="https://... sheet music PDF link"
+                  value={newSheetUrl}
+                  onChange={(e) => setNewSheetUrl(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Publishing...' : 'Publish Track'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Access Wizard Modal for Voxify Requirements */}
       <AppAccessWizardModal

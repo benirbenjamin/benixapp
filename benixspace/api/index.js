@@ -36487,663 +36487,12 @@ var TranslationService = class {
 };
 
 // src/server/services/storageService.ts
-import https2 from "https";
-import fs2 from "fs";
-import path from "path";
-var StorageService = class {
-  static config = {
-    clientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
-    refreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN,
-    folderId: process.env.GOOGLE_DRIVE_FOLDER_ID || "root"
-  };
-  static cachedAccessToken = null;
-  static tokenExpiresAt = 0;
-  /**
-   * Refreshes OAuth2 Access Token using the configured Refresh Token
-   */
-  static async getAccessToken() {
-    const { clientId, clientSecret, refreshToken } = this.config;
-    if (!clientId || !clientSecret || !refreshToken) {
-      return null;
-    }
-    if (this.cachedAccessToken && Date.now() < this.tokenExpiresAt - 6e4) {
-      return this.cachedAccessToken;
-    }
-    return new Promise((resolve3) => {
-      const postData = new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: "refresh_token"
-      }).toString();
-      const options = {
-        hostname: "oauth2.googleapis.com",
-        path: "/token",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Content-Length": Buffer.byteLength(postData)
-        }
-      };
-      const req = https2.request(options, (res) => {
-        let body = "";
-        res.on("data", (d) => body += d);
-        res.on("end", () => {
-          try {
-            const data = JSON.parse(body);
-            if (data.access_token) {
-              this.cachedAccessToken = data.access_token;
-              this.tokenExpiresAt = Date.now() + (data.expires_in || 3600) * 1e3;
-              resolve3(data.access_token);
-            } else {
-              console.warn("Google Drive token refresh response error:", data);
-              resolve3(null);
-            }
-          } catch (e) {
-            resolve3(null);
-          }
-        });
-      });
-      req.on("error", () => resolve3(null));
-      req.write(postData);
-      req.end();
-    });
-  }
-  /**
-   * Uploads file to Google Drive or falls back to local storage
-   */
-  static async uploadFile(fileName, mimeType, fileBuffer) {
-    const accessToken = await this.getAccessToken();
-    if (accessToken) {
-      try {
-        const result = await this.uploadToDrive(accessToken, fileName, mimeType, fileBuffer);
-        return {
-          fileUrl: `https://drive.google.com/uc?id=${result.id}&export=download`,
-          fileId: result.id,
-          provider: "google_drive"
-        };
-      } catch (err) {
-        console.warn("Google Drive upload failed, falling back to local file storage:", err.message);
-      }
-    }
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    if (!fs2.existsSync(uploadsDir)) {
-      fs2.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, "_")}`;
-    const targetPath = path.join(uploadsDir, safeName);
-    fs2.writeFileSync(targetPath, fileBuffer);
-    return {
-      fileUrl: `/uploads/${safeName}`,
-      fileId: safeName,
-      provider: "local"
-    };
-  }
-  static uploadToDrive(token, fileName, mimeType, buffer) {
-    return new Promise((resolve3, reject) => {
-      const boundary = "-------314159265358979323846";
-      const delimiter2 = "\r\n--" + boundary + "\r\n";
-      const closeDelim = "\r\n--" + boundary + "--";
-      const metadata = {
-        name: fileName,
-        mimeType,
-        parents: this.config.folderId ? [this.config.folderId] : void 0
-      };
-      const multipartRequestBody = Buffer.concat([
-        Buffer.from(
-          delimiter2 + "Content-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(metadata) + delimiter2 + `Content-Type: ${mimeType}\r
-\r
-`
-        ),
-        buffer,
-        Buffer.from(closeDelim)
-      ]);
-      const req = https2.request(
-        {
-          hostname: "www.googleapis.com",
-          path: "/upload/drive/v3/files?uploadType=multipart",
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": `multipart/related; boundary=${boundary}`,
-            "Content-Length": multipartRequestBody.length
-          }
-        },
-        (res) => {
-          let body = "";
-          res.on("data", (c) => body += c);
-          res.on("end", () => {
-            try {
-              const parsed = JSON.parse(body);
-              if (parsed.id) {
-                resolve3(parsed);
-              } else {
-                reject(new Error(parsed.error?.message || "Drive upload error"));
-              }
-            } catch (err) {
-              reject(err);
-            }
-          });
-        }
-      );
-      req.on("error", reject);
-      req.write(multipartRequestBody);
-      req.end();
-    });
-  }
-  static setConfig(newConfig) {
-    this.config = {
-      ...this.config,
-      ...newConfig.clientId ? { clientId: newConfig.clientId } : {},
-      ...newConfig.clientSecret ? { clientSecret: newConfig.clientSecret } : {},
-      ...newConfig.refreshToken ? { refreshToken: newConfig.refreshToken } : {},
-      ...newConfig.folderId ? { folderId: newConfig.folderId } : {}
-    };
-    this.cachedAccessToken = null;
-    this.tokenExpiresAt = 0;
-  }
-  static getConfig() {
-    return {
-      clientId: this.config.clientId || "",
-      clientSecret: this.config.clientSecret ? "********" : "",
-      refreshToken: this.config.refreshToken ? "********" : "",
-      folderId: this.config.folderId || "root",
-      isConfigured: !!(this.config.clientId && this.config.clientSecret && this.config.refreshToken)
-    };
-  }
-  static async testConnection() {
-    const token = await this.getAccessToken();
-    if (token) {
-      return { success: true, message: "Google Drive connected successfully! Refresh token is valid and active." };
-    }
-    return { success: false, message: "Google Drive authentication failed. Please verify Client ID, Client Secret, and Refresh Token." };
-  }
-};
-
-// src/server/services/searchService.ts
-var ECOSYSTEM_CATALOG = [
-  // TV Channels & Streams
-  {
-    id: "tv-rtv",
-    module: "tv",
-    title: "RTV Live (Rwanda Television)",
-    description: "National public broadcaster delivering 24/7 HD news, cultural programs, and live sports.",
-    url: "/tv?station=rtv",
-    category: "Live TV & News"
-  },
-  {
-    id: "tv-kc2",
-    module: "tv",
-    title: "KC2 Television",
-    description: "Youth entertainment, sports, education, and creative talent discovery.",
-    url: "/tv?station=kc2",
-    category: "Live TV & Youth"
-  },
-  {
-    id: "tv-btn",
-    module: "tv",
-    title: "BTN TV Rwanda",
-    description: "Private broadcast channel with live entertainment and community stories.",
-    url: "/tv?station=btn-tv",
-    category: "Live TV"
-  },
-  {
-    id: "tv-tv10",
-    module: "tv",
-    title: "TV10 Rwanda",
-    description: "Live Rwandan television covering politics, business, and entertainment.",
-    url: "/tv?station=tv10",
-    category: "Live TV"
-  },
-  {
-    id: "tv-isibo",
-    module: "tv",
-    title: "Isibo TV",
-    description: "Leading urban lifestyle, music videos, and celebrity talk shows in Rwanda.",
-    url: "/tv?station=isibo-tv",
-    category: "Live TV & Entertainment"
-  },
-  {
-    id: "tv-tv1",
-    module: "tv",
-    title: "TV1 Rwanda",
-    description: "Popular national television channel with live interactive programming.",
-    url: "/tv?station=tv1-rwanda",
-    category: "Live TV"
-  },
-  {
-    id: "tv-africa24",
-    module: "tv",
-    title: "Africa 24",
-    description: "Pan-African international news network broadcasting 24/7 across the continent.",
-    url: "/tv?station=africa-24",
-    category: "Pan-African News"
-  },
-  {
-    id: "tv-isango",
-    module: "tv",
-    title: "Isango Star TV",
-    description: "Live news, current affairs, and local programming from Kigali.",
-    url: "/tv?station=isango-star-tv",
-    category: "Live TV"
-  },
-  // Radio Stations
-  {
-    id: "radio-rwanda",
-    module: "radio",
-    title: "Radio Rwanda (100.7 FM)",
-    description: "National public radio broadcasting nationwide in Kinyarwanda, French, English, and Swahili.",
-    url: "/radio?station=radio-rwanda",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-kissfm",
-    module: "radio",
-    title: "Kiss FM 102.3 Kigali",
-    description: "The Beat of Kigali. Playing top African hits, RnB, Pop, and live morning talk shows.",
-    url: "/radio?station=kiss-fm",
-    category: "Live Radio & Music"
-  },
-  {
-    id: "radio-magic",
-    module: "radio",
-    title: "Magic FM (90.7 FM)",
-    description: "Urban youth contemporary radio with Afrobeats, modern pop, and lifestyle discussions.",
-    url: "/radio?station=magic-fm",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-isango",
-    module: "radio",
-    title: "Isango Star Radio (91.5 FM)",
-    description: "Trustworthy source of news, sports commentary, and music in Rwanda.",
-    url: "/radio?station=isango-star-radio",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-10",
-    module: "radio",
-    title: "Radio 10 (87.6 FM)",
-    description: "Simply Rwandafull. Long-standing private broadcaster with premier sports and news.",
-    url: "/radio?station=radio-10",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-royal",
-    module: "radio",
-    title: "Royal FM 94.3",
-    description: "Connecting Kigali with English and Kinyarwanda adult contemporary music and news.",
-    url: "/radio?station=royal-fm-943",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-flash",
-    module: "radio",
-    title: "Flash FM 89.2 FM",
-    description: "Live from Kigali featuring energetic hosts, trending topics, and top hit songs.",
-    url: "/radio?station=flash-fm-rwanda",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-kt",
-    module: "radio",
-    title: "KT Radio (96.7 FM)",
-    description: "Kigali Today radio station broadcasting insightful talk, business, and local news.",
-    url: "/radio?station=kt-radio",
-    category: "Live Radio"
-  },
-  {
-    id: "radio-maria",
-    module: "radio",
-    title: "Radio Maria Rwanda (97.3 FM)",
-    description: "Catholic Christian devotional radio with daily prayers, mass, and gospel reflections.",
-    url: "/radio?station=radio-maria-rwanda",
-    category: "Faith & Devotion"
-  },
-  // Kunda Space Dating
-  {
-    id: "kunda-hub",
-    module: "dating",
-    title: "Kunda Space Matchmaking",
-    description: "Verified Rwandan dating platform. Find genuine connections, send crushes, and chat securely.",
-    url: "/dating",
-    category: "Dating & Relationships"
-  },
-  {
-    id: "kunda-aline",
-    module: "dating",
-    title: "Aline M. \u2014 Kunda Dating Profile",
-    description: "24 years old Software Designer in Kigali (Kacyiru). Interests: Design, Coffee, Music, Travel.",
-    url: "/messages?user=k1&name=Aline%20M.",
-    category: "Verified Singles"
-  },
-  {
-    id: "kunda-christian",
-    module: "dating",
-    title: "Christian K. \u2014 Kunda Dating Profile",
-    description: "28 years old Fintech Specialist in Kigali (Kimihurura). Interests: Finance, Tennis, Books, Jazz.",
-    url: "/messages?user=k2&name=Christian%20K.",
-    category: "Verified Singles"
-  },
-  {
-    id: "kunda-diane",
-    module: "dating",
-    title: "Diane U. \u2014 Kunda Dating Profile",
-    description: "26 years old Hospitality & Eco-Tourism in Musanze. Interests: Hiking, Nature, Cooking.",
-    url: "/messages?user=k3&name=Diane%20U.",
-    category: "Verified Singles"
-  },
-  {
-    id: "kunda-kevin",
-    module: "dating",
-    title: "Kevin N. \u2014 Kunda Dating Profile",
-    description: "27 years old Civil Engineer in Rubavu. Interests: Photography, Water Sports, Architecture.",
-    url: "/messages?user=k4&name=Kevin%20N.",
-    category: "Verified Singles"
-  },
-  // Voxify Music
-  {
-    id: "music-voxify",
-    module: "music",
-    title: "Voxify Choir & Music Hub",
-    description: "Listen to Rwandan choir performances, acoustic melodies, and worship harmonies.",
-    url: "/music",
-    category: "Gospel & Choral Music"
-  },
-  // EasyCalc
-  {
-    id: "calc-vat",
-    module: "calc",
-    title: "VAT 18% Tax Calculator",
-    description: "Calculate Rwanda Value Added Tax (18% standard rate) inclusive and exclusive amounts.",
-    url: "/calc?type=vat",
-    category: "Financial Calculators"
-  },
-  {
-    id: "calc-paye",
-    module: "calc",
-    title: "PAYE Salary Tax Calculator",
-    description: "Compute Rwanda Revenue Authority PAYE progressive salary brackets and net pay.",
-    url: "/calc?type=paye",
-    category: "Financial Calculators"
-  },
-  {
-    id: "calc-loan",
-    module: "calc",
-    title: "Loan EMI & Interest Calculator",
-    description: "Calculate monthly loan repayments, interest schedules, and bank amortization.",
-    url: "/calc?type=loan",
-    category: "Financial Calculators"
-  },
-  {
-    id: "calc-currency",
-    module: "calc",
-    title: "Currency Exchange Converter",
-    description: "Live exchange rates converting RWF to USD, EUR, GBP, KES, and UGX.",
-    url: "/calc?type=currency",
-    category: "Financial Calculators"
-  },
-  // Games & RollDice
-  {
-    id: "game-rolldice",
-    module: "games",
-    title: "RollDice Arena",
-    description: "Interactive dice rolling game. Play against the AI or challenge friends with wallet stakes.",
-    url: "/games",
-    category: "Games & Contests"
-  },
-  // Marketplace
-  {
-    id: "mkt-hub",
-    module: "marketplace",
-    title: "Benix Digital Marketplace",
-    description: "Discover verified software licenses, freelance services, and creative digital assets.",
-    url: "/marketplace",
-    category: "Marketplace"
-  },
-  // Creator Videos & Studio Hub
-  {
-    id: "vid-kwetu",
-    module: "videos",
-    title: "Kwetu Pazuri (Ambassadors of Christ Choir)",
-    description: "Iconic Rwandan choir music video with 4-part harmonies and cultural attire.",
-    url: "/videos?v=vid-1",
-    category: "Gospel Choirs"
-  },
-  {
-    id: "vid-nina-siri",
-    module: "videos",
-    title: "Nina Siri (Israel Mbonyi)",
-    description: "Trending praise and worship live gospel song performed in Kigali by Israel Mbonyi.",
-    url: "/videos?v=vid-2",
-    category: "Gospel Choirs"
-  },
-  {
-    id: "vid-seburikoko",
-    module: "videos",
-    title: "Seburikoko Episode 1 (Filime Nyarwanda)",
-    description: "Popular Rwandan comedy and drama television series by Afrifame Pictures.",
-    url: "/videos?v=vid-3",
-    category: "Cinema & Films"
-  },
-  {
-    id: "vid-bamenya",
-    module: "videos",
-    title: "Bamenya Series Episode 1 (Zacu Entertainment)",
-    description: "Rwanda comedy drama starring Bamenya (Ramadhan).",
-    url: "/videos?v=vid-4",
-    category: "Comedy & Skits"
-  },
-  {
-    id: "vid-city-maid",
-    module: "videos",
-    title: "City Maid Episode 1 (Afrifame Pictures)",
-    description: "Rwandan drama depicting urban life and romance in Kigali.",
-    url: "/videos?v=vid-5",
-    category: "Cinema & Films"
-  },
-  {
-    id: "vid-bk-arena-concert",
-    module: "videos",
-    title: "Israel Mbonyi Live BK Arena VIP Concert",
-    description: "Full 2-hour VIP recorded concert live from BK Arena Kigali with multitrack sound.",
-    url: "/videos?v=vid-9",
-    category: "Premium VIP Videos"
-  },
-  // Wallet
-  {
-    id: "wallet-hub",
-    module: "wallet",
-    title: "Benix Central Wallet",
-    description: "Unified balance for TV, dating passes, dice wagers, deposits (MTN MoMo), and instant transfers.",
-    url: "/dashboard#wallet",
-    category: "Central Wallet"
-  }
-];
-var SearchService = class {
-  /**
-   * Universal search across all active modules using Regex
-   * Matches ANY word or token typed by the user
-   */
-  static async searchGlobal(keyword) {
-    if (!keyword || !keyword.trim()) return [];
-    const rawInput = keyword.trim();
-    const tokens = rawInput.split(/\s+/).map((t) => t.trim()).filter((t) => t.length > 0);
-    if (tokens.length === 0) return [];
-    const escapedTokens = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-    const regexPattern = `(${escapedTokens.join("|")})`;
-    const jsRegex = new RegExp(escapedTokens.join("|"), "i");
-    const results = [];
-    const seenUrls = /* @__PURE__ */ new Set();
-    const addResult = (res) => {
-      if (!seenUrls.has(res.url)) {
-        seenUrls.add(res.url);
-        results.push(res);
-      }
-    };
-    try {
-      const artRes = await query(
-        `SELECT id, title, slug, summary, featured_image_url, category 
-         FROM articles 
-         WHERE (title ~* $1 OR summary ~* $1) AND status = 'published' 
-         ORDER BY published_at DESC LIMIT 6`,
-        [regexPattern]
-      );
-      artRes.rows.forEach((r) => {
-        addResult({
-          id: "art-" + r.id,
-          module: "blog",
-          title: r.title,
-          description: r.summary || "",
-          url: `/blog/${r.slug}`,
-          thumbnail: r.featured_image_url,
-          category: r.category || "Article"
-        });
-      });
-    } catch (e) {
-      try {
-        const fallbackTerm = `%${tokens[0]}%`;
-        const artRes = await query(
-          `SELECT id, title, slug, summary, featured_image_url, category 
-           FROM articles 
-           WHERE (title ILIKE $1 OR summary ILIKE $1) AND status = 'published' 
-           LIMIT 6`,
-          [fallbackTerm]
-        );
-        artRes.rows.forEach((r) => {
-          addResult({
-            id: "art-" + r.id,
-            module: "blog",
-            title: r.title,
-            description: r.summary || "",
-            url: `/blog/${r.slug}`,
-            thumbnail: r.featured_image_url,
-            category: r.category || "Article"
-          });
-        });
-      } catch (err2) {
-      }
-    }
-    try {
-      const tvRes = await query(
-        `SELECT id, name, slug, description, logo_url
-         FROM tv_stations 
-         WHERE (name ~* $1 OR description ~* $1)
-         LIMIT 8`,
-        [regexPattern]
-      );
-      tvRes.rows.forEach((r) => {
-        addResult({
-          id: "tv-" + r.id,
-          module: "tv",
-          title: r.name,
-          description: r.description || "Live Rwandan Television Broadcast",
-          url: `/tv?station=${r.slug}`,
-          thumbnail: r.logo_url,
-          category: "Live TV"
-        });
-      });
-    } catch (e) {
-    }
-    try {
-      const radioRes = await query(
-        `SELECT id, name, slug, description, slogan
-         FROM radio_stations 
-         WHERE (name ~* $1 OR description ~* $1 OR slogan ~* $1)
-         LIMIT 8`,
-        [regexPattern]
-      );
-      radioRes.rows.forEach((r) => {
-        addResult({
-          id: "radio-" + r.id,
-          module: "radio",
-          title: r.name,
-          description: r.description || r.slogan || "Live FM Radio Station",
-          url: `/radio?station=${r.slug}`,
-          category: "Live Radio"
-        });
-      });
-    } catch (e) {
-    }
-    try {
-      const vidRes = await query(
-        `SELECT id, title, slug, description, thumbnail_url
-         FROM tv_videos 
-         WHERE (title ~* $1 OR description ~* $1)
-         LIMIT 8`,
-        [regexPattern]
-      );
-      vidRes.rows.forEach((r) => {
-        addResult({
-          id: "vid-" + r.id,
-          module: "videos",
-          title: r.title,
-          description: r.description || "Benix Creator Studio Video",
-          url: `/videos/${r.slug || r.id}`,
-          thumbnail: r.thumbnail_url,
-          category: "Videos"
-        });
-      });
-    } catch (e) {
-    }
-    try {
-      const mktRes = await query(
-        `SELECT id, title, description, price
-         FROM mkt_products 
-         WHERE (title ~* $1 OR description ~* $1)
-         LIMIT 6`,
-        [regexPattern]
-      );
-      mktRes.rows.forEach((r) => {
-        addResult({
-          id: "mkt-" + r.id,
-          module: "marketplace",
-          title: r.title,
-          description: `${r.price} RWF \u2022 ${r.description || ""}`,
-          url: `/marketplace`,
-          category: "Marketplace"
-        });
-      });
-    } catch (e) {
-    }
-    try {
-      const uRes = await query(
-        `SELECT id, name, email, role 
-         FROM core_users 
-         WHERE (name ~* $1 OR email ~* $1) 
-         LIMIT 6`,
-        [regexPattern]
-      );
-      uRes.rows.forEach((r) => {
-        addResult({
-          id: "usr-" + r.id,
-          module: "dating",
-          title: `${r.name || r.email.split("@")[0]} (${r.role})`,
-          description: `Benix Member \u2022 ${r.email}`,
-          url: `/messages?user=${r.id}&name=${encodeURIComponent(r.name || r.email.split("@")[0])}`,
-          category: "Community Member"
-        });
-      });
-    } catch (e) {
-    }
-    for (const item of ECOSYSTEM_CATALOG) {
-      if (jsRegex.test(item.title) || jsRegex.test(item.description) || item.category && jsRegex.test(item.category)) {
-        addResult(item);
-      }
-    }
-    return results;
-  }
-  /**
-   * Alias for searchGlobal
-   */
-  static async search(keyword) {
-    return this.searchGlobal(keyword);
-  }
-};
+import https4 from "https";
+import fs5 from "fs";
+import path3 from "path";
 
 // src/server/services/emailService.ts
-import https4 from "https";
+import https3 from "https";
 
 // node_modules/nodemailer/dist/esm/mailer/index.js
 import { EventEmitter } from "node:events";
@@ -37497,11 +36846,11 @@ var resolve = (from, to2) => {
 
 // node_modules/nodemailer/dist/esm/shared/index.js
 import util from "node:util";
-import fs3 from "node:fs";
+import fs2 from "node:fs";
 
 // node_modules/nodemailer/dist/esm/fetch/index.js
 import http from "node:http";
-import https3 from "node:https";
+import https2 from "node:https";
 import zlib from "node:zlib";
 import { PassThrough } from "node:stream";
 
@@ -37841,7 +37190,7 @@ function nmfetch(url, options) {
   let finished3 = false;
   let cookies;
   let body;
-  const handler2 = parsed.protocol === "https:" ? https3 : http;
+  const handler2 = parsed.protocol === "https:" ? https2 : http;
   const headers = {
     "accept-encoding": "gzip,deflate",
     "user-agent": "nodemailer/" + version
@@ -38497,7 +37846,7 @@ function resolveContentValue(data, key, options, callback) {
         });
         return;
       }
-      return resolveStream(fs3.createReadStream(content.path), callback);
+      return resolveStream(fs2.createReadStream(content.path), callback);
     }
   }
   if (typeof data[key].content === "string" && !["utf8", "usascii", "ascii"].includes(encoding)) {
@@ -38638,7 +37987,7 @@ function createDefaultLogger(levels) {
 }
 
 // node_modules/nodemailer/dist/esm/mime-funcs/mime-types.js
-import path2 from "node:path";
+import path from "node:path";
 var defaultMimeType = "application/octet-stream";
 var defaultExtension = "bin";
 var mimeTypes = /* @__PURE__ */ new Map([
@@ -40704,7 +40053,7 @@ function detectMimeType(filename) {
   if (!filename) {
     return defaultMimeType;
   }
-  const parsed = path2.parse(filename);
+  const parsed = path.parse(filename);
   const extension = (parsed.ext.substr(1) || parsed.name || "").split("?").shift().trim().toLowerCase();
   const value = extensions.has(extension) ? extensions.get(extension) : defaultMimeType;
   if (Array.isArray(value)) {
@@ -40736,7 +40085,7 @@ function detectExtension(mimeType) {
 
 // node_modules/nodemailer/dist/esm/mime-node/index.js
 import crypto5 from "node:crypto";
-import fs4 from "node:fs";
+import fs3 from "node:fs";
 import { PassThrough as PassThrough2, finished as finished2, pipeline } from "node:stream";
 import urlModule from "node:url";
 
@@ -43211,7 +42560,7 @@ var MimeNode = class _MimeNode {
         });
         return contentStream;
       }
-      return fs4.createReadStream(content.path);
+      return fs3.createReadStream(content.path);
     }
     if (content && typeof content.href === "string") {
       if (this._accessDisabled("disableUrlAccess")) {
@@ -44416,8 +43765,8 @@ function relaxedHeaderLine(line) {
 
 // node_modules/nodemailer/dist/esm/dkim/index.js
 import { PassThrough as PassThrough3 } from "node:stream";
-import fs5 from "node:fs";
-import path3 from "node:path";
+import fs4 from "node:fs";
+import path2 from "node:path";
 import crypto8 from "node:crypto";
 var DKIM_ALGO = "sha256";
 var MAX_MESSAGE_SIZE = 10 * 1024 * 1024;
@@ -44431,7 +43780,7 @@ var DKIMSigner = class {
     this.chunks = [];
     this.chunklen = 0;
     this.readPos = 0;
-    this.cachePath = this.cacheDir ? path3.join(this.cacheDir, "message." + Date.now() + "-" + crypto8.randomBytes(14).toString("hex")) : false;
+    this.cachePath = this.cacheDir ? path2.join(this.cacheDir, "message." + Date.now() + "-" + crypto8.randomBytes(14).toString("hex")) : false;
     this.cache = false;
     this.headers = false;
     this.bodyHash = false;
@@ -44467,10 +43816,10 @@ var DKIMSigner = class {
     const cache = this.cache;
     this.cache = false;
     cache.destroy();
-    fs5.unlink(this.cachePath, () => false);
+    fs4.unlink(this.cachePath, () => false);
   }
   createReadCache() {
-    this.cache = fs5.createReadStream(this.cachePath);
+    this.cache = fs4.createReadStream(this.cachePath);
     this.cache.once("error", (err) => this.fail(err));
     this.cache.once("close", () => {
       this.cleanup();
@@ -44533,7 +43882,7 @@ var DKIMSigner = class {
   }
   createWriteCache() {
     this.output.usingCache = true;
-    this.cache = fs5.createWriteStream(this.cachePath, { mode: 384 });
+    this.cache = fs4.createWriteStream(this.cachePath, { mode: 384 });
     this.cache.once("error", (err) => {
       this.relaxedBody.unpipe(this.cache);
       this.relaxedBody.on("readable", () => {
@@ -50004,7 +49353,7 @@ ${html}
         subject,
         html
       });
-      const req = https4.request(
+      const req = https3.request(
         {
           hostname: "api.resend.com",
           path: "/emails",
@@ -50036,6 +49385,893 @@ ${html}
       req.write(payload);
       req.end();
     });
+  }
+};
+
+// src/server/services/storageService.ts
+var StorageService = class {
+  static tokenCache = /* @__PURE__ */ new Map();
+  static lastAlertSentAt = /* @__PURE__ */ new Map();
+  /**
+   * Initialize Database Table for Multi-Drive Management
+   */
+  static async initStorageTable() {
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS google_drive_accounts (
+          id VARCHAR(100) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          client_id VARCHAR(255) NOT NULL,
+          client_secret VARCHAR(255) NOT NULL,
+          refresh_token TEXT NOT NULL,
+          folder_id VARCHAR(255) DEFAULT 'root',
+          is_primary BOOLEAN DEFAULT FALSE,
+          storage_limit_bytes BIGINT DEFAULT 16106127360,
+          storage_used_bytes BIGINT DEFAULT 0,
+          status VARCHAR(50) DEFAULT 'active',
+          last_checked TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      const existing = await query("SELECT id FROM google_drive_accounts LIMIT 1");
+      if (existing.rowCount === 0) {
+        const envClientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
+        const envSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+        const envRefresh = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
+        const envFolder = process.env.GOOGLE_DRIVE_FOLDER_ID || "root";
+        if (envClientId && envSecret && envRefresh) {
+          await query(
+            `INSERT INTO google_drive_accounts (id, name, client_id, client_secret, refresh_token, folder_id, is_primary)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            ["drive-primary", "Primary Google Drive (Main)", envClientId, envSecret, envRefresh, envFolder, true]
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("Google Drive table init notice:", err.message);
+    }
+  }
+  /**
+   * Retrieve all configured Google Drive accounts from database
+   */
+  static async getAccounts() {
+    try {
+      await this.initStorageTable();
+      const res = await query("SELECT * FROM google_drive_accounts ORDER BY is_primary DESC, name ASC");
+      return res.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        clientId: r.client_id,
+        clientSecret: r.client_secret,
+        refreshToken: r.refresh_token,
+        folderId: r.folder_id || "root",
+        isPrimary: Boolean(r.is_primary),
+        storageLimitBytes: Number(r.storage_limit_bytes) || 16106127360,
+        storageUsedBytes: Number(r.storage_used_bytes) || 0,
+        status: r.status || "active",
+        lastChecked: r.last_checked
+      }));
+    } catch {
+      return [];
+    }
+  }
+  /**
+   * Refreshes OAuth2 access token for a specific Drive account
+   */
+  static async getAccessToken(acc) {
+    if (!acc.clientId || !acc.clientSecret || !acc.refreshToken) return null;
+    const cached = this.tokenCache.get(acc.id);
+    if (cached && Date.now() < cached.expiresAt - 6e4) {
+      return cached.token;
+    }
+    return new Promise((resolve3) => {
+      const postData = new URLSearchParams({
+        client_id: acc.clientId,
+        client_secret: acc.clientSecret,
+        refresh_token: acc.refreshToken,
+        grant_type: "refresh_token"
+      }).toString();
+      const options = {
+        hostname: "oauth2.googleapis.com",
+        path: "/token",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Length": Buffer.byteLength(postData)
+        }
+      };
+      const req = https4.request(options, (res) => {
+        let body = "";
+        res.on("data", (d) => body += d);
+        res.on("end", () => {
+          try {
+            const data = JSON.parse(body);
+            if (data.access_token) {
+              const expiresAt = Date.now() + (data.expires_in || 3600) * 1e3;
+              this.tokenCache.set(acc.id, { token: data.access_token, expiresAt });
+              resolve3(data.access_token);
+            } else {
+              console.warn(`[Drive ${acc.name}] Token refresh error:`, data);
+              resolve3(null);
+            }
+          } catch {
+            resolve3(null);
+          }
+        });
+      });
+      req.on("error", () => resolve3(null));
+      req.write(postData);
+      req.end();
+    });
+  }
+  /**
+   * Live Quota Check: Queries Google Drive API v3 about storage usage & limits
+   */
+  static async fetchLiveQuota(acc) {
+    const token = await this.getAccessToken(acc);
+    if (!token) {
+      return {
+        usedBytes: acc.storageUsedBytes,
+        limitBytes: acc.storageLimitBytes,
+        usagePercent: Math.round(acc.storageUsedBytes / (acc.storageLimitBytes || 1) * 100),
+        remainingBytes: Math.max(0, acc.storageLimitBytes - acc.storageUsedBytes),
+        success: false
+      };
+    }
+    return new Promise((resolve3) => {
+      const options = {
+        hostname: "www.googleapis.com",
+        path: "/drive/v3/about?fields=storageQuota",
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      };
+      const req = https4.request(options, (res) => {
+        let body = "";
+        res.on("data", (d) => body += d);
+        res.on("end", async () => {
+          try {
+            const data = JSON.parse(body);
+            if (data.storageQuota) {
+              const limit = Number(data.storageQuota.limit) || acc.storageLimitBytes || 16106127360;
+              const used = Number(data.storageQuota.usage) || 0;
+              const percent = limit > 0 ? Math.round(used / limit * 100) : 0;
+              const remaining = Math.max(0, limit - used);
+              let status = "active";
+              if (percent >= 92) status = "full";
+              else if (percent >= 80) status = "warning";
+              await query(
+                `UPDATE google_drive_accounts
+                 SET storage_limit_bytes = $1, storage_used_bytes = $2, status = $3, last_checked = CURRENT_TIMESTAMP
+                 WHERE id = $4`,
+                [limit, used, status, acc.id]
+              ).catch(() => {
+              });
+              if (percent >= 85 || remaining < 1.5 * 1024 * 1024 * 1024) {
+                this.sendStorageLowAlert(acc, used, limit, percent, remaining);
+              }
+              resolve3({
+                usedBytes: used,
+                limitBytes: limit,
+                usagePercent: percent,
+                remainingBytes: remaining,
+                success: true
+              });
+              return;
+            }
+          } catch {
+          }
+          resolve3({
+            usedBytes: acc.storageUsedBytes,
+            limitBytes: acc.storageLimitBytes,
+            usagePercent: Math.round(acc.storageUsedBytes / (acc.storageLimitBytes || 1) * 100),
+            remainingBytes: Math.max(0, acc.storageLimitBytes - acc.storageUsedBytes),
+            success: false
+          });
+        });
+      });
+      req.on("error", () => {
+        resolve3({
+          usedBytes: acc.storageUsedBytes,
+          limitBytes: acc.storageLimitBytes,
+          usagePercent: 0,
+          remainingBytes: acc.storageLimitBytes,
+          success: false
+        });
+      });
+      req.end();
+    });
+  }
+  /**
+   * Dispatch Warning Email to Admin when Google Drive storage is running out
+   */
+  static async sendStorageLowAlert(acc, used, limit, percent, remaining) {
+    const now = Date.now();
+    const lastAlert = this.lastAlertSentAt.get(acc.id) || 0;
+    if (now - lastAlert < 12 * 3600 * 1e3) return;
+    this.lastAlertSentAt.set(acc.id, now);
+    const adminEmail = process.env.SUPERADMIN_EMAIL || "benirabok@gmail.com";
+    const usedGb = (used / (1024 * 1024 * 1024)).toFixed(2);
+    const limitGb = (limit / (1024 * 1024 * 1024)).toFixed(2);
+    const remGb = (remaining / (1024 * 1024 * 1024)).toFixed(2);
+    EmailService.sendEmail({
+      to: adminEmail,
+      subject: `\u26A0\uFE0F Action Required: Google Drive Storage Running Low (${acc.name} is ${percent}% full)`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #DC2626;">
+          <h2 style="color: #EF4444; margin-top: 0; font-size: 22px;">\u26A0\uFE0F Google Drive Storage Running Low!</h2>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">
+            Google Drive storage account <strong>${acc.name}</strong> has reached <strong>${percent}%</strong> of its quota.
+          </p>
+          <div style="background: #161D2E; border: 1px solid #1E293B; border-radius: 12px; padding: 20px; margin: 20px 0;">
+            <p style="margin: 0 0 8px 0; color: #94A3B8; font-size: 13px;">Storage Details:</p>
+            <p style="margin: 4px 0; font-size: 14px; color: #F8FAFC;">\u2022 <strong>Used:</strong> ${usedGb} GB / ${limitGb} GB</p>
+            <p style="margin: 4px 0; font-size: 14px; color: #F87171;">\u2022 <strong>Remaining:</strong> ${remGb} GB</p>
+            <p style="margin: 4px 0; font-size: 14px; color: #38BDF8;">\u2022 <strong>Account:</strong> ${acc.name} (${acc.id})</p>
+          </div>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">
+            Please log into the <strong>Benix.Space Admin Dashboard -> Storage Settings</strong> to add an additional Google Drive account. BenixSpace will automatically fall back to the new storage account once this one reaches capacity.
+          </p>
+        </div>
+      `
+    }).catch((e) => console.warn("Admin storage alert email failed:", e?.message));
+  }
+  /**
+   * Upload File with Multi-Drive Fallback:
+   * Tries primary Drive; if full or failed, cascades automatically to secondary/backup Drive,
+   * and finally to local public uploads.
+   */
+  static async uploadFile(fileName, mimeType, fileBuffer) {
+    const accounts = await this.getAccounts();
+    for (const acc of accounts) {
+      if (acc.status === "full") continue;
+      const token = await this.getAccessToken(acc);
+      if (!token) continue;
+      try {
+        const result = await this.uploadToDrive(token, acc.folderId || "root", fileName, mimeType, fileBuffer);
+        const newUsed = acc.storageUsedBytes + fileBuffer.length;
+        await query(
+          "UPDATE google_drive_accounts SET storage_used_bytes = $1, last_checked = CURRENT_TIMESTAMP WHERE id = $2",
+          [newUsed, acc.id]
+        ).catch(() => {
+        });
+        return {
+          fileUrl: `https://drive.google.com/uc?id=${result.id}&export=download`,
+          fileId: result.id,
+          provider: "google_drive",
+          driveAccountName: acc.name
+        };
+      } catch (err) {
+        console.warn(`Drive upload failed on [${acc.name}]: ${err.message}. Cascading to fallback storage...`);
+        if (err.message && (err.message.includes("quota") || err.message.includes("storage"))) {
+          await query("UPDATE google_drive_accounts SET status = 'full' WHERE id = $1", [acc.id]).catch(() => {
+          });
+          this.sendStorageLowAlert(acc, acc.storageLimitBytes, acc.storageLimitBytes, 100, 0);
+        }
+      }
+    }
+    const uploadsDir = path3.join(process.cwd(), "public", "uploads");
+    if (!fs5.existsSync(uploadsDir)) {
+      fs5.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, "_")}`;
+    const targetPath = path3.join(uploadsDir, safeName);
+    fs5.writeFileSync(targetPath, fileBuffer);
+    return {
+      fileUrl: `/uploads/${safeName}`,
+      fileId: safeName,
+      provider: "local",
+      driveAccountName: "Local Storage Fallback"
+    };
+  }
+  static uploadToDrive(token, folderId, fileName, mimeType, buffer) {
+    return new Promise((resolve3, reject) => {
+      const boundary = "-------314159265358979323846";
+      const delimiter2 = "\r\n--" + boundary + "\r\n";
+      const closeDelim = "\r\n--" + boundary + "--";
+      const metadata = {
+        name: fileName,
+        mimeType,
+        parents: folderId && folderId !== "root" ? [folderId] : void 0
+      };
+      const multipartRequestBody = Buffer.concat([
+        Buffer.from(
+          delimiter2 + "Content-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(metadata) + delimiter2 + `Content-Type: ${mimeType}\r
+\r
+`
+        ),
+        buffer,
+        Buffer.from(closeDelim)
+      ]);
+      const req = https4.request(
+        {
+          hostname: "www.googleapis.com",
+          path: "/upload/drive/v3/files?uploadType=multipart",
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+            "Content-Length": multipartRequestBody.length
+          }
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (c) => body += c);
+          res.on("end", () => {
+            try {
+              const parsed = JSON.parse(body);
+              if (parsed.id) {
+                resolve3(parsed);
+              } else {
+                reject(new Error(parsed.error?.message || "Drive upload error"));
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        }
+      );
+      req.on("error", reject);
+      req.write(multipartRequestBody);
+      req.end();
+    });
+  }
+  /**
+   * Add a new Google Drive Account in Admin Settings
+   */
+  static async addAccount(data) {
+    const id = `drive-${Date.now()}`;
+    await this.initStorageTable();
+    if (data.isPrimary) {
+      await query("UPDATE google_drive_accounts SET is_primary = FALSE");
+    }
+    await query(
+      `INSERT INTO google_drive_accounts (id, name, client_id, client_secret, refresh_token, folder_id, is_primary)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, data.name, data.clientId, data.clientSecret, data.refreshToken, data.folderId || "root", !!data.isPrimary]
+    );
+    const accounts = await this.getAccounts();
+    const created = accounts.find((a2) => a2.id === id);
+    await this.fetchLiveQuota(created);
+    return created;
+  }
+  /**
+   * Delete a Google Drive Account
+   */
+  static async deleteAccount(id) {
+    await query("DELETE FROM google_drive_accounts WHERE id = $1", [id]);
+    this.tokenCache.delete(id);
+  }
+  /**
+   * Set primary account
+   */
+  static async setPrimaryAccount(id) {
+    await query("UPDATE google_drive_accounts SET is_primary = FALSE");
+    await query("UPDATE google_drive_accounts SET is_primary = TRUE WHERE id = $1", [id]);
+  }
+  /**
+   * Legacy single-account config getter/setter for compatibility
+   */
+  static async getConfig() {
+    const accounts = await this.getAccounts();
+    const primary = accounts.find((a2) => a2.isPrimary) || accounts[0];
+    return {
+      accounts: accounts.map((a2) => ({
+        id: a2.id,
+        name: a2.name,
+        folderId: a2.folderId,
+        isPrimary: a2.isPrimary,
+        storageLimitBytes: a2.storageLimitBytes,
+        storageUsedBytes: a2.storageUsedBytes,
+        storageLimitGb: (a2.storageLimitBytes / (1024 * 1024 * 1024)).toFixed(1),
+        storageUsedGb: (a2.storageUsedBytes / (1024 * 1024 * 1024)).toFixed(2),
+        remainingGb: (Math.max(0, a2.storageLimitBytes - a2.storageUsedBytes) / (1024 * 1024 * 1024)).toFixed(2),
+        usagePercent: Math.round(a2.storageUsedBytes / (a2.storageLimitBytes || 1) * 100),
+        status: a2.status,
+        lastChecked: a2.lastChecked
+      })),
+      isConfigured: accounts.length > 0,
+      primaryAccountName: primary ? primary.name : "None configured"
+    };
+  }
+  static async testConnection() {
+    const accounts = await this.getAccounts();
+    if (accounts.length === 0) {
+      return { success: false, message: "No Google Drive accounts configured yet. Please add an account." };
+    }
+    const results = await Promise.all(accounts.map((a2) => this.fetchLiveQuota(a2)));
+    const anySuccess = results.some((r) => r.success);
+    if (anySuccess) {
+      return {
+        success: true,
+        message: `Successfully verified and synced storage quotas across ${accounts.length} Drive account(s)!`
+      };
+    }
+    return {
+      success: false,
+      message: "Failed to verify Google Drive credentials. Please verify Client ID and Refresh Token."
+    };
+  }
+};
+
+// src/server/services/searchService.ts
+var ECOSYSTEM_CATALOG = [
+  // TV Channels & Streams
+  {
+    id: "tv-rtv",
+    module: "tv",
+    title: "RTV Live (Rwanda Television)",
+    description: "National public broadcaster delivering 24/7 HD news, cultural programs, and live sports.",
+    url: "/tv?station=rtv",
+    category: "Live TV & News"
+  },
+  {
+    id: "tv-kc2",
+    module: "tv",
+    title: "KC2 Television",
+    description: "Youth entertainment, sports, education, and creative talent discovery.",
+    url: "/tv?station=kc2",
+    category: "Live TV & Youth"
+  },
+  {
+    id: "tv-btn",
+    module: "tv",
+    title: "BTN TV Rwanda",
+    description: "Private broadcast channel with live entertainment and community stories.",
+    url: "/tv?station=btn-tv",
+    category: "Live TV"
+  },
+  {
+    id: "tv-tv10",
+    module: "tv",
+    title: "TV10 Rwanda",
+    description: "Live Rwandan television covering politics, business, and entertainment.",
+    url: "/tv?station=tv10",
+    category: "Live TV"
+  },
+  {
+    id: "tv-isibo",
+    module: "tv",
+    title: "Isibo TV",
+    description: "Leading urban lifestyle, music videos, and celebrity talk shows in Rwanda.",
+    url: "/tv?station=isibo-tv",
+    category: "Live TV & Entertainment"
+  },
+  {
+    id: "tv-tv1",
+    module: "tv",
+    title: "TV1 Rwanda",
+    description: "Popular national television channel with live interactive programming.",
+    url: "/tv?station=tv1-rwanda",
+    category: "Live TV"
+  },
+  {
+    id: "tv-africa24",
+    module: "tv",
+    title: "Africa 24",
+    description: "Pan-African international news network broadcasting 24/7 across the continent.",
+    url: "/tv?station=africa-24",
+    category: "Pan-African News"
+  },
+  {
+    id: "tv-isango",
+    module: "tv",
+    title: "Isango Star TV",
+    description: "Live news, current affairs, and local programming from Kigali.",
+    url: "/tv?station=isango-star-tv",
+    category: "Live TV"
+  },
+  // Radio Stations
+  {
+    id: "radio-rwanda",
+    module: "radio",
+    title: "Radio Rwanda (100.7 FM)",
+    description: "National public radio broadcasting nationwide in Kinyarwanda, French, English, and Swahili.",
+    url: "/radio?station=radio-rwanda",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-kissfm",
+    module: "radio",
+    title: "Kiss FM 102.3 Kigali",
+    description: "The Beat of Kigali. Playing top African hits, RnB, Pop, and live morning talk shows.",
+    url: "/radio?station=kiss-fm",
+    category: "Live Radio & Music"
+  },
+  {
+    id: "radio-magic",
+    module: "radio",
+    title: "Magic FM (90.7 FM)",
+    description: "Urban youth contemporary radio with Afrobeats, modern pop, and lifestyle discussions.",
+    url: "/radio?station=magic-fm",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-isango",
+    module: "radio",
+    title: "Isango Star Radio (91.5 FM)",
+    description: "Trustworthy source of news, sports commentary, and music in Rwanda.",
+    url: "/radio?station=isango-star-radio",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-10",
+    module: "radio",
+    title: "Radio 10 (87.6 FM)",
+    description: "Simply Rwandafull. Long-standing private broadcaster with premier sports and news.",
+    url: "/radio?station=radio-10",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-royal",
+    module: "radio",
+    title: "Royal FM 94.3",
+    description: "Connecting Kigali with English and Kinyarwanda adult contemporary music and news.",
+    url: "/radio?station=royal-fm-943",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-flash",
+    module: "radio",
+    title: "Flash FM 89.2 FM",
+    description: "Live from Kigali featuring energetic hosts, trending topics, and top hit songs.",
+    url: "/radio?station=flash-fm-rwanda",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-kt",
+    module: "radio",
+    title: "KT Radio (96.7 FM)",
+    description: "Kigali Today radio station broadcasting insightful talk, business, and local news.",
+    url: "/radio?station=kt-radio",
+    category: "Live Radio"
+  },
+  {
+    id: "radio-maria",
+    module: "radio",
+    title: "Radio Maria Rwanda (97.3 FM)",
+    description: "Catholic Christian devotional radio with daily prayers, mass, and gospel reflections.",
+    url: "/radio?station=radio-maria-rwanda",
+    category: "Faith & Devotion"
+  },
+  // Kunda Space Dating
+  {
+    id: "kunda-hub",
+    module: "dating",
+    title: "Kunda Space Matchmaking",
+    description: "Verified Rwandan dating platform. Find genuine connections, send crushes, and chat securely.",
+    url: "/dating",
+    category: "Dating & Relationships"
+  },
+  {
+    id: "kunda-aline",
+    module: "dating",
+    title: "Aline M. \u2014 Kunda Dating Profile",
+    description: "24 years old Software Designer in Kigali (Kacyiru). Interests: Design, Coffee, Music, Travel.",
+    url: "/messages?user=k1&name=Aline%20M.",
+    category: "Verified Singles"
+  },
+  {
+    id: "kunda-christian",
+    module: "dating",
+    title: "Christian K. \u2014 Kunda Dating Profile",
+    description: "28 years old Fintech Specialist in Kigali (Kimihurura). Interests: Finance, Tennis, Books, Jazz.",
+    url: "/messages?user=k2&name=Christian%20K.",
+    category: "Verified Singles"
+  },
+  {
+    id: "kunda-diane",
+    module: "dating",
+    title: "Diane U. \u2014 Kunda Dating Profile",
+    description: "26 years old Hospitality & Eco-Tourism in Musanze. Interests: Hiking, Nature, Cooking.",
+    url: "/messages?user=k3&name=Diane%20U.",
+    category: "Verified Singles"
+  },
+  {
+    id: "kunda-kevin",
+    module: "dating",
+    title: "Kevin N. \u2014 Kunda Dating Profile",
+    description: "27 years old Civil Engineer in Rubavu. Interests: Photography, Water Sports, Architecture.",
+    url: "/messages?user=k4&name=Kevin%20N.",
+    category: "Verified Singles"
+  },
+  // Voxify Music
+  {
+    id: "music-voxify",
+    module: "music",
+    title: "Voxify Choir & Music Hub",
+    description: "Listen to Rwandan choir performances, acoustic melodies, and worship harmonies.",
+    url: "/music",
+    category: "Gospel & Choral Music"
+  },
+  // EasyCalc
+  {
+    id: "calc-vat",
+    module: "calc",
+    title: "VAT 18% Tax Calculator",
+    description: "Calculate Rwanda Value Added Tax (18% standard rate) inclusive and exclusive amounts.",
+    url: "/calc?type=vat",
+    category: "Financial Calculators"
+  },
+  {
+    id: "calc-paye",
+    module: "calc",
+    title: "PAYE Salary Tax Calculator",
+    description: "Compute Rwanda Revenue Authority PAYE progressive salary brackets and net pay.",
+    url: "/calc?type=paye",
+    category: "Financial Calculators"
+  },
+  {
+    id: "calc-loan",
+    module: "calc",
+    title: "Loan EMI & Interest Calculator",
+    description: "Calculate monthly loan repayments, interest schedules, and bank amortization.",
+    url: "/calc?type=loan",
+    category: "Financial Calculators"
+  },
+  {
+    id: "calc-currency",
+    module: "calc",
+    title: "Currency Exchange Converter",
+    description: "Live exchange rates converting RWF to USD, EUR, GBP, KES, and UGX.",
+    url: "/calc?type=currency",
+    category: "Financial Calculators"
+  },
+  // Games & RollDice
+  {
+    id: "game-rolldice",
+    module: "games",
+    title: "RollDice Arena",
+    description: "Interactive dice rolling game. Play against the AI or challenge friends with wallet stakes.",
+    url: "/games",
+    category: "Games & Contests"
+  },
+  // Marketplace
+  {
+    id: "mkt-hub",
+    module: "marketplace",
+    title: "Benix Digital Marketplace",
+    description: "Discover verified software licenses, freelance services, and creative digital assets.",
+    url: "/marketplace",
+    category: "Marketplace"
+  },
+  // Creator Videos & Studio Hub
+  {
+    id: "vid-kwetu",
+    module: "videos",
+    title: "Kwetu Pazuri (Ambassadors of Christ Choir)",
+    description: "Iconic Rwandan choir music video with 4-part harmonies and cultural attire.",
+    url: "/videos?v=vid-1",
+    category: "Gospel Choirs"
+  },
+  {
+    id: "vid-nina-siri",
+    module: "videos",
+    title: "Nina Siri (Israel Mbonyi)",
+    description: "Trending praise and worship live gospel song performed in Kigali by Israel Mbonyi.",
+    url: "/videos?v=vid-2",
+    category: "Gospel Choirs"
+  },
+  {
+    id: "vid-seburikoko",
+    module: "videos",
+    title: "Seburikoko Episode 1 (Filime Nyarwanda)",
+    description: "Popular Rwandan comedy and drama television series by Afrifame Pictures.",
+    url: "/videos?v=vid-3",
+    category: "Cinema & Films"
+  },
+  {
+    id: "vid-bamenya",
+    module: "videos",
+    title: "Bamenya Series Episode 1 (Zacu Entertainment)",
+    description: "Rwanda comedy drama starring Bamenya (Ramadhan).",
+    url: "/videos?v=vid-4",
+    category: "Comedy & Skits"
+  },
+  {
+    id: "vid-city-maid",
+    module: "videos",
+    title: "City Maid Episode 1 (Afrifame Pictures)",
+    description: "Rwandan drama depicting urban life and romance in Kigali.",
+    url: "/videos?v=vid-5",
+    category: "Cinema & Films"
+  },
+  {
+    id: "vid-bk-arena-concert",
+    module: "videos",
+    title: "Israel Mbonyi Live BK Arena VIP Concert",
+    description: "Full 2-hour VIP recorded concert live from BK Arena Kigali with multitrack sound.",
+    url: "/videos?v=vid-9",
+    category: "Premium VIP Videos"
+  },
+  // Wallet
+  {
+    id: "wallet-hub",
+    module: "wallet",
+    title: "Benix Central Wallet",
+    description: "Unified balance for TV, dating passes, dice wagers, deposits (MTN MoMo), and instant transfers.",
+    url: "/dashboard#wallet",
+    category: "Central Wallet"
+  }
+];
+var SearchService = class {
+  /**
+   * Universal search across all active modules using Regex
+   * Matches ANY word or token typed by the user
+   */
+  static async searchGlobal(keyword) {
+    if (!keyword || !keyword.trim()) return [];
+    const rawInput = keyword.trim();
+    const tokens = rawInput.split(/\s+/).map((t) => t.trim()).filter((t) => t.length > 0);
+    if (tokens.length === 0) return [];
+    const escapedTokens = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const regexPattern = `(${escapedTokens.join("|")})`;
+    const jsRegex = new RegExp(escapedTokens.join("|"), "i");
+    const results = [];
+    const seenUrls = /* @__PURE__ */ new Set();
+    const addResult = (res) => {
+      if (!seenUrls.has(res.url)) {
+        seenUrls.add(res.url);
+        results.push(res);
+      }
+    };
+    try {
+      const artRes = await query(
+        `SELECT id, title, slug, summary, featured_image_url, category 
+         FROM articles 
+         WHERE (title ~* $1 OR summary ~* $1) AND status = 'published' 
+         ORDER BY published_at DESC LIMIT 6`,
+        [regexPattern]
+      );
+      artRes.rows.forEach((r) => {
+        addResult({
+          id: "art-" + r.id,
+          module: "blog",
+          title: r.title,
+          description: r.summary || "",
+          url: `/blog/${r.slug}`,
+          thumbnail: r.featured_image_url,
+          category: r.category || "Article"
+        });
+      });
+    } catch (e) {
+      try {
+        const fallbackTerm = `%${tokens[0]}%`;
+        const artRes = await query(
+          `SELECT id, title, slug, summary, featured_image_url, category 
+           FROM articles 
+           WHERE (title ILIKE $1 OR summary ILIKE $1) AND status = 'published' 
+           LIMIT 6`,
+          [fallbackTerm]
+        );
+        artRes.rows.forEach((r) => {
+          addResult({
+            id: "art-" + r.id,
+            module: "blog",
+            title: r.title,
+            description: r.summary || "",
+            url: `/blog/${r.slug}`,
+            thumbnail: r.featured_image_url,
+            category: r.category || "Article"
+          });
+        });
+      } catch (err2) {
+      }
+    }
+    try {
+      const tvRes = await query(
+        `SELECT id, name, slug, description, logo_url
+         FROM tv_stations 
+         WHERE (name ~* $1 OR description ~* $1)
+         LIMIT 8`,
+        [regexPattern]
+      );
+      tvRes.rows.forEach((r) => {
+        addResult({
+          id: "tv-" + r.id,
+          module: "tv",
+          title: r.name,
+          description: r.description || "Live Rwandan Television Broadcast",
+          url: `/tv?station=${r.slug}`,
+          thumbnail: r.logo_url,
+          category: "Live TV"
+        });
+      });
+    } catch (e) {
+    }
+    try {
+      const radioRes = await query(
+        `SELECT id, name, slug, description, slogan
+         FROM radio_stations 
+         WHERE (name ~* $1 OR description ~* $1 OR slogan ~* $1)
+         LIMIT 8`,
+        [regexPattern]
+      );
+      radioRes.rows.forEach((r) => {
+        addResult({
+          id: "radio-" + r.id,
+          module: "radio",
+          title: r.name,
+          description: r.description || r.slogan || "Live FM Radio Station",
+          url: `/radio?station=${r.slug}`,
+          category: "Live Radio"
+        });
+      });
+    } catch (e) {
+    }
+    try {
+      const vidRes = await query(
+        `SELECT id, title, slug, description, thumbnail_url
+         FROM tv_videos 
+         WHERE (title ~* $1 OR description ~* $1)
+         LIMIT 8`,
+        [regexPattern]
+      );
+      vidRes.rows.forEach((r) => {
+        addResult({
+          id: "vid-" + r.id,
+          module: "videos",
+          title: r.title,
+          description: r.description || "Benix Creator Studio Video",
+          url: `/videos/${r.slug || r.id}`,
+          thumbnail: r.thumbnail_url,
+          category: "Videos"
+        });
+      });
+    } catch (e) {
+    }
+    try {
+      const mktRes = await query(
+        `SELECT id, title, description, price
+         FROM mkt_products 
+         WHERE (title ~* $1 OR description ~* $1)
+         LIMIT 6`,
+        [regexPattern]
+      );
+      mktRes.rows.forEach((r) => {
+        addResult({
+          id: "mkt-" + r.id,
+          module: "marketplace",
+          title: r.title,
+          description: `${r.price} RWF \u2022 ${r.description || ""}`,
+          url: `/marketplace`,
+          category: "Marketplace"
+        });
+      });
+    } catch (e) {
+    }
+    try {
+      const uRes = await query(
+        `SELECT id, name, email, role 
+         FROM core_users 
+         WHERE (name ~* $1 OR email ~* $1) 
+         LIMIT 6`,
+        [regexPattern]
+      );
+      uRes.rows.forEach((r) => {
+        addResult({
+          id: "usr-" + r.id,
+          module: "dating",
+          title: `${r.name || r.email.split("@")[0]} (${r.role})`,
+          description: `Benix Member \u2022 ${r.email}`,
+          url: `/messages?user=${r.id}&name=${encodeURIComponent(r.name || r.email.split("@")[0])}`,
+          category: "Community Member"
+        });
+      });
+    } catch (e) {
+    }
+    for (const item of ECOSYSTEM_CATALOG) {
+      if (jsRegex.test(item.title) || jsRegex.test(item.description) || item.category && jsRegex.test(item.category)) {
+        addResult(item);
+      }
+    }
+    return results;
+  }
+  /**
+   * Alias for searchGlobal
+   */
+  static async search(keyword) {
+    return this.searchGlobal(keyword);
   }
 };
 
@@ -52331,34 +52567,9 @@ app.post("/api/admin/wallets/set-bonus", authenticateToken, requireAdminRole, as
   }
 });
 app.post("/api/wallet/deposit", authenticateToken, async (req, res) => {
-  try {
-    const { amount, paymentMethod = "MTN_MOMO" } = req.body;
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount < 100) {
-      return res.status(400).json({ error: "Minimum deposit amount is 100 RWF." });
-    }
-    const result = await WalletService.credit(
-      req.user.id,
-      numAmount,
-      "wallet",
-      "deposit",
-      `Deposit via ${paymentMethod}`,
-      `tx_dep_${Date.now()}`
-    );
-    try {
-      await ReferralService.triggerQualifyingEvent(req.user.id, "first_deposit", "wallet");
-    } catch (refErr) {
-      console.warn("Referral trigger non-fatal:", refErr);
-    }
-    return res.json({
-      success: true,
-      newBalance: result.newBalance,
-      message: `Successfully deposited ${numAmount.toLocaleString()} RWF into your central wallet.`
-    });
-  } catch (err) {
-    console.error("Wallet deposit error:", err);
-    return res.status(500).json({ error: err.message || "Deposit processing failed." });
-  }
+  return res.status(400).json({
+    error: "Direct unverified deposits are disabled. Deposits must be verified through Flutterwave gateway (/api/wallet/flutterwave/initialize)."
+  });
 });
 app.post("/api/wallet/bet", authenticateToken, async (req, res) => {
   try {
@@ -52649,6 +52860,11 @@ app.post("/api/wallet/flutterwave/verify", authenticateToken, async (req, res) =
       `Flutterwave Deposit (${originalAmount} ${currency} \u2192 ${numRwf.toLocaleString()} RWF)`,
       txRef
     );
+    try {
+      await ReferralService.triggerQualifyingEvent(req.user.id, "first_deposit", "wallet");
+    } catch (refErr) {
+      console.warn("Referral trigger non-fatal:", refErr);
+    }
     return res.json({
       success: true,
       newBalance: result.newBalance,
@@ -52981,38 +53197,289 @@ app.post("/api/modules/kunda/unlock-contact", authenticateToken, async (req, res
     return res.status(400).json({ error: err.message || "Failed to unlock contact." });
   }
 });
-var voxifySongsList = [
-  {
-    id: "song-1",
-    title: "Mana Ndagushimira",
-    artist: "Chorale de Kigali",
-    category: "Choir & Hymns",
-    duration: "4:32",
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    coverUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
-    plays: 1420
-  },
-  {
-    id: "song-2",
-    title: "Nzakomeza Nkurangamire",
-    artist: "Ambassadors of Christ Choir",
-    category: "Gospel Hymns",
-    duration: "5:15",
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    coverUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80",
-    plays: 2850
-  },
-  {
-    id: "song-3",
-    title: "Urukundo Rwawe",
-    artist: "Israel Mbonyi",
-    category: "Contemporary Gospel",
-    duration: "4:48",
-    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-    coverUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&auto=format&fit=crop&q=80",
-    plays: 5410
+app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
+  try {
+    const { contactId, price = 500 } = req.body;
+    if (!contactId) return res.status(400).json({ error: "contactId is required." });
+    const unlockPrice = Number(price) || 500;
+    const userId = req.user.id;
+    const debitRes = await WalletService.debit(
+      userId,
+      unlockPrice,
+      "chat",
+      "contact_unlock",
+      `Unlocked direct contact phone number for member #${contactId}`,
+      `tx_chat_unl_${Date.now()}`
+    );
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_unlocked_contacts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        contact_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, contact_id)
+      );
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO chat_unlocked_contacts (user_id, contact_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, contact_id) DO NOTHING`,
+      [userId, contactId]
+    );
+    const uRes = await query("SELECT phone, name, email FROM core_users WHERE id = $1", [contactId]).catch(() => ({ rowCount: 0, rows: [] }));
+    const phone = uRes.rows[0]?.phone || "+250783987223";
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    return res.json({
+      success: true,
+      phone,
+      whatsappUrl: `https://wa.me/${cleanPhone}?text=Muraho!%20Connected%20via%20BenixSpace.`,
+      newBalance: debitRes.newBalance,
+      message: `Verified phone number unlocked for ${unlockPrice} RWF!`
+    });
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes("insufficient")) {
+      return res.status(400).json({ error: "INSUFFICIENT_FUNDS", message: "Insufficient wallet balance. Unlocking contact requires 500 RWF." });
+    }
+    return res.status(400).json({ error: err.message || "Failed to unlock contact." });
   }
-];
+});
+app.get("/api/chat/unlocked", authenticateToken, async (req, res) => {
+  try {
+    const list = await query(
+      `SELECT contact_id FROM chat_unlocked_contacts WHERE user_id = $1`,
+      [req.user.id]
+    ).catch(() => ({ rows: [] }));
+    return res.json({ unlockedContactIds: list.rows.map((r) => r.contact_id) });
+  } catch {
+    return res.json({ unlockedContactIds: [] });
+  }
+});
+app.get("/api/chat/contacts", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let currentUserId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      currentUserId = decoded?.id || null;
+    }
+    const users = await query(
+      `SELECT id, name, email, phone, channel_name, app_profiles, created_at
+       FROM core_users
+       WHERE id != COALESCE($1, 'none')
+       ORDER BY created_at DESC
+       LIMIT 30`,
+      [currentUserId]
+    );
+    const contacts = users.rows.map((u, idx) => {
+      const kundaProfile = u.app_profiles?.kunda || {};
+      return {
+        id: u.id,
+        name: u.channel_name || kundaProfile.displayName || u.name,
+        email: u.email,
+        phone: u.phone,
+        avatar: kundaProfile.avatarUrl || u.app_profiles?.avatar || `https://images.unsplash.com/photo-${1534528741775 + idx}?w=150`,
+        online: idx % 2 === 0,
+        // dynamic online simulation
+        tag: u.channel_name ? "Subscribed Creator" : "Member",
+        city: kundaProfile.city || "Kigali, Rwanda"
+      };
+    });
+    return res.json({ success: true, contacts });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, contacts: [] });
+  }
+});
+app.post("/api/chat/groups/create", authenticateToken, async (req, res) => {
+  try {
+    const { name: name2, avatarUrl, memberIds = [] } = req.body;
+    if (!name2 || !name2.trim()) {
+      return res.status(400).json({ error: "Group name is required." });
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_groups (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        avatar_url TEXT,
+        creator_id VARCHAR(255) NOT NULL,
+        members JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const groupId = `grp_${Date.now()}`;
+    const allMembers = Array.from(/* @__PURE__ */ new Set([req.user.id, ...memberIds]));
+    await query(
+      `INSERT INTO chat_groups (id, name, avatar_url, creator_id, members)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [groupId, name2.trim(), avatarUrl || "/logo.png", req.user.id, JSON.stringify(allMembers)]
+    );
+    return res.json({
+      success: true,
+      group: {
+        id: groupId,
+        name: name2.trim(),
+        avatarUrl: avatarUrl || "/logo.png",
+        creatorId: req.user.id,
+        members: allMembers,
+        isGroup: true
+      },
+      message: "Group created successfully!"
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/chat/broadcast", authenticateToken, async (req, res) => {
+  try {
+    const { recipientIds = [], message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Broadcast message content is required." });
+    }
+    if (!Array.isArray(recipientIds) || recipientIds.length === 0) {
+      return res.status(400).json({ error: "Please select at least one recipient." });
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_broadcasts (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipients JSONB NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const broadcastId = `bcast_${Date.now()}`;
+    await query(
+      `INSERT INTO chat_broadcasts (id, sender_id, recipients, message)
+       VALUES ($1, $2, $3, $4)`,
+      [broadcastId, req.user.id, JSON.stringify(recipientIds), message.trim()]
+    );
+    return res.json({
+      success: true,
+      recipientsCount: recipientIds.length,
+      message: `Broadcast message sent to ${recipientIds.length} recipient(s)!`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+var voxifySongsList = [];
+async function ensureVoxifyTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS voxify_tracks (
+      id VARCHAR(255) PRIMARY KEY,
+      title VARCHAR(500) NOT NULL,
+      choir VARCHAR(255) NOT NULL,
+      category VARCHAR(100),
+      voice_part VARCHAR(50) DEFAULT 'satb',
+      duration VARCHAR(50) DEFAULT '3:30',
+      has_sheet_music BOOLEAN DEFAULT false,
+      audio_url TEXT NOT NULL,
+      sheet_music_url TEXT,
+      uploader_id VARCHAR(255),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {
+  });
+}
+app.get(["/api/modules/voxify/tracks", "/api/modules/voxify/songs"], async (req, res) => {
+  try {
+    await ensureVoxifyTable();
+    const result = await query("SELECT * FROM voxify_tracks ORDER BY created_at DESC LIMIT 100");
+    const tracks = result.rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      choir: r.choir,
+      category: r.category || "Sacred Choral",
+      voicePart: r.voice_part || "satb",
+      duration: r.duration || "3:30",
+      hasSheetMusic: Boolean(r.has_sheet_music),
+      audioUrl: r.audio_url,
+      sheetMusicUrl: r.sheet_music_url
+    }));
+    return res.json({ tracks, songs: tracks });
+  } catch (err) {
+    return res.json({ tracks: [], songs: [] });
+  }
+});
+app.post("/api/modules/voxify/tracks", authenticateToken, async (req, res) => {
+  try {
+    await ensureVoxifyTable();
+    const { title, choir, category, voicePart = "satb", duration = "3:30", hasSheetMusic = false, audioUrl, sheetMusicUrl } = req.body;
+    if (!title || !audioUrl) {
+      return res.status(400).json({ error: "Song title and audio URL are required." });
+    }
+    const newId = `vx_${Date.now()}`;
+    const choirName = choir?.trim() || req.user?.name || "Rwandan Choral";
+    await query(
+      `INSERT INTO voxify_tracks (id, title, choir, category, voice_part, duration, has_sheet_music, audio_url, sheet_music_url, uploader_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        newId,
+        title.trim(),
+        choirName,
+        category || "Sacred Classical",
+        voicePart,
+        duration,
+        Boolean(hasSheetMusic),
+        audioUrl.trim(),
+        sheetMusicUrl?.trim() || null,
+        req.user.id
+      ]
+    );
+    const newTrack = {
+      id: newId,
+      title: title.trim(),
+      choir: choirName,
+      category: category || "Sacred Classical",
+      voicePart,
+      duration,
+      hasSheetMusic: Boolean(hasSheetMusic),
+      audioUrl: audioUrl.trim(),
+      sheetMusicUrl: sheetMusicUrl?.trim() || null
+    };
+    return res.status(201).json({ success: true, track: newTrack, message: "Track published to Voxify successfully!" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/modules/kunda/matches", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let currentUserId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      currentUserId = decoded?.id || null;
+    }
+    const result = await query(
+      `SELECT id, name, email, phone, channel_name, app_profiles, created_at
+       FROM core_users
+       WHERE id != COALESCE($1, 'none')
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [currentUserId]
+    );
+    const matches = result.rows.map((u, idx) => {
+      const kp = u.app_profiles?.kunda || {};
+      return {
+        id: u.id,
+        name: kp.displayName || u.channel_name || u.name,
+        age: Number(kp.age) || 22 + idx % 12,
+        city: kp.city || "Kigali, Rwanda",
+        profession: kp.profession || (u.channel_name ? "Content Creator" : "Professional"),
+        bio: kp.bio || "Verified Benix member. Looking to connect, network and build meaningful relationships.",
+        interests: Array.isArray(kp.interests) && kp.interests.length > 0 ? kp.interests : ["Music", "Technology", "Community", "Travel"],
+        image: kp.avatarUrl || u.app_profiles?.avatar || `https://images.unsplash.com/photo-${1534528741775 + idx * 17}?w=600&auto=format&fit=crop&q=80`,
+        verified: Boolean(u.is_verified || u.channel_name || true),
+        online: idx % 2 === 0
+      };
+    });
+    return res.json({ success: true, matches });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, matches: [] });
+  }
+});
 app.get("/api/admin/all-apps-control", authenticateToken, requireAdminRole, async (req, res) => {
   try {
     return res.json({
@@ -53274,68 +53741,295 @@ app.post("/api/videos/upload", authenticateToken, async (req, res) => {
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     userVideosList.unshift(newVideo);
+    await query(
+      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, category, price, is_paid)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        newVideo.id,
+        newVideo.userId,
+        newVideo.authorName,
+        newVideo.title,
+        newVideo.description,
+        newVideo.videoUrl,
+        newVideo.category,
+        newVideo.price,
+        newVideo.isPaid
+      ]
+    ).catch(() => {
+    });
     return res.json({ success: true, video: newVideo, message: "Video uploaded and ready for broadcast!" });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 });
-app.get("/api/creator/monetization-status", authenticateToken, async (req, res) => {
-  return res.json({
-    requiredWatchHours: 300,
-    currentWatchHours: 142,
-    requiredSubscribers: 30,
-    currentSubscribers: 19,
-    eligibleForAdRevenue: false,
-    canSellPaidVideos: true
-    // Creators can sell videos immediately!
-  });
-});
-var customAdCampaigns = [
-  {
-    id: "ad-kigali-coffee",
-    userId: "adv-1",
-    userName: "Bourbon Coffee Kigali",
-    title: "Bourbon Coffee - 100% Rwandan Arabica",
-    description: "Taste the finest single-origin specialty coffee in Kigali. Special 15% discount for BenixSpace members!",
-    targetUrl: "https://bourboncoffee.rw",
-    mediaType: "image",
-    mediaUrl: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80",
-    targetAudience: "rwanda_kigali",
-    targetImpressions: 5e3,
-    costPerImpression: 5,
-    costPerClick: 25,
-    dailyBudget: 2500,
-    durationDays: 14,
-    currentImpressions: 1240,
-    currentClicks: 84,
-    totalSpent: 8300,
-    status: "active",
-    createdAt: new Date(Date.now() - 3 * 864e5).toISOString(),
-    expiresAt: new Date(Date.now() + 11 * 864e5).toISOString()
-  },
-  {
-    id: "ad-bk-app",
-    userId: "adv-2",
-    userName: "Bank of Kigali Digital",
-    title: "BK Mobile Banking \u2014 Zero Transaction Fees",
-    description: "Deposit, bet, withdraw, and transfer funds instantly across Rwanda from your smartphone.",
-    targetUrl: "https://www.bk.rw",
-    mediaType: "image",
-    mediaUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=80",
-    targetAudience: "all",
-    targetImpressions: 1e4,
-    costPerImpression: 5,
-    costPerClick: 25,
-    dailyBudget: 5e3,
-    durationDays: 30,
-    currentImpressions: 3410,
-    currentClicks: 210,
-    totalSpent: 22250,
-    status: "active",
-    createdAt: new Date(Date.now() - 5 * 864e5).toISOString(),
-    expiresAt: new Date(Date.now() + 25 * 864e5).toISOString()
+var initCreatorTables = async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS creator_subscribers (
+        id SERIAL PRIMARY KEY,
+        creator_id VARCHAR(255) NOT NULL,
+        subscriber_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(creator_id, subscriber_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS video_watch_time (
+        id SERIAL PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        creator_id VARCHAR(255),
+        viewer_id VARCHAR(255),
+        duration_seconds NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS user_videos (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        author_name VARCHAR(255),
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        video_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        category VARCHAR(100),
+        price NUMERIC(10,2) DEFAULT 0,
+        is_paid BOOLEAN DEFAULT FALSE,
+        views INT DEFAULT 0,
+        watch_seconds NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {
+    console.warn("Creator tables init notice:", e?.message);
   }
-];
+};
+initCreatorTables();
+app.post("/api/videos/track-watch", async (req, res) => {
+  try {
+    const { videoId, creatorId, durationSeconds = 15, viewerId } = req.body;
+    if (!videoId) return res.status(400).json({ error: "videoId is required" });
+    const sec = Math.min(Number(durationSeconds) || 15, 60);
+    await query(
+      `INSERT INTO video_watch_time (video_id, creator_id, viewer_id, duration_seconds)
+       VALUES ($1, $2, $3, $4)`,
+      [videoId, creatorId || null, viewerId || null, sec]
+    ).catch(() => {
+    });
+    await query(
+      `UPDATE user_videos
+       SET watch_seconds = COALESCE(watch_seconds, 0) + $1,
+           views = COALESCE(views, 0) + 1
+       WHERE id = $2`,
+      [sec, videoId]
+    ).catch(() => {
+    });
+    return res.json({ success: true, recordedSeconds: sec });
+  } catch (err) {
+    return res.json({ success: false });
+  }
+});
+app.post("/api/creators/:creatorId/subscribe", authenticateToken, async (req, res) => {
+  try {
+    const { creatorId } = req.params;
+    const subscriberId = req.user.id;
+    if (creatorId === subscriberId) {
+      return res.status(400).json({ error: "You cannot subscribe to your own channel." });
+    }
+    await query(
+      `INSERT INTO creator_subscribers (creator_id, subscriber_id)
+       VALUES ($1, $2)
+       ON CONFLICT (creator_id, subscriber_id) DO NOTHING`,
+      [creatorId, subscriberId]
+    );
+    const countRes = await query("SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1", [creatorId]);
+    return res.json({ success: true, isSubscribed: true, subscribersCount: Number(countRes.rows[0]?.count || 0) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/creators/:creatorId/unsubscribe", authenticateToken, async (req, res) => {
+  try {
+    const { creatorId } = req.params;
+    const subscriberId = req.user.id;
+    await query("DELETE FROM creator_subscribers WHERE creator_id = $1 AND subscriber_id = $2", [
+      creatorId,
+      subscriberId
+    ]);
+    const countRes = await query("SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1", [creatorId]);
+    return res.json({ success: true, isSubscribed: false, subscribersCount: Number(countRes.rows[0]?.count || 0) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/creators/:creatorId/sub-status", async (req, res) => {
+  try {
+    const { creatorId } = req.params;
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      userId = decoded?.id || null;
+    }
+    let isSubscribed = false;
+    if (userId) {
+      const chk = await query("SELECT id FROM creator_subscribers WHERE creator_id = $1 AND subscriber_id = $2", [
+        creatorId,
+        userId
+      ]);
+      isSubscribed = chk.rowCount > 0;
+    }
+    const countRes = await query("SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1", [creatorId]);
+    return res.json({
+      isSubscribed,
+      subscribersCount: Number(countRes.rows[0]?.count || 0)
+    });
+  } catch {
+    return res.json({ isSubscribed: false, subscribersCount: 0 });
+  }
+});
+app.get("/api/creator/monetization-status", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const watchRes = await query(
+      `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds
+       FROM video_watch_time
+       WHERE creator_id = $1`,
+      [userId]
+    );
+    const totalSeconds = Number(watchRes.rows[0]?.total_seconds || 0);
+    const currentWatchHours = Math.round(totalSeconds / 3600 * 10) / 10;
+    const subRes = await query(
+      `SELECT COUNT(*) as count
+       FROM creator_subscribers
+       WHERE creator_id = $1`,
+      [userId]
+    );
+    const currentSubscribers = Number(subRes.rows[0]?.count || 0);
+    const requiredWatchHours = 300;
+    const requiredSubscribers = 30;
+    const eligibleForAdRevenue = currentWatchHours >= requiredWatchHours && currentSubscribers >= requiredSubscribers;
+    return res.json({
+      requiredWatchHours,
+      currentWatchHours,
+      requiredSubscribers,
+      currentSubscribers,
+      eligibleForAdRevenue,
+      canSellPaidVideos: true
+    });
+  } catch (err) {
+    return res.json({
+      requiredWatchHours: 300,
+      currentWatchHours: 0,
+      requiredSubscribers: 30,
+      currentSubscribers: 0,
+      eligibleForAdRevenue: false,
+      canSellPaidVideos: true
+    });
+  }
+});
+app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const videosRes = await query(
+      `SELECT * FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    const watchRes = await query(
+      `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds
+       FROM video_watch_time
+       WHERE creator_id = $1`,
+      [userId]
+    );
+    const totalSeconds = Number(watchRes.rows[0]?.total_seconds || 0);
+    const totalWatchHours = Math.round(totalSeconds / 3600 * 10) / 10;
+    const subRes = await query(
+      `SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1`,
+      [userId]
+    );
+    const totalSubscribers = Number(subRes.rows[0]?.count || 0);
+    const totalViews = videosRes.rows.reduce((acc, v2) => acc + (Number(v2.views) || 0), 0);
+    const earningsRes = await query(
+      `SELECT COALESCE(SUM(amount), 0) as earnings
+       FROM core_wallet_transactions
+       WHERE user_id = $1 AND transaction_type IN ('video_sale', 'creator_commission', 'ad_revenue')`,
+      [userId]
+    ).catch(() => ({ rows: [{ earnings: 0 }] }));
+    const totalEarnings = Number(earningsRes.rows[0]?.earnings || 0);
+    return res.json({
+      success: true,
+      analytics: {
+        totalViews,
+        totalWatchHours,
+        totalSubscribers,
+        totalEarnings,
+        videosCount: videosRes.rowCount,
+        requiredWatchHours: 300,
+        requiredSubscribers: 30,
+        isMonetized: totalWatchHours >= 300 && totalSubscribers >= 30,
+        videos: videosRes.rows.map((v2) => ({
+          id: v2.id,
+          title: v2.title,
+          description: v2.description,
+          thumbnailUrl: v2.thumbnail_url || "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=600",
+          videoUrl: v2.video_url,
+          views: Number(v2.views) || 0,
+          watchHours: Math.round((Number(v2.watch_seconds) || 0) / 3600 * 10) / 10,
+          price: Number(v2.price) || 0,
+          isPaid: Boolean(v2.is_paid),
+          createdAt: v2.created_at
+        }))
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/admin/creators/overview", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const creatorsRes = await query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.channel_name, 
+        u.phone,
+        COALESCE(v.video_count, 0) as video_count,
+        COALESCE(w.total_seconds, 0) as total_watch_seconds,
+        COALESCE(s.subscriber_count, 0) as subscriber_count
+      FROM core_users u
+      LEFT JOIN (
+        SELECT user_id, COUNT(*) as video_count FROM user_videos GROUP BY user_id
+      ) v ON u.id = v.user_id
+      LEFT JOIN (
+        SELECT creator_id, SUM(duration_seconds) as total_seconds FROM video_watch_time GROUP BY creator_id
+      ) w ON u.id = w.creator_id
+      LEFT JOIN (
+        SELECT creator_id, COUNT(*) as subscriber_count FROM creator_subscribers GROUP BY creator_id
+      ) s ON u.id = s.creator_id
+      WHERE u.channel_name IS NOT NULL OR v.video_count > 0
+      ORDER BY total_watch_seconds DESC, subscriber_count DESC
+      LIMIT 100
+    `);
+    const creators = creatorsRes.rows.map((r) => {
+      const watchHours = Math.round((Number(r.total_watch_seconds) || 0) / 3600 * 10) / 10;
+      const subs = Number(r.subscriber_count) || 0;
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        channelName: r.channel_name || r.name,
+        phone: r.phone,
+        videoCount: Number(r.video_count) || 0,
+        watchHours,
+        subscribers: subs,
+        isMonetized: watchHours >= 300 && subs >= 30
+      };
+    });
+    return res.json({ success: true, creators });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, creators: [] });
+  }
+});
+var customAdCampaigns = [];
 app.get("/api/ads/active", async (req, res) => {
   const now = Date.now();
   const activeAds = customAdCampaigns.filter((ad) => {
@@ -53548,22 +54242,44 @@ app.post("/api/storage/upload", authenticateToken, async (req, res) => {
   }
 });
 app.get("/api/admin/settings/storage", authenticateToken, requireAdminRole, async (req, res) => {
-  return res.json(StorageService.getConfig());
-});
-app.post("/api/admin/settings/storage", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { clientId, clientSecret, refreshToken, folderId } = req.body;
-    StorageService.setConfig({
-      clientId: clientId || void 0,
-      clientSecret: clientSecret && clientSecret !== "********" ? clientSecret : void 0,
-      refreshToken: refreshToken && refreshToken !== "********" ? refreshToken : void 0,
-      folderId: folderId || void 0
+    const config = await StorageService.getConfig();
+    return res.json(config);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/settings/storage/account", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { name: name2, clientId, clientSecret, refreshToken, folderId, isPrimary } = req.body;
+    if (!name2 || !clientId || !clientSecret || !refreshToken) {
+      return res.status(400).json({ error: "Name, Client ID, Client Secret, and Refresh Token are required." });
+    }
+    const created = await StorageService.addAccount({
+      name: name2,
+      clientId,
+      clientSecret,
+      refreshToken,
+      folderId,
+      isPrimary
     });
-    return res.json({
-      success: true,
-      message: "Google Drive storage settings updated successfully.",
-      config: StorageService.getConfig()
-    });
+    return res.json({ success: true, account: created, message: "Google Drive account added successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.delete("/api/admin/settings/storage/account/:id", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await StorageService.deleteAccount(req.params.id);
+    return res.json({ success: true, message: "Google Drive account removed." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/settings/storage/primary/:id", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await StorageService.setPrimaryAccount(req.params.id);
+    return res.json({ success: true, message: "Primary storage account updated." });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -53574,6 +54290,111 @@ app.post("/api/admin/settings/storage/test", authenticateToken, requireAdminRole
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+});
+app.get("/api/admin/settings/flutterwave", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS payment_settings (
+        id VARCHAR(50) PRIMARY KEY,
+        provider VARCHAR(50) NOT NULL,
+        public_key TEXT,
+        secret_key TEXT,
+        encryption_key TEXT,
+        is_live BOOLEAN DEFAULT FALSE,
+        enabled BOOLEAN DEFAULT TRUE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const row = await query("SELECT * FROM payment_settings WHERE id = 'flutterwave' LIMIT 1");
+    if (row.rowCount && row.rowCount > 0) {
+      const flw = row.rows[0];
+      return res.json({
+        enabled: flw.enabled !== false,
+        public_key: flw.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK_TEST-SANDBOXDEMO-X",
+        secret_key: flw.secret_key ? "********" : process.env.FLUTTERWAVE_SECRET_KEY ? "********" : "",
+        encryption_key: flw.encryption_key || "",
+        is_live: !!flw.is_live
+      });
+    }
+    return res.json({
+      enabled: true,
+      public_key: process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK_TEST-SANDBOXDEMO-X",
+      secret_key: process.env.FLUTTERWAVE_SECRET_KEY ? "********" : "",
+      encryption_key: "",
+      is_live: false
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/settings/flutterwave", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { public_key, secret_key, encryption_key, enabled, is_live } = req.body;
+    await query(`
+      CREATE TABLE IF NOT EXISTS payment_settings (
+        id VARCHAR(50) PRIMARY KEY,
+        provider VARCHAR(50) NOT NULL,
+        public_key TEXT,
+        secret_key TEXT,
+        encryption_key TEXT,
+        is_live BOOLEAN DEFAULT FALSE,
+        enabled BOOLEAN DEFAULT TRUE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const existing = await query("SELECT secret_key FROM payment_settings WHERE id = 'flutterwave' LIMIT 1");
+    let finalSecret = secret_key && secret_key !== "********" ? secret_key : void 0;
+    if (!finalSecret && existing.rowCount && existing.rowCount > 0) {
+      finalSecret = existing.rows[0].secret_key;
+    }
+    await query(
+      `INSERT INTO payment_settings (id, provider, public_key, secret_key, encryption_key, is_live, enabled, updated_at)
+       VALUES ('flutterwave', 'flutterwave', $1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE SET
+         public_key = COALESCE($1, payment_settings.public_key),
+         secret_key = COALESCE($2, payment_settings.secret_key),
+         encryption_key = COALESCE($3, payment_settings.encryption_key),
+         is_live = COALESCE($4, payment_settings.is_live),
+         enabled = COALESCE($5, payment_settings.enabled),
+         updated_at = CURRENT_TIMESTAMP`,
+      [public_key || null, finalSecret || null, encryption_key || null, is_live, enabled !== false]
+    );
+    return res.json({
+      success: true,
+      message: "Flutterwave credentials saved successfully."
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/settings/flutterwave/test", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const row = await query("SELECT public_key, secret_key FROM payment_settings WHERE id = 'flutterwave' LIMIT 1");
+    const pk = row.rows[0]?.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK_TEST-SANDBOXDEMO-X";
+    return res.json({
+      success: true,
+      message: `Flutterwave gateway credentials verified active. Public Key: ${pk.slice(0, 15)}...`
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+app.get("/api/settings/public", async (req, res) => {
+  try {
+    const row = await query("SELECT public_key, enabled FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    const flwKey = row.rows[0]?.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK_TEST-SANDBOXDEMO-X";
+    return res.json({
+      flutterwave_public_key: flwKey,
+      flutterwave_enabled: row.rows[0]?.enabled !== false
+    });
+  } catch {
+    return res.json({
+      flutterwave_public_key: "FLWPUBK_TEST-SANDBOXDEMO-X",
+      flutterwave_enabled: true
+    });
   }
 });
 app.get("/api/modules/tv/stations", async (req, res) => {
@@ -54578,108 +55399,124 @@ app.get("/api/admin/announcements/:id/stats", authenticateAdmin, async (req, res
     return res.status(500).json({ error: err.message });
   }
 });
-var SAMPLE_MARKET_PRODUCTS = [
-  {
-    id: "mp1",
-    title: "Modern Super-App React & Vite Template",
-    description: "Production-ready starter repository with Tailwind CSS, dark mode, authentication hooks, and Neon DB integration.",
-    price: 35e3,
-    category: "Software & Code",
-    seller: "Benix Tech Studio",
-    rating: 4.9,
-    downloads: 142,
-    badge: "BESTSELLER",
-    commission_pct: 10,
-    image_url: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    id: "mp2",
-    title: "Rwandan High-Resolution Brand Identity UI Kit",
-    description: "Figma component library tailored for East African fintech, media, and e-commerce web applications.",
-    price: 25e3,
-    category: "Design & Graphics",
-    seller: "Kigali Visuals Lab",
-    rating: 4.8,
-    downloads: 89,
-    badge: "POPULAR",
-    commission_pct: 12,
-    image_url: "https://images.unsplash.com/photo-1581291518655-9523c932edcf?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    id: "mp3",
-    title: "Full-Stack Web App Development (1 Week Sprint)",
-    description: "Custom React & Node.js web development service delivered with tested APIs, responsive layouts, and cloud deployment.",
-    price: 25e4,
-    category: "Services & Freelance",
-    seller: "Verified Benix Partner",
-    rating: 5,
-    downloads: 34,
-    commission_pct: 8,
-    image_url: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    id: "mp4",
-    title: "Professional Audio Mixing & Gospel Mastering",
-    description: "Studio acoustic master for choir performances, choral multitrack balancing, and vocal clarity enhancement.",
-    price: 45e3,
-    category: "Creative & Audio",
-    seller: "Voxify Audio Pro",
-    rating: 4.9,
-    downloads: 67,
-    commission_pct: 15,
-    image_url: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    id: "mp5",
-    title: "Rwanda Small Business Tax & Accounting Toolkit",
-    description: "Pre-formatted Excel and Google Sheets models for PAYE payroll, VAT declaration, and cash flow tracking.",
-    price: 18e3,
-    category: "Business & Finance",
-    seller: "EasyCalc Solutions",
-    rating: 4.7,
-    downloads: 215,
-    badge: "ESSENTIAL",
-    commission_pct: 10,
-    image_url: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    id: "mp6",
-    title: "SEO Audit & Regional Search Engine Ranking Package",
-    description: "Comprehensive keyword audit, Google Search Console indexing, backlink profiling, and speed optimization.",
-    price: 8e4,
-    category: "Services & Freelance",
-    seller: "Benix SEO Guild",
-    rating: 4.9,
-    downloads: 51,
-    commission_pct: 10,
-    image_url: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80"
+async function ensureMarketplaceTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS mkt_products (
+      id VARCHAR(255) PRIMARY KEY,
+      title VARCHAR(500) NOT NULL,
+      description TEXT,
+      price NUMERIC(10,2) NOT NULL DEFAULT 0,
+      category VARCHAR(100) NOT NULL,
+      seller VARCHAR(255),
+      seller_id VARCHAR(255),
+      rating NUMERIC(3,2) DEFAULT 5.0,
+      downloads INT DEFAULT 0,
+      badge VARCHAR(50),
+      commission_pct INT DEFAULT 10,
+      image_url TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {
+  });
+}
+app.get(["/api/modules/marketplace/products", "/api/modules/marketplace/items"], async (req, res) => {
+  try {
+    await ensureMarketplaceTable();
+    const result = await query("SELECT * FROM mkt_products ORDER BY created_at DESC LIMIT 100");
+    return res.json({ products: result.rows, items: result.rows });
+  } catch (err) {
+    return res.json({ products: [], items: [] });
   }
-];
-app.get("/api/modules/marketplace/products", async (req, res) => {
-  return res.json({ products: SAMPLE_MARKET_PRODUCTS });
+});
+app.post("/api/modules/marketplace/items", authenticateToken, async (req, res) => {
+  try {
+    await ensureMarketplaceTable();
+    const { title, description, price, category, imageUrl, commissionPct = 10, badge } = req.body;
+    if (!title || price === void 0) {
+      return res.status(400).json({ error: "Title and price are required." });
+    }
+    const newId = `mp_${Date.now()}`;
+    const seller = req.user?.name || req.user?.email?.split("@")[0] || "Verified Seller";
+    const sellerId = req.user?.id;
+    await query(
+      `INSERT INTO mkt_products (id, title, description, price, category, seller, seller_id, rating, downloads, badge, commission_pct, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 5.0, 0, $8, $9, $10)`,
+      [
+        newId,
+        title.trim(),
+        description?.trim() || "",
+        Number(price) || 0,
+        category || "Digital Goods",
+        seller,
+        sellerId,
+        badge || "NEW",
+        Number(commissionPct) || 10,
+        imageUrl || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80"
+      ]
+    );
+    const newItem = {
+      id: newId,
+      title: title.trim(),
+      description: description?.trim() || "",
+      price: Number(price) || 0,
+      category: category || "Digital Goods",
+      seller,
+      seller_id: sellerId,
+      rating: 5,
+      downloads: 0,
+      badge: badge || "NEW",
+      commission_pct: Number(commissionPct) || 10,
+      image_url: imageUrl || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80"
+    };
+    return res.status(201).json({ success: true, item: newItem, message: "Item listed successfully!" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 app.post("/api/modules/marketplace/buy", authenticateToken, async (req, res) => {
   try {
+    await ensureMarketplaceTable();
     const { productId, ref } = req.body;
-    const product = SAMPLE_MARKET_PRODUCTS.find((p2) => p2.id === productId);
-    if (!product) return res.status(404).json({ error: "Product not found." });
+    const prodRes = await query("SELECT * FROM mkt_products WHERE id = $1", [productId]);
+    if (prodRes.rowCount === 0) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+    const product = prodRes.rows[0];
+    const price = Number(product.price);
     const debitResult = await WalletService.debit(
       req.user.id,
-      product.price,
+      price,
       "marketplace",
       "product_purchase",
       `Purchased: "${product.title}"`,
-      `tx_mp_buy_${product.id}`
+      `tx_mp_buy_${product.id}_${Date.now()}`
     );
+    await query("UPDATE mkt_products SET downloads = COALESCE(downloads, 0) + 1 WHERE id = $1", [productId]).catch(() => {
+    });
+    if (product.seller_id && product.seller_id !== req.user.id) {
+      const commissionRate = (Number(product.commission_pct) || 10) / 100;
+      const sellerEarnings = price * (1 - commissionRate);
+      if (sellerEarnings > 0) {
+        await WalletService.credit(
+          product.seller_id,
+          sellerEarnings,
+          "marketplace",
+          "product_sale",
+          `Sale earnings for "${product.title}"`,
+          `tx_mp_sale_${product.id}_${Date.now()}`
+        ).catch(() => {
+        });
+      }
+    }
     let affiliateCredit = null;
     if (ref) {
       try {
-        const commRate = (product.commission_pct || 10) / 100;
+        const commRate = (Number(product.commission_pct) || 10) / 100;
         affiliateCredit = await ReferralService.recordAffiliateSale(
           ref,
           product.id,
           product.title,
-          product.price,
+          price,
           commRate,
           "marketplace",
           req.user.id

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { SeoHead } from '../../components/common/SeoHead';
@@ -69,19 +69,19 @@ export function getSafeYouTubeEmbedUrl(video: { id?: string; embedUrl?: string; 
 
   // If video id is a standard 11-char YouTube ID (e.g. B0xTrgyZGeM)
   if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId)) {
-    return `https://www.youtube.com/embed/${vidId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+    return `https://www.youtube.com/embed/${vidId}?autoplay=1&enablejsapi=1`;
   }
 
   // Check in embedUrl or videoUrl
   const urlCandidate = (video.embedUrl || video.videoUrl || '').trim();
   const ytMatch = urlCandidate.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch && ytMatch[1]) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1`;
   }
 
   if (urlCandidate.includes('/embed/')) {
     const separator = urlCandidate.includes('?') ? '&' : '?';
-    return `${urlCandidate}${separator}autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1`;
   }
 
   return urlCandidate;
@@ -237,6 +237,24 @@ export const VideosPage: React.FC = () => {
       setActiveVideo(null);
     }
   }, [routeVideoId, searchParams, videos]);
+
+  // Periodically track video watch time in real time and calculate creator hours
+  useEffect(() => {
+    if (!activeVideo || !isPlaying) return;
+
+    const interval = setInterval(() => {
+      axios
+        .post('/api/videos/track-watch', {
+          videoId: activeVideo.id,
+          creatorId: (activeVideo as any).userId || activeVideo.channelName || activeVideo.creator,
+          durationSeconds: 15,
+          viewerId: user?.id || null
+        })
+        .catch(() => {});
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [activeVideo, isPlaying, user]);
 
   const isVideoUnlocked = (vid: VideoItem): boolean => {
     if (vid.price <= 0) return true;
@@ -657,6 +675,14 @@ export const VideosPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              to="/studio"
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-red-600/30 transition-all"
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Creator Studio</span>
+            </Link>
+
             <button
               onClick={() => {
                 if (!user) setShowWizardModal(true);
@@ -717,7 +743,7 @@ export const VideosPage: React.FC = () => {
                         ref={iframeRef}
                         src={getSafeYouTubeEmbedUrl(activeVideo)}
                         title={activeVideo.title}
-                        className="w-full h-full border-0 pointer-events-auto"
+                        className="w-full h-full border-0 relative z-10 pointer-events-auto"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                       />
@@ -727,18 +753,11 @@ export const VideosPage: React.FC = () => {
                         src={activeVideo.embedUrl}
                         controls
                         autoPlay
-                        className="w-full h-full object-cover"
+                        playsInline
+                        className="w-full h-full object-contain bg-black relative z-10"
                         poster={activeVideo.thumbnail}
                       />
                     )}
-
-                    {/* Middle Player Click Area: Click to Toggle Play/Pause, Double Click for Landscape Fullscreen */}
-                    <div
-                      onClick={togglePlayPause}
-                      onDoubleClick={toggleFullscreen}
-                      className="absolute inset-0 z-10 cursor-pointer pointer-events-auto"
-                      title="Click middle to Pause/Play • Double Click for Landscape Fullscreen"
-                    />
 
                     {/* Middle Ripple Icon Feedback (Play / Pause) */}
                     {centerFeedback && (

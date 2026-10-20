@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
+import { getAuthToken } from '../../services/api';
 import {
   ShoppingBag,
   Tag,
@@ -38,73 +39,9 @@ interface MarketItem {
   rating: number;
   downloads: number;
   badge?: string;
+  image_url?: string;
+  commission_pct?: number;
 }
-
-const SAMPLE_MARKET_ITEMS: MarketItem[] = [
-  {
-    id: 'mp1',
-    title: 'Modern Super-App React & Vite Template',
-    description: 'Production-ready starter repository with Tailwind CSS, dark mode, authentication hooks, and Neon DB integration.',
-    price: 35000,
-    category: 'Software & Code',
-    seller: 'Benix Tech Studio',
-    rating: 4.9,
-    downloads: 142,
-    badge: 'BESTSELLER'
-  },
-  {
-    id: 'mp2',
-    title: 'Rwandan High-Resolution Brand Identity UI Kit',
-    description: 'Figma component library tailored for East African fintech, media, and e-commerce web applications.',
-    price: 25000,
-    category: 'Design & Graphics',
-    seller: 'Kigali Visuals Lab',
-    rating: 4.8,
-    downloads: 89,
-    badge: 'POPULAR'
-  },
-  {
-    id: 'mp3',
-    title: 'Full-Stack Web App Development (1 Week Sprint)',
-    description: 'Custom React & Node.js web development service delivered with tested APIs, responsive layouts, and cloud deployment.',
-    price: 250000,
-    category: 'Services & Freelance',
-    seller: 'Verified Benix Partner',
-    rating: 5.0,
-    downloads: 34
-  },
-  {
-    id: 'mp4',
-    title: 'Professional Audio Mixing & Gospel Mastering',
-    description: 'Studio acoustic master for choir performances, choral multitrack balancing, and vocal clarity enhancement.',
-    price: 45000,
-    category: 'Creative & Audio',
-    seller: 'Voxify Audio Pro',
-    rating: 4.9,
-    downloads: 67
-  },
-  {
-    id: 'mp5',
-    title: 'Rwanda Small Business Tax & Accounting Toolkit',
-    description: 'Pre-formatted Excel and Google Sheets models for PAYE payroll, VAT declaration, and cash flow tracking.',
-    price: 18000,
-    category: 'Business & Finance',
-    seller: 'EasyCalc Solutions',
-    rating: 4.7,
-    downloads: 215,
-    badge: 'ESSENTIAL'
-  },
-  {
-    id: 'mp6',
-    title: 'SEO Audit & Regional Search Engine Ranking Package',
-    description: 'Comprehensive keyword audit, Google Search Console indexing, backlink profiling, and speed optimization.',
-    price: 80000,
-    category: 'Services & Freelance',
-    seller: 'Benix SEO Guild',
-    rating: 4.9,
-    downloads: 51
-  }
-];
 
 const CATEGORIES = [
   { id: 'all', label: 'All Items' },
@@ -117,6 +54,8 @@ const CATEGORIES = [
 
 export const MarketplacePage: React.FC = () => {
   const { user, wallet, hasAppProfile } = useAuth();
+  const [items, setItems] = useState<MarketItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -124,6 +63,34 @@ export const MarketplacePage: React.FC = () => {
   const [actionSuccess, setActionSuccess] = useState<string>('');
   const [shareProduct, setShareProduct] = useState<MarketItem | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Sell Item Modal State
+  const [showSellModal, setShowSellModal] = useState<boolean>(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newPrice, setNewPrice] = useState<number | string>(10000);
+  const [newCategory, setNewCategory] = useState('Software & Code');
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchItems = () => {
+    setLoading(true);
+    axios
+      .get('/api/modules/marketplace/items')
+      .then((res) => {
+        if (res.data?.items && Array.isArray(res.data.items)) {
+          setItems(res.data.items);
+        } else if (res.data?.products && Array.isArray(res.data.products)) {
+          setItems(res.data.products);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
 
   const handleProtectedAction = async (item: MarketItem) => {
     if (!user || !hasAppProfile('marketplace')) {
@@ -138,15 +105,16 @@ export const MarketplacePage: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem('benix_auth_token');
+      const token = getAuthToken();
       const ref = localStorage.getItem('benix_ref') || '';
       const res = await axios.post(
         '/api/modules/marketplace/buy',
         { productId: item.id, ref },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
       );
       setActionSuccess(res.data?.message || `Purchased "${item.title}" successfully! Check your downloads.`);
       setTimeout(() => setActionSuccess(''), 5000);
+      fetchItems();
     } catch (err: any) {
       setActionSuccess(err.response?.data?.error || `Order initiated for "${item.title}".`);
       setTimeout(() => setActionSuccess(''), 4000);
@@ -169,15 +137,57 @@ export const MarketplacePage: React.FC = () => {
       setWizardTarget('marketplace');
       return;
     }
-    setActionSuccess('Creator dashboard opened. Upload your digital product files.');
-    setTimeout(() => setActionSuccess(''), 4000);
+    setShowSellModal(true);
   };
 
-  const filteredItems = SAMPLE_MARKET_ITEMS.filter((item) => {
+  const handleSellSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      setWizardTarget('marketplace');
+      return;
+    }
+    if (!newTitle.trim() || Number(newPrice) < 0) {
+      alert('Please fill in title and price.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = getAuthToken();
+      const res = await axios.post(
+        '/api/modules/marketplace/items',
+        {
+          title: newTitle.trim(),
+          description: newDescription.trim(),
+          price: Number(newPrice) || 0,
+          category: newCategory,
+          imageUrl: newImageUrl.trim() || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
+          commissionPct: 10
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+      );
+
+      if (res.data?.item) {
+        setItems((prev) => [res.data.item, ...prev]);
+        setShowSellModal(false);
+        setNewTitle('');
+        setNewDescription('');
+        setNewImageUrl('');
+        setActionSuccess('🎉 Your product has been listed on Benix Marketplace!');
+        setTimeout(() => setActionSuccess(''), 5000);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to list item.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredItems = items.filter((item) => {
     const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.seller.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.seller || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
     if (selectedCategory === 'all') return true;
@@ -194,18 +204,28 @@ export const MarketplacePage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
         
         {/* Prominent Back to Home Button */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Home</span>
+            </Link>
+            <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Direct Rwandan Marketplace</span>
+            </span>
+          </div>
+
+          <button
+            onClick={handleCreateListing}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all hover:scale-105"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Home</span>
-          </Link>
-          <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Direct Rwandan Marketplace</span>
-          </span>
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>List Product or Service</span>
+          </button>
         </div>
 
         {/* Top Hero Banner */}
@@ -325,73 +345,92 @@ export const MarketplacePage: React.FC = () => {
         </div>
 
         {/* Catalog Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredItems.map((item) => (
-            <div
-              key={item.id}
-              className="group rounded-3xl bg-[#131926] border border-slate-800/80 hover:border-emerald-500/50 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-950/20 flex flex-col justify-between"
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 text-xs">Loading marketplace items...</div>
+        ) : filteredItems.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-[#131926] border border-slate-800 space-y-3">
+            <ShoppingBag className="w-10 h-10 text-emerald-400 mx-auto" />
+            <h3 className="text-base font-bold text-white">No Items Listed in Marketplace Yet</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              Be the first creator or developer in Rwanda to sell software, templates, design kits, or consulting services!
+            </p>
+            <button
+              onClick={handleCreateListing}
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30 transition-all inline-flex items-center gap-2"
             >
-              <div>
-                {/* Top Badges */}
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    {item.category}
-                  </span>
-
-                  {item.badge && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow-md">
-                      {item.badge}
+              <PlusCircle className="w-4 h-4" />
+              <span>List Item</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredItems.map((item) => (
+              <div
+                key={item.id}
+                className="group rounded-3xl bg-[#131926] border border-slate-800/80 hover:border-emerald-500/50 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-950/20 flex flex-col justify-between"
+              >
+                <div>
+                  {/* Top Badges */}
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      {item.category}
                     </span>
-                  )}
+
+                    {item.badge && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow-md">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="font-black text-base text-white group-hover:text-emerald-400 transition-colors line-clamp-2">
+                    {item.title}
+                  </h3>
+
+                  <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
+                    {item.description}
+                  </p>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-300">{item.seller}</span>
+                    <div className="flex items-center gap-1 text-amber-400 font-bold">
+                      <Star className="w-3.5 h-3.5 fill-amber-400" />
+                      <span>{item.rating || 5.0}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <h3 className="font-black text-base text-white group-hover:text-emerald-400 transition-colors line-clamp-2">
-                  {item.title}
-                </h3>
+                {/* Bottom Price & Purchase */}
+                <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Price</span>
+                    <span className="text-xl font-black text-white">
+                      {(item.price || 0).toLocaleString()} <span className="text-xs text-emerald-400 font-bold">RWF</span>
+                    </span>
+                  </div>
 
-                <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
-                  {item.description}
-                </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShareProduct(item)}
+                      className="p-2.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-300 transition-colors"
+                      title="Share & Earn 10% Affiliate Commission"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
 
-                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="font-semibold text-slate-300">{item.seller}</span>
-                  <div className="flex items-center gap-1 text-amber-400 font-bold">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <span>{item.rating}</span>
+                    <button
+                      onClick={() => handleProtectedAction(item)}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      Buy Now
+                    </button>
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Price & Purchase */}
-              <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 block">Price</span>
-                  <span className="text-xl font-black text-white">
-                    {item.price.toLocaleString()} <span className="text-xs text-emerald-400 font-bold">RWF</span>
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShareProduct(item)}
-                    className="p-2.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-300 transition-colors"
-                    title="Share & Earn 10% Affiliate Commission"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => handleProtectedAction(item)}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                    Buy Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Non-Logged In Callout Banner */}
         {!user && (
@@ -412,6 +451,105 @@ export const MarketplacePage: React.FC = () => {
         )}
 
       </div>
+
+      {/* List Product Modal */}
+      {showSellModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#121824] border border-slate-800 rounded-3xl p-6 w-full max-w-lg shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-emerald-400" />
+                <span>List a Product or Tech Service</span>
+              </h3>
+              <button onClick={() => setShowSellModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSellSubmit} className="space-y-4 pt-4">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Modern React Native Starter Template"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe what the buyer gets..."
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Price (RWF) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newPrice}
+                    onChange={(e) => setNewPrice(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Category</label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="Software & Code">Software & Code</option>
+                    <option value="Design & Graphics">Design & UI Kits</option>
+                    <option value="Services & Freelance">Tech Services</option>
+                    <option value="Creative & Audio">Creative & Audio</option>
+                    <option value="Business & Finance">Business Tools</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Preview Image URL (Optional)</label>
+                <input
+                  type="url"
+                  placeholder="https://... cover image link"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSellModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Publishing...' : 'List Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Access Wizard Modal for Marketplace Requirements */}
       <AppAccessWizardModal

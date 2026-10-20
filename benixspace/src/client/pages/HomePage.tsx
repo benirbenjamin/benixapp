@@ -820,70 +820,86 @@ export const HomePage: React.FC = () => {
       </div>
 
       {/* ==================== FULL-SCREEN STORY VIEWER MODAL ==================== */}
-      {activeStoryIndex !== null && stories[activeStoryIndex] && (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative max-w-sm w-full aspect-[9/16] rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl flex flex-col justify-between">
-            
-            {/* Top Bar with Auto-Advance Progress */}
-            <div className="absolute top-0 inset-x-0 z-20 p-4 bg-gradient-to-b from-black/80 to-transparent space-y-2">
-              <div className="w-full bg-white/20 h-1 rounded-full overflow-hidden">
-                <div className="bg-white h-full animate-[progress_6s_linear]" />
-              </div>
-              <div className="flex items-center justify-between text-white">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={stories[activeStoryIndex].authorAvatar || stories[activeStoryIndex].mediaUrl}
-                    alt={stories[activeStoryIndex].authorName}
-                    className="w-7 h-7 rounded-full object-cover border border-white/40"
-                  />
-                  <div>
-                    <span className="text-xs font-bold block">{stories[activeStoryIndex].authorName}</span>
-                    <span className="text-[10px] text-slate-300">{stories[activeStoryIndex].timestamp || '2h ago'}</span>
-                  </div>
+      {activeStoryIndex !== null && stories[activeStoryIndex] && (() => {
+        const currentStory = stories[activeStoryIndex];
+        const mediaUrl = currentStory.mediaUrl || '';
+        const isVideo = mediaUrl.startsWith('data:video') || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) || currentStory.mediaType === 'video';
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
+            <div className="relative max-w-md w-full h-[88vh] rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col justify-between">
+              
+              {/* Top Bar with Auto-Advance Progress */}
+              <div className="absolute top-0 inset-x-0 z-30 p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent space-y-2">
+                <div className="w-full bg-white/20 h-1 rounded-full overflow-hidden">
+                  <div className="bg-white h-full animate-[progress_6s_linear]" />
                 </div>
-                <button
-                  onClick={() => setActiveStoryIndex(null)}
-                  className="p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center justify-between text-white">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={currentStory.authorAvatar || mediaUrl}
+                      alt={currentStory.authorName}
+                      className="w-8 h-8 rounded-full object-cover border border-white/40"
+                    />
+                    <div>
+                      <span className="text-xs font-bold block">{currentStory.authorName}</span>
+                      <span className="text-[10px] text-slate-300">{currentStory.timestamp || 'Just now'}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveStoryIndex(null)}
+                    className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/80 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Story Media (Image or Video) */}
-            <div className="w-full h-full">
-              <img
-                src={stories[activeStoryIndex].mediaUrl}
-                alt="Story"
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {/* Caption & Controls */}
-            {stories[activeStoryIndex].caption && (
-              <div className="absolute bottom-0 inset-x-0 z-20 p-5 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                <p className="text-xs sm:text-sm font-semibold text-white">
-                  {stories[activeStoryIndex].caption}
-                </p>
+              {/* Story Media (Image or Video displayed AS-IS with object-contain) */}
+              <div className="w-full h-full flex items-center justify-center bg-black overflow-hidden">
+                {isVideo ? (
+                  <video
+                    src={mediaUrl}
+                    autoPlay
+                    playsInline
+                    controls
+                    className="w-full h-full max-h-[88vh] object-contain"
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt="Story"
+                    className="w-full h-full max-h-[88vh] object-contain"
+                  />
+                )}
               </div>
-            )}
 
-            {/* Left / Right Nav Taps */}
-            <button
-              onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : null))}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/40 text-white hover:bg-black/60"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev < stories.length - 1 ? prev + 1 : null))}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/40 text-white hover:bg-black/60"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+              {/* Caption & Controls */}
+              {currentStory.caption && (
+                <div className="absolute bottom-0 inset-x-0 z-30 p-5 bg-gradient-to-t from-black/95 via-black/60 to-transparent">
+                  <p className="text-xs sm:text-sm font-semibold text-white text-center">
+                    {currentStory.caption}
+                  </p>
+                </div>
+              )}
+
+              {/* Left / Right Nav Taps */}
+              <button
+                onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : null))}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev < stories.length - 1 ? prev + 1 : null))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Create Story & Video Upload Modal */}
       {showCreateMediaModal && (

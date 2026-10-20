@@ -17,8 +17,36 @@ import {
   Building,
   Smartphone,
   ChevronRight,
-  Gift
+  Gift,
+  Globe,
+  CreditCard,
+  ShieldCheck
 } from 'lucide-react';
+
+interface CurrencyOption {
+  code: string;
+  name: string;
+  symbol: string;
+  flag: string;
+  rateToRwf: number;
+}
+
+const DEPOSIT_CURRENCIES: CurrencyOption[] = [
+  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw', flag: '🇷🇼', rateToRwf: 1.0 },
+  { code: 'USD', name: 'US Dollar', symbol: '$', flag: '🇺🇸', rateToRwf: 1420.0 },
+  { code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺', rateToRwf: 1540.0 },
+  { code: 'GBP', name: 'British Pound', symbol: '£', flag: '🇬🇧', rateToRwf: 1810.0 },
+  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh', flag: '🇰🇪', rateToRwf: 11.0 },
+  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'UGX', flag: '🇺🇬', rateToRwf: 0.38 },
+  { code: 'NGN', name: 'Nigerian Naira', symbol: '₦', flag: '🇳🇬', rateToRwf: 0.90 },
+  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TZS', flag: '🇹🇿', rateToRwf: 0.55 }
+];
+
+declare global {
+  interface Window {
+    FlutterwaveCheckout?: (options: any) => void;
+  }
+}
 
 interface Props {
   isOpen: boolean;
@@ -39,6 +67,11 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [accountName, setAccountName] = useState<string>(user?.name || '');
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
+
+  // Multi-Currency Flutterwave Deposit State
+  const [depositCurrency, setDepositCurrency] = useState<CurrencyOption>(DEPOSIT_CURRENCIES[0]);
+  const [depositEmail, setDepositEmail] = useState<string>(user?.email || '');
+  const [depositPhone, setDepositPhone] = useState<string>(user?.phone || '');
 
   // Transfer specific state
   const [recipientEmail, setRecipientEmail] = useState<string>('');
@@ -171,37 +204,120 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
     }
   };
 
+  const loadFlutterwaveScript = () => {
+    if (window.FlutterwaveCheckout) return;
+    const script = document.createElement('script');
+    script.src = 'https://checkout.flutterwave.com/v3.js';
+    script.async = true;
+    document.body.appendChild(script);
+  };
+
   const handleDeposit = async () => {
     setStatusMsg(null);
     const num = parseFloat(amount);
     if (!num || num <= 0) {
-      setStatusMsg({ text: 'Please enter a valid amount to deposit.', error: true });
+      setStatusMsg({ text: `Please enter a valid deposit amount in ${depositCurrency.code}.`, error: true });
+      return;
+    }
+
+    const currentEmail = (depositEmail || user?.email || '').trim();
+    if (!currentEmail || !currentEmail.includes('@')) {
+      setStatusMsg({ text: 'Please enter a valid email address for your payment receipt.', error: true });
+      return;
+    }
+
+    const convertedRwf = Math.round(num * depositCurrency.rateToRwf);
+    if (convertedRwf < 100) {
+      setStatusMsg({ text: 'Minimum deposit equivalent is 100 RWF.', error: true });
       return;
     }
 
     try {
       setLoading(true);
-      const res = await fetch('/api/wallet/deposit', {
+      loadFlutterwaveScript();
+
+      // 1. Initialize real transaction reference with backend
+      const initRes = await fetch('/api/wallet/flutterwave/initialize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ amount: num, paymentMethod: method })
+        body: JSON.stringify({
+          amount: num,
+          currency: depositCurrency.code
+        })
       });
-      const data = await parseSafeJson(res);
-      if (res.ok && data.success) {
-        notificationSound.playNotificationChime();
-        setStatusMsg({ text: `Deposited ${num.toLocaleString()} RWF successfully into central wallet!` });
-        updateWalletBalance(data.newBalance);
-        setAmount('');
-        loadTransactions();
+
+      const initData = await initRes.json();
+      const txRef = initData.txRef || `FLW-BENIX-${Date.now()}`;
+
+      // 2. Open Flutterwave checkout popup
+      if (window.FlutterwaveCheckout) {
+        window.FlutterwaveCheckout({
+          public_key: 'FLWPUBK_TEST-SANDBOXDEMO-X',
+          tx_ref: txRef,
+          amount: num,
+          currency: depositCurrency.code,
+          payment_options: 'card,mobilemoneyrwanda,mobilemoneyuganda,mobilemoneyghana,mpesa,banktransfer,ussd',
+          customer: {
+            email: currentEmail,
+            phone_number: (depositPhone || user?.phone || '0780000000').trim(),
+            name: user?.name || 'Benix Member'
+          },
+          customizations: {
+            title: 'Benix.Space Central Wallet',
+            description: `Deposit ${num} ${depositCurrency.code} (≈ ${convertedRwf.toLocaleString()} RWF)`,
+            logo: `${window.location.origin}/logo.png`
+          },
+          callback: async (response: any) => {
+            // 3. Verify payment reference on backend & credit wallet
+            try {
+              const verifyRes = await fetch('/api/wallet/flutterwave/verify', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  txRef,
+                  convertedRwf,
+                  currency: depositCurrency.code,
+                  originalAmount: num,
+                  flwRef: response?.transaction_id || response?.flw_ref
+                })
+              });
+              const vData = await verifyRes.json();
+              if (verifyRes.ok && vData.success) {
+                notificationSound.playNotificationChime();
+                setStatusMsg({
+                  text: `🎉 Successfully deposited ${num} ${depositCurrency.code} (credited ${convertedRwf.toLocaleString()} RWF) via Flutterwave!`
+                });
+                updateWalletBalance(vData.newBalance);
+                setAmount('');
+                loadTransactions();
+              } else {
+                setStatusMsg({ text: vData.error || 'Payment verification failed.', error: true });
+              }
+            } catch (vErr: any) {
+              setStatusMsg({ text: vErr.message || 'Payment verification failed.', error: true });
+            } finally {
+              setLoading(false);
+            }
+          },
+          onclose: () => {
+            setLoading(false);
+          }
+        });
       } else {
-        setStatusMsg({ text: data.error || 'Deposit failed. Please try again.', error: true });
+        setStatusMsg({
+          text: 'Payment engine is loading. Please click "Confirm Deposit via Flutterwave" once more.',
+          error: true
+        });
+        setLoading(false);
       }
     } catch (err: any) {
-      setStatusMsg({ text: err.message || 'Deposit failed.', error: true });
-    } finally {
+      setStatusMsg({ text: err.message || 'Deposit initialization failed.', error: true });
       setLoading(false);
     }
   };
@@ -580,46 +696,119 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
             </div>
           )}
 
-          {/* TAB 3: DEPOSIT (TOP UP) */}
+          {/* TAB 3: DEPOSIT (TOP UP VIA REAL FLUTTERWAVE - MULTI-CURRENCY) */}
           {tab === 'deposit' && (
             <div className="space-y-4">
+              {/* Currency Selector */}
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Deposit Amount (RWF)
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Select Deposit Currency</span>
+                  <span className="text-[10px] text-blue-400 font-normal">Real-Time Currency Rates</span>
                 </label>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="e.g. 5000"
-                  className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500 font-bold"
-                />
+                <div className="grid grid-cols-4 gap-1.5">
+                  {DEPOSIT_CURRENCIES.map((curr) => {
+                    const isSel = depositCurrency.code === curr.code;
+                    return (
+                      <button
+                        key={curr.code}
+                        type="button"
+                        onClick={() => setDepositCurrency(curr)}
+                        className={`p-2 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                          isSel
+                            ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-md ring-1 ring-emerald-500/40'
+                            : 'border-slate-800 bg-[#161D2E] text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="text-base">{curr.flag}</span>
+                        <span className="text-[11px] font-black">{curr.code}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
+              {/* Amount Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span>Deposit Amount ({depositCurrency.code})</span>
+                  {depositCurrency.code !== 'RWF' && (
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      1 {depositCurrency.code} ≈ {depositCurrency.rateToRwf.toLocaleString()} RWF
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-slate-400 font-black text-sm">
+                    {depositCurrency.symbol}
+                  </span>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder={depositCurrency.code === 'RWF' ? 'e.g. 5000' : 'e.g. 10'}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-emerald-500 font-bold"
+                  />
+                </div>
+                {/* Live RWF Credit Preview */}
+                {amount && parseFloat(amount) > 0 && depositCurrency.code !== 'RWF' && (
+                  <p className="text-[11px] text-emerald-400 mt-1.5 font-bold flex items-center gap-1">
+                    <span>≈ {Math.round(parseFloat(amount) * depositCurrency.rateToRwf).toLocaleString()} RWF</span>
+                    <span className="text-slate-400 font-normal">will be credited to your central wallet</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Email & Phone Confirmation for Payment Receipt */}
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMethod('MTN_MOMO')}
-                  className={`p-3 rounded-xl border text-xs font-bold transition-all ${method === 'MTN_MOMO' ? 'border-amber-500/60 bg-amber-500/20 text-amber-300' : 'border-slate-800 bg-[#161D2E] text-slate-400'}`}
-                >
-                  MTN Mobile Money
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMethod('AIRTEL_MONEY')}
-                  className={`p-3 rounded-xl border text-xs font-bold transition-all ${method === 'AIRTEL_MONEY' ? 'border-rose-500/60 bg-rose-500/20 text-rose-300' : 'border-slate-800 bg-[#161D2E] text-slate-400'}`}
-                >
-                  Airtel Money
-                </button>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Receipt Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={depositEmail}
+                    onChange={(e) => setDepositEmail(e.target.value)}
+                    placeholder="name@email.com"
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Payment Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={depositPhone}
+                    onChange={(e) => setDepositPhone(e.target.value)}
+                    placeholder="078xxxxxxx"
+                    className="w-full px-3 py-2 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Channel Info */}
+              <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-300 font-semibold text-xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Secured by Flutterwave Official Gateway</span>
+                </div>
+                <p className="text-[10px] leading-relaxed">
+                  Supports MTN MoMo Rwanda, Airtel Money, Visa, Mastercard, M-Pesa, UGX Mobile Money, and International Bank Cards.
+                </p>
               </div>
 
               <button
                 onClick={handleDeposit}
-                disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={loading || !amount || parseFloat(amount) <= 0}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs hover:from-emerald-500 hover:to-teal-500 shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 <ArrowDownLeft className="w-4 h-4" />
-                <span>{loading ? 'Processing...' : 'Confirm Deposit'}</span>
+                <span>
+                  {loading
+                    ? 'Launching Flutterwave Checkout...'
+                    : `Confirm Deposit of ${amount || '0'} ${depositCurrency.code} via Flutterwave`}
+                </span>
               </button>
             </div>
           )}

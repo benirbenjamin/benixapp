@@ -8,6 +8,7 @@ import { Navbar } from './client/components/layout/Navbar';
 import { Footer } from './client/components/layout/Footer';
 import { BottomNav } from './client/components/layout/BottomNav';
 import { PlayerProvider, usePlayer } from './client/context/PlayerContext';
+import { UploadProvider } from './client/context/UploadContext';
 import { PwaProvider } from './client/context/PwaContext';
 import { ActionNotificationProvider } from './client/context/ActionNotificationContext';
 import { GlobalRadioPlayer } from './client/components/player/GlobalRadioPlayer';
@@ -44,6 +45,7 @@ import { VoxifyPage } from './client/pages/modules/VoxifyPage';
 import { KundaPage } from './client/pages/modules/KundaPage';
 import { EasyCalcPage } from './client/pages/modules/EasyCalcPage';
 import { MessagesPage } from './client/pages/MessagesPage';
+import { CreatorStudioPage } from './client/pages/CreatorStudioPage';
 import { PwaInstallBanner } from './client/components/pwa/PwaInstallBanner';
 
 // Admin System Pages
@@ -98,6 +100,7 @@ export const App: React.FC = () => {
               <PwaProvider>
                 <ActionNotificationProvider>
                   <PlayerProvider>
+                    <UploadProvider>
                 <Router>
               <RouteAnalyticsTracker />
               <Routes>
@@ -210,6 +213,7 @@ export const App: React.FC = () => {
                           {/* Integrated Module Pages */}
                           <Route path="/videos" element={<VideosPage />} />
                           <Route path="/videos/:id" element={<VideosPage />} />
+                          <Route path="/studio" element={<CreatorStudioPage />} />
                           <Route path="/tv" element={<TvPage />} />
                           <Route path="/radio" element={<RadioPage />} />
                           <Route path="/games" element={<GamesPage />} />
@@ -246,7 +250,8 @@ export const App: React.FC = () => {
 
               </Routes>
             </Router>
-          </PlayerProvider>
+                    </UploadProvider>
+                  </PlayerProvider>
         </ActionNotificationProvider>
         </PwaProvider>
       </CoffeeProvider>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useUpload } from '../../context/UploadContext';
 import { notificationSound } from '../../utils/notificationSound';
 import {
   X,
@@ -80,6 +81,7 @@ const compressImage = (file: File, maxDimension = 1080, quality = 0.75): Promise
 
 export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const { user, token, updateProfile } = useAuth();
+  const { startUpload } = useUpload();
   const [tab, setTab] = useState<'story' | 'video'>('story');
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -98,12 +100,11 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   const [videoCategory, setVideoCategory] = useState('Entertainment & Movies');
   const [isPaidVideo, setIsPaidVideo] = useState(false);
   const [videoPrice, setVideoPrice] = useState('500');
-  const [driveAccount, setDriveAccount] = useState('drive-primary');
   const [videoThumbnailUrl, setVideoThumbnailUrl] = useState('');
   const [isFetchingYouTube, setIsFetchingYouTube] = useState(false);
   const [selectedVideoFileName, setSelectedVideoFileName] = useState('');
 
-  // Creator Monetization Criteria
+  // Creator Monetization Criteria (defaults to 0 until loaded live from database)
   const [monetization, setMonetization] = useState<{
     requiredWatchHours: number;
     currentWatchHours: number;
@@ -111,9 +112,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     currentSubscribers: number;
   }>({
     requiredWatchHours: 300,
-    currentWatchHours: 142,
+    currentWatchHours: 0,
     requiredSubscribers: 30,
-    currentSubscribers: 19
+    currentSubscribers: 0
   });
 
   useEffect(() => {
@@ -136,18 +137,19 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setStatusMsg({ text: 'Compressing image to save memory & bandwidth...' });
+    const isVid = file.type.startsWith('video/');
+    setStatusMsg({ text: isVid ? 'Preparing video clip...' : 'Optimizing image for fast broadcast...' });
     try {
       const compressed = await compressImage(file, 1080, 0.75);
       setStoryPreview(compressed);
       setStoryMediaUrl(compressed);
-      setStatusMsg({ text: 'Image compressed ready for 24h story broadcast!' });
+      setStatusMsg({ text: isVid ? 'Video clip ready for 24h story broadcast!' : 'Image optimized ready for 24h story broadcast!' });
     } catch {
-      setStatusMsg({ text: 'Failed to compress image.', error: true });
+      setStatusMsg({ text: 'Failed to process media file.', error: true });
     }
   };
 
-  // Publish 24h Story to PostgreSQL
+  // Publish 24h Story in Background with Live Progress Line
   const handleCreateStory = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMsg(null);
@@ -156,8 +158,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
       return;
     }
 
-    try {
-      setLoading(true);
+    const title = storyCaption.trim() ? `Story: "${storyCaption.trim().slice(0, 24)}..."` : '24h Story';
+    const mediaToUpload = storyMediaUrl;
+    const captionToUpload = storyCaption.trim();
+
+    // Start background upload & close modal so user can browse freely
+    startUpload(title, 'story', async (updateProgress) => {
+      updateProgress(20);
       const res = await fetch('/api/stories', {
         method: 'POST',
         headers: {
@@ -165,11 +172,12 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          mediaUrl: storyMediaUrl,
-          caption: storyCaption.trim()
+          mediaUrl: mediaToUpload,
+          caption: captionToUpload
         })
       });
 
+      updateProgress(70);
       const text = await res.text();
       let data: any = {};
       try {
@@ -178,21 +186,16 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         throw new Error(text.slice(0, 150) || 'Server returned invalid response');
       }
 
-      if (res.ok && data.success) {
-        notificationSound.playNotificationChime();
-        setStatusMsg({ text: 'Story published successfully! Visible on homepage for 24 hours.' });
-        setTimeout(() => {
-          onClose();
-          if (onSuccess) onSuccess();
-        }, 1200);
-      } else {
-        setStatusMsg({ text: data.error || 'Failed to publish story.', error: true });
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to publish story');
       }
-    } catch (err: any) {
-      setStatusMsg({ text: err.message || 'Network error.', error: true });
-    } finally {
-      setLoading(false);
-    }
+
+      updateProgress(100);
+      if (onSuccess) onSuccess();
+      return data;
+    });
+
+    onClose();
   };
 
   // Fetch YouTube Metadata (Title, Author, Thumbnail) automatically via oEmbed
@@ -275,17 +278,30 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
       return;
     }
 
-    try {
-      setLoading(true);
+    // Capture parameters for background upload
+    const titleToUpload = videoTitle.trim();
+    const descToUpload = videoDesc.trim();
+    const rawUrlToUpload = videoUrl.trim();
+    const categoryToUpload = videoCategory;
+    const isPaidToUpload = isPaidVideo;
+    const priceToUpload = isPaidVideo ? parseFloat(videoPrice) || 0 : 0;
+    const channelNameToUpdate = channelNameInput.trim();
+    const thumbToUpload = videoThumbnailUrl.trim();
+
+    // Start background upload & close modal so user can browse anywhere
+    startUpload(titleToUpload, 'video', async (updateProgress) => {
+      updateProgress(15);
 
       // Save channel name if changed
-      if (channelNameInput.trim() !== user?.channel_name) {
-        await updateProfile({ channel_name: channelNameInput.trim() });
+      if (channelNameToUpdate !== user?.channel_name) {
+        await updateProfile({ channel_name: channelNameToUpdate }).catch(() => {});
       }
 
+      updateProgress(35);
+
       // Clean / Format YouTube embed URL if applicable
-      let formattedUrl = videoUrl.trim();
-      let thumb = videoThumbnailUrl.trim();
+      let formattedUrl = rawUrlToUpload;
+      let thumb = thumbToUpload;
       if (formattedUrl.includes('youtube.com/watch?v=')) {
         const id = formattedUrl.split('v=')[1]?.split('&')[0];
         formattedUrl = `https://www.youtube.com/embed/${id}`;
@@ -296,6 +312,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
       }
 
+      updateProgress(55);
+
       // 1. Post to module videos endpoint
       await fetch('/api/modules/videos', {
         method: 'POST',
@@ -304,14 +322,16 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: videoTitle.trim(),
-          description: videoDesc.trim(),
+          title: titleToUpload,
+          description: descToUpload,
           videoUrl: formattedUrl,
           thumbnailUrl: thumb || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
-          category: videoCategory,
-          price: isPaidVideo ? parseFloat(videoPrice) || 0 : 0
+          category: categoryToUpload,
+          price: priceToUpload
         })
       }).catch(() => {});
+
+      updateProgress(80);
 
       // 2. Also record in user video uploads
       const res = await fetch('/api/videos/upload', {
@@ -321,31 +341,25 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: videoTitle.trim(),
-          description: videoDesc.trim(),
+          title: titleToUpload,
+          description: descToUpload,
           videoUrl: formattedUrl,
-          category: videoCategory,
-          price: isPaidVideo ? parseFloat(videoPrice) || 0 : 0,
-          driveFolder: driveAccount
+          category: categoryToUpload,
+          price: priceToUpload
         })
       });
 
       const data = await res.json();
-      if (res.ok) {
-        notificationSound.playNotificationChime();
-        setStatusMsg({ text: 'Video published to Benix Creator Hub & ready for broadcast!' });
-        setTimeout(() => {
-          onClose();
-          if (onSuccess) onSuccess();
-        }, 1200);
-      } else {
-        setStatusMsg({ text: data.error || 'Failed to upload video.', error: true });
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to upload video');
       }
-    } catch (err: any) {
-      setStatusMsg({ text: err.message || 'Network error.', error: true });
-    } finally {
-      setLoading(false);
-    }
+
+      updateProgress(100);
+      if (onSuccess) onSuccess();
+      return data;
+    });
+
+    onClose();
   };
 
   return (
@@ -412,12 +426,16 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 </label>
                 <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 text-center hover:border-pink-500 transition-colors bg-[#121824] relative overflow-hidden">
                   {storyPreview ? (
-                    <div className="relative aspect-[9/16] max-h-60 mx-auto rounded-xl overflow-hidden shadow-lg border border-slate-700">
-                      <img src={storyPreview} alt="Story Preview" className="w-full h-full object-cover" />
+                    <div className="relative max-h-64 h-64 w-full mx-auto rounded-xl overflow-hidden shadow-lg border border-slate-700 bg-black flex items-center justify-center">
+                      {storyPreview.startsWith('data:video') || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(storyPreview) ? (
+                        <video src={storyPreview} autoPlay muted playsInline loop className="w-full h-full object-contain" />
+                      ) : (
+                        <img src={storyPreview} alt="Story Preview" className="w-full h-full object-contain" />
+                      )}
                       <button
                         type="button"
                         onClick={() => { setStoryPreview(null); setStoryMediaUrl(''); }}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-black"
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors z-10"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -624,39 +642,23 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={videoCategory}
-                    onChange={(e) => setVideoCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="Gospel & Choirs">Gospel & Choirs</option>
-                    <option value="Series & Comedy">Series & Comedy</option>
-                    <option value="Culture & Documentaries">Culture & Documentaries</option>
-                    <option value="Music & Shows">Music & Shows</option>
-                    <option value="Entertainment & Movies">Entertainment & Movies</option>
-                    <option value="Sports">Sports Highlights</option>
-                    <option value="Live TV">Live TV & News</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Drive Cloud Storage
-                  </label>
-                  <select
-                    value={driveAccount}
-                    onChange={(e) => setDriveAccount(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="drive-primary">Primary Drive (Account 1)</option>
-                    <option value="drive-secondary">Fallback Drive (Account 2)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  Broadcast Category
+                </label>
+                <select
+                  value={videoCategory}
+                  onChange={(e) => setVideoCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 font-medium"
+                >
+                  <option value="Gospel & Choirs">Gospel & Choirs</option>
+                  <option value="Series & Comedy">Series & Comedy</option>
+                  <option value="Culture & Documentaries">Culture & Documentaries</option>
+                  <option value="Music & Shows">Music & Shows</option>
+                  <option value="Entertainment & Movies">Entertainment & Movies</option>
+                  <option value="Sports">Sports Highlights</option>
+                  <option value="Live TV">Live TV & News</option>
+                </select>
               </div>
 
               {/* Pricing & Monetization Section */}
@@ -730,7 +732,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-400 pt-1">
-                  Once reached, Google AdSense & submitted ads generate automatic revenue into your central wallet.
+                  Once criteria are reached, broadcast ad revenue is generated and deposited automatically into your central wallet.
                 </p>
               </div>
 
@@ -739,7 +741,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 disabled={loading || !videoTitle.trim() || !videoUrl.trim()}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
               >
-                {loading ? 'Publishing Video...' : 'Publish Video & Save to Drive'}
+                {loading ? 'Publishing Video...' : 'Publish Video to Creator Hub'}
               </button>
             </form>
           )}

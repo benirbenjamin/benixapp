@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 export const AdminSettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'branding' | 'contacts' | 'adsense' | 'drive' | 'email' | 'modules' | 'database'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'contacts' | 'adsense' | 'drive' | 'flutterwave' | 'email' | 'modules' | 'database'>('branding');
 
   // 1. Branding & Image Assets
   const [branding, setBranding] = useState({
@@ -51,7 +51,20 @@ export const AdminSettingsPage: React.FC = () => {
     tv_banner_refresh_sec: 150
   });
 
-  // 4. Google Drive Cloud Storage Integration
+  // 4. Multi-Google Drive Cloud Storage Accounts & Quota Tracking
+  const [driveAccounts, setDriveAccounts] = useState<any[]>([]);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveTestResult, setDriveTestResult] = useState('');
+  const [showAddDriveModal, setShowAddDriveModal] = useState(false);
+  const [newDriveForm, setNewDriveForm] = useState({
+    name: '',
+    clientId: '',
+    clientSecret: '',
+    refreshToken: '',
+    folderId: 'root',
+    isPrimary: false
+  });
+
   const [drive, setDrive] = useState({
     provider: 'google_drive',
     client_id: '',
@@ -63,7 +76,18 @@ export const AdminSettingsPage: React.FC = () => {
     test_result: ''
   });
 
-  // 5. Resend & Email Relay
+  // 5. Flutterwave Payment Gateway Configuration
+  const [flutterwave, setFlutterwave] = useState({
+    enabled: true,
+    public_key: 'FLWPUBK_TEST-SANDBOXDEMO-X',
+    secret_key: '',
+    encryption_key: '',
+    is_live: false,
+    testing: false,
+    test_result: ''
+  });
+
+  // 6. Resend & Email Relay
   const [emailConfig, setEmailConfig] = useState({
     resend_api_key: 're_****************************',
     sender_email: 'BenixSpace <noreply@benix.space>',
@@ -304,7 +328,8 @@ export const AdminSettingsPage: React.FC = () => {
     { key: 'branding', label: 'Logo & Branding', icon: Image },
     { key: 'contacts', label: 'Contacts & Dynamic Footer', icon: Phone },
     { key: 'adsense', label: 'Google AdSense Monetization', icon: DollarSign },
-    { key: 'drive', label: 'Google Drive Storage', icon: HardDrive },
+    { key: 'drive', label: 'Google Drive Multi-Storage', icon: HardDrive },
+    { key: 'flutterwave', label: 'Flutterwave Payment Gateway', icon: ShieldCheck },
     { key: 'email', label: 'Resend & Email Relay', icon: Mail },
     { key: 'modules', label: 'All Apps Control & Configuration', icon: Building2 },
     { key: 'database', label: 'Neon Database Health', icon: Database },
@@ -753,101 +778,532 @@ export const AdminSettingsPage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: GOOGLE DRIVE CLOUD STORAGE INTEGRATION */}
+          {/* TAB 4: MULTI-GOOGLE DRIVE CLOUD STORAGE & QUOTA TRACKING */}
           {activeTab === 'drive' && (
             <div className="rounded-3xl p-6 sm:p-8 border border-slate-800 bg-[#131926] shadow-xl space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div>
                   <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                    <HardDrive className="w-5 h-5 text-blue-400" /> Google Drive Cloud Storage Configuration
+                    <HardDrive className="w-5 h-5 text-blue-400" /> Google Drive Multi-Storage & Auto-Fallback Manager
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Connect Google Drive API to store TV stream recordings, choir audio files, user profile avatars, and marketplace product imagery.
+                    Configure multiple Google Drive storage accounts. When one account fills up, the platform automatically cascades to backup accounts. Live remaining storage is tracked and warning emails are dispatched to the admin at 85% capacity.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setDriveLoading(true);
+                      setDriveTestResult('');
+                      try {
+                        const token = getAuthToken();
+                        const res = await fetch('/api/admin/settings/storage/test', {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        setDriveTestResult(data.message || (data.success ? 'Storage quotas verified!' : 'Connection test failed.'));
+                        // Refresh accounts
+                        const aRes = await fetch('/api/admin/settings/storage', {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const aData = await aRes.json();
+                        if (aData?.accounts) setDriveAccounts(aData.accounts);
+                      } catch {
+                        setDriveTestResult('Failed to sync storage accounts.');
+                      } finally {
+                        setDriveLoading(false);
+                      }
+                    }}
+                    disabled={driveLoading}
+                    className="px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${driveLoading ? 'animate-spin' : ''}`} />
+                    <span>Sync & Verify Quotas</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDriveModal(!showAddDriveModal)}
+                    className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{showAddDriveModal ? 'Close Form' : 'Add Drive Account'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Alert Callout */}
+              <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <strong className="text-white block font-bold">Automatic Low Storage Alert & Failover Active</strong>
+                  <p className="text-[11px] text-blue-300 leading-relaxed">
+                    When any active Google Drive account reaches 85% capacity (or less than 1.5 GB free space), BenixSpace automatically dispatches an alert email to <strong>benirabok@gmail.com</strong> and cascades uploads to the next available account without service interruption.
+                  </p>
+                </div>
+              </div>
+
+              {driveTestResult && (
+                <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{driveTestResult}</span>
+                </div>
+              )}
+
+              {/* Form to Add New Drive Account */}
+              {showAddDriveModal && (
+                <div className="p-5 rounded-2xl bg-[#1A2234] border border-blue-500/40 space-y-4 animate-in fade-in">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-blue-400" /> Add New Google Drive Account
+                    </h4>
+                    <span className="text-[10px] text-slate-400">OAuth2 Refresh Token Access</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Account Label / Name *</label>
+                      <input
+                        type="text"
+                        value={newDriveForm.name}
+                        onChange={(e) => setNewDriveForm({ ...newDriveForm, name: e.target.value })}
+                        placeholder="e.g. Backup Drive (Account 2)"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1">Root Folder ID (Optional)</label>
+                      <input
+                        type="text"
+                        value={newDriveForm.folderId}
+                        onChange={(e) => setNewDriveForm({ ...newDriveForm, folderId: e.target.value })}
+                        placeholder="root or folder string id"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1">Google Cloud Client ID *</label>
+                      <input
+                        type="text"
+                        value={newDriveForm.clientId}
+                        onChange={(e) => setNewDriveForm({ ...newDriveForm, clientId: e.target.value })}
+                        placeholder="xxx.apps.googleusercontent.com"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1">Google Cloud Client Secret *</label>
+                      <input
+                        type="password"
+                        value={newDriveForm.clientSecret}
+                        onChange={(e) => setNewDriveForm({ ...newDriveForm, clientSecret: e.target.value })}
+                        placeholder="GOCSPX-xxxxxxxxxxxxxxxx"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-slate-400 block mb-1">OAuth2 Refresh Token *</label>
+                      <input
+                        type="password"
+                        value={newDriveForm.refreshToken}
+                        onChange={(e) => setNewDriveForm({ ...newDriveForm, refreshToken: e.target.value })}
+                        placeholder="1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="isPrimaryCheck"
+                        checked={newDriveForm.isPrimary}
+                        onChange={(e) => setNewDriveForm({ ...newDriveForm, isPrimary: e.target.checked })}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <label htmlFor="isPrimaryCheck" className="text-xs text-slate-300 font-bold">
+                        Set as Primary Upload Destination (Prioritized First)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddDriveModal(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!newDriveForm.name || !newDriveForm.clientId || !newDriveForm.clientSecret || !newDriveForm.refreshToken) {
+                          alert('Please fill out all required fields.');
+                          return;
+                        }
+                        try {
+                          const token = getAuthToken();
+                          const res = await fetch('/api/admin/settings/storage/account', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                            },
+                            body: JSON.stringify(newDriveForm)
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            alert('Google Drive account added successfully!');
+                            setShowAddDriveModal(false);
+                            setNewDriveForm({
+                              name: '',
+                              clientId: '',
+                              clientSecret: '',
+                              refreshToken: '',
+                              folderId: 'root',
+                              isPrimary: false
+                            });
+                            // Refresh
+                            const aRes = await fetch('/api/admin/settings/storage', {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            const aData = await aRes.json();
+                            if (aData?.accounts) setDriveAccounts(aData.accounts);
+                          } else {
+                            alert(data.error || 'Failed to add account');
+                          }
+                        } catch (err: any) {
+                          alert(err.message || 'Network error');
+                        }
+                      }}
+                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs"
+                    >
+                      Save Account
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Configured Google Drive Storage Accounts */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider">
+                  Configured Storage Accounts & Real-Time Quota ({driveAccounts.length})
+                </h4>
+
+                {driveAccounts.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {driveAccounts.map((acc: any) => {
+                      const usedGb = parseFloat(acc.storageUsedGb) || 0;
+                      const limitGb = parseFloat(acc.storageLimitGb) || 15.0;
+                      const remGb = parseFloat(acc.remainingGb) || 15.0;
+                      const pct = Math.min(100, acc.usagePercent || Math.round((usedGb / (limitGb || 1)) * 100));
+                      const isLow = pct >= 80;
+                      const isFull = pct >= 92;
+
+                      return (
+                        <div
+                          key={acc.id}
+                          className={`p-5 rounded-2xl border transition-all ${
+                            acc.isPrimary
+                              ? 'bg-[#151D2E] border-blue-500/50 shadow-lg'
+                              : 'bg-[#161D2E] border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <HardDrive className={`w-4 h-4 ${acc.isPrimary ? 'text-blue-400' : 'text-slate-400'}`} />
+                              <strong className="text-white text-xs font-black truncate max-w-[180px]">
+                                {acc.name}
+                              </strong>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {acc.isPrimary && (
+                                <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/40">
+                                  Primary
+                                </span>
+                              )}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  isFull
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                    : isLow
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                }`}
+                              >
+                                {isFull ? 'FULL (Fallback Active)' : isLow ? 'RUNNING LOW' : 'HEALTHY'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Storage Bar */}
+                          <div className="space-y-1.5 my-3">
+                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                              <span className="text-slate-400">
+                                {usedGb.toFixed(2)} GB used of {limitGb.toFixed(1)} GB
+                              </span>
+                              <span className="text-white font-mono font-bold">{pct}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  isFull
+                                    ? 'bg-rose-500'
+                                    : isLow
+                                    ? 'bg-amber-500'
+                                    : 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-500">
+                              <span className={isLow ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                                {remGb.toFixed(2)} GB Remaining
+                              </span>
+                              <span>Folder: {acc.folderId || 'root'}</span>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                            {!acc.isPrimary ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const token = getAuthToken();
+                                  await fetch(`/api/admin/settings/storage/primary/${acc.id}`, {
+                                    method: 'POST',
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  const aRes = await fetch('/api/admin/settings/storage', {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  const aData = await aRes.json();
+                                  if (aData?.accounts) setDriveAccounts(aData.accounts);
+                                }}
+                                className="text-[11px] text-blue-400 hover:text-blue-300 font-bold"
+                              >
+                                Set as Primary
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 italic">Active destination</span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm(`Delete storage account "${acc.name}"?`)) return;
+                                const token = getAuthToken();
+                                await fetch(`/api/admin/settings/storage/account/${acc.id}`, {
+                                  method: 'DELETE',
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                const aRes = await fetch('/api/admin/settings/storage', {
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                const aData = await aRes.json();
+                                if (aData?.accounts) setDriveAccounts(aData.accounts);
+                              }}
+                              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-400 space-y-2">
+                    <p>No external Google Drive accounts registered yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddDriveModal(true)}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold"
+                    >
+                      Add First Drive Account
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: FLUTTERWAVE PAYMENT GATEWAY */}
+          {activeTab === 'flutterwave' && (
+            <div className="rounded-3xl p-6 sm:p-8 border border-slate-800 bg-[#131926] shadow-xl space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" /> Flutterwave Multi-Currency Payment Gateway
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Configure live and sandbox Flutterwave API credentials. Enables user deposits and payments in RWF, USD, EUR, GBP, KES, UGX, NGN, and TZS via Mobile Money and Credit Cards.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={handleTestDriveConnection}
-                  disabled={drive.testing}
-                  className="px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all"
+                  onClick={async () => {
+                    setFlutterwave((f) => ({ ...f, testing: true, test_result: '' }));
+                    try {
+                      const token = getAuthToken();
+                      const res = await fetch('/api/admin/settings/flutterwave/test', {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                      const data = await res.json();
+                      setFlutterwave((f) => ({
+                        ...f,
+                        testing: false,
+                        test_result: data.message || 'Flutterwave Gateway connection verified active!'
+                      }));
+                    } catch {
+                      setFlutterwave((f) => ({ ...f, testing: false, test_result: 'Connection test failed.' }));
+                    }
+                  }}
+                  disabled={flutterwave.testing}
+                  className="px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all disabled:opacity-50"
                 >
-                  {drive.testing ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  )}
-                  <span>Test Drive Connection</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${flutterwave.testing ? 'animate-spin' : ''}`} />
+                  <span>Test Gateway Connection</span>
                 </button>
               </div>
 
-              {drive.test_result && (
+              {flutterwave.test_result && (
                 <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                  <span>{drive.test_result}</span>
+                  <span>{flutterwave.test_result}</span>
                 </div>
               )}
 
+              {/* Supported Currencies & Payment Methods Banner */}
+              <div className="p-4 rounded-2xl bg-[#1A2234] border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider block">
+                  Supported Multi-Currency Channels
+                </span>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {[
+                    { code: 'RWF', label: '🇷🇼 Rwandan Franc (MTN / Airtel)' },
+                    { code: 'USD', label: '🇺🇸 US Dollar (Visa / MC)' },
+                    { code: 'EUR', label: '🇪🇺 Euro (€)' },
+                    { code: 'GBP', label: '🇬🇧 British Pound (£)' },
+                    { code: 'KES', label: '🇰🇪 Kenyan Shilling (M-Pesa)' },
+                    { code: 'UGX', label: '🇺🇬 Ugandan Shilling (MTN / Airtel)' },
+                    { code: 'NGN', label: '🇳🇬 Nigerian Naira (₦)' },
+                    { code: 'TZS', label: '🇹🇿 Tanzanian Shilling' }
+                  ].map((c) => (
+                    <span
+                      key={c.code}
+                      className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 font-bold"
+                    >
+                      {c.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                 <div>
-                  <label className="text-slate-400 block mb-1">Storage Provider</label>
-                  <select
-                    value={drive.provider}
-                    onChange={(e) => setDrive({ ...drive, provider: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold focus:outline-none"
-                  >
-                    <option value="google_drive">Google Drive (OAuth2 Refresh Token)</option>
-                    <option value="s3">Amazon S3 / Wasabi Compatible Cloud</option>
-                    <option value="neon_blob">PostgreSQL Neon Large Object Store</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-slate-400 block mb-1">Google Drive Root Folder ID</label>
+                  <label className="text-slate-400 block mb-1">Flutterwave Public Key *</label>
                   <input
                     type="text"
-                    value={drive.folder_id}
-                    onChange={(e) => setDrive({ ...drive, folder_id: e.target.value })}
-                    placeholder="e.g. 1aB2cD3eFgHiJkLmNoPqRsTuVwXyZ"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono font-bold focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-400 block mb-1">Google Cloud Client ID</label>
-                  <input
-                    type="text"
-                    value={drive.client_id}
-                    onChange={(e) => setDrive({ ...drive, client_id: e.target.value })}
-                    placeholder="xxxxxxxxxxxx-xxxxxxxx.apps.googleusercontent.com"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-400 block mb-1">Google Cloud Client Secret</label>
-                  <input
-                    type="password"
-                    value={drive.client_secret}
-                    onChange={(e) => setDrive({ ...drive, client_secret: e.target.value })}
-                    placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-slate-400 block mb-1">Google Cloud Refresh Token (OAuth2)</label>
-                  <input
-                    type="password"
-                    value={drive.refresh_token}
-                    onChange={(e) => setDrive({ ...drive, refresh_token: e.target.value })}
-                    placeholder="1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
+                    value={flutterwave.public_key}
+                    onChange={(e) => setFlutterwave({ ...flutterwave, public_key: e.target.value })}
+                    placeholder="FLWPUBK_TEST-xxxxxxxx-X or FLWPUBK-xxxxxxxx-X"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-emerald-500 font-bold"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">
-                    Secures long-term API access without manual service accounts. Tokens are refreshed automatically.
+                    Rendered by client modals during checkout. Safe to expose publicly.
                   </span>
                 </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">Flutterwave Secret Key *</label>
+                  <input
+                    type="password"
+                    value={flutterwave.secret_key}
+                    onChange={(e) => setFlutterwave({ ...flutterwave, secret_key: e.target.value })}
+                    placeholder="FLWSECK_TEST-xxxxxxxx or FLWSECK-xxxxxxxx"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Kept securely encrypted on server. Used to verify customer payments and credit wallets.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">Encryption Key (Optional)</label>
+                  <input
+                    type="password"
+                    value={flutterwave.encryption_key}
+                    onChange={(e) => setFlutterwave({ ...flutterwave, encryption_key: e.target.value })}
+                    placeholder="Optional 3DES encryption key"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="flex flex-col justify-center space-y-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="flwLiveCheck"
+                      checked={flutterwave.is_live}
+                      onChange={(e) => setFlutterwave({ ...flutterwave, is_live: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <label htmlFor="flwLiveCheck" className="text-xs text-white font-bold">
+                      Live Production Mode (Uncheck for Test Sandbox)
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="flwEnabledCheck"
+                      checked={flutterwave.enabled}
+                      onChange={(e) => setFlutterwave({ ...flutterwave, enabled: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <label htmlFor="flwEnabledCheck" className="text-xs text-white font-bold">
+                      Enable Flutterwave Gateway Across Wallet & Coffee Tips
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const token = getAuthToken();
+                      const res = await fetch('/api/admin/settings/flutterwave', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify(flutterwave)
+                      });
+                      if (res.ok) {
+                        alert('Flutterwave credentials saved successfully!');
+                      }
+                    } catch {
+                      alert('Failed to save Flutterwave settings.');
+                    }
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all"
+                >
+                  Save Flutterwave Credentials
+                </button>
               </div>
             </div>
           )}

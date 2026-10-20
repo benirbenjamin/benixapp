@@ -37,84 +37,11 @@ interface MatchProfile {
   online: boolean;
 }
 
-const SAMPLE_MATCHES: MatchProfile[] = [
-  {
-    id: 'k1',
-    name: 'Aline M.',
-    age: 24,
-    city: 'Kigali (Kacyiru)',
-    profession: 'Software Designer',
-    bio: 'Passionate about digital art, Rwandan coffee, acoustic gospel, and weekend road trips.',
-    interests: ['Design', 'Coffee', 'Music', 'Travel'],
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-    verified: true,
-    online: true
-  },
-  {
-    id: 'k2',
-    name: 'Christian K.',
-    age: 28,
-    city: 'Kigali (Kimihurura)',
-    profession: 'Fintech Specialist',
-    bio: 'Looking for a thoughtful, driven partner. Love tennis, live jazz, and good books.',
-    interests: ['Finance', 'Tennis', 'Books', 'Jazz'],
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-    verified: true,
-    online: false
-  },
-  {
-    id: 'k3',
-    name: 'Diane U.',
-    age: 26,
-    city: 'Musanze',
-    profession: 'Hospitality & Eco-Tourism',
-    bio: 'Nature enthusiast, mountain hikes, culinary experiments, and quiet evenings.',
-    interests: ['Hiking', 'Nature', 'Cooking', 'Eco-Tourism'],
-    image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80',
-    verified: true,
-    online: true
-  },
-  {
-    id: 'k4',
-    name: 'Kevin N.',
-    age: 27,
-    city: 'Rubavu',
-    profession: 'Civil Engineer',
-    bio: 'Lakeside sunsets, lake Kivu sports, creative photography, and genuine conversations.',
-    interests: ['Photography', 'Water Sports', 'Architecture', 'Travel'],
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80',
-    verified: true,
-    online: true
-  },
-  {
-    id: 'k5',
-    name: 'Sonia G.',
-    age: 25,
-    city: 'Kigali (Nyarutarama)',
-    profession: 'Healthcare Consultant',
-    bio: 'Values integrity, healthy living, classical choir melodies, and community service.',
-    interests: ['Choir', 'Wellness', 'Reading', 'Community'],
-    image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80',
-    verified: true,
-    online: false
-  },
-  {
-    id: 'k6',
-    name: 'Eric M.',
-    age: 29,
-    city: 'Huye',
-    profession: 'Agritech Researcher',
-    bio: 'Passionate about innovation in agriculture, chess, traditional Rwandan heritage, and family.',
-    interests: ['Chess', 'Innovation', 'Heritage', 'Culture'],
-    image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=600&q=80',
-    verified: true,
-    online: true
-  }
-];
-
 export const KundaPage: React.FC = () => {
   const { user, token, hasAppProfile } = useAuth();
   const navigate = useNavigate();
+  const [matches, setMatches] = useState<MatchProfile[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState<boolean>(true);
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [likedProfiles, setLikedProfiles] = useState<string[]>([]);
@@ -125,6 +52,22 @@ export const KundaPage: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState<boolean>(false);
   const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);
+
+  // Load real registered user matches from database
+  React.useEffect(() => {
+    setLoadingMatches(true);
+    fetch('/api/modules/kunda/matches', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.matches && Array.isArray(data.matches)) {
+          setMatches(data.matches);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMatches(false));
+  }, [token]);
 
   // Load existing persistent crushes from PostgreSQL
   React.useEffect(() => {
@@ -180,7 +123,7 @@ export const KundaPage: React.FC = () => {
     }
   };
 
-  const filteredMatches = SAMPLE_MATCHES.filter((m) => {
+  const filteredMatches = matches.filter((m) => {
     if (selectedCity === 'all') return true;
     return m.city.toLowerCase().includes(selectedCity.toLowerCase());
   });
