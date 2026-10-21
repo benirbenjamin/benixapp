@@ -231,10 +231,51 @@ export const VideosPage: React.FC = () => {
 
   // 20% Preview for Premium Videos
   const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
   const [isPreviewEnded, setIsPreviewEnded] = useState<boolean>(false);
+  const [isControlsVisible, setIsControlsVisible] = useState<boolean>(true);
+  const controlsTimeoutRef = useRef<any>(null);
+
+  const handleMouseMovePlayer = () => {
+    setIsControlsVisible(true);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3500);
+    }
+  };
+
+  const formatTimestamp = (sec: number) => {
+    const s = Math.floor(sec || 0);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r < 10 ? '0' : ''}${r}`;
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const effectiveDur = videoDuration || videoRef.current.duration || 1;
+    const targetTime = pos * effectiveDur;
+
+    const limitSec = Math.max(12, Math.floor((activeVideo?.duration || effectiveDur) * 0.20));
+    if (!activeVideo || isVideoUnlocked(activeVideo) || targetTime < limitSec) {
+      videoRef.current.currentTime = targetTime;
+      setVideoCurrentTime(targetTime);
+    } else {
+      videoRef.current.currentTime = limitSec;
+      setVideoCurrentTime(limitSec);
+      setIsPreviewEnded(true);
+      videoRef.current.pause();
+    }
+  };
 
   useEffect(() => {
     setVideoCurrentTime(0);
+    setVideoDuration(0);
     setIsPreviewEnded(false);
   }, [activeVideo?.id]);
 
@@ -569,7 +610,7 @@ export const VideosPage: React.FC = () => {
   };
 
   const togglePlayPause = () => {
-    if (!activeVideo || !isVideoUnlocked(activeVideo)) return;
+    if (!activeVideo || (!isVideoUnlocked(activeVideo) && isPreviewEnded)) return;
     const nextPlaying = !isPlaying;
     setIsPlaying(nextPlaying);
     triggerCenterFeedback(nextPlaying ? 'play' : 'pause');
@@ -879,6 +920,8 @@ export const VideosPage: React.FC = () => {
               {/* 16:9 Cinema Player Screen */}
               <div
                 ref={playerContainerRef}
+                onMouseMove={handleMouseMovePlayer}
+                onMouseEnter={() => setIsControlsVisible(true)}
                 className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl group select-none"
               >
                 {/* Media Screen (YouTube / Direct Video Stream via /api/media/stream) */}
@@ -896,12 +939,17 @@ export const VideosPage: React.FC = () => {
                     ref={videoRef}
                     key={activeVideo.id}
                     src={getSafeVideoSrc(activeVideo)}
-                    controls={isVideoUnlocked(activeVideo) || !isPreviewEnded}
+                    controls={false}
                     autoPlay
                     playsInline
                     preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
-                    className="w-full h-full object-contain bg-black relative z-10"
+                    className="w-full h-full object-contain bg-black relative z-10 cursor-pointer"
                     poster={activeVideo.thumbnail}
+                    onClick={togglePlayPause}
+                    onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
+                    onDurationChange={(e) => setVideoDuration(e.currentTarget.duration || 0)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
                     onTimeUpdate={(e) => {
                       const cur = e.currentTarget.currentTime;
                       setVideoCurrentTime(cur);
@@ -987,102 +1035,140 @@ export const VideosPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* On-Screen Bottom Control Strip (Hover) */}
-                <div className="absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <button
-                      onClick={togglePlayPause}
-                      className="p-2 sm:p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
-                      title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                {/* On-Screen Bottom Custom Control Strip */}
+                <div
+                  className={`absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/75 to-transparent flex flex-col gap-2.5 transition-opacity duration-300 pointer-events-auto ${
+                    !isPlaying || isControlsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  {/* Custom Seek Scrubber Bar */}
+                  <div
+                    onClick={handleSeek}
+                    className="w-full h-1.5 hover:h-2.5 bg-white/20 hover:bg-white/30 rounded-full cursor-pointer relative transition-all group/bar"
+                  >
+                    {/* 20% Preview Marker for Premium Videos */}
+                    {!isVideoUnlocked(activeVideo) && (
+                      <div
+                        className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10"
+                        style={{
+                          left: `${Math.min(100, (Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20)) / (videoDuration || activeVideo.duration || 300)) * 100)}%`
+                        }}
+                        title="20% Free Preview End"
+                      />
+                    )}
+                    {/* Active Progress Fill */}
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 rounded-full relative"
+                      style={{
+                        width: `${(videoDuration || activeVideo.duration) ? Math.min(100, (videoCurrentTime / (videoDuration || activeVideo.duration || 1)) * 100) : 0}%`
+                      }}
                     >
-                      {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-                    </button>
-
-                    <button
-                      onClick={playPreviousVideo}
-                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                      title="Previous Video (P)"
-                    >
-                      <SkipBack className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={playNextVideo}
-                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                      title="Next Video (N)"
-                    >
-                      <SkipForward className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={toggleMute}
-                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                      title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
-                    >
-                      {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-                    </button>
-
-                    <span className="hidden md:inline-block text-[11px] text-slate-400 font-mono pl-2">
-                      Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
-                    </span>
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity" />
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Adaptive Stream Quality Dropdown */}
-                    <div className="relative">
+                  {/* Player Buttons Row */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <button
-                        onClick={() => setShowQualityMenu((prev) => !prev)}
-                        className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
-                        title="Video Stream Quality (Adaptive)"
+                        onClick={togglePlayPause}
+                        className="p-2 sm:p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
                       >
-                        <Wifi className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="font-mono text-[11px]">
-                          {qualityMode === 'auto' ? `Auto (${activeQuality})` : activeQuality}
-                        </span>
+                        {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
                       </button>
 
-                      {showQualityMenu && (
-                        <div className="absolute bottom-11 right-0 z-50 w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
-                          <div className="px-2.5 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
-                            <span>Adaptive Quality</span>
-                            <span className="text-[10px] text-purple-400 font-mono truncate max-w-[110px]" title={connectionSpeedLabel}>
-                              {connectionSpeedLabel}
-                            </span>
-                          </div>
-                          {[
-                            { id: 'auto', label: `Auto (Adaptive - ${networkQuality})` },
-                            { id: '1080p', label: '1080p Full HD' },
-                            { id: '720p', label: '720p HD' },
-                            { id: '480p', label: '480p Medium (Data Saver)' },
-                            { id: '360p', label: '360p Low (Ultra Saver)' }
-                          ].map((opt) => (
-                            <button
-                              key={opt.id}
-                              onClick={() => {
-                                setQualityMode(opt.id as any);
-                                setShowQualityMenu(false);
-                              }}
-                              className={`w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition ${
-                                qualityMode === opt.id
-                                  ? 'bg-purple-600/30 text-purple-300 font-bold'
-                                  : 'hover:bg-slate-800/80 text-slate-300'
-                              }`}
-                            >
-                              <span>{opt.label}</span>
-                              {qualityMode === opt.id && <Check className="w-3.5 h-3.5 text-purple-400" />}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      <button
+                        onClick={playPreviousVideo}
+                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        title="Previous Video (P)"
+                      >
+                        <SkipBack className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={playNextVideo}
+                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        title="Next Video (N)"
+                      >
+                        <SkipForward className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={toggleMute}
+                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+                      >
+                        {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+
+                      {/* Video Timestamp Display */}
+                      <span className="text-[11px] text-slate-300 font-mono font-bold pl-1 select-none">
+                        {formatTimestamp(videoCurrentTime)} / {formatTimestamp(videoDuration || activeVideo.duration || 0)}
+                      </span>
+
+                      <span className="hidden lg:inline-block text-[11px] text-slate-500 font-mono pl-2">
+                        Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
+                      </span>
                     </div>
 
-                    <button
-                      onClick={toggleFullscreen}
-                      className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                      title="Toggle Landscape Fullscreen (F)"
-                    >
-                      {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Adaptive Stream Quality Dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowQualityMenu((prev) => !prev)}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
+                          title="Video Stream Quality (Adaptive)"
+                        >
+                          <Wifi className="w-3.5 h-3.5 text-purple-400" />
+                          <span className="font-mono text-[11px]">
+                            {qualityMode === 'auto' ? `Auto (${activeQuality})` : activeQuality}
+                          </span>
+                        </button>
+
+                        {showQualityMenu && (
+                          <div className="absolute bottom-11 right-0 z-50 w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
+                            <div className="px-2.5 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                              <span>Adaptive Quality</span>
+                              <span className="text-[10px] text-purple-400 font-mono truncate max-w-[110px]" title={connectionSpeedLabel}>
+                                {connectionSpeedLabel}
+                              </span>
+                            </div>
+                            {[
+                              { id: 'auto', label: `Auto (Adaptive - ${networkQuality})` },
+                              { id: '1080p', label: '1080p Full HD' },
+                              { id: '720p', label: '720p HD' },
+                              { id: '480p', label: '480p Medium (Data Saver)' },
+                              { id: '360p', label: '360p Low (Ultra Saver)' }
+                            ].map((opt) => (
+                              <button
+                                key={opt.id}
+                                onClick={() => {
+                                  setQualityMode(opt.id as any);
+                                  setShowQualityMenu(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition ${
+                                  qualityMode === opt.id
+                                    ? 'bg-purple-600/30 text-purple-300 font-bold'
+                                    : 'hover:bg-slate-800/80 text-slate-300'
+                                }`}
+                              >
+                                <span>{opt.label}</span>
+                                {qualityMode === opt.id && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={toggleFullscreen}
+                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        title="Toggle Landscape Fullscreen (F)"
+                      >
+                        {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

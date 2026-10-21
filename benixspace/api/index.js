@@ -56473,6 +56473,9 @@ async function ensureTvCommentsTable() {
     ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;
     ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'APPROVED';
     ALTER TABLE tv_comments ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100);
+    ALTER TABLE tv_comments DROP CONSTRAINT IF EXISTS tv_comments_video_id_fkey;
+    ALTER TABLE tv_comments DROP CONSTRAINT IF EXISTS tv_comments_station_id_fkey;
+    ALTER TABLE tv_comments DROP CONSTRAINT IF EXISTS tv_comments_user_id_fkey;
     CREATE INDEX IF NOT EXISTS idx_tv_comments_station ON tv_comments(station_slug);
     CREATE INDEX IF NOT EXISTS idx_tv_comments_video ON tv_comments(video_id);
   `).catch((err) => console.warn("Could not ensure tv_comments table:", err?.message));
