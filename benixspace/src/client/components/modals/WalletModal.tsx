@@ -96,6 +96,79 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
     }
   }, [isOpen, token]);
 
+  // Handle return redirect from Flutterwave hosted payment gateway
+  useEffect(() => {
+    if (!token) return;
+    const search = window.location.search;
+    if (!search) return;
+
+    const params = new URLSearchParams(search);
+    const hasFlw = params.get('payment') === 'flw_success' || params.has('tx_ref') || params.has('transaction_id');
+    const flwStatus = params.get('status');
+
+    if (hasFlw) {
+      setTab('deposit');
+      if (flwStatus === 'cancelled') {
+        setStatusMsg({ text: 'Deposit session was cancelled. No funds were debited.', error: true });
+        window.history.replaceState({}, document.title, window.location.pathname + (window.location.hash || '#wallet'));
+        return;
+      }
+
+      const txRef = params.get('tx_ref');
+      const transactionId = params.get('transaction_id') || params.get('flw_ref');
+
+      let pending: any = null;
+      try {
+        const stored = sessionStorage.getItem('benix_pending_deposit');
+        if (stored) pending = JSON.parse(stored);
+      } catch {}
+
+      const effectiveTxRef = txRef || pending?.txRef;
+      if (effectiveTxRef) {
+        setLoading(true);
+        setStatusMsg({ text: 'Verifying payment with Flutterwave secure gateway...' });
+
+        fetch('/api/wallet/flutterwave/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            txRef: effectiveTxRef,
+            transactionId: transactionId || undefined,
+            convertedRwf: pending?.convertedRwf,
+            currency: pending?.currency,
+            originalAmount: pending?.originalAmount
+          })
+        })
+          .then(async (res) => {
+            const data = await res.json();
+            if (res.ok && data.success) {
+              notificationSound.playNotificationChime();
+              setStatusMsg({
+                text: data.message || '🎉 Deposit successfully verified and credited to your central wallet!'
+              });
+              if (data.newBalance !== undefined) {
+                updateWalletBalance(data.newBalance);
+              }
+              sessionStorage.removeItem('benix_pending_deposit');
+              loadTransactions();
+            } else {
+              setStatusMsg({ text: data.error || 'Payment verification failed.', error: true });
+            }
+          })
+          .catch((err) => {
+            setStatusMsg({ text: err.message || 'Payment verification error.', error: true });
+          })
+          .finally(() => {
+            setLoading(false);
+            window.history.replaceState({}, document.title, window.location.pathname + (window.location.hash || '#wallet'));
+          });
+      }
+    }
+  }, [token, isOpen]);
+
   const loadTransactions = async () => {
     try {
       setLoading(true);
@@ -250,19 +323,9 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
 
     try {
       setLoading(true);
+      setStatusMsg({ text: 'Connecting to Flutterwave gateway...' });
 
-      // 1. Ensure Flutterwave checkout script is ready
-      const isReady = await ensureFlutterwaveReady();
-      if (!isReady && !(window as any).FlutterwaveCheckout) {
-        setStatusMsg({
-          text: 'Payment gateway script failed to load. Please check your internet connection or ad-blocker and try again.',
-          error: true
-        });
-        setLoading(false);
-        return;
-      }
-
-      // 2. Initialize real transaction reference with backend & retrieve active public key
+      // 1. Initialize real transaction reference with backend & retrieve hosted checkout link
       const initRes = await fetch('/api/wallet/flutterwave/initialize', {
         method: 'POST',
         headers: {
@@ -271,7 +334,10 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         },
         body: JSON.stringify({
           amount: num,
-          currency: depositCurrency.code
+          currency: depositCurrency.code,
+          email: currentEmail,
+          phone: (depositPhone || user?.phone || '0780000000').trim(),
+          name: user?.name || 'Benix Member'
         })
       });
 
@@ -286,18 +352,35 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
       }
 
       const txRef = initData.txRef || initData.tx_ref || `FLW-BENIX-${Date.now()}`;
-      const flwPublicKey = (initData.publicKey || initData.public_key || '').trim();
+      const paymentLink = initData.paymentLink || initData.payment_link;
 
+      // 2. If Flutterwave hosted checkout link is available, redirect directly (standard integration)
+      if (paymentLink) {
+        setStatusMsg({ text: 'Redirecting to Flutterwave secure checkout...' });
+        try {
+          sessionStorage.setItem('benix_pending_deposit', JSON.stringify({
+            txRef,
+            convertedRwf,
+            currency: depositCurrency.code,
+            originalAmount: num
+          }));
+        } catch {}
+        window.location.href = paymentLink;
+        return;
+      }
+
+      // 3. Fallback to inline popup if hosted link was not returned
+      const flwPublicKey = (initData.publicKey || initData.public_key || '').trim();
       if (!flwPublicKey || flwPublicKey.includes('SANDBOXDEMO')) {
         setStatusMsg({
-          text: 'Flutterwave public key is not configured in Admin Settings. Please contact the administrator.',
+          text: 'Flutterwave gateway is not configured properly in Admin Settings. Please contact support.',
           error: true
         });
         setLoading(false);
         return;
       }
 
-      // 3. Open Flutterwave checkout popup with verified public key
+      await ensureFlutterwaveReady();
       if (typeof window.FlutterwaveCheckout === 'function') {
         window.FlutterwaveCheckout({
           public_key: flwPublicKey,
@@ -356,7 +439,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         });
       } else {
         setStatusMsg({
-          text: 'Payment engine is still preparing. Please click "Confirm Deposit via Flutterwave" once more.',
+          text: 'Payment engine failed to open. Please check your internet connection or ad-blocker.',
           error: true
         });
         setLoading(false);

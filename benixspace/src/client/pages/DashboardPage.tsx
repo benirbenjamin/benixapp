@@ -45,6 +45,17 @@ export const DashboardPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
 
+  useEffect(() => {
+    const isWalletHash = window.location.hash === '#wallet';
+    const isPaymentReturn = window.location.search.includes('flw') || 
+                            window.location.search.includes('payment=') || 
+                            window.location.search.includes('tx_ref');
+    if (isWalletHash || isPaymentReturn) {
+      setActiveTab('wallet');
+      setShowWalletModal(true);
+    }
+  }, []);
+
   // Selected Modules
   const [modules, setModules] = useState<string[]>(
     user?.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']

@@ -81,6 +81,65 @@ const compressImage = (file: File, maxDimension = 1080, quality = 0.75): Promise
   });
 };
 
+/**
+ * Capture an automatic high-definition snapshot frame from a video file
+ * Used as automatic video thumbnail if creator doesn't upload a custom one
+ */
+const generateThumbnailFromVideo = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    try {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      const objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+
+      let resolved = false;
+      const cleanup = () => {
+        if (!resolved) {
+          resolved = true;
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+
+      video.onloadeddata = () => {
+        video.currentTime = Math.min(1.5, Math.max(0.2, (video.duration || 3) * 0.2));
+      };
+
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 360;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            cleanup();
+            resolve(dataUrl);
+            return;
+          }
+        } catch {}
+        cleanup();
+        resolve('');
+      };
+
+      video.onerror = () => {
+        cleanup();
+        resolve('');
+      };
+
+      setTimeout(() => {
+        cleanup();
+        resolve('');
+      }, 5000);
+    } catch {
+      resolve('');
+    }
+  });
+};
+
 export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, initialTab = 'story' }) => {
   const { user, token, updateProfile } = useAuth();
   const { startUpload } = useUpload();
@@ -284,7 +343,32 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     // Create object URL for local streaming/preview
     const objectUrl = URL.createObjectURL(file);
     setVideoUrl(objectUrl);
-    setStatusMsg({ text: `Selected local video: "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)` });
+    setStatusMsg({ text: `Generating snapshot thumbnail from "${file.name}"...` });
+
+    // Automatically generate snapshot thumbnail from video frame
+    generateThumbnailFromVideo(file).then((snapshot) => {
+      if (snapshot) {
+        setVideoThumbnailUrl(snapshot);
+        setStatusMsg({ text: `✓ Auto-generated thumbnail from "${file.name}"!` });
+      } else {
+        setStatusMsg({ text: `Selected local video: "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)` });
+      }
+    });
+  };
+
+  // Handle custom user-uploaded video thumbnail
+  const handleCustomThumbnailChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 1280, 0.82);
+      if (compressed) {
+        setVideoThumbnailUrl(compressed);
+        setStatusMsg({ text: `✓ Custom thumbnail selected: "${file.name}"` });
+      }
+    } catch (err) {
+      console.warn('Thumbnail upload error:', err);
+    }
   };
 
   // Handle Video Broadcast submission
@@ -338,7 +422,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           }
         });
         if (!thumb) {
-          thumb = 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80';
+          thumb = 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80';
         }
       } else {
         // Clean / Format YouTube embed URL if applicable
@@ -366,7 +450,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           title: titleToUpload,
           description: descToUpload,
           videoUrl: formattedUrl,
-          thumbnailUrl: thumb || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80',
+          thumbnailUrl: thumb || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80',
           category: categoryToUpload,
           price: priceToUpload,
           channelName: channelNameToUpdate || user?.channel_name || user?.name,
@@ -624,20 +708,61 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 </div>
               )}
 
-              {/* Thumbnail Preview if available */}
-              {videoThumbnailUrl && (
-                <div className="flex items-center gap-3 p-3 bg-[#131926] border border-slate-800 rounded-2xl">
-                  <img
-                    src={videoThumbnailUrl}
-                    alt="Thumbnail Preview"
-                    className="w-20 aspect-video rounded-lg object-cover border border-slate-700 shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block">Thumbnail Fetched</span>
-                    <p className="text-xs font-bold text-white truncate">{videoTitle || 'Untitled Video'}</p>
-                  </div>
+              {/* Video Thumbnail (Auto-Generated Snapshot / Upload Custom / YouTube) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Video Thumbnail
+                  </label>
+                  <label className="text-[11px] text-blue-400 hover:text-blue-300 font-bold cursor-pointer flex items-center gap-1 transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Custom Thumbnail</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustomThumbnailChange}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
-              )}
+
+                {videoThumbnailUrl ? (
+                  <div className="flex items-center gap-3 p-3 bg-[#131926] border border-slate-800 rounded-2xl relative group">
+                    <img
+                      src={videoThumbnailUrl}
+                      alt="Thumbnail Preview"
+                      className="w-24 aspect-video rounded-xl object-cover border border-slate-700 shrink-0 shadow-md"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] text-emerald-400 font-black uppercase tracking-wider block flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        {videoThumbnailUrl.startsWith('data:') ? 'Generated from Video / Custom Image' : 'Thumbnail Ready'}
+                      </span>
+                      <p className="text-xs font-bold text-white truncate mt-0.5">{videoTitle || 'Active Video Broadcast'}</p>
+                      <label className="text-[10px] text-slate-400 hover:text-white cursor-pointer inline-block mt-1 underline">
+                        Change image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleCustomThumbnailChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 p-4 border border-dashed border-slate-700 rounded-2xl cursor-pointer hover:border-blue-500 bg-[#121824] transition-all">
+                    <Camera className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-bold text-slate-300">Upload custom thumbnail (or automatically snapshot first frame)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCustomThumbnailChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
 
               {/* Creator Channel Name Requirement */}
               <div>

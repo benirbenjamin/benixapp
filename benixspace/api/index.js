@@ -52996,12 +52996,12 @@ async function getFlutterwaveConfig() {
     const row = await query("SELECT * FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
     if (row.rowCount && row.rowCount > 0) {
       const flw = row.rows[0];
-      const pk = (flw.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "").trim();
-      const sk = (flw.secret_key || process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
+      const pk = (flw.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X").trim();
+      const sk = (flw.secret_key || process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim();
       const ek = (flw.encryption_key || process.env.FLUTTERWAVE_ENCRYPTION_KEY || "").trim();
       return {
-        publicKey: pk,
-        secretKey: sk,
+        publicKey: pk || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X",
+        secretKey: sk || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X",
         encryptionKey: ek,
         isLive: !!flw.is_live,
         enabled: flw.enabled !== false
@@ -53011,8 +53011,8 @@ async function getFlutterwaveConfig() {
     console.warn("Error fetching payment_settings:", err);
   }
   return {
-    publicKey: (process.env.FLUTTERWAVE_PUBLIC_KEY || "").trim(),
-    secretKey: (process.env.FLUTTERWAVE_SECRET_KEY || "").trim(),
+    publicKey: (process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X").trim(),
+    secretKey: (process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim(),
     encryptionKey: (process.env.FLUTTERWAVE_ENCRYPTION_KEY || "").trim(),
     isLive: true,
     enabled: true
@@ -53020,7 +53020,7 @@ async function getFlutterwaveConfig() {
 }
 app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, res) => {
   try {
-    const { amount, currency = "USD" } = req.body;
+    const { amount, currency = "USD", email, phone, name: name2 } = req.body;
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) {
       return res.status(400).json({ error: "Valid deposit amount is required." });
@@ -53029,10 +53029,8 @@ app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, re
     if (!flwConfig.enabled) {
       return res.status(400).json({ error: "Flutterwave deposits are currently paused by the platform administrator." });
     }
-    const effectiveKey = flwConfig.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X";
-    if (!effectiveKey || effectiveKey.includes("SANDBOXDEMO")) {
-      return res.status(400).json({ error: "Flutterwave public key is not configured in Admin Settings. Please contact support." });
-    }
+    const effectiveKey = flwConfig.publicKey || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X";
+    const effectiveSecret = flwConfig.secretKey || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X";
     const ratesToRwf = {
       RWF: 1,
       USD: 1420,
@@ -53040,13 +53038,92 @@ app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, re
       GBP: 1810,
       KES: 11,
       UGX: 0.38,
-      NGN: 0.9
+      NGN: 0.9,
+      TZS: 0.55
     };
     const rate = ratesToRwf[currency] || 1;
     const convertedRwf = Math.round(numAmount * rate);
     const txRef = `FLW-BENIX-${Date.now()}-${crypto12.randomBytes(3).toString("hex").toUpperCase()}`;
+    let customerEmail = (email || req.user?.email || "member@benix.space").trim();
+    let customerPhone = (phone || "0780000000").trim();
+    let customerName = (name2 || "Benix Member").trim();
+    try {
+      const userRes = await query("SELECT email, name, phone FROM core_users WHERE id = $1", [req.user.id]);
+      if (userRes.rowCount && userRes.rowCount > 0) {
+        const u = userRes.rows[0];
+        if (!email && u.email) customerEmail = u.email;
+        if (!name2 && u.name) customerName = u.name;
+        if (!phone && u.phone) customerPhone = u.phone;
+      }
+    } catch {
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS pending_flutterwave_deposits (
+        tx_ref VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        original_amount NUMERIC(14, 2) NOT NULL,
+        converted_rwf NUMERIC(14, 2) NOT NULL,
+        status VARCHAR(30) DEFAULT 'pending',
+        flw_ref VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO pending_flutterwave_deposits (tx_ref, user_id, currency, original_amount, converted_rwf)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tx_ref) DO UPDATE SET
+         currency = EXCLUDED.currency,
+         original_amount = EXCLUDED.original_amount,
+         converted_rwf = EXCLUDED.converted_rwf`,
+      [txRef, req.user.id, currency, numAmount, convertedRwf]
+    ).catch((e) => console.warn("Record pending deposit warning:", e.message));
+    const rawOrigin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : "") || "https://benix.space";
+    const redirectUrl = `${rawOrigin}/dashboard?payment=flw_success&tx_ref=${txRef}#wallet`;
+    let paymentLink = null;
+    if (effectiveSecret) {
+      try {
+        const flwRes = await fetch("https://api.flutterwave.com/v3/payments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${effectiveSecret}`
+          },
+          body: JSON.stringify({
+            tx_ref: txRef,
+            amount: numAmount.toString(),
+            currency,
+            redirect_url: redirectUrl,
+            customer: {
+              email: customerEmail,
+              phonenumber: customerPhone,
+              name: customerName
+            },
+            customizations: {
+              title: "Benix.Space Central Wallet",
+              description: `Deposit ${numAmount} ${currency} (\u2248 ${convertedRwf.toLocaleString()} RWF)`,
+              logo: "https://benix.space/logo.png"
+            }
+          })
+        });
+        const flwData = await flwRes.json();
+        if (flwRes.ok && flwData.status === "success" && flwData.data?.link) {
+          paymentLink = flwData.data.link;
+        } else {
+          console.warn("Flutterwave standard payment init response:", flwData);
+          if (flwData?.message && !paymentLink) {
+            return res.status(400).json({ error: `Flutterwave error: ${flwData.message}` });
+          }
+        }
+      } catch (fErr) {
+        console.warn("Flutterwave fetch failure:", fErr.message);
+      }
+    }
     return res.json({
       success: true,
+      paymentLink,
+      payment_link: paymentLink,
       txRef,
       tx_ref: txRef,
       publicKey: effectiveKey,
@@ -53063,11 +53140,7 @@ app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, re
 });
 app.post("/api/wallet/flutterwave/verify", authenticateToken, async (req, res) => {
   try {
-    const { txRef, convertedRwf, currency = "USD", originalAmount, flwRef, transactionId } = req.body;
-    const numRwf = parseFloat(convertedRwf);
-    if (!numRwf || numRwf < 100) {
-      return res.status(400).json({ error: "Minimum deposit is 100 RWF." });
-    }
+    const { txRef, convertedRwf, currency = "RWF", originalAmount, flwRef, transactionId } = req.body;
     if (!txRef) {
       return res.status(400).json({ error: "Valid transaction reference (txRef) is required." });
     }
@@ -53083,39 +53156,68 @@ app.post("/api/wallet/flutterwave/verify", authenticateToken, async (req, res) =
         message: `Transaction ${txRef} has already been credited to your wallet.`
       });
     }
+    let finalConvertedRwf = parseFloat(convertedRwf);
+    let finalCurrency = currency;
+    let finalOriginalAmount = parseFloat(originalAmount);
+    const pendingRow = await query(
+      "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
+      [txRef]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    if (pendingRow.rowCount && pendingRow.rowCount > 0) {
+      const p2 = pendingRow.rows[0];
+      if (!finalConvertedRwf || isNaN(finalConvertedRwf)) finalConvertedRwf = Number(p2.converted_rwf);
+      if (!finalOriginalAmount || isNaN(finalOriginalAmount)) finalOriginalAmount = Number(p2.original_amount);
+      if (!finalCurrency) finalCurrency = p2.currency;
+    }
+    if (!finalConvertedRwf || finalConvertedRwf < 100) {
+      return res.status(400).json({ error: "Minimum deposit is 100 RWF." });
+    }
     const effectiveFlwRef = flwRef || transactionId;
     const flwConfig = await getFlutterwaveConfig();
-    const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
-    if (effectiveFlwRef && effectiveSecret && !effectiveFlwRef.toString().startsWith("fake_")) {
+    const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X";
+    if (effectiveSecret) {
       try {
-        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${effectiveSecret}`
-          }
-        });
-        if (verifyRes.ok) {
-          const verifyData = await verifyRes.json();
-          if (verifyData?.status !== "success" || verifyData?.data?.status !== "successful") {
-            return res.status(400).json({
-              error: `Flutterwave verification declined: payment status is '${verifyData?.data?.status || verifyData?.status}'.`
-            });
+        let verifyUrl = "";
+        if (effectiveFlwRef && !effectiveFlwRef.toString().startsWith("fake_")) {
+          verifyUrl = `https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`;
+        } else if (txRef) {
+          verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`;
+        }
+        if (verifyUrl) {
+          const verifyRes = await fetch(verifyUrl, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${effectiveSecret}`
+            }
+          });
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+            if (verifyData?.status !== "success" || verifyData?.data?.status !== "successful") {
+              return res.status(400).json({
+                error: `Flutterwave payment status is '${verifyData?.data?.status || verifyData?.status || "unsuccessful"}'. Not credited.`
+              });
+            }
           }
         }
       } catch (flwErr) {
-        console.warn("Flutterwave direct API verification warning (proceeding with local validation):", flwErr.message);
+        console.warn("Flutterwave direct API verification warning:", flwErr.message);
       }
     }
     const result = await WalletService.credit(
       req.user.id,
-      numRwf,
+      finalConvertedRwf,
       "wallet",
       "flutterwave_deposit",
-      `Flutterwave Deposit (${originalAmount} ${currency} \u2192 ${numRwf.toLocaleString()} RWF)`,
+      `Flutterwave Deposit (${finalOriginalAmount || finalConvertedRwf} ${finalCurrency} \u2192 ${finalConvertedRwf.toLocaleString()} RWF)`,
       txRef,
-      { flwRef: effectiveFlwRef, originalAmount, currency }
+      { flwRef: effectiveFlwRef, originalAmount: finalOriginalAmount, currency: finalCurrency }
     );
+    await query(
+      "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
+      [effectiveFlwRef || "flw_verified", txRef]
+    ).catch(() => {
+    });
     try {
       await ReferralService.triggerQualifyingEvent(req.user.id, "first_deposit", "wallet");
     } catch (refErr) {
@@ -53124,7 +53226,7 @@ app.post("/api/wallet/flutterwave/verify", authenticateToken, async (req, res) =
     return res.json({
       success: true,
       newBalance: result.newBalance,
-      message: `Successfully credited ${numRwf.toLocaleString()} RWF to your wallet via Flutterwave!`
+      message: `Successfully credited ${finalConvertedRwf.toLocaleString()} RWF to your wallet via Flutterwave!`
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -54778,31 +54880,67 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
     });
   }
 });
+async function ensureCreatorStudioTables() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS video_watch_time (
+      id VARCHAR(255) PRIMARY KEY,
+      video_id VARCHAR(255),
+      creator_id VARCHAR(255),
+      user_id VARCHAR(255),
+      duration_seconds INTEGER DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS creator_subscribers (
+      id VARCHAR(255) PRIMARY KEY,
+      creator_id VARCHAR(255) NOT NULL,
+      subscriber_user_id VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(creator_id, subscriber_user_id)
+    );
+    CREATE TABLE IF NOT EXISTS creator_daily_ad_earnings (
+      id VARCHAR(255) PRIMARY KEY,
+      creator_id VARCHAR(255) NOT NULL,
+      date VARCHAR(20) NOT NULL,
+      google_impressions INTEGER DEFAULT 0,
+      google_clicks INTEGER DEFAULT 0,
+      custom_impressions INTEGER DEFAULT 0,
+      custom_clicks INTEGER DEFAULT 0,
+      total_earned NUMERIC(15,2) DEFAULT 0.00,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(creator_id, date)
+    );
+  `).catch(() => {
+  });
+}
 app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    await ensureCreatorStudioTables();
+    const userRow = await query("SELECT email, channel_name, name FROM core_users WHERE id = $1 LIMIT 1", [userId]).catch(() => ({ rowCount: 0, rows: [] }));
+    const channelName = userRow.rows[0]?.channel_name || userRow.rows[0]?.name || "";
     const videosRes = await query(
-      `SELECT * FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC`,
-      [userId]
-    );
+      `SELECT * FROM user_videos WHERE user_id = $1 OR (channel_name IS NOT NULL AND channel_name = $2) ORDER BY created_at DESC`,
+      [userId, channelName]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
     const watchRes = await query(
       `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds
        FROM video_watch_time
        WHERE creator_id = $1`,
       [userId]
-    );
+    ).catch(() => ({ rows: [{ total_seconds: 0 }] }));
     const totalSeconds = Number(watchRes.rows[0]?.total_seconds || 0);
     const totalWatchHours = Math.round(totalSeconds / 3600 * 10) / 10;
     const subRes = await query(
       `SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1`,
       [userId]
-    );
+    ).catch(() => ({ rows: [{ count: 0 }] }));
     const totalSubscribers = Number(subRes.rows[0]?.count || 0);
     const totalViews = videosRes.rows.reduce((acc, v2) => acc + (Number(v2.views) || 0), 0);
     const earningsRes = await query(
       `SELECT COALESCE(SUM(amount), 0) as earnings
        FROM core_wallet_transactions
-       WHERE user_id = $1 AND transaction_type IN ('video_sale', 'creator_commission', 'ad_revenue')`,
+       WHERE user_id = $1 AND type IN ('video_sale', 'creator_commission', 'ad_revenue')`,
       [userId]
     ).catch(() => ({ rows: [{ earnings: 0 }] }));
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
@@ -54850,7 +54988,7 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
           id: v2.id,
           title: v2.title,
           description: v2.description,
-          thumbnailUrl: v2.thumbnail_url || "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=600",
+          thumbnailUrl: v2.thumbnail_url || "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600",
           videoUrl: v2.video_url,
           views: Number(v2.views) || 0,
           watchHours: Math.round((Number(v2.watch_seconds) || 0) / 3600 * 10) / 10,
@@ -54861,6 +54999,7 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
       }
     });
   } catch (err) {
+    console.error("Studio analytics error:", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -55913,7 +56052,7 @@ app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
         slug: r.slug,
         description: r.description || "",
         videoUrl: r.video_url,
-        thumbnailUrl: r.thumbnail_url || "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80",
+        thumbnailUrl: r.thumbnail_url || "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80",
         duration: Number(r.duration) || 300,
         views: Number(r.views) || 0,
         likes: Number(r.likes) || 0,
@@ -56143,7 +56282,7 @@ app.post("/api/modules/videos", authenticateToken, async (req, res) => {
       slug,
       description: description?.trim() || "",
       videoUrl: videoUrl.trim(),
-      thumbnailUrl: thumbnailUrl?.trim() || "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80",
+      thumbnailUrl: thumbnailUrl?.trim() || "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80",
       duration: Number(duration) || 300,
       views: 0,
       likes: 0,

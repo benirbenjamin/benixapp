@@ -42,6 +42,8 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
 
   const hasRecordedViewRef = useRef<boolean>(false);
   const hasRecordedClickRef = useRef<boolean>(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Initialize ad slot and rotation on open
   useEffect(() => {
@@ -108,6 +110,9 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
     }).catch(() => {});
   };
 
+  const sendAdRewardRef = useRef(sendAdReward);
+  sendAdRewardRef.current = sendAdReward;
+
   // Immediate Countdown Timer (Reliably counts down every second from mount)
   useEffect(() => {
     if (!isOpen) return;
@@ -118,8 +123,8 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          sendAdReward('view');
-          onClose();
+          sendAdRewardRef.current('view');
+          onCloseRef.current();
           return 0;
         }
         return prev - 1;
@@ -127,7 +132,7 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isOpen, countdownDuration, onClose]);
+  }, [isOpen, countdownDuration]);
 
   const handleCustomAdClick = () => {
     sendAdReward('click');

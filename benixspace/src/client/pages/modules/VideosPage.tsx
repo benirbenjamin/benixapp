@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { SeoHead } from '../../components/common/SeoHead';
@@ -104,9 +104,26 @@ export function getSafeYouTubeEmbedUrl(
 
 export function isYouTubeVideo(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): boolean {
   if (!video) return false;
-  if (video.id && /^[a-zA-Z0-9_-]{11}$/.test(video.id)) return true;
+  const vidId = video.id?.trim();
+  if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId) && !vidId.startsWith('vid-')) return true;
   const str = (video.embedUrl || video.videoUrl || '').toLowerCase();
-  return str.includes('youtube') || str.includes('youtu.be') || str.includes('/embed/');
+  return (str.includes('youtube.com') || str.includes('youtu.be')) && !str.includes('drive.google');
+}
+
+export function isGoogleDriveVideo(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): boolean {
+  if (!video) return false;
+  const str = (video.embedUrl || video.videoUrl || '').toLowerCase();
+  return str.includes('drive.google.com') || str.includes('docs.google.com');
+}
+
+export function getGoogleDrivePreviewUrl(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): string {
+  if (!video) return '';
+  const url = (video.embedUrl || video.videoUrl || '').trim();
+  const match = url.match(/(?:\/d\/|id=)([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+  return url;
 }
 
 const CATEGORIES = [
@@ -352,22 +369,26 @@ export const VideosPage: React.FC = () => {
       .get('/api/modules/videos')
       .then((res) => {
         if (res.data?.videos && Array.isArray(res.data.videos) && res.data.videos.length > 0) {
-          const mapped = res.data.videos.map((v: any) => ({
-            id: v.id,
-            title: v.title,
-            creator: v.channelName || v.creator || 'Verified Creator',
-            channelName: v.channelName || v.creator || 'Verified Creator',
-            channelAvatar: v.channelAvatar || '/logo.png',
-            thumbnail: v.thumbnailUrl || v.thumbnail || (v.id ? `https://img.youtube.com/vi/${v.id}/hqdefault.jpg` : 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=800&auto=format&fit=crop&q=80'),
-            duration: v.durationLabel || (v.duration ? `${Math.floor(v.duration / 60)}:${v.duration % 60 < 10 ? '0' : ''}${v.duration % 60}` : '10:00'),
-            views: v.views || 0,
-            likes: v.likes || 0,
-            category: v.category || 'General',
-            price: v.price || 0,
-            embedUrl: v.embedUrl || (v.id ? `https://www.youtube.com/embed/${v.id}` : v.videoUrl) || '',
-            commission_pct: v.price > 0 ? 15 : 0,
-            description: v.description || ''
-          }));
+          const mapped = res.data.videos.map((v: any) => {
+            const isYT = v.id && /^[a-zA-Z0-9_-]{11}$/.test(v.id) && !v.id.startsWith('vid-');
+            return {
+              id: v.id,
+              title: v.title,
+              creator: v.channelName || v.creator || 'Verified Creator',
+              channelName: v.channelName || v.creator || 'Verified Creator',
+              channelAvatar: v.channelAvatar || '/logo.png',
+              thumbnail: v.thumbnailUrl || v.thumbnail || (isYT ? `https://img.youtube.com/vi/${v.id}/hqdefault.jpg` : '/logo.png'),
+              duration: v.durationLabel || (v.duration ? `${Math.floor(v.duration / 60)}:${v.duration % 60 < 10 ? '0' : ''}${v.duration % 60}` : '10:00'),
+              views: v.views || 0,
+              likes: v.likes || 0,
+              category: v.category || 'General',
+              price: v.price || 0,
+              videoUrl: v.videoUrl || v.video_url || '',
+              embedUrl: v.embedUrl || v.videoUrl || (isYT ? `https://www.youtube.com/embed/${v.id}` : '') || '',
+              commission_pct: v.price > 0 ? 15 : 0,
+              description: v.description || ''
+            };
+          });
           setVideos(mapped);
         }
       })
@@ -659,6 +680,10 @@ export const VideosPage: React.FC = () => {
     localStorage.setItem('benix_subscribed_channels', JSON.stringify(updated));
   };
 
+  const handleCloseVideoAd = useCallback(() => {
+    setShowVideoAd(false);
+  }, []);
+
   // Video Unlock with Central Unified Wallet
   const handleUnlockVideo = async (vid: VideoItem) => {
     if (!user) {
@@ -819,7 +844,7 @@ export const VideosPage: React.FC = () => {
                 ref={playerContainerRef}
                 className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl group select-none"
               >
-                {/* Media Screen (YouTube / Direct Video) */}
+                {/* Media Screen (YouTube / Google Drive / Direct Video) */}
                 {isYouTubeVideo(activeVideo) ? (
                   <iframe
                     ref={iframeRef}
@@ -829,10 +854,18 @@ export const VideosPage: React.FC = () => {
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
+                ) : isGoogleDriveVideo(activeVideo) ? (
+                  <iframe
+                    src={getGoogleDrivePreviewUrl(activeVideo)}
+                    title={activeVideo.title}
+                    className="w-full h-full border-0 relative z-10 pointer-events-auto"
+                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
                 ) : (
                   <video
                     ref={videoRef}
-                    src={activeVideo.embedUrl}
+                    src={activeVideo.embedUrl || (activeVideo as any).videoUrl || ''}
                     controls={isVideoUnlocked(activeVideo) || !isPreviewEnded}
                     autoPlay
                     playsInline
@@ -888,7 +921,7 @@ export const VideosPage: React.FC = () => {
                 {showVideoAd && (
                   <UniversalMediaAdOverlay
                     isOpen={showVideoAd}
-                    onClose={() => setShowVideoAd(false)}
+                    onClose={handleCloseVideoAd}
                     mediaType="video"
                     title={activeVideo.title}
                     creatorId={(activeVideo as any).userId || (activeVideo as any).user_id || activeVideo.channelName || activeVideo.creator}
