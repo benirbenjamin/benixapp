@@ -49647,6 +49647,7 @@ var StorageService = class {
       if (!token) continue;
       try {
         const result = await this.uploadToDrive(token, acc.folderId || "root", fileName, mimeType, fileBuffer);
+        await this.makeFilePublic(token, result.id).catch((e) => console.warn("Make file public warning:", e.message));
         const newUsed = acc.storageUsedBytes + fileBuffer.length;
         await query(
           "UPDATE google_drive_accounts SET storage_used_bytes = $1, last_checked = CURRENT_TIMESTAMP WHERE id = $2",
@@ -49654,7 +49655,7 @@ var StorageService = class {
         ).catch(() => {
         });
         return {
-          fileUrl: `https://drive.google.com/uc?id=${result.id}&export=download`,
+          fileUrl: `/api/media/stream/${result.id}`,
           fileId: result.id,
           provider: "google_drive",
           driveAccountName: acc.name
@@ -49791,6 +49792,85 @@ var StorageService = class {
       isConfigured: accounts.length > 0,
       primaryAccountName: primary ? primary.name : "None configured"
     };
+  }
+  /**
+   * Make Google Drive file publicly accessible (anyone with link can stream/view)
+   */
+  static async makeFilePublic(token, fileId) {
+    try {
+      const postData = JSON.stringify({ role: "reader", type: "anyone" });
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: postData
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Stream a file from Google Drive directly to the client with HTTP Range / 206 support
+   */
+  static async streamFromDrive(fileId, rangeHeader, res) {
+    const accounts = await this.getAccounts();
+    let streamRes = null;
+    const fetchHeaders = {};
+    if (rangeHeader) {
+      fetchHeaders["Range"] = rangeHeader;
+    }
+    for (const acc of accounts) {
+      const token = await this.getAccessToken(acc);
+      if (!token) continue;
+      try {
+        const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers: {
+            ...fetchHeaders,
+            Authorization: `Bearer ${token}`
+          }
+        });
+        if (driveRes.ok || driveRes.status === 206) {
+          streamRes = driveRes;
+          break;
+        }
+      } catch (err) {
+      }
+    }
+    if (!streamRes) {
+      try {
+        const publicRes = await fetch(`https://drive.google.com/uc?id=${fileId}&export=download`, {
+          headers: fetchHeaders
+        });
+        if (publicRes.ok || publicRes.status === 206) {
+          streamRes = publicRes;
+        }
+      } catch {
+      }
+    }
+    if (!streamRes) {
+      res.status(404).send("Video stream could not be loaded.");
+      return;
+    }
+    res.status(streamRes.status);
+    const contentType = streamRes.headers.get("content-type") || "video/mp4";
+    const contentLength = streamRes.headers.get("content-length");
+    const contentRange = streamRes.headers.get("content-range");
+    const acceptRanges = streamRes.headers.get("accept-ranges") || "bytes";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Accept-Ranges", acceptRanges);
+    if (contentLength) res.setHeader("Content-Length", contentLength);
+    if (contentRange) res.setHeader("Content-Range", contentRange);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    const { Readable } = await import("stream");
+    if (streamRes.body) {
+      const nodeStream = Readable.fromWeb(streamRes.body);
+      nodeStream.pipe(res);
+    } else {
+      res.end();
+    }
   }
   static async testConnection() {
     const accounts = await this.getAccounts();
@@ -54592,6 +54672,28 @@ app.post("/api/upload/chunk", async (req, res) => {
   } catch (err) {
     console.error("Chunk upload error:", err);
     return res.status(500).json({ error: err.message || "Chunk upload failed." });
+  }
+});
+app.get("/api/media/stream/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId) return res.status(400).send("File ID required");
+    await StorageService.streamFromDrive(fileId, req.headers.range, res);
+  } catch (err) {
+    if (!res.headersSent) {
+      res.status(500).send("Streaming error: " + err.message);
+    }
+  }
+});
+app.get("/api/videos/stream/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId) return res.status(400).send("File ID required");
+    await StorageService.streamFromDrive(fileId, req.headers.range, res);
+  } catch (err) {
+    if (!res.headersSent) {
+      res.status(500).send("Streaming error: " + err.message);
+    }
   }
 });
 var userVideosList = [];

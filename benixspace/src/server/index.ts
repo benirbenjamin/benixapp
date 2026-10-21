@@ -3126,6 +3126,33 @@ app.post('/api/upload/chunk', async (req, res) => {
   }
 });
 
+/**
+ * Universal Video & Media Streamer (Google Drive & Direct Streams with HTTP 206 Partial Content)
+ */
+app.get('/api/media/stream/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId) return res.status(400).send('File ID required');
+    await StorageService.streamFromDrive(fileId, req.headers.range, res);
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.status(500).send('Streaming error: ' + err.message);
+    }
+  }
+});
+
+app.get('/api/videos/stream/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    if (!fileId) return res.status(400).send('File ID required');
+    await StorageService.streamFromDrive(fileId, req.headers.range, res);
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.status(500).send('Streaming error: ' + err.message);
+    }
+  }
+});
+
 
 // ==================== 2.5 STORIES & CREATOR MEDIA API ==================== //
 

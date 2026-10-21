@@ -121,7 +121,19 @@ export function getGoogleDrivePreviewUrl(video: { id?: string; embedUrl?: string
   const url = (video.embedUrl || video.videoUrl || '').trim();
   const match = url.match(/(?:\/d\/|id=)([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
-    return `https://drive.google.com/file/d/${match[1]}/preview`;
+    return `/api/media/stream/${match[1]}`;
+  }
+  return url;
+}
+
+export function getSafeVideoSrc(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): string {
+  if (!video) return '';
+  const url = (video.embedUrl || (video as any).videoUrl || '').trim();
+  if (isGoogleDriveVideo(video)) {
+    const match = url.match(/(?:\/d\/|id=)([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return `/api/media/stream/${match[1]}`;
+    }
   }
   return url;
 }
@@ -361,6 +373,31 @@ export const VideosPage: React.FC = () => {
   useEffect(() => {
     setHasTriggeredInitialVideoAd(false);
     setShowVideoAd(false);
+  }, [activeVideo?.id]);
+
+  // Autoplay native HTML5 video smoothly whenever activeVideo changes
+  useEffect(() => {
+    if (activeVideo && !isYouTubeVideo(activeVideo)) {
+      setVideoCurrentTime(0);
+      setIsPreviewEnded(false);
+      setIsPlaying(true);
+      const timer = setTimeout(() => {
+        if (videoRef.current) {
+          const p = videoRef.current.play();
+          if (p !== undefined) {
+            p.catch(() => {
+              // If unmuted autoplay is rejected by browser policy before user interaction, play muted so video plays automatically
+              if (videoRef.current) {
+                videoRef.current.muted = true;
+                setIsMuted(true);
+                videoRef.current.play().catch(() => {});
+              }
+            });
+          }
+        }
+      }, 60);
+      return () => clearTimeout(timer);
+    }
   }, [activeVideo?.id]);
 
   // Load video catalogue from database
@@ -844,7 +881,7 @@ export const VideosPage: React.FC = () => {
                 ref={playerContainerRef}
                 className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl group select-none"
               >
-                {/* Media Screen (YouTube / Google Drive / Direct Video) */}
+                {/* Media Screen (YouTube / Direct Video Stream via /api/media/stream) */}
                 {isYouTubeVideo(activeVideo) ? (
                   <iframe
                     ref={iframeRef}
@@ -854,18 +891,11 @@ export const VideosPage: React.FC = () => {
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
-                ) : isGoogleDriveVideo(activeVideo) ? (
-                  <iframe
-                    src={getGoogleDrivePreviewUrl(activeVideo)}
-                    title={activeVideo.title}
-                    className="w-full h-full border-0 relative z-10 pointer-events-auto"
-                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
                 ) : (
                   <video
                     ref={videoRef}
-                    src={activeVideo.embedUrl || (activeVideo as any).videoUrl || ''}
+                    key={activeVideo.id}
+                    src={getSafeVideoSrc(activeVideo)}
                     controls={isVideoUnlocked(activeVideo) || !isPreviewEnded}
                     autoPlay
                     playsInline
