@@ -240,22 +240,39 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       // If local file selected, upload in resilient chunks (avoids Vercel 413 error completely!)
       if (fileToUpload) {
         updateProgress(10);
-        finalMediaUrl = await uploadFileInChunks(fileToUpload, {
-          folder: 'stories',
-          onProgress: (pct) => updateProgress(Math.round(10 + pct * 0.75))
-        });
+        try {
+          finalMediaUrl = await uploadFileInChunks(fileToUpload, {
+            folder: 'stories',
+            onProgress: (pct) => updateProgress(Math.round(10 + pct * 0.75))
+          });
+        } catch (uploadErr) {
+          console.warn('Chunk upload failed, falling back to data URL:', uploadErr);
+          const reader = new FileReader();
+          finalMediaUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(fileToUpload);
+          });
+        }
       }
 
       updateProgress(88);
+      const isVidStory = (fileToUpload && fileToUpload.type.startsWith('video/')) ||
+        (fileToUpload && /\.(mp4|webm|mov|ogg)$/i.test(fileToUpload.name)) ||
+        finalMediaUrl.startsWith('data:video') ||
+        /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(finalMediaUrl);
+
+      const authToken = token || localStorage.getItem('benix_auth_token') || localStorage.getItem('benix_admin_token');
       const res = await fetch('/api/stories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${authToken}`
         },
         body: JSON.stringify({
           mediaUrl: finalMediaUrl,
-          caption: captionToUpload
+          caption: captionToUpload,
+          mediaType: isVidStory ? 'video' : 'image'
         })
       });
 
@@ -556,8 +573,11 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 text-center hover:border-pink-500 transition-colors bg-[#121824] relative overflow-hidden">
                   {storyPreview ? (
                     <div className="relative max-h-64 h-64 w-full mx-auto rounded-xl overflow-hidden shadow-lg border border-slate-700 bg-black flex items-center justify-center">
-                      {storyPreview.startsWith('data:video') || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(storyPreview) ? (
-                        <video src={storyPreview} autoPlay muted playsInline loop className="w-full h-full object-contain" />
+                      {(selectedStoryFile?.type.startsWith('video/') ||
+                        (selectedStoryFile && /\.(mp4|webm|mov|ogg)$/i.test(selectedStoryFile.name)) ||
+                        storyPreview.startsWith('data:video') ||
+                        /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(storyPreview)) ? (
+                        <video src={storyPreview} autoPlay muted playsInline loop controls className="w-full h-full object-contain" />
                       ) : (
                         <img src={storyPreview} alt="Story Preview" className="w-full h-full object-contain" />
                       )}

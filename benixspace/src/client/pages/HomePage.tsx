@@ -376,7 +376,239 @@ export const HomePage: React.FC = () => {
       <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-10">
 
         {/* ========================================================
-            2. FEATURED SPOTLIGHT HERO SECTION WITH ANIMATED SLIDING
+            1. SHORTS & REELS BAR (COME UP BEFORE FEATURED SECTION)
+           ======================================================== */}
+        <section ref={shortsSectionRef} className="space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-md">
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              </div>
+              <h2 className="text-lg sm:text-xl font-black text-white">
+                Shorts & Stories
+              </h2>
+            </div>
+
+            <button
+              onClick={() => {
+                if (!user) setWizardTargetKey('tv');
+                else setShowCreateMediaModal(true);
+              }}
+              className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Your Story</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none">
+            {/* Create Story Button */}
+            <button
+              onClick={() => {
+                if (!user) setWizardTargetKey('tv');
+                else setShowCreateMediaModal(true);
+              }}
+              className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl border-2 border-dashed border-blue-500/60 hover:border-blue-400 bg-blue-600/10 flex flex-col items-center justify-center gap-2 shrink-0 group transition-all"
+            >
+              <div className="w-12 h-12 rounded-full bg-blue-600/20 text-blue-400 group-hover:scale-110 flex items-center justify-center transition-transform">
+                <Plus className="w-6 h-6" />
+              </div>
+              <span className="text-xs font-bold text-slate-200 group-hover:text-white">
+                Add Story
+              </span>
+            </button>
+
+            {/* Stories List (Supports Video & Photo stories) */}
+            {stories.map((story, idx) => {
+              const isVideo =
+                story.mediaType === 'video' ||
+                story.mediaUrl?.startsWith('data:video') ||
+                /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(story.mediaUrl);
+
+              return (
+                <div
+                  key={story.id || idx}
+                  onClick={() => setActiveStoryIndex(idx)}
+                  className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/60 overflow-hidden relative cursor-pointer shrink-0 group transition-all shadow-lg"
+                >
+                  {isVideo ? (
+                    <video
+                      src={story.mediaUrl}
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none"
+                    />
+                  ) : (
+                    <img
+                      src={story.mediaUrl || story.authorAvatar}
+                      alt={story.authorName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-between p-2.5">
+                    <div className="w-7 h-7 rounded-full border-2 border-blue-500 overflow-hidden">
+                      <img
+                        src={story.authorAvatar || story.mediaUrl}
+                        alt={story.authorName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight">
+                        {story.caption || story.authorName}
+                      </h4>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
+                        {story.authorName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {stories.length === 0 && (
+              <div className="flex items-center gap-3 text-xs text-slate-400 px-3 py-6">
+                <span>No stories active yet. Click "Add Story" to upload yours!</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ========================================================
+            2. FEATURED CREATOR VIDEOS (COME UP BEFORE FEATURED SECTION)
+           ======================================================== */}
+        <section ref={videosSectionRef} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400">
+                <Film className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>Featured Creator Videos & Shows</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Exclusive concerts, cinema & tutorials. Share your unique link to earn 15% wallet commissions.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/videos"
+              className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1"
+            >
+              <span>View All Videos</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {/* 3 CARDS IN A ROW */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 xl:gap-6">
+            {creatorVideos.slice(0, 9).map((vid, idx) => {
+              const videoId = vid.id || vid.slug || `vid-${idx}`;
+              const title = vid.title;
+              const creator = vid.channelName || vid.creator || 'Benix Space Channel';
+              const avatar = vid.channelAvatar || '/logo.png';
+              const thumbnail = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+              const duration = vid.duration || '10:00';
+              const viewsCount = typeof vid.views === 'number' && vid.views > 0
+                ? (vid.views > 999 ? `${(vid.views / 1000).toFixed(1)}K` : vid.views)
+                : '1.2K';
+              const priceLabel = Number(vid.price) > 0 ? `${Number(vid.price).toLocaleString()} RWF` : 'Free';
+
+              return (
+                <div
+                  key={videoId}
+                  onClick={() => navigate(`/videos/${videoId}`)}
+                  className="group flex flex-col cursor-pointer space-y-3"
+                >
+                  {/* Video Thumbnail (16:9 ratio with duration badge) */}
+                  <div className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden border border-slate-800/80 group-hover:border-slate-700 transition-all shadow-md">
+                    <img
+                      src={thumbnail}
+                      alt={title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                      }}
+                    />
+
+                    {/* Play Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+                    </div>
+
+                    {/* Price / Free Tag */}
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase shadow-md ${
+                        priceLabel === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
+                      }`}>
+                        {priceLabel}
+                      </span>
+                    </div>
+
+                    {/* Duration Badge (Bottom Right, YouTube Style) */}
+                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-sm text-[10px] font-mono font-bold text-white shadow-md">
+                      {duration}
+                    </div>
+                  </div>
+
+                  {/* Video Info (YouTube Style: Avatar + Title + Channel & Views) */}
+                  <div className="flex items-start gap-3 px-0.5">
+                    {/* Channel Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700/80 overflow-hidden shrink-0 mt-0.5">
+                      <img
+                        src={avatar}
+                        alt={creator}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                        }}
+                      />
+                    </div>
+
+                    {/* Title & Metadata */}
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        className="font-bold text-white text-sm line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors"
+                        title={title}
+                      >
+                        {title}
+                      </h3>
+                      <div className="flex items-center gap-1.5 mt-1 text-slate-400 text-xs">
+                        <span className="truncate hover:text-slate-200 transition-colors">{creator}</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        <span>{viewsCount} views</span>
+                        <span className="mx-1.5">•</span>
+                        <span>Verified Media</span>
+                      </div>
+                    </div>
+
+                    {/* 3-dots Menu Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard?.writeText(`${window.location.origin}/videos/${videoId}`);
+                        alert('Video link copied to clipboard!');
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Share / Options"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ========================================================
+            3. FEATURED SPOTLIGHT HERO SECTION WITH ANIMATED SLIDING
            ======================================================== */}
         <section
           className="relative rounded-3xl overflow-hidden border border-slate-800/90 shadow-2xl bg-[#0F1420]"
@@ -888,138 +1120,7 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* ========================================================
-            5. ROW 3: FEATURED CREATOR VIDEOS (3 CARDS IN A ROW - YOUTUBE STYLE)
-           ======================================================== */}
-        <section ref={videosSectionRef} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400">
-                <Film className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-                  <span>Featured Creator Videos & Shows</span>
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Exclusive concerts, cinema & tutorials. Share your unique link to earn 15% wallet commissions.
-                </p>
-              </div>
-            </div>
 
-            <Link
-              to="/videos"
-              className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1"
-            >
-              <span>View All Videos</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* 3 CARDS IN A ROW (Responsive: 1 col on mobile, 2 on tablet, 3 on desktop) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 xl:gap-6">
-            {creatorVideos.slice(0, 9).map((vid, idx) => {
-              const videoId = vid.id || vid.slug || `vid-${idx}`;
-              const title = vid.title;
-              const creator = vid.channelName || vid.creator || 'Benix Space Channel';
-              const avatar = vid.channelAvatar || '/logo.png';
-              const thumbnail = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-              const duration = vid.duration || '10:00';
-              const viewsCount = typeof vid.views === 'number' && vid.views > 0
-                ? (vid.views > 999 ? `${(vid.views / 1000).toFixed(1)}K` : vid.views)
-                : '1.2K';
-              const priceLabel = Number(vid.price) > 0 ? `${Number(vid.price).toLocaleString()} RWF` : 'Free';
-
-              return (
-                <div
-                  key={videoId}
-                  onClick={() => navigate(`/videos/${videoId}`)}
-                  className="group flex flex-col cursor-pointer space-y-3"
-                >
-                  {/* Video Thumbnail (16:9 ratio with duration badge) */}
-                  <div className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden border border-slate-800/80 group-hover:border-slate-700 transition-all shadow-md">
-                    <img
-                      src={thumbnail}
-                      alt={title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-                      }}
-                    />
-
-                    {/* Play Hover Overlay */}
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
-                        <Play className="w-5 h-5 fill-current ml-0.5" />
-                      </div>
-                    </div>
-
-                    {/* Price / Free Tag */}
-                    <div className="absolute top-2.5 left-2.5">
-                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase shadow-md ${
-                        priceLabel === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
-                      }`}>
-                        {priceLabel}
-                      </span>
-                    </div>
-
-                    {/* Duration Badge (Bottom Right, YouTube Style) */}
-                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-sm text-[10px] font-mono font-bold text-white shadow-md">
-                      {duration}
-                    </div>
-                  </div>
-
-                  {/* Video Info (YouTube Style: Avatar + Title + Channel & Views) */}
-                  <div className="flex items-start gap-3 px-0.5">
-                    {/* Channel Avatar */}
-                    <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700/80 overflow-hidden shrink-0 mt-0.5">
-                      <img
-                        src={avatar}
-                        alt={creator}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
-                        }}
-                      />
-                    </div>
-
-                    {/* Title & Metadata */}
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className="font-bold text-white text-sm line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors"
-                        title={title}
-                      >
-                        {title}
-                      </h3>
-                      <div className="flex items-center gap-1.5 mt-1 text-slate-400 text-xs">
-                        <span className="truncate hover:text-slate-200 transition-colors">{creator}</span>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        <span>{viewsCount} views</span>
-                        <span className="mx-1.5">•</span>
-                        <span>Verified Media</span>
-                      </div>
-                    </div>
-
-                    {/* 3-dots Menu Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard?.writeText(`${window.location.origin}/videos/${videoId}`);
-                        alert('Video link copied to clipboard!');
-                      }}
-                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Share / Options"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
 
         {/* ========================================================
             6. ROW 4: ARTICLES FROM NEWS (3 CARDS IN A ROW)
@@ -1101,88 +1202,7 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* ========================================================
-            7. ROW 5: YOUTUBE SHORTS & REELS BAR (AS SEEN IN IMAGE 1)
-           ======================================================== */}
-        <section ref={shortsSectionRef} className="space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-md">
-                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-              </div>
-              <h2 className="text-lg sm:text-xl font-black text-white">
-                Shorts & Stories
-              </h2>
-            </div>
 
-            <button
-              onClick={() => {
-                if (!user) setWizardTargetKey('tv');
-                else setShowCreateMediaModal(true);
-              }}
-              className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Your Story</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none">
-            {/* Create Story Button */}
-            <button
-              onClick={() => {
-                if (!user) setWizardTargetKey('tv');
-                else setShowCreateMediaModal(true);
-              }}
-              className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl border-2 border-dashed border-blue-500/60 hover:border-blue-400 bg-blue-600/10 flex flex-col items-center justify-center gap-2 shrink-0 group transition-all"
-            >
-              <div className="w-12 h-12 rounded-full bg-blue-600/20 text-blue-400 group-hover:scale-110 flex items-center justify-center transition-transform">
-                <Plus className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-white">
-                Add Story
-              </span>
-            </button>
-
-            {/* Stories */}
-            {stories.map((story, idx) => (
-              <div
-                key={story.id || idx}
-                onClick={() => setActiveStoryIndex(idx)}
-                className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/60 overflow-hidden relative cursor-pointer shrink-0 group transition-all shadow-lg"
-              >
-                <img
-                  src={story.mediaUrl || story.authorAvatar}
-                  alt={story.authorName}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-between p-2.5">
-                  <div className="w-7 h-7 rounded-full border-2 border-blue-500 overflow-hidden">
-                    <img
-                      src={story.authorAvatar || story.mediaUrl}
-                      alt={story.authorName}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight">
-                      {story.caption || story.authorName}
-                    </h4>
-                    <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
-                      {story.authorName}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {stories.length === 0 && (
-              <div className="flex items-center gap-3 text-xs text-slate-400 px-3 py-6">
-                <span>No stories active yet. Click "Add Story" to upload yours!</span>
-              </div>
-            )}
-          </div>
-        </section>
 
         {/* ========================================================
             8. ROW 6: ECOSYSTEM SPOTLIGHT CARDS (3 CARDS IN A ROW)

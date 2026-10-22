@@ -3177,6 +3177,7 @@ async function ensureStoriesTable() {
   await query('ALTER TABLE core_stories ALTER COLUMN author_avatar TYPE TEXT;').catch(() => {});
   await query('ALTER TABLE core_stories ALTER COLUMN caption TYPE TEXT;').catch(() => {});
   await query('ALTER TABLE core_stories ALTER COLUMN author_name TYPE TEXT;').catch(() => {});
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {});
 }
 
 // GET real active stories from PostgreSQL core_stories table
@@ -3186,7 +3187,7 @@ app.get('/api/stories', async (req, res) => {
 
     const result = await query(
       `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
-              media_url as "mediaUrl", caption, created_at,
+              media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType", created_at,
               to_char(created_at, 'HH12:MI AM') as timestamp
        FROM core_stories
        WHERE expires_at > CURRENT_TIMESTAMP OR expires_at IS NULL
@@ -3204,7 +3205,7 @@ app.get('/api/stories', async (req, res) => {
 // POST real user story to PostgreSQL core_stories table
 app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { mediaUrl, caption } = req.body;
+    const { mediaUrl, caption, mediaType } = req.body;
     if (!mediaUrl) return res.status(400).json({ error: 'Story media is required.' });
 
     await ensureStoriesTable();
@@ -3220,11 +3221,12 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
       }
     } catch {}
 
+    const determinedType = mediaType || (mediaUrl.startsWith('data:video') || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ? 'video' : 'image');
     const storyId = 'story-' + Date.now();
     await query(
-      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [storyId, req.user!.id, authorName, authorAvatar, mediaUrl, caption || '']
+      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [storyId, req.user!.id, authorName, authorAvatar, mediaUrl, caption || '', determinedType]
     );
 
     const newStory = {
@@ -3234,6 +3236,7 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
       authorAvatar,
       mediaUrl,
       caption: caption || '',
+      mediaType: determinedType,
       timestamp: 'Just now'
     };
 

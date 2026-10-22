@@ -259,6 +259,12 @@ export const MessagesPage: React.FC = () => {
   // Moderation violation warning
   const [moderationWarning, setModerationWarning] = useState<string | null>(null);
 
+  // Scroll window to top on mount
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    document.documentElement.scrollTop = 0;
+  }, []);
+
   // Group Creation Modal
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');

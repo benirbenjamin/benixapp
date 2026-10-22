@@ -151,12 +151,16 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
   // Sync play/pause state
   useEffect(() => {
     if (!videoRef.current) return;
+    if (showTvAd) {
+      if (!videoRef.current.paused) videoRef.current.pause();
+      return;
+    }
     if (isTvPlaying && videoRef.current.paused) {
       videoRef.current.play().catch(() => {});
     } else if (!isTvPlaying && !videoRef.current.paused) {
       videoRef.current.pause();
     }
-  }, [isTvPlaying]);
+  }, [isTvPlaying, showTvAd]);
 
   const handleMouseMove = () => {
     setShowControls(true);

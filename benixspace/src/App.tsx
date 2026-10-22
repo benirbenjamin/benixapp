@@ -64,6 +64,7 @@ import { AdminUsersPage } from './client/pages/admin/AdminUsersPage';
 import { getAuthToken } from './client/services/api';
 
 import { RouteAnalyticsTracker } from './client/analytics/tracker';
+import { ScrollToTop } from './client/components/common/ScrollToTop';
 
 const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = getAuthToken();
@@ -105,6 +106,7 @@ export const App: React.FC = () => {
                     <UploadProvider>
                       <SidebarProvider>
                 <Router>
+              <ScrollToTop />
               <RouteAnalyticsTracker />
               <Routes>
                 

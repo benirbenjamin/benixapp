@@ -414,7 +414,22 @@ export const VideosPage: React.FC = () => {
   useEffect(() => {
     setHasTriggeredInitialVideoAd(false);
     setShowVideoAd(false);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    document.documentElement.scrollTop = 0;
   }, [activeVideo?.id]);
+
+  // Pause video whenever ad loads
+  useEffect(() => {
+    if (showVideoAd) {
+      if (videoRef.current && !videoRef.current.paused) {
+        videoRef.current.pause();
+      }
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+      }
+      setIsPlaying(false);
+    }
+  }, [showVideoAd]);
 
   // Autoplay native HTML5 video smoothly whenever activeVideo changes
   useEffect(() => {
@@ -760,7 +775,18 @@ export const VideosPage: React.FC = () => {
 
   const handleCloseVideoAd = useCallback(() => {
     setShowVideoAd(false);
-  }, []);
+    // Continue playing video after the ad has ended
+    if (activeVideo && !isPreviewEnded) {
+      if (isYouTubeVideo(activeVideo)) {
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+        }
+      } else if (videoRef.current) {
+        videoRef.current.play().catch(() => {});
+      }
+      setIsPlaying(true);
+    }
+  }, [activeVideo, isPreviewEnded]);
 
   // Video Unlock with Central Unified Wallet
   const handleUnlockVideo = async (vid: VideoItem) => {
