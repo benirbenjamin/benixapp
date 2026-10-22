@@ -39,6 +39,7 @@ import { MessagesDrawer } from '../modals/MessagesDrawer';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
 import { usePwa } from '../../context/PwaContext';
 import { useInAppActions } from '../../context/ActionNotificationContext';
+import { useSidebar } from '../../context/SidebarContext';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
 
 export const Navbar: React.FC = () => {
@@ -66,9 +67,18 @@ export const Navbar: React.FC = () => {
   const { user, wallet, logout, hasAppProfile } = useAuth();
   const { isInstalled, installApp } = usePwa();
   const { totalBadgeCount, inboxBadgeCount } = useInAppActions();
+  const { toggleExpanded, openMobile } = useSidebar();
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const handleMenuToggle = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      toggleExpanded();
+    } else {
+      openMobile();
+    }
+  };
 
   const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
 
@@ -94,9 +104,9 @@ export const Navbar: React.FC = () => {
             {/* Left: Drawer Menu Button & Clickable Logo */}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setIsDrawerOpen(true)}
+                onClick={handleMenuToggle}
                 className="relative p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
-                title="Open Navigation Menu"
+                title="Toggle Sidebar Navigation"
               >
                 <Menu className="w-5 h-5" />
                 {totalBadgeCount > 0 && (

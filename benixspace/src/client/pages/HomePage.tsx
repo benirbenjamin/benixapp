@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
+import { useSidebar } from '../context/SidebarContext';
 import {
   fetchTvStations,
   fetchRadioStations,
   type Station,
   type VideoItem
 } from '../services/mediaService';
+import { fetchArticles } from '../services/api';
+import { type Article } from '../types';
 import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal';
 import { WalletModal } from '../components/modals/WalletModal';
 import { ReferralModal } from '../components/modals/ReferralModal';
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
-import { CompanionAdBanner } from '../components/ads/CompanionAdBanner';
 import { SeoHead } from '../components/common/SeoHead';
 import realVideosData from '../config/realVideos.json';
 import {
@@ -20,12 +23,8 @@ import {
   Play,
   Music,
   Heart,
-  Briefcase,
   ShoppingBag,
   Gamepad2,
-  MoreHorizontal,
-  Star,
-  Flame,
   ArrowRight,
   Wallet,
   Gift,
@@ -33,63 +32,96 @@ import {
   Radio,
   Sparkles,
   ShieldCheck,
-  Send,
-  PlusCircle,
   Plus,
   Clock,
-  History,
   Calculator,
   Film,
-  Eye,
   X,
   Volume2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MoreVertical,
+  CheckCircle2,
+  Share2,
+  Newspaper,
+  Flame,
+  RadioTower,
+  Eye,
+  SlidersHorizontal,
+  ExternalLink
 } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, wallet, hasAppProfile } = useAuth();
-  const { playStation, playTvChannel } = usePlayer();
+  const { playStation, playTvChannel, currentStation, isPlaying } = usePlayer();
+  const { isExpanded } = useSidebar();
 
+  // Media Data
   const [tvStations, setTvStations] = useState<Station[]>([]);
   const [radioStations, setRadioStations] = useState<Station[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Stories & Creator Media State (populated with real YouTube catalogue videos)
+  // Stories & Creator Media State
   const [stories, setStories] = useState<any[]>([]);
-  const [creatorVideos, setCreatorVideos] = useState<any[]>(() => (realVideosData as any[]).slice(0, 8));
+  const [creatorVideos, setCreatorVideos] = useState<any[]>(() => (realVideosData as any[]).slice(0, 12));
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
 
-  // Auto Slider Carousel State
-  const [currentHeroSlide, setCurrentHeroSlide] = useState<number>(0);
+  // Active Category Chip
+  const [activeChip, setActiveChip] = useState<string>('All');
+
+  // Hero Spotlight Sliding Animation State: [slideIndex, direction]
+  const [[heroSlideIndex, heroDirection], setHeroSlide] = useState<[number, number]>([0, 0]);
+  const [isHeroHovered, setIsHeroHovered] = useState<boolean>(false);
+
+  // Horizontal Carousel Refs for Auto-Scrolling
+  const tvRowRef = useRef<HTMLDivElement | null>(null);
+  const radioRowRef = useRef<HTMLDivElement | null>(null);
+  const [isTvHovered, setIsTvHovered] = useState<boolean>(false);
+  const [isRadioHovered, setIsRadioHovered] = useState<boolean>(false);
 
   // Modals state
   const [wizardTargetKey, setWizardTargetKey] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
   const [showReferralModal, setShowReferralModal] = useState<boolean>(false);
 
+  // Section anchor refs for smooth chip jumping
+  const tvSectionRef = useRef<HTMLElement | null>(null);
+  const radioSectionRef = useRef<HTMLElement | null>(null);
+  const videosSectionRef = useRef<HTMLElement | null>(null);
+  const newsSectionRef = useRef<HTMLElement | null>(null);
+  const shortsSectionRef = useRef<HTMLElement | null>(null);
+
+  // Load Initial Data
   const loadStoriesAndVideos = async () => {
     try {
-      const [storyRes, vidRes] = await Promise.all([
+      const [storyRes, vidRes, artList] = await Promise.all([
         fetch('/api/stories').catch(() => null),
-        fetch('/api/modules/videos').catch(() => fetch('/api/videos').catch(() => null))
+        fetch('/api/modules/videos').catch(() => fetch('/api/videos').catch(() => null)),
+        fetchArticles().catch(() => [])
       ]);
+
       if (storyRes && storyRes.ok) {
         const sData = await storyRes.json();
         if (sData.stories && sData.stories.length > 0) {
           setStories(sData.stories);
         }
       }
+
       if (vidRes && vidRes.ok) {
         const vData = await vidRes.json();
         if (vData.videos && Array.isArray(vData.videos) && vData.videos.length > 0) {
-          setCreatorVideos(vData.videos.slice(0, 8));
+          setCreatorVideos(vData.videos);
         }
       }
+
+      if (artList && artList.length > 0) {
+        setArticles(artList);
+      }
     } catch (err) {
-      console.warn('Stories/Videos load error:', err);
+      console.warn('Stories/Videos/Articles load error:', err);
     }
   };
 
@@ -123,14 +155,89 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  const featuredTv = tvStations[0] || {
-    id: 'rtv',
-    name: 'RTV Live',
-    slug: 'rtv',
-    description: "Rwanda Television (RTV) is Rwanda's public service television broadcaster.",
-    stream_url: 'https://5c46fa289c89f.streamlock.net/rtv25/rtv/playlist.m3u8',
-    stream_type: 'HLS',
-    station_type: 'TV'
+  // Hero Spotlight Pagination
+  const paginateHero = (newDirection: number) => {
+    setHeroSlide(([prev]) => {
+      const next = (prev + newDirection + 4) % 4;
+      return [next, newDirection];
+    });
+  };
+
+  const jumpToSlide = (idx: number) => {
+    setHeroSlide(([prev]) => [idx, idx > prev ? 1 : -1]);
+  };
+
+  // Auto-Slide Timer for Hero Spotlight
+  useEffect(() => {
+    if (isHeroHovered) return;
+    const timer = setInterval(() => {
+      paginateHero(1);
+    }, 5500);
+    return () => clearInterval(timer);
+  }, [isHeroHovered]);
+
+  // TV Horizontal Auto-Scrolling
+  useEffect(() => {
+    if (isTvHovered) return;
+    const interval = setInterval(() => {
+      if (tvRowRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = tvRowRef.current;
+        if (scrollLeft + clientWidth >= scrollWidth - 15) {
+          tvRowRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          tvRowRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+        }
+      }
+    }, 3800);
+    return () => clearInterval(interval);
+  }, [isTvHovered, tvStations.length]);
+
+  // Radio Horizontal Auto-Scrolling
+  useEffect(() => {
+    if (isRadioHovered) return;
+    const interval = setInterval(() => {
+      if (radioRowRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = radioRowRef.current;
+        if (scrollLeft + clientWidth >= scrollWidth - 15) {
+          radioRowRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          radioRowRef.current.scrollBy({ left: 280, behavior: 'smooth' });
+        }
+      }
+    }, 4200);
+    return () => clearInterval(interval);
+  }, [isRadioHovered, radioStations.length]);
+
+  const scrollContainer = (ref: React.RefObject<HTMLDivElement | null>, offset: number) => {
+    if (ref.current) {
+      ref.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
+
+  // Chips click handler: filter & scroll smoothly
+  const handleChipClick = (chip: string) => {
+    setActiveChip(chip);
+    if (chip === 'Watch TV' && tvSectionRef.current) {
+      tvSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (chip === 'Live Radio' && radioSectionRef.current) {
+      radioSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (chip === 'Creator Videos' && videosSectionRef.current) {
+      videosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (chip === 'News & Articles' && newsSectionRef.current) {
+      newsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (chip === 'Shorts' && shortsSectionRef.current) {
+      shortsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (chip === 'Kunda Dating') {
+      navigate('/dating');
+    } else if (chip === 'Voxify Music') {
+      navigate('/music');
+    } else if (chip === 'Marketplace') {
+      navigate('/marketplace');
+    } else if (chip === 'RollDice Arena') {
+      navigate('/games');
+    } else if (chip === 'Calculators') {
+      navigate('/calculators');
+    }
   };
 
   // Story progress auto-advance
@@ -146,520 +253,633 @@ export const HomePage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [activeStoryIndex, stories.length]);
 
-  // Auto Slider Timer: Auto-advance every 5 seconds
-  useEffect(() => {
-    const slideTimer = setInterval(() => {
-      setCurrentHeroSlide((prev) => (prev + 1) % 4);
-    }, 5000);
-    return () => clearInterval(slideTimer);
-  }, []);
+  // Hero Slide Variants for Framer Motion animation
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? '100%' : '-100%',
+      opacity: 0,
+      scale: 0.98
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1,
+      scale: 1,
+      transition: {
+        x: { type: 'spring', stiffness: 280, damping: 28 },
+        opacity: { duration: 0.35 }
+      }
+    },
+    exit: (direction: number) => ({
+      zIndex: 0,
+      x: direction < 0 ? '100%' : '-100%',
+      opacity: 0,
+      scale: 0.98,
+      transition: {
+        x: { type: 'spring', stiffness: 280, damping: 28 },
+        opacity: { duration: 0.3 }
+      }
+    })
+  };
+
+  const featuredTv = tvStations[0] || {
+    id: 'rtv',
+    name: 'RTV Live',
+    slug: 'rtv',
+    description: "Rwanda Television (RTV) is Rwanda's public service television broadcaster.",
+    stream_url: 'https://5c46fa289c89f.streamlock.net/rtv25/rtv/playlist.m3u8',
+    stream_type: 'HLS',
+    station_type: 'TV'
+  };
+
+  // Fallback Articles if API has few
+  const displayArticles: Article[] = articles.length > 0 ? articles : [
+    {
+      id: 1,
+      title: 'Building Modern Web Applications for Rwanda’s Digital Ecosystem',
+      slug: 'building-modern-web-applications-rwanda-digital-ecosystem',
+      summary: 'How scalable cloud infrastructure and adaptive video feeds power next-generation African media platforms.',
+      content: '',
+      featured_image_url: 'https://i.postimg.cc/Hnj1LYRT/online-banks.png',
+      category: 'Technology',
+      author_name: 'Benir Benjamin',
+      published_at: new Date().toISOString()
+    },
+    {
+      id: 2,
+      title: 'Rwanda Media Revolution: How 17 TV Channels and 19 Radios Stream Seamlessly',
+      slug: 'rwanda-media-revolution-hls-streaming',
+      summary: 'An inside look into low-latency HLS video delivery, audio background players, and unified digital subscriptions.',
+      content: '',
+      featured_image_url: 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=800&auto=format&fit=crop&q=80',
+      category: 'Media & Tech',
+      author_name: 'Editorial Desk',
+      published_at: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      id: 3,
+      title: 'Instant Mobile Money Integration: Central Wallet System for Micro-Transactions',
+      slug: 'instant-mobile-money-central-wallet-rwanda',
+      summary: 'Empowering Rwandan creators and everyday users with friction-free MTN & Airtel-Tigo payments starting from 50 RWF.',
+      content: '',
+      featured_image_url: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=80',
+      category: 'Fintech',
+      author_name: 'Benix Finance',
+      published_at: new Date(Date.now() - 172800000).toISOString()
+    }
+  ];
 
   return (
     <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-blue-600 selection:text-white">
       <SeoHead
         title="Benix.Space — All in One. For Everyone."
-        description="Benix.Space Super-App: Watch live TV channels, 24/7 radio stations, stories, verified Kunda dating, Voxify music, EasyCalc, and digital marketplace."
+        description="Watch live TV channels, 24/7 radio stations, creator videos, verified Kunda dating, Voxify music, and digital marketplace in YouTube-style experience."
       />
 
-      {/* FULL WIDTH CONTAINER: max-w-[1720px] */}
-      <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-8">
-        
-        {/* ==========================================
-            1. STORIES & CREATOR REEL BAR
-           ========================================== */}
-        <section className="relative">
-          <div className="flex items-center gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none">
-            
-            {/* Create Story / Upload Button */}
-            <button
-              onClick={() => {
-                if (!user) setWizardTargetKey('tv');
-                else setShowCreateMediaModal(true);
-              }}
-              className="flex flex-col items-center gap-1.5 shrink-0 group"
-            >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-dashed border-blue-500 hover:border-blue-400 bg-blue-600/10 flex flex-col items-center justify-center transition-all group-hover:scale-105 group-hover:bg-blue-600/20 shadow-lg">
-                <Plus className="w-6 h-6 text-blue-400 group-hover:text-blue-300" />
-              </div>
-              <span className="text-[11px] font-bold text-slate-300 group-hover:text-white">
-                Add Story
-              </span>
-            </button>
-
-            {/* Active User Stories List */}
-            {stories.map((story, idx) => (
+      {/* ========================================================
+          1. YOUTUBE-STYLE FILTER CHIPS BAR (Sticky below top navbar)
+         ======================================================== */}
+      <div className="sticky top-14 z-20 bg-[#0B0E14]/95 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 py-2.5">
+        <div className="max-w-[1720px] mx-auto flex items-center gap-2 overflow-x-auto scrollbar-none scroll-smooth">
+          {[
+            'All',
+            'Watch TV',
+            'Live Radio',
+            'Creator Videos',
+            'News & Articles',
+            'Shorts',
+            'Kunda Dating',
+            'Voxify Music',
+            'Marketplace',
+            'RollDice Arena',
+            'Calculators'
+          ].map((chip) => {
+            const isActive = activeChip === chip;
+            return (
               <button
-                key={story.id || idx}
-                onClick={() => setActiveStoryIndex(idx)}
-                className="flex flex-col items-center gap-1.5 shrink-0 group transition-transform active:scale-95"
+                key={chip}
+                onClick={() => handleChipClick(chip)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 ${
+                  isActive
+                    ? 'bg-slate-100 text-black font-bold shadow-md shadow-white/10'
+                    : 'bg-[#181F2E] hover:bg-[#222B3D] text-slate-300 hover:text-white border border-slate-700/50'
+                }`}
               >
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full p-0.5 bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 group-hover:scale-105 transition-transform shadow-lg shadow-purple-900/30">
-                  <div className="w-full h-full rounded-full border-2 border-[#0B0E14] overflow-hidden bg-slate-900">
-                    <img
-                      src={story.authorAvatar || story.mediaUrl}
-                      alt={story.authorName}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                  </div>
-                </div>
-                <span className="text-[11px] font-bold text-slate-300 group-hover:text-white truncate max-w-[70px] text-center">
-                  {story.authorName}
-                </span>
+                {chip}
               </button>
-            ))}
+            );
+          })}
+        </div>
+      </div>
 
-            {/* Clean empty state when no stories in DB */}
-            {stories.length === 0 && (
-              <div className="flex items-center gap-2 pl-3 py-2 text-xs text-slate-400">
-                <span>No active stories right now. Click "Add Story" to share yours!</span>
-              </div>
-            )}
-          </div>
-        </section>
+      {/* FULL WIDTH MAIN CONTENT CONTAINER */}
+      <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-10">
 
-        {/* ==========================================
-            2. MODULE SHORTCUTS (Horizontal Scroll Strip - Full Labels Without Truncation)
-           ========================================== */}
-        <section className="bg-[#121824]/80 p-3 sm:p-5 rounded-3xl border border-slate-800/80 shadow-xl backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-2.5 px-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">
-                Ecosystem Platforms & Services
-              </span>
-            </div>
-            <span className="text-[10px] text-blue-400 font-bold sm:hidden">
-              Scroll Left/Right →
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2.5 sm:gap-4 overflow-x-auto pb-2 pt-1 scrollbar-none scroll-smooth">
-            {[
-              { id: 'videos', name: 'Creator Videos', badge: 'Shows', icon: Film, route: '/videos', color: 'from-purple-600 to-indigo-600' },
-              { id: 'tv', name: 'Watch TV', badge: '17 CH', icon: Tv, route: '/tv', color: 'from-blue-600 to-indigo-600' },
-              { id: 'radio', name: 'Live Radio', badge: '19 FM', icon: Radio, route: '/radio', color: 'from-purple-600 to-pink-600' },
-              { id: 'kunda', name: 'Kunda Dating', badge: 'Singles', icon: Heart, route: '/dating', color: 'from-rose-500 to-pink-600' },
-              { id: 'voxify', name: 'Voxify Music', badge: 'Choir', icon: Music, route: '/music', color: 'from-emerald-500 to-teal-600' },
-              { id: 'marketplace', name: 'Marketplace', badge: 'Shop', icon: ShoppingBag, route: '/marketplace', color: 'from-amber-500 to-orange-600' },
-              { id: 'games', name: 'RollDice Arena', badge: 'Win 1.9x', icon: Gamepad2, route: '/games', color: 'from-violet-600 to-indigo-700' },
-              { id: 'calc', name: 'EasyCalc Pro', badge: 'Tax & Loan', icon: Calculator, route: '/calculators', color: 'from-teal-500 to-cyan-600' },
-              { id: 'blog', name: 'News & Blog', badge: 'Articles', icon: FileText, route: '/blog', color: 'from-slate-700 to-slate-800' }
-            ].map((m, idx) => {
-              const Icon = m.icon;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => handleProtectedAccess(m.id, m.route)}
-                  className="flex flex-col items-center gap-2 shrink-0 p-2 sm:p-3 rounded-2xl hover:bg-slate-800/60 transition-all active:scale-95 group/app min-w-[82px] sm:min-w-[105px]"
+        {/* ========================================================
+            2. FEATURED SPOTLIGHT HERO SECTION WITH ANIMATED SLIDING
+           ======================================================== */}
+        <section
+          className="relative rounded-3xl overflow-hidden border border-slate-800/90 shadow-2xl bg-[#0F1420]"
+          onMouseEnter={() => setIsHeroHovered(true)}
+          onMouseLeave={() => setIsHeroHovered(false)}
+        >
+          {/* Animated Carousel Track */}
+          <div className="relative min-h-[380px] sm:min-h-[340px] flex items-center overflow-hidden">
+            <AnimatePresence initial={false} custom={heroDirection} mode="wait">
+              {heroSlideIndex === 0 && (
+                <motion.div
+                  key="slide-tv"
+                  custom={heroDirection}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="w-full bg-gradient-to-r from-[#141B2D] via-[#101726] to-[#0D121F] p-6 sm:p-10"
                 >
-                  <div
-                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${m.color} flex items-center justify-center text-white shadow-lg shadow-black/40 group-hover/app:scale-105 transition-transform relative`}
-                  >
-                    <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
-                    <span className="absolute -top-1.5 -right-1 px-1.5 py-0.2 rounded-full bg-[#0B0E14] border border-white/20 text-[8px] font-black text-white">
-                      {m.badge}
-                    </span>
-                  </div>
-                  <span className="text-[11px] sm:text-xs font-bold text-slate-200 group-hover/app:text-white text-center whitespace-nowrap">
-                    {m.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    <div className="md:col-span-7 space-y-3.5">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span>Live Rwandan Television (17 Channels)</span>
+                      </div>
+                      <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+                        Watch TV & Live Channels
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-300 max-w-xl font-medium leading-relaxed">
+                        Stream RTV, KC2, BTN TV, TV10, Isibo TV, and Africa 24 live with low-latency adaptive HLS feeds and movable Picture-in-Picture mode across all pages.
+                      </p>
+                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          onClick={() => { playTvChannel(featuredTv); navigate('/tv'); }}
+                          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-blue-600/30 transition-all active:scale-95"
+                        >
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Watch {featuredTv.name}</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/tv')}
+                          className="px-5 py-3 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                        >
+                          Explore All 17 TV Stations
+                        </button>
+                      </div>
+                    </div>
 
-        {/* ==========================================
-            3. FEATURED AUTO-SLIDER HERO CAROUSEL
-           ========================================== */}
-        <section className="relative rounded-3xl overflow-hidden border border-slate-800/90 shadow-2xl transition-all">
-          
-          {/* SLIDE 0: LIVE TV */}
-          {currentHeroSlide === 0 && (
-            <div className="bg-gradient-to-r from-[#141B2D] via-[#101726] to-[#0D121F] p-6 sm:p-10 transition-all">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                <div className="md:col-span-7 space-y-4">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                    <span>Live Rwandan Television (17 Channels)</span>
-                  </div>
-                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-                    Watch TV & Live Channels
-                  </h1>
-                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
-                    Stream RTV, KC2, BTN TV, TV10, Isibo TV, and Africa 24 live with low-latency adaptive HLS feeds and movable Picture-in-Picture mode across all pages.
-                  </p>
-                  <div className="pt-2 flex flex-wrap items-center gap-3">
-                    <button
+                    <div
+                      className="md:col-span-5 relative flex justify-center cursor-pointer"
                       onClick={() => { playTvChannel(featuredTv); navigate('/tv'); }}
-                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-blue-600/30 transition-all active:scale-95"
                     >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Watch {featuredTv.name}</span>
-                    </button>
-                    <button
-                      onClick={() => navigate('/tv')}
-                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
-                    >
-                      Explore All TV Stations
-                    </button>
-                  </div>
-                </div>
-                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => { playTvChannel(featuredTv); navigate('/tv'); }}>
-                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl group">
-                    <img src={featuredTv.logo_url || '/logo.png'} alt="Live TV" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <Play className="w-4 h-4 fill-current ml-0.5" />
-                        </div>
-                        <div>
-                          <h3 className="font-black text-white text-sm">{featuredTv.name}</h3>
-                          <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Now
-                          </p>
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl group">
+                        <img
+                          src={featuredTv.logo_url || '/logo.png'}
+                          alt="Live TV"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex items-end p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                              <Play className="w-4 h-4 fill-current ml-0.5" />
+                            </div>
+                            <div>
+                              <h3 className="font-black text-white text-sm">{featuredTv.name}</h3>
+                              <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Now
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              )}
 
-          {/* SLIDE 1: KUNDA DATING */}
-          {currentHeroSlide === 1 && (
-            <div className="bg-gradient-to-r from-[#2D0F1E] via-[#200A15] to-[#0D121F] p-6 sm:p-10 transition-all">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                <div className="md:col-span-7 space-y-4">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold">
-                    <Heart className="w-3.5 h-3.5 fill-current" />
-                    <span>Verified Rwandan Matchmaking</span>
-                  </div>
-                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-                    Kunda Space Dating
-                  </h1>
-                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
-                    Find serious relationships and meaningful companions in Kigali and across Rwanda. Send crushes, enjoy private chats, and unlock verified contacts securely.
-                  </p>
-                  <div className="pt-2 flex flex-wrap items-center gap-3">
-                    <button
+              {heroSlideIndex === 1 && (
+                <motion.div
+                  key="slide-dating"
+                  custom={heroDirection}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="w-full bg-gradient-to-r from-[#2D0F1E] via-[#200A15] to-[#0D121F] p-6 sm:p-10"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    <div className="md:col-span-7 space-y-3.5">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold">
+                        <Heart className="w-3.5 h-3.5 fill-current" />
+                        <span>Verified Rwandan Matchmaking</span>
+                      </div>
+                      <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+                        Kunda Space Dating
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-300 max-w-xl font-medium leading-relaxed">
+                        Find serious relationships and meaningful companions in Kigali and across Rwanda. Send crushes, enjoy private chats, and unlock verified contacts securely.
+                      </p>
+                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          onClick={() => navigate('/dating')}
+                          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-rose-600/30 transition-all active:scale-95"
+                        >
+                          <Heart className="w-4 h-4 fill-current" />
+                          <span>Explore Verified Matches</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/messages')}
+                          className="px-5 py-3 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                        >
+                          Open Private Chat
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className="md:col-span-5 relative flex justify-center cursor-pointer"
                       onClick={() => navigate('/dating')}
-                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-rose-600/30 transition-all active:scale-95"
                     >
-                      <Heart className="w-4 h-4 fill-current" />
-                      <span>Explore Verified Matches</span>
-                    </button>
-                    <button
-                      onClick={() => navigate('/messages')}
-                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
-                    >
-                      Open Private Chat
-                    </button>
-                  </div>
-                </div>
-                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => navigate('/dating')}>
-                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-rose-500/30 shadow-2xl group">
-                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80" alt="Kunda Dating" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
-                      <div>
-                        <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black">100% VERIFIED</span>
-                        <h3 className="font-black text-white text-sm mt-1">Aline M. (Kigali, Kacyiru)</h3>
-                        <p className="text-[11px] text-rose-300">Software Designer • Online Now</p>
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-rose-500/30 shadow-2xl group">
+                        <img
+                          src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80"
+                          alt="Kunda Dating"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex items-end p-4">
+                          <div>
+                            <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black">100% VERIFIED</span>
+                            <h3 className="font-black text-white text-sm mt-1">Aline M. (Kigali, Kacyiru)</h3>
+                            <p className="text-[11px] text-rose-300">Software Designer • Online Now</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              )}
 
-          {/* SLIDE 2: LIVE RADIO */}
-          {currentHeroSlide === 2 && (
-            <div className="bg-gradient-to-r from-[#17122B] via-[#100C1F] to-[#0D121F] p-6 sm:p-10 transition-all">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                <div className="md:col-span-7 space-y-4">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400 text-xs font-bold">
-                    <Radio className="w-3.5 h-3.5" />
-                    <span>19 Rwandan FM Radio Frequencies</span>
-                  </div>
-                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-                    24/7 Live Radio FM
-                  </h1>
-                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
-                    Tune into Kiss FM 102.3, Radio Rwanda 100.7 FM, Magic FM, Radio 10, Flash FM, and Royal FM with seamless background audio while you browse.
-                  </p>
-                  <div className="pt-2 flex flex-wrap items-center gap-3">
-                    <button
-                      onClick={() => {
-                        const kiss = radioStations.find(r => r.slug.includes('kiss')) || radioStations[0];
-                        if (kiss) playStation(kiss);
-                        navigate('/radio');
-                      }}
-                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-purple-600/30 transition-all active:scale-95"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Tune Kiss FM 102.3</span>
-                    </button>
-                    <button
+              {heroSlideIndex === 2 && (
+                <motion.div
+                  key="slide-radio"
+                  custom={heroDirection}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="w-full bg-gradient-to-r from-[#17122B] via-[#100C1F] to-[#0D121F] p-6 sm:p-10"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    <div className="md:col-span-7 space-y-3.5">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400 text-xs font-bold">
+                        <Radio className="w-3.5 h-3.5" />
+                        <span>19 Rwandan FM Radio Frequencies</span>
+                      </div>
+                      <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+                        24/7 Live Radio FM
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-300 max-w-xl font-medium leading-relaxed">
+                        Tune into Kiss FM 102.3, Radio Rwanda 100.7 FM, Magic FM, Radio 10, Flash FM, and Royal FM with seamless background audio while you browse.
+                      </p>
+                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          onClick={() => {
+                            const kiss = radioStations.find((r) => r.slug.includes('kiss')) || radioStations[0];
+                            if (kiss) playStation(kiss);
+                            navigate('/radio');
+                          }}
+                          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-purple-600/30 transition-all active:scale-95"
+                        >
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Tune Kiss FM 102.3</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/radio')}
+                          className="px-5 py-3 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                        >
+                          All 19 Radio Stations
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className="md:col-span-5 relative flex justify-center cursor-pointer"
                       onClick={() => navigate('/radio')}
-                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
                     >
-                      All 19 Radio Stations
-                    </button>
-                  </div>
-                </div>
-                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => navigate('/radio')}>
-                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-purple-500/30 shadow-2xl group">
-                    <img src="https://i.postimg.cc/Cx2q12xV/kiss-fm.jpg" alt="Kiss FM" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
-                      <div>
-                        <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-black">FM BROADCAST</span>
-                        <h3 className="font-black text-white text-sm mt-1">Kiss FM 102.3 Kigali</h3>
-                        <p className="text-[11px] text-purple-300">The Beat of Kigali • Urban Hits</p>
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-purple-500/30 shadow-2xl group">
+                        <img
+                          src="https://i.postimg.cc/Cx2q12xV/kiss-fm.jpg"
+                          alt="Kiss FM"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex items-end p-4">
+                          <div>
+                            <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-black">FM BROADCAST</span>
+                            <h3 className="font-black text-white text-sm mt-1">Kiss FM 102.3 Kigali</h3>
+                            <p className="text-[11px] text-purple-300">The Beat of Kigali • Urban Hits</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              )}
 
-          {/* SLIDE 3: ROinterface DICE & WALLET */}
-          {currentHeroSlide === 3 && (
-            <div className="bg-gradient-to-r from-[#0F261E] via-[#0A1A14] to-[#0D121F] p-6 sm:p-10 transition-all">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                <div className="md:col-span-7 space-y-4">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-                    <Gamepad2 className="w-3.5 h-3.5" />
-                    <span>RollDice Arena & Central Wallet</span>
-                  </div>
-                  <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-                    Win 1.95x on RollDice
-                  </h1>
-                  <p className="text-sm text-slate-300 max-w-lg font-medium leading-relaxed">
-                    Wager starting from 50 RWF and cash out instant winnings directly to your MTN Mobile Money account. Zero wait times.
-                  </p>
-                  <div className="pt-2 flex flex-wrap items-center gap-3">
-                    <button
+              {heroSlideIndex === 3 && (
+                <motion.div
+                  key="slide-games"
+                  custom={heroDirection}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="w-full bg-gradient-to-r from-[#0F261E] via-[#0A1A14] to-[#0D121F] p-6 sm:p-10"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    <div className="md:col-span-7 space-y-3.5">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                        <Gamepad2 className="w-3.5 h-3.5" />
+                        <span>RollDice Arena & Central Wallet</span>
+                      </div>
+                      <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+                        Win 1.95x on RollDice
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-300 max-w-xl font-medium leading-relaxed">
+                        Wager starting from 50 RWF and cash out instant winnings directly to your MTN Mobile Money account. Zero wait times.
+                      </p>
+                      <div className="pt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          onClick={() => navigate('/games')}
+                          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-emerald-600/30 transition-all active:scale-95"
+                        >
+                          <Gamepad2 className="w-4 h-4" />
+                          <span>Play RollDice Arena</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/dashboard#wallet')}
+                          className="px-5 py-3 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
+                        >
+                          Deposit 100 RWF (MoMo)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className="md:col-span-5 relative flex justify-center cursor-pointer"
                       onClick={() => navigate('/games')}
-                      className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-xl shadow-emerald-600/30 transition-all active:scale-95"
                     >
-                      <Gamepad2 className="w-4 h-4" />
-                      <span>Play RollDice Arena</span>
-                    </button>
-                    <button
-                      onClick={() => navigate('/dashboard#wallet')}
-                      className="px-6 py-3.5 rounded-2xl bg-[#1C2538] hover:bg-[#25324c] text-slate-200 font-bold text-xs sm:text-sm border border-slate-700/80 transition-all"
-                    >
-                      Deposit 100 RWF (MoMo)
-                    </button>
-                  </div>
-                </div>
-                <div className="md:col-span-5 relative flex justify-center cursor-pointer" onClick={() => navigate('/games')}>
-                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-emerald-500/30 shadow-2xl group">
-                    <img src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&auto=format&fit=crop&q=80" alt="RollDice" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-4">
-                      <div>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black">INSTANT PAYOUTS</span>
-                        <h3 className="font-black text-white text-sm mt-1">RollDice PVE Arena</h3>
-                        <p className="text-[11px] text-emerald-300">Minimum Wager: 50 RWF</p>
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-emerald-500/30 shadow-2xl group">
+                        <img
+                          src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&auto=format&fit=crop&q=80"
+                          alt="RollDice"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex items-end p-4">
+                          <div>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black">INSTANT PAYOUTS</span>
+                            <h3 className="font-black text-white text-sm mt-1">RollDice PVE Arena</h3>
+                            <p className="text-[11px] text-emerald-300">Minimum Wager: 50 RWF</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-          {/* Carousel Slide Indicators & Prev/Next Arrows */}
+          {/* Left / Right Slide Controls & Pagination Bullets */}
           <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
             <button
-              onClick={() => setCurrentHeroSlide((prev) => (prev === 0 ? 3 : prev - 1))}
-              className="p-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-colors"
-              title="Previous Slide"
+              onClick={() => paginateHero(-1)}
+              className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-md border border-white/10 transition-colors shadow-lg active:scale-95"
+              title="Previous Spotlight"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-1.5 px-2">
+            <div className="flex items-center gap-1.5 px-2 bg-black/40 backdrop-blur-md py-1.5 rounded-full border border-white/10">
               {[0, 1, 2, 3].map((slide) => (
                 <button
                   key={slide}
-                  onClick={() => setCurrentHeroSlide(slide)}
-                  className={`h-2 rounded-full transition-all ${
-                    currentHeroSlide === slide ? 'w-6 bg-blue-500' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                  onClick={() => jumpToSlide(slide)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    heroSlideIndex === slide ? 'w-6 bg-blue-500' : 'w-2 bg-slate-500 hover:bg-slate-400'
                   }`}
                   title={`Go to slide ${slide + 1}`}
                 />
               ))}
             </div>
             <button
-              onClick={() => setCurrentHeroSlide((prev) => (prev + 1) % 4)}
-              className="p-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-colors"
-              title="Next Slide"
+              onClick={() => paginateHero(1)}
+              className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-md border border-white/10 transition-colors shadow-lg active:scale-95"
+              title="Next Spotlight"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-
         </section>
 
-        {/* ==========================================
-            4. LIVE TV CHANNELS (Click to Play with PiP)
-           ========================================== */}
-        <section className="space-y-4">
+        {/* ========================================================
+            3. ROW 1: LIVE TV - AUTO-SCROLLING HORIZONTALLY (SLIDING)
+           ======================================================== */}
+        <section ref={tvSectionRef} className="space-y-3.5">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                <Tv className="w-5 h-5 text-blue-400" />
-                Live Rwandan TV Stations
-              </h2>
-              <p className="text-xs text-slate-400">Streamed via low-latency adaptive HLS feeds. Supports movable Picture-in-Picture.</p>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-blue-500/15 text-blue-400">
+                <Tv className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>Live Rwandan Television</span>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" /> LIVE
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Auto-sliding channels with low-latency adaptive HLS feeds. Supports movable Picture-in-Picture.
+                </p>
+              </div>
             </div>
-            <Link to="/tv" className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1">
-              <span>View All 17 TV Channels</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => scrollContainer(tvRowRef, -320)}
+                className="p-2 rounded-xl bg-[#141C2B] hover:bg-[#1C273C] text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
+                title="Scroll Left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scrollContainer(tvRowRef, 320)}
+                className="p-2 rounded-xl bg-[#141C2B] hover:bg-[#1C273C] text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
+                title="Scroll Right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <Link
+                to="/tv"
+                className="hidden sm:flex text-xs font-bold text-blue-400 hover:text-blue-300 items-center gap-1 ml-2"
+              >
+                <span>All 17 Channels</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {tvStations.slice(0, 6).map((station) => (
+          {/* Horizontal Scrolling Strip (Auto-sliding with pause on hover) */}
+          <div
+            ref={tvRowRef}
+            onMouseEnter={() => setIsTvHovered(true)}
+            onMouseLeave={() => setIsTvHovered(false)}
+            className="flex items-stretch gap-4 overflow-x-auto pb-2 scrollbar-none scroll-smooth"
+          >
+            {tvStations.map((station) => (
               <div
                 key={station.id}
                 onClick={() => {
                   playTvChannel(station);
                   navigate('/tv');
                 }}
-                className="group relative rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-blue-500/50 overflow-hidden cursor-pointer transition-all shadow-md p-3 flex flex-col justify-between"
+                className="w-64 sm:w-72 shrink-0 group relative rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-blue-500/50 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] shadow-md p-3 flex flex-col justify-between"
               >
-                <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden mb-2.5 flex items-center justify-center">
-                  <img src={station.logo_url} alt={station.name} className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg">
+                <div className="relative aspect-video rounded-xl bg-slate-900/90 overflow-hidden mb-2.5 flex items-center justify-center">
+                  <img
+                    src={station.logo_url}
+                    alt={station.name}
+                    className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                       <Play className="w-4 h-4 fill-current ml-0.5" />
                     </div>
                   </div>
-                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase flex items-center gap-1">
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase flex items-center gap-1 shadow-md">
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
                   </span>
-                </div>
-
-                <div className="space-y-1">
-                  <h4 className="text-xs font-black text-white truncate">{station.name}</h4>
-                  <p className="text-[10px] text-slate-400 truncate">{station.frequency || 'DTT Rwanda'}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ==========================================
-            5. LIVE RADIO FM FREQUENCIES (Continuous Bottom Player)
-           ========================================== */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                <Radio className="w-5 h-5 text-purple-400" />
-                Live Rwandan FM Radios
-              </h2>
-              <p className="text-xs text-slate-400">Plays continuously in background across all pages without interruption.</p>
-            </div>
-            <Link to="/radio" className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1">
-              <span>View All 19 Radios</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {radioStations.slice(0, 6).map((station) => (
-              <div
-                key={station.id}
-                onClick={() => playStation(station)}
-                className="group relative rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-purple-500/50 overflow-hidden cursor-pointer transition-all shadow-md p-3 flex flex-col justify-between"
-              >
-                <div className="relative aspect-square rounded-xl bg-slate-900 overflow-hidden mb-2.5 flex items-center justify-center">
-                  <img src={station.logo_url} alt={station.name} className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <div className="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
-                      <Volume2 className="w-4 h-4 text-white" />
-                    </div>
-                  </div>
-                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-600 text-white text-[9px] font-black uppercase">
-                    FM
+                  <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[9px] font-mono text-slate-300">
+                    HLS HD
                   </span>
                 </div>
 
                 <div className="space-y-1">
-                  <h4 className="text-xs font-black text-white truncate">{station.name}</h4>
-                  <p className="text-[10px] text-slate-400 truncate">{station.frequency || 'Kigali FM'}</p>
+                  <h4 className="text-xs sm:text-sm font-black text-white truncate group-hover:text-blue-400 transition-colors">
+                    {station.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {station.frequency || 'DTT Rwanda • Adaptive Feed'}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ==========================================
-            6. FEATURED CREATOR VIDEOS & SHOWS
-           ========================================== */}
-        <section className="space-y-4">
+        {/* ========================================================
+            4. ROW 2: LIVE RADIOS - SLIDING HORIZONTALLY
+           ======================================================== */}
+        <section ref={radioSectionRef} className="space-y-3.5">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                <Film className="w-5 h-5 text-purple-400" />
-                Featured Creator Videos & Shows
-              </h2>
-              <p className="text-xs text-slate-400">Stream exclusive choir concerts, comedy series, and cinema. Share your link to earn 15% commissions!</p>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400">
+                <Radio className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>Live Rwandan FM Radios</span>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/40">
+                    24/7 BACKGROUND AUDIO
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Auto-sliding stations that stream continuously across all pages without interruption.
+                </p>
+              </div>
             </div>
-            <Link to="/videos" className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1">
-              <span>View All Videos & Earn</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => scrollContainer(radioRowRef, -300)}
+                className="p-2 rounded-xl bg-[#141C2B] hover:bg-[#1C273C] text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
+                title="Scroll Left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scrollContainer(radioRowRef, 300)}
+                className="p-2 rounded-xl bg-[#141C2B] hover:bg-[#1C273C] text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
+                title="Scroll Right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <Link
+                to="/radio"
+                className="hidden sm:flex text-xs font-bold text-purple-400 hover:text-purple-300 items-center gap-1 ml-2"
+              >
+                <span>All 19 Radios</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {(creatorVideos.length > 0 ? creatorVideos : (realVideosData as any[])).slice(0, 8).map((vid) => {
-              const videoId = vid.id || vid.slug;
-              const title = vid.title;
-              const creator = vid.channelName || vid.creator || 'Benix Space';
-              const thumbnail = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-              const viewsCount = typeof vid.views === 'number' ? (vid.views > 999 ? `${Math.floor(vid.views / 1000)}K` : vid.views) : (vid.views || 'Verified');
-              const priceLabel = Number(vid.price) > 0 ? `${Number(vid.price).toLocaleString()} RWF` : 'Free';
+          {/* Horizontal Radio Scrolling Strip */}
+          <div
+            ref={radioRowRef}
+            onMouseEnter={() => setIsRadioHovered(true)}
+            onMouseLeave={() => setIsRadioHovered(false)}
+            className="flex items-stretch gap-4 overflow-x-auto pb-2 scrollbar-none scroll-smooth"
+          >
+            {radioStations.map((station) => {
+              const isCurrentPlaying = currentStation?.id === station.id && isPlaying;
 
               return (
                 <div
-                  key={videoId}
-                  onClick={() => navigate(`/videos/${videoId}`)}
-                  className="rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-purple-500/50 overflow-hidden shadow-lg p-3 space-y-2 group cursor-pointer transition-all hover:shadow-purple-950/20"
+                  key={station.id}
+                  onClick={() => playStation(station)}
+                  className={`w-56 sm:w-64 shrink-0 group relative rounded-2xl bg-[#121824] border transition-all hover:scale-[1.02] shadow-md p-3 flex flex-col justify-between cursor-pointer ${
+                    isCurrentPlaying
+                      ? 'border-purple-500 bg-purple-950/20 shadow-purple-900/30 ring-1 ring-purple-500'
+                      : 'border-slate-800/80 hover:border-purple-500/50'
+                  }`}
                 >
-                  <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden">
+                  <div className="relative aspect-video rounded-xl bg-slate-900/90 overflow-hidden mb-2.5 flex items-center justify-center">
                     <img
-                      src={thumbnail}
-                      alt={title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      src={station.logo_url}
+                      alt={station.name}
+                      className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                        (e.currentTarget as HTMLImageElement).src = '/logo.png';
                       }}
                     />
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <div className="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
-                        <Play className="w-4 h-4 fill-white ml-0.5" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
+                        {isCurrentPlaying ? (
+                          <Volume2 className="w-4 h-4 animate-bounce" />
+                        ) : (
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        )}
                       </div>
                     </div>
-                    <div className="absolute top-2 left-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                        priceLabel === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
-                      }`}>
-                        {priceLabel}
-                      </span>
-                    </div>
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-600 text-white text-[9px] font-black uppercase">
+                      FM
+                    </span>
+
+                    {/* Animated Equalizer Waveform when station is actively playing */}
+                    {isCurrentPlaying && (
+                      <div className="absolute bottom-2 right-2 flex items-end gap-1 h-3 px-1.5 py-0.5 bg-black/70 rounded-md">
+                        <span className="w-1 bg-purple-400 animate-[bounce_0.6s_ease-in-out_infinite] h-3" />
+                        <span className="w-1 bg-purple-400 animate-[bounce_0.8s_ease-in-out_infinite] h-2" />
+                        <span className="w-1 bg-purple-400 animate-[bounce_0.5s_ease-in-out_infinite] h-3" />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors" title={title}>
-                      {title}
+
+                  <div className="space-y-1">
+                    <h4 className="text-xs sm:text-sm font-black text-white truncate group-hover:text-purple-400 transition-colors">
+                      {station.name}
                     </h4>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {creator} • {viewsCount} {typeof vid.views === 'number' && vid.views > 0 ? 'views' : ''}
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {station.frequency || 'Kigali FM • Live Audio'}
                     </p>
                   </div>
                 </div>
@@ -668,139 +888,417 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* ==========================================
-            7. QUICK ACCESS CARDS (Kunda Space + Central Wallet)
-           ========================================== */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Card 1: Kunda Space */}
-          <div className="p-6 rounded-3xl bg-gradient-to-br from-[#1C1625] via-[#161220] to-[#120F1A] border border-rose-900/40 shadow-xl flex flex-col justify-between space-y-5">
-            <div className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-rose-400 bg-rose-500/15 px-3 py-1 rounded-full border border-rose-500/20 inline-flex items-center gap-1.5">
-                <Heart className="w-3.5 h-3.5 fill-current text-rose-400" />
-                Kunda Dating Space
-              </span>
-              <h3 className="text-xl font-black text-white">
-                Meaningful Connections Across Rwanda
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                Verified Rwandan singles with instant 24h/3d passes, central wallet messaging, and direct WhatsApp unlocks.
-              </p>
-            </div>
-
-            <button
-              onClick={() => handleProtectedAccess('kunda', '/dating')}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <span>Explore Kunda Singles</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Card 2: Central Wallet Balance */}
-          <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0F1E24] via-[#0C171C] to-[#0A1217] border border-emerald-900/40 shadow-xl flex flex-col justify-between space-y-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/20 inline-flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                  Unified Central Wallet
-                </span>
-                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full">
-                  Deposit from 100 RWF
-                </span>
+        {/* ========================================================
+            5. ROW 3: FEATURED CREATOR VIDEOS (3 CARDS IN A ROW - YOUTUBE STYLE)
+           ======================================================== */}
+        <section ref={videosSectionRef} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400">
+                <Film className="w-5 h-5" />
               </div>
-
               <div>
-                <span className="text-xs text-slate-400">Available Platform Balance</span>
-                <div className="text-3xl font-black text-white tracking-tight mt-1">
-                  {wallet ? Number(wallet.balance).toLocaleString() : '100.00'} <span className="text-sm font-bold text-emerald-400">{wallet?.currency || 'RWF'}</span>
-                </div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>Featured Creator Videos & Shows</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Exclusive concerts, cinema & tutorials. Share your unique link to earn 15% wallet commissions.
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() => {
-                  if (!user) setWizardTargetKey('calc');
-                  else setShowWalletModal(true);
-                }}
-                className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-md text-center"
-              >
-                Top Up
-              </button>
-              <button
-                onClick={() => {
-                  if (!user) setWizardTargetKey('calc');
-                  else setShowWalletModal(true);
-                }}
-                className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors text-center"
-              >
-                Withdraw
-              </button>
-              <button
-                onClick={() => {
-                  if (!user) setWizardTargetKey('calc');
-                  else navigate('/dashboard#wallet');
-                }}
-                className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors text-center"
-              >
-                Ledger
-              </button>
-            </div>
+            <Link
+              to="/videos"
+              className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1"
+            >
+              <span>View All Videos</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
-        </section>
+          {/* 3 CARDS IN A ROW (Responsive: 1 col on mobile, 2 on tablet, 3 on desktop) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 xl:gap-6">
+            {creatorVideos.slice(0, 9).map((vid, idx) => {
+              const videoId = vid.id || vid.slug || `vid-${idx}`;
+              const title = vid.title;
+              const creator = vid.channelName || vid.creator || 'Benix Space Channel';
+              const avatar = vid.channelAvatar || '/logo.png';
+              const thumbnail = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+              const duration = vid.duration || '10:00';
+              const viewsCount = typeof vid.views === 'number' && vid.views > 0
+                ? (vid.views > 999 ? `${(vid.views / 1000).toFixed(1)}K` : vid.views)
+                : '1.2K';
+              const priceLabel = Number(vid.price) > 0 ? `${Number(vid.price).toLocaleString()} RWF` : 'Free';
 
-        {/* ==========================================
-            8. EXPLORE MORE (Cleaned Mini-Apps Grid - NO FAKE EBOOKS)
-           ========================================== */}
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">Explore All Applications</h2>
-            <p className="text-xs text-slate-400">Direct access to verified services in the BenixSpace ecosystem.</p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-            {[
-              { name: 'Live TV', icon: Tv, route: '/tv', color: 'bg-blue-500/15 text-blue-400', appKey: 'tv' },
-              { name: 'Radio FM', icon: Radio, route: '/radio', color: 'bg-purple-500/15 text-purple-400', appKey: 'radio' },
-              { name: 'Kunda Dating', icon: Heart, route: '/dating', color: 'bg-rose-500/15 text-rose-400', appKey: 'kunda' },
-              { name: 'Voxify Choirs', icon: Music, route: '/music', color: 'bg-indigo-500/15 text-indigo-400', appKey: 'voxify' },
-              { name: 'Marketplace', icon: ShoppingBag, route: '/marketplace', color: 'bg-emerald-500/15 text-emerald-400', appKey: 'marketplace' },
-              { name: 'RollDice Arena', icon: Gamepad2, route: '/games', color: 'bg-amber-500/15 text-amber-400', appKey: 'games' },
-              { name: 'EasyCalc Pro', icon: Calculator, route: '/calculators', color: 'bg-teal-500/15 text-teal-400', appKey: 'calc' },
-              { name: 'Articles & Blog', icon: FileText, route: '/blog', color: 'bg-sky-500/15 text-sky-400', appKey: 'tv' }
-            ].map((app, i) => {
-              const Icon = app.icon;
               return (
-                <button
-                  key={i}
-                  onClick={() => handleProtectedAccess(app.appKey, app.route)}
-                  className="p-4 rounded-2xl bg-[#121824] border border-slate-800/80 hover:border-slate-700 flex flex-col items-center justify-center gap-2.5 group transition-all"
+                <div
+                  key={videoId}
+                  onClick={() => navigate(`/videos/${videoId}`)}
+                  className="group flex flex-col cursor-pointer space-y-3"
                 >
-                  <div className={`p-3 rounded-2xl ${app.color} group-hover:scale-110 transition-transform`}>
-                    <Icon className="w-5 h-5" />
+                  {/* Video Thumbnail (16:9 ratio with duration badge) */}
+                  <div className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden border border-slate-800/80 group-hover:border-slate-700 transition-all shadow-md">
+                    <img
+                      src={thumbnail}
+                      alt={title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                      }}
+                    />
+
+                    {/* Play Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+                    </div>
+
+                    {/* Price / Free Tag */}
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase shadow-md ${
+                        priceLabel === 'Free' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-black'
+                      }`}>
+                        {priceLabel}
+                      </span>
+                    </div>
+
+                    {/* Duration Badge (Bottom Right, YouTube Style) */}
+                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-sm text-[10px] font-mono font-bold text-white shadow-md">
+                      {duration}
+                    </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-300 group-hover:text-white truncate w-full text-center">
-                    {app.name}
-                  </span>
-                </button>
+
+                  {/* Video Info (YouTube Style: Avatar + Title + Channel & Views) */}
+                  <div className="flex items-start gap-3 px-0.5">
+                    {/* Channel Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700/80 overflow-hidden shrink-0 mt-0.5">
+                      <img
+                        src={avatar}
+                        alt={creator}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                        }}
+                      />
+                    </div>
+
+                    {/* Title & Metadata */}
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        className="font-bold text-white text-sm line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors"
+                        title={title}
+                      >
+                        {title}
+                      </h3>
+                      <div className="flex items-center gap-1.5 mt-1 text-slate-400 text-xs">
+                        <span className="truncate hover:text-slate-200 transition-colors">{creator}</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        <span>{viewsCount} views</span>
+                        <span className="mx-1.5">•</span>
+                        <span>Verified Media</span>
+                      </div>
+                    </div>
+
+                    {/* 3-dots Menu Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard?.writeText(`${window.location.origin}/videos/${videoId}`);
+                        alert('Video link copied to clipboard!');
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Share / Options"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
         </section>
 
-        {/* ==========================================
+        {/* ========================================================
+            6. ROW 4: ARTICLES FROM NEWS (3 CARDS IN A ROW)
+           ======================================================== */}
+        <section ref={newsSectionRef} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-sky-500/15 text-sky-400">
+                <Newspaper className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>Latest News & Editorial Articles</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Insights into Rwanda's digital ecosystem, software architecture, and regional technology trends.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/blog"
+              className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1"
+            >
+              <span>View All Articles</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {/* 3 News Cards in a row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 xl:gap-6">
+            {displayArticles.slice(0, 3).map((art) => (
+              <div
+                key={art.id}
+                onClick={() => navigate(`/blog/${art.slug}`)}
+                className="group flex flex-col bg-[#121824] rounded-2xl border border-slate-800/80 hover:border-sky-500/50 overflow-hidden cursor-pointer transition-all hover:scale-[1.01] shadow-lg"
+              >
+                {/* Article Cover Image */}
+                <div className="relative aspect-video bg-slate-900 overflow-hidden">
+                  <img
+                    src={art.featured_image_url || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&auto=format&fit=crop&q=80'}
+                    alt={art.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute top-2.5 left-2.5">
+                    <span className="px-2.5 py-0.5 rounded-md bg-sky-600 text-white text-[10px] font-black uppercase shadow-md">
+                      {art.category || 'News'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{art.published_at ? new Date(art.published_at).toLocaleDateString() : 'Recent'}</span>
+                      <span>•</span>
+                      <span>5 min read</span>
+                    </div>
+                    <h3 className="font-bold text-white text-sm line-clamp-2 leading-snug group-hover:text-sky-300 transition-colors">
+                      {art.title}
+                    </h3>
+                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                      {art.summary}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <span className="truncate">{art.author_name || 'NebeluRw Media'}</span>
+                    <span className="text-sky-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                      <span>Read Story</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ========================================================
+            7. ROW 5: YOUTUBE SHORTS & REELS BAR (AS SEEN IN IMAGE 1)
+           ======================================================== */}
+        <section ref={shortsSectionRef} className="space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-md">
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              </div>
+              <h2 className="text-lg sm:text-xl font-black text-white">
+                Shorts & Stories
+              </h2>
+            </div>
+
+            <button
+              onClick={() => {
+                if (!user) setWizardTargetKey('tv');
+                else setShowCreateMediaModal(true);
+              }}
+              className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Your Story</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none">
+            {/* Create Story Button */}
+            <button
+              onClick={() => {
+                if (!user) setWizardTargetKey('tv');
+                else setShowCreateMediaModal(true);
+              }}
+              className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl border-2 border-dashed border-blue-500/60 hover:border-blue-400 bg-blue-600/10 flex flex-col items-center justify-center gap-2 shrink-0 group transition-all"
+            >
+              <div className="w-12 h-12 rounded-full bg-blue-600/20 text-blue-400 group-hover:scale-110 flex items-center justify-center transition-transform">
+                <Plus className="w-6 h-6" />
+              </div>
+              <span className="text-xs font-bold text-slate-200 group-hover:text-white">
+                Add Story
+              </span>
+            </button>
+
+            {/* Stories */}
+            {stories.map((story, idx) => (
+              <div
+                key={story.id || idx}
+                onClick={() => setActiveStoryIndex(idx)}
+                className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/60 overflow-hidden relative cursor-pointer shrink-0 group transition-all shadow-lg"
+              >
+                <img
+                  src={story.mediaUrl || story.authorAvatar}
+                  alt={story.authorName}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-between p-2.5">
+                  <div className="w-7 h-7 rounded-full border-2 border-blue-500 overflow-hidden">
+                    <img
+                      src={story.authorAvatar || story.mediaUrl}
+                      alt={story.authorName}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight">
+                      {story.caption || story.authorName}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
+                      {story.authorName}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {stories.length === 0 && (
+              <div className="flex items-center gap-3 text-xs text-slate-400 px-3 py-6">
+                <span>No stories active yet. Click "Add Story" to upload yours!</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ========================================================
+            8. ROW 6: ECOSYSTEM SPOTLIGHT CARDS (3 CARDS IN A ROW)
+           ======================================================== */}
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-black text-white">Ecosystem Services & Rewards</h2>
+            <p className="text-xs text-slate-400">Integrated super-app tools available to every verified account.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 xl:gap-6">
+            {/* Card 1: Kunda Space */}
+            <div className="p-5 rounded-3xl bg-gradient-to-br from-[#1C1625] via-[#161220] to-[#120F1A] border border-rose-900/40 shadow-xl flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400 bg-rose-500/15 px-2.5 py-1 rounded-full border border-rose-500/20 inline-flex items-center gap-1.5">
+                  <Heart className="w-3 h-3 fill-current text-rose-400" />
+                  Kunda Dating Space
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  Meaningful Relationships in Rwanda
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Verified Kigali singles, instant 24h passes, wallet messaging, and direct WhatsApp unlocks.
+                </p>
+              </div>
+
+              <button
+                onClick={() => handleProtectedAccess('kunda', '/dating')}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-md shadow-rose-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <span>Find Matches</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Card 2: Central Wallet Balance */}
+            <div className="p-5 rounded-3xl bg-gradient-to-br from-[#0F1E24] via-[#0C171C] to-[#0A1217] border border-emerald-900/40 shadow-xl flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/15 px-2.5 py-1 rounded-full border border-emerald-500/20 inline-flex items-center gap-1.5">
+                    <Wallet className="w-3 h-3 text-emerald-400" />
+                    Central Wallet
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    Deposit from 100 RWF
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[11px] text-slate-400">Available Balance</span>
+                  <div className="text-2xl font-black text-white tracking-tight mt-0.5">
+                    {wallet ? Number(wallet.balance).toLocaleString() : '100.00'}{' '}
+                    <span className="text-xs font-bold text-emerald-400">{wallet?.currency || 'RWF'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    if (!user) setWizardTargetKey('calc');
+                    else setShowWalletModal(true);
+                  }}
+                  className="py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-md text-center"
+                >
+                  Top Up MoMo
+                </button>
+                <button
+                  onClick={() => {
+                    if (!user) setWizardTargetKey('calc');
+                    else navigate('/dashboard#wallet');
+                  }}
+                  className="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors text-center"
+                >
+                  View Ledger
+                </button>
+              </div>
+            </div>
+
+            {/* Card 3: RollDice Arena */}
+            <div className="p-5 rounded-3xl bg-gradient-to-br from-[#1C1825] via-[#15121D] to-[#0E0C14] border border-violet-900/40 shadow-xl flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-violet-400 bg-violet-500/15 px-2.5 py-1 rounded-full border border-violet-500/20 inline-flex items-center gap-1.5">
+                  <Gamepad2 className="w-3 h-3 text-violet-400" />
+                  RollDice PVE Arena
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  Win 1.95x Instant Cash
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Provably fair dice rolls starting from 50 RWF. Direct payouts to your MTN Mobile Money wallet.
+                </p>
+              </div>
+
+              <button
+                onClick={() => handleProtectedAccess('games', '/games')}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-violet-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <span>Play & Win</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================
             9. REFERRAL BANNER (Invite Friends & Earn Rewards)
-           ========================================== */}
-        <section className="relative rounded-3xl bg-gradient-to-r from-violet-950/80 via-purple-900/60 to-indigo-950/80 border border-purple-800/40 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
-          <div className="flex items-center gap-4 text-center sm:text-left">
-            <div className="p-3.5 rounded-2xl bg-purple-500/20 text-purple-300 shrink-0 border border-purple-500/30">
-              <Gift className="w-8 h-8" />
+           ======================================================== */}
+        <section className="relative rounded-3xl bg-gradient-to-r from-violet-950/80 via-purple-900/60 to-indigo-950/80 border border-purple-800/40 p-5 sm:p-7 flex flex-col sm:flex-row items-center justify-between gap-5 shadow-xl">
+          <div className="flex items-center gap-3.5 text-center sm:text-left">
+            <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-300 shrink-0 border border-purple-500/30">
+              <Gift className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="font-black text-lg text-white">Invite Friends & Earn Wallet Rewards</h3>
-              <p className="text-xs sm:text-sm text-purple-200 mt-1">
+              <h3 className="font-black text-base sm:text-lg text-white">Invite Friends & Earn Wallet Rewards</h3>
+              <p className="text-xs text-purple-200 mt-0.5">
                 Share your personal code and earn 1,000 RWF for every active friend joining Benix.Space.
               </p>
             </div>
@@ -811,7 +1309,7 @@ export const HomePage: React.FC = () => {
               if (!user) setWizardTargetKey('calc');
               else setShowReferralModal(true);
             }}
-            className="px-7 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-600/30 shrink-0 transition-all active:scale-95"
+            className="px-6 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-600/30 shrink-0 transition-all active:scale-95"
           >
             Open Referral Portal
           </button>
@@ -823,7 +1321,10 @@ export const HomePage: React.FC = () => {
       {activeStoryIndex !== null && stories[activeStoryIndex] && (() => {
         const currentStory = stories[activeStoryIndex];
         const mediaUrl = currentStory.mediaUrl || '';
-        const isVideo = mediaUrl.startsWith('data:video') || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) || currentStory.mediaType === 'video';
+        const isVideo =
+          mediaUrl.startsWith('data:video') ||
+          /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ||
+          currentStory.mediaType === 'video';
 
         return (
           <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
@@ -855,7 +1356,7 @@ export const HomePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Story Media (Image or Video displayed AS-IS with object-contain) */}
+              {/* Story Media (Image or Video) */}
               <div className="w-full h-full flex items-center justify-center bg-black overflow-hidden">
                 {isVideo ? (
                   <video
@@ -874,7 +1375,7 @@ export const HomePage: React.FC = () => {
                 )}
               </div>
 
-              {/* Caption & Controls */}
+              {/* Caption */}
               {currentStory.caption && (
                 <div className="absolute bottom-0 inset-x-0 z-30 p-5 bg-gradient-to-t from-black/95 via-black/60 to-transparent">
                   <p className="text-xs sm:text-sm font-semibold text-white text-center">
@@ -883,7 +1384,7 @@ export const HomePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Left / Right Nav Taps */}
+              {/* Navigation Arrows */}
               <button
                 onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : null))}
                 className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
@@ -938,7 +1439,6 @@ export const HomePage: React.FC = () => {
           onClose={() => setShowReferralModal(false)}
         />
       )}
-
     </div>
   );
 };

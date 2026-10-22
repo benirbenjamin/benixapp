@@ -4,7 +4,9 @@ import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './client/context/ThemeContext';
 import { AuthProvider } from './client/context/AuthContext';
 import { LanguageProvider } from './client/context/LanguageContext';
+import { SidebarProvider } from './client/context/SidebarContext';
 import { Navbar } from './client/components/layout/Navbar';
+import { YouTubeSidebar } from './client/components/layout/YouTubeSidebar';
 import { Footer } from './client/components/layout/Footer';
 import { BottomNav } from './client/components/layout/BottomNav';
 import { PlayerProvider, usePlayer } from './client/context/PlayerContext';
@@ -101,6 +103,7 @@ export const App: React.FC = () => {
                 <ActionNotificationProvider>
                   <PlayerProvider>
                     <UploadProvider>
+                      <SidebarProvider>
                 <Router>
               <RouteAnalyticsTracker />
               <Routes>
@@ -200,9 +203,12 @@ export const App: React.FC = () => {
                 <Route
                   path="*"
                   element={
-                    <div className="flex flex-col min-h-screen pb-16 md:pb-0">
+                    <div className="flex flex-col min-h-screen pb-16 md:pb-0 bg-[#0B0E14]">
                       <Navbar />
-                      <main className="flex-1">
+                      <div className="flex-1 flex overflow-x-hidden">
+                        <YouTubeSidebar />
+                        <div className="flex-1 min-w-0 flex flex-col">
+                          <main className="flex-1">
                         <Routes>
                           <Route path="/" element={<HomePage />} />
                           
@@ -241,7 +247,9 @@ export const App: React.FC = () => {
                           <Route path="*" element={<NotFoundPage />} />
                         </Routes>
                       </main>
-                      <Footer />
+                          <Footer />
+                        </div>
+                      </div>
                       <BottomNav />
                       <GlobalPlayerLayer />
                     </div>
@@ -250,6 +258,7 @@ export const App: React.FC = () => {
 
               </Routes>
             </Router>
+                      </SidebarProvider>
                     </UploadProvider>
                   </PlayerProvider>
         </ActionNotificationProvider>
