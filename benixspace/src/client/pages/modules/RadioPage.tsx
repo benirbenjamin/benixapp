@@ -129,18 +129,18 @@ export const RadioPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         
         {/* Prominent Back to Home Button */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all hover:scale-105 shadow-md"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-[#121824] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition-all shadow-md shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Home</span>
           </Link>
 
-          <span className="text-xs text-amber-400 font-bold flex items-center gap-1.5 bg-[#121824] px-3 py-1.5 rounded-xl border border-slate-800">
-            <Radio className="w-3.5 h-3.5 text-purple-400" />
-            <span>Continuous Background Radio Active</span>
+          <span className="text-[11px] sm:text-xs text-amber-400 font-bold flex items-center gap-1.5 bg-[#121824] px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-800 max-w-full">
+            <Radio className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span className="truncate">Continuous Background Radio Active</span>
           </span>
         </div>
         

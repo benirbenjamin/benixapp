@@ -76,16 +76,8 @@ export const Footer: React.FC = () => {
           
           {/* Column 1: Company Profile & Logo */}
           <div className="space-y-4">
-            <Link to="/" className="flex items-center gap-3 group">
-              <img src={logo} alt="BenixSpace Logo" className="w-10 h-10 object-contain rounded-xl shadow-md group-hover:scale-105 transition-transform" />
-              <div>
-                <span className="font-black text-xl tracking-tight text-white block group-hover:text-blue-400 transition-colors">
-                  {companyInfo.name}
-                </span>
-                <span className="text-[10px] text-slate-400 font-medium tracking-wide">
-                  {companyInfo.tagline}
-                </span>
-              </div>
+            <Link to="/" className="flex items-center group">
+              <img src="/logo.png" alt="BenixSpace" className="h-9 w-auto max-w-[180px] object-contain transition-transform group-hover:scale-105" />
             </Link>
             <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
               BenixSpace is the premier unified digital platform ecosystem for Rwanda and East Africa. Watch live streaming TV, 24/7 radio stations, verified dating, gospel choirs, and digital commerce.

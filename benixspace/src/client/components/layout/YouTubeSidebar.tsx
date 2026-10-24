@@ -34,6 +34,7 @@ import {
   RadioTower
 } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
+import { SubmitAdModal } from '../modals/SubmitAdModal';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
 
 export const YouTubeSidebar: React.FC = () => {
@@ -44,6 +45,7 @@ export const YouTubeSidebar: React.FC = () => {
   const location = useLocation();
 
   const [wizardKey, setWizardKey] = useState<string | null>(null);
+  const [showSubmitAd, setShowSubmitAd] = useState(false);
 
   const handleProtectedClick = (e: React.MouseEvent, appKey: string, route: string) => {
     e.preventDefault();
@@ -170,9 +172,9 @@ export const YouTubeSidebar: React.FC = () => {
       id: 'ads',
       name: 'Submit Ad',
       icon: Megaphone,
-      external: 'https://wa.me/250783987223?text=Hello%20Benix%20Space%20Advertising%20Team,%20I%20would%20like%20to%20submit%20an%20ad',
-      badge: 'Broadcast',
-      color: 'text-yellow-400'
+      action: 'create-ad',
+      badge: 'From 100 RWF',
+      color: 'text-amber-400'
     },
     {
       id: 'projects',
@@ -215,12 +217,9 @@ export const YouTubeSidebar: React.FC = () => {
       {/* Drawer Header (Only visible on mobile modal drawer) */}
       {isDrawer && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain" />
-            <span className="font-black text-base text-white tracking-tight">
-              Benix<span className="text-blue-500">.Space</span>
-            </span>
-          </div>
+          <Link to="/" onClick={closeMobile} className="flex items-center">
+            <img src="/logo.png" alt="BenixSpace" className="h-7 w-auto object-contain" />
+          </Link>
           <button
             onClick={closeMobile}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
@@ -301,8 +300,33 @@ export const YouTubeSidebar: React.FC = () => {
             <div className="space-y-0.5 pl-1 animate-in fade-in slide-in-from-top-2 duration-200">
               {morePlatforms.map((item) => {
                 const Icon = item.icon;
-                const isExternal = !!item.external;
+                const isExternal = !!(item as any).external;
                 const isActive = item.route && location.pathname === item.route;
+
+                if ((item as any).action === 'create-ad') {
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (isDrawer) closeMobile();
+                        if (!user) {
+                          setWizardKey('tv');
+                        } else {
+                          setShowSubmitAd(true);
+                        }
+                      }}
+                      className="w-full group flex items-center justify-between px-3 py-2 rounded-xl text-xs text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <Icon className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span className="truncate font-semibold">{item.name}</span>
+                      </div>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        100 RWF
+                      </span>
+                    </button>
+                  );
+                }
 
                 if (isExternal) {
                   return (
@@ -542,6 +566,14 @@ export const YouTubeSidebar: React.FC = () => {
           </div>
           <div className="flex-1" onClick={closeMobile} />
         </div>
+      )}
+
+      {showSubmitAd && (
+        <SubmitAdModal
+          isOpen={showSubmitAd}
+          onClose={() => setShowSubmitAd(false)}
+          onOpenWallet={() => navigate('/dashboard#wallet')}
+        />
       )}
     </>
   );

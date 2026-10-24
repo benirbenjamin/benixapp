@@ -102,10 +102,10 @@ export const Navbar: React.FC = () => {
         <div className="w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-10 py-3 space-y-3">
           
           {/* Top Row: Menu | Brand Logo & Subtitle | Prominent Admin & Bell */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-3">
             
             {/* Left: Drawer Menu Button & Clickable Logo */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <button
                 onClick={handleMenuToggle}
                 className="relative p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
@@ -117,25 +117,17 @@ export const Navbar: React.FC = () => {
                 )}
               </button>
 
-              <Link to="/" className="flex items-center gap-2.5 group">
+              <Link to="/" className="flex items-center shrink-0 group">
                 <img
-                  src={localStorage.getItem('benix_platform_logo') || '/logo.png'}
-                  alt="BenixSpace Logo"
-                  className="w-9 h-9 object-contain rounded-xl shadow-md group-hover:scale-105 transition-transform"
+                  src="/logo.png"
+                  alt="BenixSpace"
+                  className="h-8 sm:h-9 w-auto max-w-[130px] sm:max-w-[180px] object-contain transition-transform group-hover:scale-105"
                 />
-                <div className="flex flex-col">
-                  <span className="font-black text-xl tracking-tight text-white flex items-center gap-1 group-hover:text-blue-400 transition-colors">
-                    Benix<span className="text-blue-500">.Space</span>
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-400 tracking-wide">
-                    All in One. For Everyone.
-                  </span>
-                </div>
               </Link>
             </div>
 
             {/* Right: Actions */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               
               {/* Creator Upload (+) Button */}
               <button
@@ -162,7 +154,7 @@ export const Navbar: React.FC = () => {
                     setShowSubmitAd(true);
                   }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-md shadow-amber-500/10 transition-all hover:scale-105"
+                className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-md shadow-amber-500/10 transition-all hover:scale-105 shrink-0"
                 title="Create & Submit Ad Campaign (from 100 RWF)"
               >
                 <Megaphone className="w-3.5 h-3.5 text-amber-400 stroke-[2.2]" />
@@ -410,10 +402,9 @@ export const Navbar: React.FC = () => {
           <div className="w-72 max-w-[80%] bg-[#0B0E14] border-r border-slate-800 h-full p-5 flex flex-col justify-between text-white overflow-y-auto">
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div>
-                  <h3 className="font-black text-lg text-white">Benix<span className="text-blue-500">.Space</span></h3>
-                  <p className="text-[10px] text-slate-400">All in One. For Everyone.</p>
-                </div>
+                <Link to="/" onClick={() => setIsDrawerOpen(false)} className="flex items-center">
+                  <img src="/logo.png" alt="BenixSpace" className="h-7 w-auto object-contain" />
+                </Link>
                 <button
                   onClick={() => setIsDrawerOpen(false)}
                   className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
