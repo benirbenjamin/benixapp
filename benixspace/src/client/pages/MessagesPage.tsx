@@ -295,6 +295,9 @@ export const MessagesPage: React.FC = () => {
         if (res.data?.unlockedContactIds && Array.isArray(res.data.unlockedContactIds)) {
           setUnlockedContactIds(res.data.unlockedContactIds);
         }
+        if (res.data?.unlockedPhones && typeof res.data.unlockedPhones === 'object') {
+          setUnlockedPhones((prev) => ({ ...prev, ...res.data.unlockedPhones }));
+        }
       })
       .catch(() => {});
   };

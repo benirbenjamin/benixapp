@@ -27,6 +27,7 @@ import {
   Download,
   Film,
   Megaphone,
+  TrendingUp,
   LogIn,
   UserPlus,
   ChevronDown
@@ -37,6 +38,7 @@ import { WalletModal } from '../modals/WalletModal';
 import { NotificationTray } from '../modals/NotificationTray';
 import { MessagesDrawer } from '../modals/MessagesDrawer';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
+import { SubmitAdModal } from '../modals/SubmitAdModal';
 import { usePwa } from '../../context/PwaContext';
 import { useInAppActions } from '../../context/ActionNotificationContext';
 import { useSidebar } from '../../context/SidebarContext';
@@ -49,6 +51,7 @@ export const Navbar: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showCreateMedia, setShowCreateMedia] = useState(false);
+  const [showSubmitAd, setShowSubmitAd] = useState(false);
   const [wizardAppKey, setWizardAppKey] = useState<string | null>(null);
   const [wizardInitialTab, setWizardInitialTab] = useState<'register' | 'login'>('register');
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
@@ -148,6 +151,23 @@ export const Navbar: React.FC = () => {
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>Create</span>
+              </button>
+
+              {/* Submit Ad / Promote Campaign Button */}
+              <button
+                onClick={() => {
+                  if (!user) {
+                    setWizardAppKey('tv');
+                  } else {
+                    setShowSubmitAd(true);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-md shadow-amber-500/10 transition-all hover:scale-105"
+                title="Create & Submit Ad Campaign (from 100 RWF)"
+              >
+                <Megaphone className="w-3.5 h-3.5 text-amber-400 stroke-[2.2]" />
+                <span className="hidden sm:inline">Submit Ad</span>
+                <span className="sm:hidden">Ad</span>
               </button>
 
               {/* ADMIN DASHBOARD BUTTON - ONLY VISIBLE TO VERIFIED ADMINS (Hidden on mobile to keep header clean) */}
@@ -264,6 +284,26 @@ export const Navbar: React.FC = () => {
                         >
                           <LayoutDashboard className="w-4 h-4 text-blue-400" />
                           <span>My Dashboard & Profile</span>
+                        </Link>
+
+                        <button
+                          onClick={() => {
+                            setIsAvatarMenuOpen(false);
+                            setShowSubmitAd(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 transition-colors text-left"
+                        >
+                          <Megaphone className="w-4 h-4 text-amber-400" />
+                          <span>Submit Ad Campaign</span>
+                        </button>
+
+                        <Link
+                          to="/dashboard#ads"
+                          onClick={() => setIsAvatarMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
+                        >
+                          <TrendingUp className="w-4 h-4 text-indigo-400" />
+                          <span>Ad Campaigns & Analytics</span>
                         </Link>
 
                         <Link
@@ -565,21 +605,28 @@ export const Navbar: React.FC = () => {
                   <span>EasyCalc Utilities</span>
                 </button>
 
-                <a
-                  href="https://wa.me/250783987223?text=Hello%20Benix%20Space%20Advertising%20Team,%20I%20would%20like%20to%20submit%20an%20ad"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-amber-300 hover:text-amber-200 transition-all text-left border border-amber-500/20 bg-amber-500/5"
+                <button
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    if (!user) {
+                      setWizardAppKey('tv');
+                    } else {
+                      setShowSubmitAd(true);
+                    }
+                  }}
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-amber-300 hover:text-amber-200 transition-all text-left border border-amber-500/30 bg-amber-500/10 shadow-sm"
                 >
-                  <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
                     <Megaphone className="w-4 h-4" />
                   </div>
                   <div className="flex-1">
-                    <span>Submit Ad</span>
-                    <span className="block text-[9px] text-amber-400/80 font-normal">Broadcast to TV, Radio & Videos</span>
+                    <div className="flex items-center justify-between">
+                      <span>Submit Ad / Promote</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-400 text-black font-extrabold uppercase">From 100 RWF</span>
+                    </div>
+                    <span className="block text-[9px] text-amber-300/80 font-normal">Self-serve TV, Video, Story & Web ads</span>
                   </div>
-                </a>
+                </button>
               </div>
 
               {/* PWA App Install Button (Hides when installed) */}
@@ -657,6 +704,13 @@ export const Navbar: React.FC = () => {
         <CreateMediaModal
           isOpen={showCreateMedia}
           onClose={() => setShowCreateMedia(false)}
+        />
+      )}
+      {showSubmitAd && (
+        <SubmitAdModal
+          isOpen={showSubmitAd}
+          onClose={() => setShowSubmitAd(false)}
+          onOpenWallet={() => navigate('/dashboard#wallet')}
         />
       )}
       {wizardAppKey && (

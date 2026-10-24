@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTheme, ThemeMode, AccentColor } from '../context/ThemeContext';
 import { SeoHead } from '../components/common/SeoHead';
 import { WalletModal } from '../components/modals/WalletModal';
+import { SubmitAdModal } from '../components/modals/SubmitAdModal';
 import {
   LayoutDashboard,
   Wallet,
@@ -32,7 +33,13 @@ import {
   ExternalLink,
   Lock,
   User,
-  ArrowLeft
+  ArrowLeft,
+  Megaphone,
+  TrendingUp,
+  Pause,
+  Play,
+  Plus,
+  BarChart3
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -40,13 +47,21 @@ export const DashboardPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
   const { mode, accent, setMode, setAccent } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads'>('overview');
+  const [showSubmitAdModal, setShowSubmitAdModal] = useState(false);
+  const [userCampaigns, setUserCampaigns] = useState<any[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [adActionMsg, setAdActionMsg] = useState('');
   const [copied, setCopied] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
 
   useEffect(() => {
     const isWalletHash = window.location.hash === '#wallet';
+    const isAdsHash = window.location.hash === '#ads';
+    if (isAdsHash) {
+      setActiveTab('ads');
+    }
     const isPaymentReturn = window.location.search.includes('flw') || 
                             window.location.search.includes('payment=') || 
                             window.location.search.includes('tx_ref');
@@ -55,6 +70,56 @@ export const DashboardPage: React.FC = () => {
       setShowWalletModal(true);
     }
   }, []);
+
+
+  const loadUserCampaigns = async () => {
+    if (!token && !localStorage.getItem('token')) return;
+    try {
+      setCampaignsLoading(true);
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch('/api/ads/my-campaigns', {
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.campaigns)) {
+        setUserCampaigns(data.campaigns);
+      }
+    } catch (err) {
+      console.error('Failed to load user campaigns:', err);
+    } finally {
+      setCampaignsLoading(false);
+    }
+  };
+
+  const handleTogglePause = async (campaignId: string) => {
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/ads/${campaignId}/toggle-pause`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdActionMsg(data.message || 'Campaign updated successfully.');
+        setTimeout(() => setAdActionMsg(''), 3000);
+        loadUserCampaigns();
+      } else {
+        alert(data.error || 'Failed to update campaign');
+      }
+    } catch (err) {
+      console.error('Error toggling campaign pause:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'ads') {
+      loadUserCampaigns();
+    }
+  }, [activeTab]);
 
   // Selected Modules
   const [modules, setModules] = useState<string[]>(
@@ -173,6 +238,7 @@ export const DashboardPage: React.FC = () => {
             { id: 'overview', label: 'Overview & Apps', icon: LayoutDashboard },
             { id: 'wallet', label: 'Central Wallet & Ledger', icon: Wallet },
             { id: 'customizer', label: 'App Customizer', icon: Palette },
+            { id: 'ads', label: 'Ad Campaigns & Analytics', icon: Megaphone },
             { id: 'referrals', label: 'Referrals & Earnings', icon: Gift },
             { id: 'security', label: 'Account & Security', icon: ShieldCheck }
           ].map((tab) => {
@@ -414,6 +480,281 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
+        {/* TAB 6: AD CAMPAIGNS & SELF-SERVE ANALYTICS */}
+        {activeTab === 'ads' && (
+          <div className="space-y-6">
+            
+            {/* Header with CTA Button */}
+            <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#121A2C] via-[#0E1524] to-[#0A0E18] border border-amber-500/20 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                    <Megaphone className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-black text-white">Self-Serve Advertising & Campaign Analytics</h3>
+                  <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    From 100 RWF
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                  Broadcast your products, YouTube channels, music, and businesses across Rwandan TV, live videos, stories, and recommendations. Budget is deducted incrementally from your central wallet as real impressions and clicks occur.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowSubmitAdModal(true)}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 shrink-0 transition-all hover:scale-105 active:scale-95"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Launch New Campaign</span>
+              </button>
+            </div>
+
+            {adActionMsg && (
+              <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{adActionMsg}</span>
+              </div>
+            )}
+
+            {/* Campaign Performance Metrics Strip */}
+            {(() => {
+              const totalSpent = userCampaigns.reduce((sum, c) => sum + Number(c.total_spent || 0), 0);
+              const totalViews = userCampaigns.reduce((sum, c) => sum + Number(c.impressions_count || 0), 0);
+              const totalClicks = userCampaigns.reduce((sum, c) => sum + Number(c.clicks_count || 0), 0);
+              const activeCount = userCampaigns.filter(c => c.status === 'active').length;
+              const ctr = totalViews > 0 ? ((totalClicks / totalViews) * 100).toFixed(1) : '0.0';
+
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+                  <div className="p-4 rounded-2xl bg-[#121824] border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Total Money Spent</span>
+                    <p className="text-xl font-black text-emerald-400">{totalSpent.toLocaleString()} <span className="text-xs">RWF</span></p>
+                    <span className="text-[9px] text-slate-500 block">Deducted from wallet</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#121824] border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Delivered Views</span>
+                    <p className="text-xl font-black text-blue-400">{totalViews.toLocaleString()}</p>
+                    <span className="text-[9px] text-slate-500 block">Real user impressions</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#121824] border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Total Clicks</span>
+                    <p className="text-xl font-black text-purple-400">{totalClicks.toLocaleString()}</p>
+                    <span className="text-[9px] text-slate-500 block">Direct website visits</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#121824] border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Average CTR</span>
+                    <p className="text-xl font-black text-amber-400">{ctr}%</p>
+                    <span className="text-[9px] text-slate-500 block">Click-through rate</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-[#121824] border border-slate-800 space-y-1 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Active Campaigns</span>
+                    <p className="text-xl font-black text-white">{activeCount} / {userCampaigns.length}</p>
+                    <span className="text-[9px] text-emerald-400 font-bold block">Running in rotation</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Campaign Cards List */}
+            {campaignsLoading ? (
+              <div className="p-12 text-center text-slate-400 text-xs">
+                <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <span>Loading your advertising campaigns...</span>
+              </div>
+            ) : userCampaigns.length === 0 ? (
+              <div className="p-10 sm:p-14 rounded-3xl bg-[#121824] border border-slate-800 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+                  <Megaphone className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-base text-white">You don't have any ad campaigns yet</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Start reaching thousands of viewers across Benix.Space with flexible budgets starting from only 100 RWF.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSubmitAdModal(true)}
+                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-lg shadow-amber-500/20 inline-flex items-center gap-2 transition-all hover:scale-105"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Launch Your First Campaign</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {userCampaigns.map(campaign => {
+                  const targetImp = Number(campaign.target_impressions || 0);
+                  const deliveredImp = Number(campaign.impressions_count || 0);
+                  const clicks = Number(campaign.clicks_count || 0);
+                  const spent = Number(campaign.total_spent || 0);
+                  const progressPct = targetImp > 0 ? Math.min(100, Math.round((deliveredImp / targetImp) * 100)) : 0;
+                  const ctr = deliveredImp > 0 ? ((clicks / deliveredImp) * 100).toFixed(1) : '0.0';
+
+                  return (
+                    <div
+                      key={campaign.id}
+                      className="p-5 sm:p-6 rounded-3xl bg-[#121824] border border-slate-800 hover:border-slate-700 transition-all space-y-4 shadow-xl"
+                    >
+                      {/* Top: Media Thumbnail, Title, Destination, Status Badge */}
+                      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                        <div className="flex items-start gap-4 flex-1">
+                          
+                          {/* Image preview */}
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-black border border-slate-800 overflow-hidden shrink-0 relative">
+                            {campaign.media_url ? (
+                              <img
+                                src={campaign.media_url}
+                                alt={campaign.title}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                <Megaphone className="w-6 h-6" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-extrabold text-base text-white truncate">
+                                {campaign.title}
+                              </h4>
+
+                              {/* Status Badge */}
+                              <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                                campaign.status === 'active'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                  : campaign.status === 'pending'
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse'
+                                  : campaign.status === 'paused'
+                                  ? 'bg-slate-700 text-slate-300 border-slate-600'
+                                  : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                              }`}>
+                                {campaign.status === 'pending' ? 'Under Review' : campaign.status}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-300 line-clamp-2">
+                              {campaign.description || 'No description provided.'}
+                            </p>
+
+                            <div className="flex items-center gap-3 text-xs flex-wrap pt-0.5">
+                              <a
+                                href={campaign.target_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:underline flex items-center gap-1 font-semibold truncate max-w-xs"
+                              >
+                                <ExternalLink className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{campaign.target_url}</span>
+                              </a>
+                              <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
+                                Button: {campaign.cta_text || 'Learn More'}
+                              </span>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* Bids & Spend Stats Strip */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#0B0E14] p-3 rounded-2xl border border-slate-800 shrink-0 w-full sm:w-auto">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block">Daily Budget</span>
+                            <span className="text-xs font-black text-white">{Number(campaign.daily_budget).toLocaleString()} RWF</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block">Bids (CPM / CPC)</span>
+                            <span className="text-xs font-black text-amber-400">{campaign.cpm_bid} / {campaign.cpc_bid} RWF</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block">Delivered Views</span>
+                            <span className="text-xs font-black text-blue-400">{deliveredImp.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block">Spent from Wallet</span>
+                            <span className="text-xs font-black text-emerald-400">{spent.toLocaleString()} RWF</span>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* Progress Bar towards target quota */}
+                      {targetImp > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center justify-between text-[11px] text-slate-400">
+                            <span>Impression Delivery Progress</span>
+                            <span className="font-bold text-slate-200">
+                              {deliveredImp} / {targetImp} views ({progressPct}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all"
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rejection notice if rejected */}
+                      {campaign.status === 'rejected' && campaign.rejection_reason && (
+                        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1">
+                          <span className="font-bold uppercase text-[10px] text-rose-400 flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            <span>Action Required — Campaign Rejected by Moderation</span>
+                          </span>
+                          <p>{campaign.rejection_reason}</p>
+                        </div>
+                      )}
+
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 text-[11px]">
+                            Clicks: <strong className="text-white">{clicks}</strong> ({ctr}% CTR)
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {campaign.status === 'active' && (
+                            <button
+                              onClick={() => handleTogglePause(campaign.id)}
+                              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                            >
+                              <Pause className="w-3.5 h-3.5" />
+                              <span>Pause Campaign</span>
+                            </button>
+                          )}
+
+                          {campaign.status === 'paused' && (
+                            <button
+                              onClick={() => handleTogglePause(campaign.id)}
+                              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                              <span>Resume Campaign</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => setShowSubmitAdModal(true)}
+                            className="px-3.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all"
+                          >
+                            New Ad
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </div>
+        )}
+
       </div>
 
       {/* Central Wallet Modal */}
@@ -421,6 +762,20 @@ export const DashboardPage: React.FC = () => {
         <WalletModal
           isOpen={showWalletModal}
           onClose={() => setShowWalletModal(false)}
+        />
+      )}
+
+      {showSubmitAdModal && (
+        <SubmitAdModal
+          isOpen={showSubmitAdModal}
+          onClose={() => {
+            setShowSubmitAdModal(false);
+            loadUserCampaigns();
+          }}
+          onOpenWallet={() => {
+            setShowSubmitAdModal(false);
+            setActiveTab('wallet');
+          }}
         />
       )}
     </div>

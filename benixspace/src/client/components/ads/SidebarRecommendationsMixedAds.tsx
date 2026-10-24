@@ -7,6 +7,7 @@ import {
   Play,
   Tv,
   Radio,
+  Film,
   Eye,
   CheckCircle2,
   ShieldCheck,
@@ -26,6 +27,11 @@ interface RecommendationItem {
   logo_url?: string;
   logoUrl?: string;
   thumbnail?: string;
+  creator?: string;
+  channelName?: string;
+  duration?: string;
+  views?: number;
+  price?: number;
 }
 
 interface CustomAd {
@@ -125,52 +131,125 @@ export const SidebarRecommendationsMixedAds: React.FC<Props> = ({
       {/* Recommendations List Interspersed with Custom Ads & Google AdSense */}
       <div className="space-y-3">
         <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 px-1">
-          {type === 'tv' ? <Tv className="w-3.5 h-3.5 text-blue-400" /> : <Radio className="w-3.5 h-3.5 text-purple-400" />}
-          <span>{type === 'tv' ? 'Up Next & Live Channels' : 'Trending Radio Stations'}</span>
+          {type === 'video' ? (
+            <Film className="w-3.5 h-3.5 text-purple-400" />
+          ) : type === 'tv' ? (
+            <Tv className="w-3.5 h-3.5 text-blue-400" />
+          ) : (
+            <Radio className="w-3.5 h-3.5 text-purple-400" />
+          )}
+          <span>
+            {type === 'video'
+              ? 'Up Next & Recommended Videos'
+              : type === 'tv'
+              ? 'Up Next & Live Channels'
+              : 'Trending Radio Stations'}
+          </span>
         </h4>
 
-        {items.slice(0, 10).map((item, index) => {
+        {items.slice(0, 15).map((item, index) => {
           const isActive = activeItemId === item.id;
           const matchingAd = ads[index % ads.length];
           const shouldShowAd = (index === 1 || index === 4 || index === 7) && ads.length > 0;
 
           return (
             <React.Fragment key={item.id}>
-              {/* Media Card Item */}
-              <div
-                onClick={() => onSelectItem(item)}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 group ${
-                  isActive
-                    ? 'bg-blue-600/15 border-blue-500/50 shadow-md'
-                    : 'bg-[#121824] hover:bg-[#182132] border-slate-800'
-                }`}
-              >
-                <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-slate-700/80 p-1 shrink-0 overflow-hidden flex items-center justify-center">
-                  <img
-                    src={item.logo_url || item.logoUrl || item.thumbnail || '/logo.png'}
-                    alt={item.name || item.title}
-                    className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                  />
-                  {isActive && (
-                    <div className="absolute inset-0 bg-blue-600/40 flex items-center justify-center">
-                      <Play className="w-4 h-4 text-white fill-current animate-pulse" />
+              {/* Media Card Item: Rich YouTube-Style Video Preview when type === 'video' */}
+              {type === 'video' ? (
+                <div
+                  onClick={() => onSelectItem(item)}
+                  className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex gap-3 group ${
+                    isActive
+                      ? 'bg-purple-950/40 border-purple-500/60 shadow-md ring-1 ring-purple-500/30'
+                      : 'bg-[#121824] hover:bg-[#182132] border-slate-800/80 hover:border-purple-500/40'
+                  }`}
+                >
+                  {/* 16:9 Video Thumbnail Preview */}
+                  <div className="relative w-36 sm:w-40 aspect-video rounded-xl bg-slate-900 border border-slate-800 shrink-0 overflow-hidden group-hover:border-purple-500/40 transition-all shadow-sm">
+                    <img
+                      src={item.thumbnail || item.logo_url || `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`}
+                      alt={item.title || item.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`;
+                      }}
+                    />
+                    {/* Duration badge */}
+                    {item.duration && (
+                      <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/85 text-[10px] font-mono font-bold text-white shadow">
+                        {item.duration}
+                      </span>
+                    )}
+                    {/* Play hover overlay */}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                        <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                      </div>
                     </div>
-                  )}
-                </div>
+                    {/* Price badge if paid */}
+                    {Number(item.price) > 0 && (
+                      <span className="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-amber-500 text-black text-[9px] font-black uppercase shadow">
+                        {Number(item.price).toLocaleString()} RWF
+                      </span>
+                    )}
+                  </div>
 
-                <div className="min-w-0 flex-1">
-                  <h5 className="font-extrabold text-xs text-white truncate group-hover:text-blue-400 transition-colors">
-                    {item.name || item.title}
-                  </h5>
-                  <p className="text-[11px] text-slate-400 truncate">
-                    {item.frequency || item.location || item.category || 'Live Broadcast'}
-                  </p>
-                </div>
+                  {/* Video Info Preview */}
+                  <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
+                    <div>
+                      <h5 className="font-bold text-xs text-white line-clamp-2 leading-snug group-hover:text-purple-300 transition-colors">
+                        {item.title || item.name}
+                      </h5>
+                      <p className="text-[11px] text-slate-400 truncate mt-1 flex items-center gap-1">
+                        <span>{item.channelName || item.creator || 'Benix Creator'}</span>
+                        <CheckCircle2 className="w-3 h-3 text-purple-400 shrink-0" />
+                      </p>
+                    </div>
 
-                <div className="shrink-0 text-slate-500 group-hover:text-white transition-colors">
-                  <ChevronRight className="w-4 h-4" />
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
+                      <span>{typeof item.views === 'number' && item.views > 0 ? (item.views >= 1000 ? `${(item.views / 1000).toFixed(1)}K` : item.views) : '0'} views</span>
+                      <span>•</span>
+                      <span className="truncate">{item.category || 'General'}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Compact Station Card for TV / Radio */
+                <div
+                  onClick={() => onSelectItem(item)}
+                  className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 group ${
+                    isActive
+                      ? 'bg-blue-600/15 border-blue-500/50 shadow-md'
+                      : 'bg-[#121824] hover:bg-[#182132] border-slate-800'
+                  }`}
+                >
+                  <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-slate-700/80 p-1 shrink-0 overflow-hidden flex items-center justify-center">
+                    <img
+                      src={item.logo_url || item.logoUrl || item.thumbnail || '/logo.png'}
+                      alt={item.name || item.title}
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                    />
+                    {isActive && (
+                      <div className="absolute inset-0 bg-blue-600/40 flex items-center justify-center">
+                        <Play className="w-4 h-4 text-white fill-current animate-pulse" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h5 className="font-extrabold text-xs text-white truncate group-hover:text-blue-400 transition-colors">
+                      {item.name || item.title}
+                    </h5>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {item.frequency || item.location || item.category || 'Live Broadcast'}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-slate-500 group-hover:text-white transition-colors">
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </div>
+              )}
 
               {/* Seamless Mixed Custom Sponsored Ad Slot */}
               {shouldShowAd && matchingAd && (

@@ -53646,8 +53646,24 @@ async function getSystemSetting(key, defaultValue) {
     `).catch(() => {
     });
     const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]);
-    if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0) {
+    if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
       return String(res.rows[0].value);
+    }
+    const allAppsRes = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    if (allAppsRes.rowCount > 0 && allAppsRes.rows[0]?.value) {
+      const parsed = typeof allAppsRes.rows[0].value === "string" ? JSON.parse(allAppsRes.rows[0].value) : allAppsRes.rows[0].value;
+      if (key === "contact_unlock_price" && parsed?.modules?.kunda_contact_unlock_price) {
+        return String(parsed.modules.kunda_contact_unlock_price);
+      }
+      if (key === "kunda_creator_rev_share_pct" && parsed?.modules?.kunda_creator_rev_share_pct) {
+        return String(parsed.modules.kunda_creator_rev_share_pct);
+      }
+      if (key === "kunda_message_cost" && parsed?.modules?.kunda_message_cost) {
+        return String(parsed.modules.kunda_message_cost);
+      }
+      if (key === "kunda_free_messages" && parsed?.modules?.kunda_free_messages) {
+        return String(parsed.modules.kunda_free_messages);
+      }
     }
   } catch {
   }
@@ -53952,20 +53968,30 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         contact_id VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, contact_id)
       );
+      ALTER TABLE chat_unlocked_contacts ADD COLUMN IF NOT EXISTS phone VARCHAR(100);
     `).catch(() => {
     });
-    await query(
-      `INSERT INTO chat_unlocked_contacts (user_id, contact_id)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id, contact_id) DO NOTHING`,
-      [userId, contactId]
-    );
-    const uRes = await query("SELECT phone, name, email FROM core_users WHERE id = $1", [contactId]).catch(() => ({ rowCount: 0, rows: [] }));
-    const phone = uRes.rows[0]?.phone || "+250783987223";
+    let phone = "+250783987223";
+    if (contactId === "k1") phone = "+250788123456";
+    else if (contactId === "k2") phone = "+250789234567";
+    else if (contactId === "k3") phone = "+250783987223";
+    else {
+      const uRes = await query("SELECT phone, name, email FROM core_users WHERE id = $1", [contactId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (uRes.rowCount > 0 && uRes.rows[0]?.phone) {
+        phone = uRes.rows[0].phone;
+      }
+    }
     const cleanPhone = phone.replace(/[^0-9]/g, "");
+    await query(
+      `INSERT INTO chat_unlocked_contacts (user_id, contact_id, phone)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, contact_id) DO UPDATE SET phone = EXCLUDED.phone`,
+      [userId, contactId, phone]
+    );
     return res.json({
       success: true,
       phone,
@@ -53991,13 +54017,32 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
 });
 app.get("/api/chat/unlocked", authenticateToken, async (req, res) => {
   try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_unlocked_contacts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        contact_id VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, contact_id)
+      );
+      ALTER TABLE chat_unlocked_contacts ADD COLUMN IF NOT EXISTS phone VARCHAR(100);
+    `).catch(() => {
+    });
     const list = await query(
-      `SELECT contact_id FROM chat_unlocked_contacts WHERE user_id = $1`,
+      `SELECT contact_id, phone FROM chat_unlocked_contacts WHERE user_id = $1`,
       [req.user.id]
     ).catch(() => ({ rows: [] }));
-    return res.json({ unlockedContactIds: list.rows.map((r) => r.contact_id) });
+    const unlockedPhones = {};
+    list.rows.forEach((r) => {
+      unlockedPhones[r.contact_id] = r.phone || "+250783987223";
+    });
+    return res.json({
+      unlockedContactIds: list.rows.map((r) => r.contact_id),
+      unlockedPhones
+    });
   } catch {
-    return res.json({ unlockedContactIds: [] });
+    return res.json({ unlockedContactIds: [], unlockedPhones: {} });
   }
 });
 app.get("/api/chat/contacts", async (req, res) => {
@@ -54721,13 +54766,16 @@ async function ensureStoriesTable() {
   });
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {
   });
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {
+  });
 }
 app.get("/api/stories", async (req, res) => {
   try {
     await ensureStoriesTable();
     const result = await query(
       `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
-              media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType", created_at,
+              media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType",
+              COALESCE(duration, 5.0) as duration, created_at,
               to_char(created_at, 'HH12:MI AM') as timestamp
        FROM core_stories
        WHERE expires_at > CURRENT_TIMESTAMP OR expires_at IS NULL
@@ -54742,8 +54790,15 @@ app.get("/api/stories", async (req, res) => {
 });
 app.post("/api/stories", authenticateToken, async (req, res) => {
   try {
-    const { mediaUrl, caption, mediaType } = req.body;
+    const { mediaUrl, caption, mediaType, duration } = req.body;
     if (!mediaUrl) return res.status(400).json({ error: "Story media is required." });
+    const determinedType = mediaType || (mediaUrl.startsWith("data:video") || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ? "video" : "image");
+    const parsedDuration = Number(duration) || (determinedType === "video" ? 15 : 5);
+    if (determinedType === "video" && parsedDuration > 45.5) {
+      return res.status(400).json({
+        error: `Story videos cannot exceed 45 seconds (Provided video is ${Math.round(parsedDuration)}s). Please choose a shorter clip.`
+      });
+    }
     await ensureStoriesTable();
     let authorName = req.user.email?.split("@")[0] || "Benix Creator";
     let authorAvatar = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80";
@@ -54755,12 +54810,11 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
       }
     } catch {
     }
-    const determinedType = mediaType || (mediaUrl.startsWith("data:video") || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ? "video" : "image");
     const storyId = "story-" + Date.now();
     await query(
-      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [storyId, req.user.id, authorName, authorAvatar, mediaUrl, caption || "", determinedType]
+      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [storyId, req.user.id, authorName, authorAvatar, mediaUrl, caption || "", determinedType, parsedDuration]
     );
     const newStory = {
       id: storyId,
@@ -54770,6 +54824,7 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
       mediaUrl,
       caption: caption || "",
       mediaType: determinedType,
+      duration: parsedDuration,
       timestamp: "Just now"
     };
     return res.json({ success: true, story: newStory });
@@ -54863,21 +54918,41 @@ var initCreatorTables = async () => {
   }
 };
 initCreatorTables();
-app.post("/api/videos/track-watch", async (req, res) => {
+app.post(["/api/videos/track-watch", "/api/modules/videos/track-watch", "/api/modules/videos/watch-heartbeat", "/api/videos/watch-heartbeat"], async (req, res) => {
   try {
-    const { videoId, creatorId, durationSeconds = 15, viewerId } = req.body;
+    const { videoId, creatorId, durationSeconds = 10, viewerId, channelName } = req.body;
     if (!videoId) return res.status(400).json({ error: "videoId is required" });
-    const sec = Math.min(Number(durationSeconds) || 15, 60);
+    const sec = Math.min(Number(durationSeconds) || 10, 60);
+    let effCreatorId = creatorId;
+    if (!effCreatorId || effCreatorId === "Benix Space Channel" || effCreatorId === "Verified Creator") {
+      const vLookup = await query("SELECT user_id, channel_name FROM user_videos WHERE id = $1 LIMIT 1", [videoId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (vLookup.rowCount > 0 && vLookup.rows[0]?.user_id) {
+        effCreatorId = vLookup.rows[0].user_id;
+      } else if (channelName) {
+        const uFind = await query("SELECT id FROM core_users WHERE LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1", [channelName]).catch(() => ({ rowCount: 0, rows: [] }));
+        if (uFind.rowCount > 0) effCreatorId = uFind.rows[0].id;
+      }
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS video_watch_time (
+        id SERIAL PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        creator_id VARCHAR(255),
+        viewer_id VARCHAR(255),
+        duration_seconds NUMERIC(15,2) DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
     await query(
       `INSERT INTO video_watch_time (video_id, creator_id, viewer_id, duration_seconds)
        VALUES ($1, $2, $3, $4)`,
-      [videoId, creatorId || null, viewerId || null, sec]
+      [videoId, effCreatorId || null, viewerId || null, sec]
     ).catch(() => {
     });
     await query(
       `UPDATE user_videos
-       SET watch_seconds = COALESCE(watch_seconds, 0) + $1,
-           views = COALESCE(views, 0) + 1
+       SET watch_seconds = COALESCE(watch_seconds, 0) + $1
        WHERE id = $2`,
       [sec, videoId]
     ).catch(() => {
@@ -54885,6 +54960,105 @@ app.post("/api/videos/track-watch", async (req, res) => {
     return res.json({ success: true, recordedSeconds: sec });
   } catch (err) {
     return res.json({ success: false });
+  }
+});
+app.post(["/api/modules/videos/:id/view", "/api/videos/:id/view"], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      userId = decoded?.id || null;
+    }
+    const rawIp = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress || "";
+    const clientIp = rawIp.slice(0, 100);
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_video_views (
+        id SERIAL PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255),
+        ip_address VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO core_video_views (video_id, user_id, ip_address) VALUES ($1, $2, $3)`,
+      [id, userId, clientIp]
+    ).catch(() => {
+    });
+    await query(
+      `UPDATE user_videos SET views = COALESCE(views, 0) + 1 WHERE id = $1`,
+      [id]
+    ).catch(() => {
+    });
+    const inMem = SAMPLE_VIDEOS.find((v2) => v2.id === id);
+    if (inMem) {
+      inMem.views = (inMem.views || 0) + 1;
+    }
+    const countRes = await query(`SELECT COUNT(*) as total FROM core_video_views WHERE video_id = $1`, [id]).catch(() => ({ rows: [{ total: 1 }] }));
+    const totalViews = Number(countRes.rows[0]?.total || 1);
+    return res.json({ success: true, videoId: id, views: totalViews });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/modules/videos/interactions", async (req, res) => {
+  try {
+    const { videoId, category, channelName, interactionType = "watch", query: searchQuery } = req.body;
+    const authHeader = req.headers.authorization;
+    let userId = "guest";
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) userId = decoded.id;
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_video_interactions (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        video_id VARCHAR(255),
+        category VARCHAR(100),
+        channel_name VARCHAR(255),
+        interaction_type VARCHAR(50),
+        search_query TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_uvi_user ON user_video_interactions(user_id);
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO user_video_interactions (user_id, video_id, category, channel_name, interaction_type, search_query)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, videoId || null, category || null, channelName || null, interactionType, searchQuery || null]
+    );
+    return res.json({ success: true });
+  } catch (err) {
+    return res.json({ success: false });
+  }
+});
+app.get("/api/modules/videos/personalized", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      userId = decoded?.id || null;
+    }
+    let userInteractions = [];
+    if (userId) {
+      const intRes = await query(
+        `SELECT category, channel_name, video_id, search_query, interaction_type, created_at 
+         FROM user_video_interactions 
+         WHERE user_id = $1 
+         ORDER BY created_at DESC LIMIT 60`,
+        [userId]
+      ).catch(() => ({ rows: [] }));
+      userInteractions = intRes.rows;
+    }
+    return res.json({ success: true, interactions: userInteractions });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, interactions: [] });
   }
 });
 app.post("/api/creators/:creatorId/subscribe", authenticateToken, async (req, res) => {
@@ -55155,13 +55329,129 @@ app.get("/api/admin/creators/overview", authenticateToken, requireAdminRole, asy
     return res.status(500).json({ error: err.message, creators: [] });
   }
 });
-var customAdCampaigns = [];
+var customAdCampaigns = [
+  {
+    id: "ad-default-kigali-prime",
+    userId: "adv-kigali-prime",
+    userName: "Kigali Prime Gadgets",
+    title: "Kigali Prime Tech Store \u2014 Save 20% on Laptops",
+    description: "Get verified genuine MacBooks, iPhones & gaming gear delivered to your doorstep in Kigali within 2 hours.",
+    targetUrl: "https://benix.space/marketplace",
+    mediaType: "image",
+    mediaUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&auto=format&fit=crop&q=80",
+    targetAudience: "all",
+    targetImpressions: 5e4,
+    costPerImpression: 0.02,
+    costPerClick: 15,
+    cpmBid: 25,
+    cpcBid: 15,
+    dailyBudget: 500,
+    durationDays: 7,
+    currentImpressions: 12450,
+    currentClicks: 620,
+    totalSpent: 3500,
+    status: "active",
+    createdAt: new Date(Date.now() - 3 * 864e5).toISOString(),
+    expiresAt: new Date(Date.now() + 4 * 864e5).toISOString()
+  },
+  {
+    id: "ad-default-visit-rwanda",
+    userId: "adv-visit-rwanda",
+    userName: "Visit Rwanda Tour Desk",
+    title: "Visit Rwanda: Volcanoes & Nyungwe Canopy Tours",
+    description: "Book weekend expeditions to the Volcanoes National Park & Lake Kivu with instant Mobile Money payments.",
+    targetUrl: "https://benix.space/blog",
+    mediaType: "image",
+    mediaUrl: "https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=800&auto=format&fit=crop&q=80",
+    targetAudience: "all",
+    targetImpressions: 8e4,
+    costPerImpression: 0.03,
+    costPerClick: 20,
+    cpmBid: 30,
+    cpcBid: 20,
+    dailyBudget: 1e3,
+    durationDays: 14,
+    currentImpressions: 28400,
+    currentClicks: 1420,
+    totalSpent: 7e3,
+    status: "active",
+    createdAt: new Date(Date.now() - 5 * 864e5).toISOString(),
+    expiresAt: new Date(Date.now() + 9 * 864e5).toISOString()
+  }
+];
+var initAdsTable = async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_custom_ads (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64),
+        user_name VARCHAR(128),
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        target_url TEXT NOT NULL,
+        media_type VARCHAR(32) DEFAULT 'image',
+        media_url TEXT NOT NULL,
+        target_audience VARCHAR(64) DEFAULT 'all',
+        target_impressions INT DEFAULT 1000,
+        daily_budget NUMERIC DEFAULT 100,
+        cpm_bid NUMERIC DEFAULT 20,
+        cpc_bid NUMERIC DEFAULT 15,
+        duration_days INT DEFAULT 7,
+        current_impressions INT DEFAULT 0,
+        current_clicks INT DEFAULT 0,
+        total_spent NUMERIC DEFAULT 0,
+        status VARCHAR(32) DEFAULT 'active',
+        rejection_reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP
+      );
+    `);
+    const dbAds = await query("SELECT * FROM core_custom_ads ORDER BY created_at DESC");
+    if (dbAds.rows && dbAds.rows.length > 0) {
+      const mapped = dbAds.rows.map((r) => ({
+        id: r.id,
+        userId: r.user_id,
+        userName: r.user_name || "Advertiser",
+        title: r.title,
+        description: r.description || "",
+        targetUrl: r.target_url,
+        mediaType: r.media_type || "image",
+        mediaUrl: r.media_url,
+        targetAudience: r.target_audience || "all",
+        targetImpressions: Number(r.target_impressions || 1e3),
+        costPerImpression: Number(r.cpm_bid || 20) / 1e3,
+        costPerClick: Number(r.cpc_bid || 15),
+        cpmBid: Number(r.cpm_bid || 20),
+        cpcBid: Number(r.cpc_bid || 15),
+        dailyBudget: Number(r.daily_budget || 100),
+        durationDays: Number(r.duration_days || 7),
+        currentImpressions: Number(r.current_impressions || 0),
+        currentClicks: Number(r.current_clicks || 0),
+        totalSpent: Number(r.total_spent || 0),
+        status: r.status || "active",
+        rejectionReason: r.rejection_reason || void 0,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+        expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : new Date(Date.now() + 7 * 864e5).toISOString()
+      }));
+      const existingIds = new Set(mapped.map((m) => m.id));
+      customAdCampaigns = [...mapped, ...customAdCampaigns.filter((d) => !existingIds.has(d.id))];
+    }
+  } catch (err) {
+    console.warn("Could not initialize core_custom_ads table:", err);
+  }
+};
+initAdsTable();
 app.get("/api/ads/active", async (req, res) => {
   const now = Date.now();
   const activeAds = customAdCampaigns.filter((ad) => {
-    const notExpired = new Date(ad.expiresAt).getTime() > now;
+    const notExpired = !ad.expiresAt || new Date(ad.expiresAt).getTime() > now;
     const underQuota = ad.currentImpressions < ad.targetImpressions;
     return ad.status === "active" && notExpired && underQuota;
+  });
+  activeAds.sort((a2, b2) => {
+    const weightA = (a2.cpmBid || 20) * 2 + (a2.cpcBid || 15) * 5;
+    const weightB = (b2.cpmBid || 20) * 2 + (b2.cpcBid || 15) * 5;
+    return weightB - weightA;
   });
   return res.json({ success: true, ads: activeAds });
 });
@@ -55171,15 +55461,33 @@ app.post("/api/ads/track-impression", async (req, res) => {
     const ad = customAdCampaigns.find((a2) => a2.id === adId);
     if (!ad) return res.status(404).json({ error: "Ad not found." });
     ad.currentImpressions += 1;
-    ad.totalSpent += ad.costPerImpression;
+    const costPerImp = ad.costPerImpression || (ad.cpmBid ? ad.cpmBid / 1e3 : 0.02);
+    ad.totalSpent = Number((ad.totalSpent + costPerImp).toFixed(2));
     if (ad.currentImpressions >= ad.targetImpressions) {
       ad.status = "completed";
+      try {
+        await query(
+          `INSERT INTO core_notifications (user_id, title, message, type)
+           VALUES ($1, $2, $3, 'ad_campaign')`,
+          [
+            ad.userId,
+            "\u{1F3AF} Ad Campaign Goal Reached",
+            `Your ad "${ad.title}" has successfully delivered all ${ad.targetImpressions.toLocaleString()} target impressions! You can resume it anytime with extra budget.`
+          ]
+        );
+      } catch {
+      }
     }
+    query(
+      `UPDATE core_custom_ads SET current_impressions = $1, total_spent = $2, status = $3 WHERE id = $4`,
+      [ad.currentImpressions, ad.totalSpent, ad.status, ad.id]
+    ).catch(() => {
+    });
     if (ad.userId && !ad.userId.startsWith("adv-")) {
       try {
         await WalletService.debit(
           ad.userId,
-          ad.costPerImpression,
+          costPerImp,
           "ads",
           "ad_impression_charge",
           `Ad Impression served for "${ad.title}"`,
@@ -55187,6 +55495,8 @@ app.post("/api/ads/track-impression", async (req, res) => {
         );
       } catch (wErr) {
         ad.status = "paused";
+        query(`UPDATE core_custom_ads SET status = 'paused' WHERE id = $1`, [ad.id]).catch(() => {
+        });
       }
     }
     return res.json({ success: true, impressions: ad.currentImpressions, status: ad.status });
@@ -55200,12 +55510,18 @@ app.post("/api/ads/track-click", async (req, res) => {
     const ad = customAdCampaigns.find((a2) => a2.id === adId);
     if (!ad) return res.status(404).json({ error: "Ad not found." });
     ad.currentClicks += 1;
-    ad.totalSpent += ad.costPerClick;
+    const clickCost = ad.costPerClick || ad.cpcBid || 15;
+    ad.totalSpent = Number((ad.totalSpent + clickCost).toFixed(2));
+    query(
+      `UPDATE core_custom_ads SET current_clicks = $1, total_spent = $2 WHERE id = $3`,
+      [ad.currentClicks, ad.totalSpent, ad.id]
+    ).catch(() => {
+    });
     if (ad.userId && !ad.userId.startsWith("adv-")) {
       try {
         await WalletService.debit(
           ad.userId,
-          ad.costPerClick,
+          clickCost,
           "ads",
           "ad_click_charge",
           `Ad Click on "${ad.title}"`,
@@ -55213,6 +55529,8 @@ app.post("/api/ads/track-click", async (req, res) => {
         );
       } catch (wErr) {
         ad.status = "paused";
+        query(`UPDATE core_custom_ads SET status = 'paused' WHERE id = $1`, [ad.id]).catch(() => {
+        });
       }
     }
     return res.json({ success: true, clicks: ad.currentClicks, targetUrl: ad.targetUrl });
@@ -55221,27 +55539,57 @@ app.post("/api/ads/track-click", async (req, res) => {
   }
 });
 app.post("/api/ads/calculate-metrics", async (req, res) => {
-  const { dailyBudget = 1e3, durationDays = 7, targetAudience = "all" } = req.body;
-  const numBudget = Number(dailyBudget) || 1e3;
-  const numDays = Number(durationDays) || 7;
-  const costPerImpression = 5;
-  const estimatedDailyImpressions = Math.round(numBudget / costPerImpression);
-  const benchmarkCtr = targetAudience === "all" ? 0.042 : 0.058;
-  const estimatedDailyClicks = Math.round(estimatedDailyImpressions * benchmarkCtr);
-  const totalImpressions = estimatedDailyImpressions * numDays;
-  const totalClicks = estimatedDailyClicks * numDays;
+  const {
+    dailyBudget = 100,
+    durationDays = 7,
+    cpmBid = 20,
+    cpcBid = 15,
+    targetAudience = "all"
+  } = req.body;
+  const numBudget = Math.max(100, Number(dailyBudget) || 100);
+  const numDays = Math.max(1, Number(durationDays) || 7);
+  const numCpm = Math.max(10, Number(cpmBid) || 20);
+  const numCpc = Math.max(5, Number(cpcBid) || 15);
   const totalCost = numBudget * numDays;
+  const estimatedDailyImpressions = Math.round(numBudget / numCpm * 1e3);
+  const totalImpressions = estimatedDailyImpressions * numDays;
+  const benchmarkCtr = targetAudience === "all" ? 0.044 : 0.056;
+  const estimatedDailyClicks = Math.round(estimatedDailyImpressions * benchmarkCtr);
+  const totalClicks = estimatedDailyClicks * numDays;
+  const historyInsight = `Based on performance from recent campaigns in Rwanda (e.g. 500 RWF delivering ~25,000 views and ~1,100 clicks), your ${totalCost.toLocaleString()} RWF budget will yield ~${totalImpressions.toLocaleString()} views and ~${totalClicks.toLocaleString()} verified clicks over ${numDays} days.`;
   return res.json({
     success: true,
     metrics: {
-      costPerImpression,
-      costPerClick: 25,
+      dailyBudget: numBudget,
+      durationDays: numDays,
+      cpmBid: numCpm,
+      cpcBid: numCpc,
+      costPerImpression: Number((numCpm / 1e3).toFixed(4)),
+      costPerClick: numCpc,
       estimatedDailyImpressions,
       estimatedDailyClicks,
       totalImpressions,
       totalClicks,
       totalCost,
-      estimatedCtr: `${(benchmarkCtr * 100).toFixed(1)}%`
+      estimatedCtr: `${(benchmarkCtr * 100).toFixed(1)}%`,
+      historyInsight
+    }
+  });
+});
+app.get("/api/ads/benchmarks", async (req, res) => {
+  return res.json({
+    success: true,
+    benchmarks: {
+      averageCtr: "4.6%",
+      averageCpm: "22 RWF",
+      averageCpc: "14 RWF",
+      topCategories: ["Phones & Electronics", "Music & Concerts", "Dating & Romance", "Fashion & Beauty"],
+      historicalExamples: [
+        { title: "Visit Rwanda Tour Package", budget: 2e3, days: 5, impressions: 9e4, clicks: 4320 },
+        { title: "Kigali Prime S24 Promo", budget: 1500, days: 7, impressions: 68e3, clicks: 3260 },
+        { title: "Chorale Live Concert Stream", budget: 500, days: 3, impressions: 24e3, clicks: 1150 },
+        { title: "Local Fashion Boutique", budget: 300, days: 2, impressions: 14500, clicks: 680 }
+      ]
     }
   });
 });
@@ -55254,14 +55602,19 @@ app.post("/api/ads/submit", authenticateToken, async (req, res) => {
       mediaType = "image",
       mediaUrl,
       targetAudience = "all",
-      dailyBudget = 1e3,
-      durationDays = 7
+      dailyBudget = 100,
+      durationDays = 7,
+      cpmBid = 20,
+      cpcBid = 15,
+      targetQuota
     } = req.body;
     if (!title || !description || !targetUrl || !mediaUrl) {
       return res.status(400).json({ error: "Title, description, target URL, and banner image/video are required." });
     }
-    const numBudget = Number(dailyBudget) || 1e3;
-    const numDays = Number(durationDays) || 7;
+    const numBudget = Math.max(100, Number(dailyBudget) || 100);
+    const numDays = Math.max(1, Number(durationDays) || 7);
+    const numCpm = Math.max(10, Number(cpmBid) || 20);
+    const numCpc = Math.max(5, Number(cpcBid) || 15);
     const firstDayDeposit = numBudget;
     const wallet = await WalletService.getOrCreateWallet(req.user.id);
     if (Number(wallet.balance) < firstDayDeposit) {
@@ -55278,21 +55631,24 @@ app.post("/api/ads/submit", authenticateToken, async (req, res) => {
       `Launch Ad Campaign: "${title}" (${numDays} days, ${numBudget.toLocaleString()} RWF/day)`,
       `tx_ad_start_${Date.now()}`
     );
-    const targetImpressions = Math.round(numBudget / 5 * numDays);
+    const calculatedTarget = targetQuota && Number(targetQuota) > 0 ? Number(targetQuota) : Math.round(numBudget * numDays / numCpm * 1e3);
     const expiresAt = new Date(Date.now() + numDays * 864e5).toISOString();
+    const adId = `ad-${Date.now()}`;
     const newAd = {
-      id: `ad-${Date.now()}`,
+      id: adId,
       userId: req.user.id,
-      userName: req.user.email?.split("@")[0] || "Benix Advertiser",
+      userName: req.user.email?.split("@")[0] || req.user.name || "Advertiser",
       title: title.trim(),
       description: description.trim(),
       targetUrl: targetUrl.trim(),
       mediaType: mediaType === "video" ? "video" : "image",
       mediaUrl: mediaUrl.trim(),
       targetAudience,
-      targetImpressions,
-      costPerImpression: 5,
-      costPerClick: 25,
+      targetImpressions: calculatedTarget,
+      costPerImpression: Number((numCpm / 1e3).toFixed(4)),
+      costPerClick: numCpc,
+      cpmBid: numCpm,
+      cpcBid: numCpc,
       dailyBudget: numBudget,
       durationDays: numDays,
       currentImpressions: 0,
@@ -55303,19 +55659,171 @@ app.post("/api/ads/submit", authenticateToken, async (req, res) => {
       expiresAt
     };
     customAdCampaigns.unshift(newAd);
+    query(
+      `INSERT INTO core_custom_ads 
+       (id, user_id, user_name, title, description, target_url, media_type, media_url, target_audience, target_impressions, daily_budget, cpm_bid, cpc_bid, duration_days, current_impressions, current_clicks, total_spent, status, created_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 0, 0, $15, 'active', CURRENT_TIMESTAMP, $16)`,
+      [
+        adId,
+        newAd.userId,
+        newAd.userName,
+        newAd.title,
+        newAd.description,
+        newAd.targetUrl,
+        newAd.mediaType,
+        newAd.mediaUrl,
+        newAd.targetAudience,
+        newAd.targetImpressions,
+        newAd.dailyBudget,
+        newAd.cpmBid,
+        newAd.cpcBid,
+        newAd.durationDays,
+        firstDayDeposit,
+        new Date(expiresAt)
+      ]
+    ).catch(() => {
+    });
+    query(
+      `INSERT INTO core_notifications (user_id, title, message, type)
+       VALUES ($1, $2, $3, 'ad_campaign')`,
+      [
+        req.user.id,
+        "\u{1F680} Ad Campaign Launched",
+        `Your ad "${title}" is now actively promoted across Videos, Stories, TV, and Articles!`
+      ]
+    ).catch(() => {
+    });
     return res.json({
       success: true,
       campaign: newAd,
       newBalance: debitRes.newBalance,
-      message: "\u{1F389} Campaign launched successfully! Your ad is now active across TV, Radio, and Videos."
+      message: "\u{1F389} Campaign launched successfully! Your ad is now active across all BenixSpace placements."
     });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Failed to submit ad campaign." });
   }
 });
 app.get("/api/ads/my-campaigns", authenticateToken, async (req, res) => {
-  const myAds = customAdCampaigns.filter((a2) => a2.userId === req.user.id);
-  return res.json({ success: true, campaigns: myAds });
+  try {
+    const dbRes = await query("SELECT * FROM core_custom_ads WHERE user_id = $1 ORDER BY created_at DESC", [req.user.id]);
+    if (dbRes.rows && dbRes.rows.length > 0) {
+      const mapped = dbRes.rows.map((r) => ({
+        id: r.id,
+        userId: r.user_id,
+        userName: r.user_name || "Advertiser",
+        title: r.title,
+        description: r.description || "",
+        targetUrl: r.target_url,
+        mediaType: r.media_type || "image",
+        mediaUrl: r.media_url,
+        targetAudience: r.target_audience || "all",
+        targetImpressions: Number(r.target_impressions || 1e3),
+        cpmBid: Number(r.cpm_bid || 20),
+        cpcBid: Number(r.cpc_bid || 15),
+        dailyBudget: Number(r.daily_budget || 100),
+        durationDays: Number(r.duration_days || 7),
+        currentImpressions: Number(r.current_impressions || 0),
+        currentClicks: Number(r.current_clicks || 0),
+        totalSpent: Number(r.total_spent || 0),
+        status: r.status || "active",
+        rejectionReason: r.rejection_reason || void 0,
+        createdAt: r.created_at,
+        expiresAt: r.expires_at
+      }));
+      return res.json({ success: true, campaigns: mapped });
+    }
+    const myAds = customAdCampaigns.filter((a2) => a2.userId === req.user.id);
+    return res.json({ success: true, campaigns: myAds });
+  } catch (err) {
+    const myAds = customAdCampaigns.filter((a2) => a2.userId === req.user.id);
+    return res.json({ success: true, campaigns: myAds });
+  }
+});
+app.post("/api/ads/:id/toggle-pause", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ad = customAdCampaigns.find((a2) => a2.id === id);
+    if (!ad) return res.status(404).json({ error: "Ad not found." });
+    if (ad.userId !== req.user.id && req.user.role !== "admin" && req.user.role !== "superadmin") {
+      return res.status(403).json({ error: "Unauthorized to modify this campaign." });
+    }
+    const nextStatus = ad.status === "active" ? "paused" : "active";
+    ad.status = nextStatus;
+    await query("UPDATE core_custom_ads SET status = $1 WHERE id = $2", [nextStatus, id]).catch(() => {
+    });
+    return res.json({
+      success: true,
+      status: nextStatus,
+      message: `Campaign is now ${nextStatus === "active" ? "resumed and active" : "paused"}.`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/admin/ads/all", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const dbRes = await query(`
+      SELECT a.*, u.email as user_email, u.phone as user_phone, w.balance as wallet_balance
+      FROM core_custom_ads a
+      LEFT JOIN core_users u ON a.user_id = u.id
+      LEFT JOIN core_wallets w ON a.user_id = w.user_id
+      ORDER BY a.created_at DESC
+    `).catch(() => ({ rows: [] }));
+    if (dbRes.rows && dbRes.rows.length > 0) {
+      return res.json({ success: true, ads: dbRes.rows });
+    }
+    return res.json({ success: true, ads: customAdCampaigns });
+  } catch (err) {
+    return res.json({ success: true, ads: customAdCampaigns });
+  }
+});
+app.patch("/api/admin/ads/:id/status", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, rejectionReason } = req.body;
+    const validStatuses = ["active", "pending", "rejected", "paused", "completed"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+    }
+    const ad = customAdCampaigns.find((a2) => a2.id === id);
+    if (ad) {
+      ad.status = status;
+      if (rejectionReason) ad.rejectionReason = rejectionReason;
+    }
+    await query(
+      `UPDATE core_custom_ads SET status = $1, rejection_reason = $2 WHERE id = $3`,
+      [status, rejectionReason || null, id]
+    ).catch(() => {
+    });
+    if (ad && ad.userId) {
+      const title = status === "active" ? "\u2705 Ad Campaign Approved" : status === "rejected" ? "\u26A0\uFE0F Ad Campaign Disapproved" : "\u{1F4E2} Ad Campaign Status Updated";
+      const msg = status === "active" ? `Your ad campaign "${ad.title}" has been approved by admin and is actively broadcasting!` : status === "rejected" ? `Your ad campaign "${ad.title}" was disapproved by admin. Reason: ${rejectionReason || "Violated advertising guidelines"}.` : `Your ad campaign "${ad.title}" status is now ${status}.`;
+      query(
+        `INSERT INTO core_notifications (user_id, title, message, type)
+         VALUES ($1, $2, $3, 'ad_campaign')`,
+        [ad.userId, title, msg]
+      ).catch(() => {
+      });
+    }
+    return res.json({
+      success: true,
+      status,
+      message: `Ad campaign status successfully updated to "${status}".`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.delete("/api/admin/ads/:id", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    customAdCampaigns = customAdCampaigns.filter((a2) => a2.id !== id);
+    await query("DELETE FROM core_custom_ads WHERE id = $1", [id]).catch(() => {
+    });
+    return res.json({ success: true, message: "Ad campaign deleted successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 app.get("/api/ads/settings", async (req, res) => {
   try {
@@ -55395,16 +55903,33 @@ app.post("/api/ads/record-reward", async (req, res) => {
       );
     `).catch(() => {
     });
-    const { type = "view", adType = "google", creatorId, videoId } = req.body;
+    const { type = "view", adType = "google", creatorId, videoId, storyId } = req.body;
     let targetCreatorId = creatorId;
+    if (!targetCreatorId && storyId) {
+      const storyRes = await query("SELECT user_id, author_name FROM core_stories WHERE id = $1", [storyId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (storyRes.rowCount > 0) {
+        targetCreatorId = storyRes.rows[0].user_id || storyRes.rows[0].author_name;
+      }
+    }
     if (!targetCreatorId && videoId) {
-      const vidRes = await query("SELECT user_id, channel_name FROM user_videos WHERE id = $1", [videoId]);
+      const vidRes = await query("SELECT user_id, channel_name FROM user_videos WHERE id = $1", [videoId]).catch(() => ({ rowCount: 0, rows: [] }));
       if (vidRes.rowCount > 0) {
         targetCreatorId = vidRes.rows[0].user_id || vidRes.rows[0].channel_name;
       }
     }
     if (!targetCreatorId) {
       return res.json({ success: true, credited: false, reason: "No creator associated" });
+    }
+    let creatorUserId = targetCreatorId;
+    try {
+      const uFind = await query(
+        `SELECT id FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1`,
+        [targetCreatorId]
+      );
+      if (uFind.rowCount > 0 && uFind.rows[0]?.id) {
+        creatorUserId = uFind.rows[0].id;
+      }
+    } catch {
     }
     const settingsRow = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     let googleView = 2;
@@ -55430,18 +55955,18 @@ app.post("/api/ads/record-reward", async (req, res) => {
       }
     }
     const watchRes = await query(
-      `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds FROM video_watch_time WHERE creator_id = $1`,
-      [targetCreatorId]
+      `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds FROM video_watch_time WHERE creator_id = $1 OR creator_id = $2`,
+      [targetCreatorId, creatorUserId]
     ).catch(() => ({ rows: [{ total_seconds: 0 }] }));
     const totalWatchHours = Math.round(Number(watchRes.rows[0]?.total_seconds || 0) / 3600 * 10) / 10;
     const subRes = await query(
-      `SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1`,
-      [targetCreatorId]
+      `SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2`,
+      [targetCreatorId, creatorUserId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
     const totalSubscribers = Number(subRes.rows[0]?.count || 0);
     const isMonetized = totalWatchHours >= reqWatchHours && totalSubscribers >= reqSubs;
     if (!isMonetized) {
-      return res.json({ success: true, monetized: false, credited: false });
+      return res.json({ success: true, monetized: false, credited: false, reason: "Creator not yet monetized" });
     }
     let rewardAmount = 0;
     if (adType === "google") {
@@ -55452,15 +55977,15 @@ app.post("/api/ads/record-reward", async (req, res) => {
     if (rewardAmount <= 0) {
       return res.json({ success: true, credited: false });
     }
-    await WalletService.getOrCreateWallet(targetCreatorId);
+    await WalletService.getOrCreateWallet(creatorUserId);
     await query(
       `UPDATE core_wallets 
        SET balance = balance + $1, total_earnings = total_earnings + $1, updated_at = CURRENT_TIMESTAMP 
        WHERE user_id = $2`,
-      [rewardAmount, targetCreatorId]
+      [rewardAmount, creatorUserId]
     );
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    const recId = `cdae_${targetCreatorId}_${todayStr}`;
+    const recId = `cdae_${creatorUserId}_${todayStr}`;
     const isGoogle = adType === "google";
     const isClick = type === "click";
     await query(`
@@ -55477,7 +56002,7 @@ app.post("/api/ads/record-reward", async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `, [
       recId,
-      targetCreatorId,
+      creatorUserId,
       todayStr,
       rewardAmount,
       isGoogle && !isClick ? 1 : 0,
@@ -55489,7 +56014,8 @@ app.post("/api/ads/record-reward", async (req, res) => {
       success: true,
       monetized: true,
       credited: true,
-      amount: rewardAmount
+      amount: rewardAmount,
+      creatorId: creatorUserId
     });
   } catch (err) {
     console.error("Record ad reward error:", err);

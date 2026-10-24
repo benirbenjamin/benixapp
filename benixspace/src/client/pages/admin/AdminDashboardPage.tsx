@@ -38,7 +38,10 @@ import {
   Play,
   Film,
   Search,
-  Check
+  Check,
+  Megaphone,
+  Pause,
+  Ban
 } from 'lucide-react';
 
 interface AdminVideo {
@@ -116,7 +119,16 @@ export const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Active App Management Tab
-  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games'>('videos');
+  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads'>('videos');
+
+  // Ad Campaigns Moderation State
+  const [adminAds, setAdminAds] = useState<any[]>([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [adsFilter, setAdsFilter] = useState<'all' | 'pending' | 'active' | 'paused' | 'rejected'>('all');
+  const [adsSearch, setAdsSearch] = useState('');
+  const [rejectingAdId, setRejectingAdId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   // Video Management State
   const [videosList, setVideosList] = useState<AdminVideo[]>(() => {
@@ -179,13 +191,84 @@ export const AdminDashboardPage: React.FC = () => {
   // Hash change detection (for sidebar clicks like /admin#videos or /admin#marketplace)
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games'].includes(hash)) {
+    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads'].includes(hash)) {
       setActiveAppTab(hash as any);
       setTimeout(() => {
         document.getElementById('apps-control-center')?.scrollIntoView({ behavior: 'smooth' });
       }, 50);
     }
   }, [location.hash]);
+
+  const loadAdminAds = async () => {
+    try {
+      setAdsLoading(true);
+      const token = getAuthToken();
+      const res = await fetch('/api/admin/ads/all', {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.ads)) {
+        setAdminAds(data.ads);
+      }
+    } catch (err) {
+      console.error('Failed to load admin ads:', err);
+    } finally {
+      setAdsLoading(false);
+    }
+  };
+
+  const handleAdStatus = async (id: string, status: 'active' | 'rejected' | 'paused', reason?: string) => {
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/admin/ads/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ status, reason })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage(`Campaign status updated to "${status}".`);
+        setTimeout(() => setActionMessage(''), 3000);
+        setRejectingAdId(null);
+        setRejectionReason('');
+        loadAdminAds();
+      } else {
+        alert(data.error || 'Failed to update ad status');
+      }
+    } catch (err) {
+      console.error('Error updating ad status:', err);
+    }
+  };
+
+  const handleDeleteAd = async (id: string) => {
+    if (!window.confirm('Are you sure you want to permanently delete this ad campaign?')) return;
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/admin/ads/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage('Campaign deleted successfully.');
+        setTimeout(() => setActionMessage(''), 3000);
+        loadAdminAds();
+      }
+    } catch (err) {
+      console.error('Error deleting ad:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadAdminAds();
+  }, []);
 
   const loadAppsControl = async () => {
     const token = getAuthToken();
@@ -621,6 +704,21 @@ export const AdminDashboardPage: React.FC = () => {
               >
                 <Dices className="w-3.5 h-3.5" />
                 <span>RollDice Game</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveAppTab('ads');
+                  loadAdminAds();
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'ads'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/30 font-black'
+                    : 'text-amber-400 hover:text-white'
+                }`}
+              >
+                <Megaphone className="w-3.5 h-3.5" />
+                <span>Ads & Campaigns ({adminAds.length})</span>
               </button>
             </div>
           </div>
@@ -1148,6 +1246,394 @@ export const AdminDashboardPage: React.FC = () => {
                   <ExternalLink className="w-3 h-3 ml-0.5" />
                 </Link>
               </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAB 7: SUBMITTED ADS & CAMPAIGNS MODERATION                   */}
+          {/* ============================================================== */}
+          {activeAppTab === 'ads' && (
+            <div className="space-y-6 animate-fade-in">
+              {actionMessage && (
+                <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-between shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>{actionMessage}</span>
+                  </div>
+                  <button onClick={() => setActionMessage('')} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+              )}
+
+              {/* Ads Summary KPIs */}
+              {(() => {
+                const totalAds = adminAds.length;
+                const activeAds = adminAds.filter(a => a.status === 'active').length;
+                const pendingAds = adminAds.filter(a => a.status === 'pending').length;
+                const totalImpressions = adminAds.reduce((sum, a) => sum + Number(a.impressions_count || 0), 0);
+                const totalClicks = adminAds.reduce((sum, a) => sum + Number(a.clicks_count || 0), 0);
+                const totalSpent = adminAds.reduce((sum, a) => sum + Number(a.total_spent || 0), 0);
+                const avgCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(1) : '4.8';
+
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                    <div className="p-4 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Campaigns</span>
+                      <p className="text-xl font-black text-white">{totalAds}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Pending Review</span>
+                      <p className="text-xl font-black text-amber-400">{pendingAds}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Live Active</span>
+                      <p className="text-xl font-black text-emerald-400">{activeAds}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Delivered Views</span>
+                      <p className="text-xl font-black text-blue-400">{totalImpressions.toLocaleString()}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Total Clicks</span>
+                      <p className="text-xl font-black text-purple-400">{totalClicks.toLocaleString()}</p>
+                      <span className="text-[9px] text-slate-500 font-bold block">{avgCtr}% CTR avg</span>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Revenue / Spend</span>
+                      <p className="text-xl font-black text-emerald-400">{totalSpent.toLocaleString()} <span className="text-xs">RWF</span></p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Filters & Search Row */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-[#0B0E14] border border-slate-800 rounded-2xl">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                  {(['all', 'pending', 'active', 'paused', 'rejected'] as const).map(tabKey => {
+                    const count = tabKey === 'all' 
+                      ? adminAds.length 
+                      : adminAds.filter(a => a.status === tabKey).length;
+                    return (
+                      <button
+                        key={tabKey}
+                        onClick={() => setAdsFilter(tabKey)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all shrink-0 flex items-center gap-1.5 ${
+                          adsFilter === tabKey
+                            ? 'bg-amber-500 text-black shadow-md font-black'
+                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        <span>{tabKey}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          adsFilter === tabKey ? 'bg-black/20 text-black' : 'bg-slate-800 text-slate-400'
+                        }`}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="relative min-w-[240px]">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={adsSearch}
+                    onChange={(e) => setAdsSearch(e.target.value)}
+                    placeholder="Search by title, advertiser, URL..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              {/* Ads Table / Cards */}
+              {adsLoading ? (
+                <div className="p-12 text-center text-slate-400 text-xs">
+                  <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <span>Loading submitted ad campaigns...</span>
+                </div>
+              ) : adminAds.length === 0 ? (
+                <div className="p-12 rounded-2xl bg-[#0B0E14] border border-slate-800 text-center space-y-2">
+                  <Megaphone className="w-10 h-10 text-slate-600 mx-auto" />
+                  <p className="text-white font-bold text-sm">No ad campaigns submitted yet.</p>
+                  <p className="text-xs text-slate-400">When users submit self-serve ads via the navigation bar or dashboard, they will appear here for admin moderation.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {adminAds
+                    .filter(a => {
+                      if (adsFilter !== 'all' && a.status !== adsFilter) return false;
+                      if (!adsSearch) return true;
+                      const q = adsSearch.toLowerCase();
+                      return (
+                        a.title?.toLowerCase().includes(q) ||
+                        a.user_email?.toLowerCase().includes(q) ||
+                        a.target_url?.toLowerCase().includes(q) ||
+                        a.id?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map(ad => {
+                      const priorityScore = ((Number(ad.cpm_bid || 25) * 2) + (Number(ad.cpc_bid || 15) * 5));
+                      const isHighPriority = priorityScore >= 120;
+                      const progressPct = ad.target_impressions > 0 
+                        ? Math.min(100, Math.round((Number(ad.impressions_count || 0) / Number(ad.target_impressions)) * 100))
+                        : 0;
+
+                      return (
+                        <div
+                          key={ad.id}
+                          className="p-5 rounded-3xl bg-[#0E1422] border border-slate-800/90 hover:border-slate-700 transition-all space-y-4 shadow-xl"
+                        >
+                          {/* Top Row: Preview & Core Meta */}
+                          <div className="flex flex-col lg:flex-row items-start justify-between gap-4">
+                            
+                            <div className="flex items-start gap-4 flex-1">
+                              {/* Media Preview with Smart Aspect Cropping */}
+                              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-black border border-slate-800 overflow-hidden shrink-0 relative group">
+                                {ad.media_url ? (
+                                  <img
+                                    src={ad.media_url}
+                                    alt={ad.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                    <Megaphone className="w-6 h-6" />
+                                  </div>
+                                )}
+                                <span className="absolute bottom-1 right-1 text-[8px] bg-black/80 px-1 py-0.5 rounded font-mono text-slate-300">
+                                  {ad.media_type || 'image'}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5 flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-extrabold text-sm sm:text-base text-white tracking-tight truncate">
+                                    {ad.title}
+                                  </h4>
+
+                                  {/* Status Badge */}
+                                  <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                                    ad.status === 'active'
+                                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                      : ad.status === 'pending'
+                                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse'
+                                      : ad.status === 'paused'
+                                      ? 'bg-slate-700 text-slate-300 border-slate-600'
+                                      : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                                  }`}>
+                                    {ad.status === 'pending' ? 'Pending Approval' : ad.status}
+                                  </span>
+
+                                  {/* Priority Weight Badge */}
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                    isHighPriority
+                                      ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40'
+                                      : 'bg-slate-800 text-slate-400'
+                                  }`}>
+                                    ⚡ Score: {priorityScore} {isHighPriority ? '(Top Priority)' : '(Standard)'}
+                                  </span>
+                                </div>
+
+                                <p className="text-xs text-slate-300 line-clamp-2">
+                                  {ad.description || 'No description provided.'}
+                                </p>
+
+                                {/* Destination Link & CTA */}
+                                <div className="flex items-center gap-3 text-xs flex-wrap pt-1">
+                                  <a
+                                    href={ad.target_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-400 hover:underline flex items-center gap-1 font-semibold truncate max-w-xs"
+                                  >
+                                    <ExternalLink className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{ad.target_url}</span>
+                                  </a>
+                                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
+                                    CTA: {ad.cta_text || 'Learn More'}
+                                  </span>
+                                </div>
+
+                                {/* Advertiser User Details */}
+                                <div className="pt-1.5 flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                                  <span className="flex items-center gap-1 text-slate-300 font-bold">
+                                    <Users className="w-3 h-3 text-blue-400" />
+                                    {ad.user_name || 'Advertiser'} ({ad.user_email || ad.user_id})
+                                  </span>
+                                  {ad.user_wallet_balance !== undefined && (
+                                    <span className="text-emerald-400 font-bold">
+                                      Wallet: {Number(ad.user_wallet_balance).toLocaleString()} RWF
+                                    </span>
+                                  )}
+                                  <span className="text-slate-500 text-[10px]">
+                                    Submitted {new Date(ad.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+
+                            </div>
+
+                            {/* Financial Bidding Parameters & Stats Strip */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2 sm:gap-3 bg-[#0B0E14] p-3.5 rounded-2xl border border-slate-800/80 shrink-0 w-full lg:w-auto">
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block">Daily Budget</span>
+                                <span className="text-xs font-black text-white">{Number(ad.daily_budget).toLocaleString()} RWF</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block">Bids (CPM / CPC)</span>
+                                <span className="text-xs font-black text-amber-400">{ad.cpm_bid} / {ad.cpc_bid} RWF</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block">Views / Clicks</span>
+                                <span className="text-xs font-black text-blue-400">
+                                  {Number(ad.impressions_count || 0).toLocaleString()} / {Number(ad.clicks_count || 0)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-slate-500 block">Total Spent</span>
+                                <span className="text-xs font-black text-emerald-400">{Number(ad.total_spent || 0).toLocaleString()} RWF</span>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Progress to target if specified */}
+                          {ad.target_impressions > 0 && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                <span>Target Delivery Progress</span>
+                                <span className="font-bold text-slate-200">
+                                  {ad.impressions_count || 0} / {ad.target_impressions} views ({progressPct}%)
+                                </span>
+                              </div>
+                              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all"
+                                  style={{ width: `${progressPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Rejection Note if exists */}
+                          {ad.status === 'rejected' && ad.rejection_reason && (
+                            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-0.5">
+                              <span className="font-bold block uppercase text-[10px] text-rose-400">Rejection Reason Given:</span>
+                              <p>{ad.rejection_reason}</p>
+                            </div>
+                          )}
+
+                          {/* Admin Action Buttons */}
+                          <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-800/80 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {ad.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => handleAdStatus(ad.id, 'active')}
+                                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Approve & Go Live</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setRejectingAdId(ad.id);
+                                      setRejectionReason('');
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                                  >
+                                    <Ban className="w-3.5 h-3.5" />
+                                    <span>Disapprove / Reject</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {ad.status === 'active' && (
+                                <>
+                                  <button
+                                    onClick={() => handleAdStatus(ad.id, 'paused')}
+                                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                                  >
+                                    <Pause className="w-3.5 h-3.5" />
+                                    <span>Pause Campaign</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setRejectingAdId(ad.id);
+                                      setRejectionReason('');
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                                  >
+                                    <Ban className="w-3.5 h-3.5" />
+                                    <span>Disapprove</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {ad.status === 'paused' && (
+                                <button
+                                  onClick={() => handleAdStatus(ad.id, 'active')}
+                                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                                >
+                                  <Play className="w-3.5 h-3.5" />
+                                  <span>Resume Campaign</span>
+                                </button>
+                              )}
+
+                              {ad.status === 'rejected' && (
+                                <button
+                                  onClick={() => handleAdStatus(ad.id, 'active')}
+                                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Re-Approve Campaign</span>
+                                </button>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => handleDeleteAd(ad.id)}
+                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-colors"
+                              title="Delete Ad Campaign Permanently"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Rejection Reason Form */}
+                          {rejectingAdId === ad.id && (
+                            <div className="p-4 rounded-2xl bg-[#161C2C] border border-rose-500/40 space-y-3 animate-fade-in">
+                              <span className="text-xs font-extrabold text-rose-400 uppercase tracking-wider block">
+                                Enter Disapproval Reason (Will Notify Advertiser)
+                              </span>
+                              <textarea
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                placeholder="E.g., Low image resolution, broken destination link, non-compliant promotional content..."
+                                rows={2}
+                                className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-400"
+                              />
+                              <div className="flex items-center gap-2 justify-end">
+                                <button
+                                  onClick={() => setRejectingAdId(null)}
+                                  className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleAdStatus(ad.id, 'rejected', rejectionReason || 'Content does not meet platform advertising guidelines.')}
+                                  className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/30"
+                                >
+                                  Confirm Disapproval
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { SeoHead } from '../../components/common/SeoHead';
@@ -7,6 +7,7 @@ import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardMod
 import { SidebarRecommendationsMixedAds } from '../../components/ads/SidebarRecommendationsMixedAds';
 import { TVLiveChat } from '../../components/chat/TVLiveChat';
 import { getAuthToken } from '../../services/api';
+import { rankPersonalizedVideos, recordWatchInteraction, recordSearchInteraction } from '../../utils/recommendationEngine';
 import {
   Film,
   Play,
@@ -158,19 +159,36 @@ export const VideosPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const filteredVideos = videos.filter((vid) => {
-    const matchesSearch =
-      vid.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vid.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vid.category.toLowerCase().includes(searchQuery.toLowerCase());
+  // Personalized video feed ranking
+  const rankedVideos = useMemo(() => {
+    return rankPersonalizedVideos(videos, user?.id || null);
+  }, [videos, user?.id]);
 
-    if (!matchesSearch) return false;
+  const filteredVideos = useMemo(() => {
+    return rankedVideos.filter((vid) => {
+      const matchesSearch =
+        vid.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vid.creator.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vid.category.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (selectedCategory === 'All') return true;
-    if (selectedCategory === 'Free to Watch') return vid.price <= 0;
-    if (selectedCategory === 'Premium') return vid.price > 0;
-    return vid.category.toLowerCase() === selectedCategory.toLowerCase();
-  });
+      if (!matchesSearch) return false;
+
+      if (selectedCategory === 'All') return true;
+      if (selectedCategory === 'Free to Watch') return vid.price <= 0;
+      if (selectedCategory === 'Premium') return vid.price > 0;
+      return vid.category.toLowerCase() === selectedCategory.toLowerCase();
+    });
+  }, [rankedVideos, searchQuery, selectedCategory]);
+
+  // Record search queries to recommendation engine
+  useEffect(() => {
+    if (searchQuery.trim().length >= 3) {
+      const timer = setTimeout(() => {
+        recordSearchInteraction(searchQuery);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery]);
 
   const [activeVideo, setActiveVideo] = useState<VideoItem | null>(null);
   const [unlockedVideoIds, setUnlockedVideoIds] = useState<string[]>(() => {
@@ -180,6 +198,23 @@ export const VideosPage: React.FC = () => {
       return [];
     }
   });
+
+  // Autoplay feature state (persisted)
+  const [autoplayEnabled, setAutoplayEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('benix_video_autoplay') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleAutoplay = () => {
+    setAutoplayEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('benix_video_autoplay', String(next));
+      return next;
+    });
+  };
 
   // Creator Subscriptions State
   const [subscribedChannels, setSubscribedChannels] = useState<string[]>(() => {
@@ -236,21 +271,65 @@ export const VideosPage: React.FC = () => {
   const [isControlsVisible, setIsControlsVisible] = useState<boolean>(true);
   const controlsTimeoutRef = useRef<any>(null);
 
+  // Helper to robustly parse video duration in seconds whether number, string ("12:45"), or undefined
+  const parseSeconds = (val: any): number => {
+    if (typeof val === 'number') {
+      return isNaN(val) ? 0 : val;
+    }
+    if (!val) return 0;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.includes(':')) {
+        const parts = trimmed.split(':').map((p) => parseFloat(p) || 0);
+        if (parts.length === 3) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+        if (parts.length === 2) {
+          return parts[0] * 60 + parts[1];
+        }
+      }
+      const num = parseFloat(trimmed);
+      return isNaN(num) ? 0 : num;
+    }
+    return 0;
+  };
+
+  const formatTimestamp = (val: any): string => {
+    if (typeof val === 'string' && val.includes(':') && !val.includes('NaN')) {
+      return val;
+    }
+    const s = Math.max(0, Math.floor(parseSeconds(val)));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = s % 60;
+    if (h > 0) {
+      return `${h}:${m < 10 ? '0' : ''}${m}:${r < 10 ? '0' : ''}${r}`;
+    }
+    return `${m}:${r < 10 ? '0' : ''}${r}`;
+  };
+
   const handleMouseMovePlayer = () => {
     setIsControlsVisible(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     if (isPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setIsControlsVisible(false);
-      }, 3500);
+      }, 2500);
     }
   };
 
-  const formatTimestamp = (sec: number) => {
-    const s = Math.floor(sec || 0);
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return `${m}:${r < 10 ? '0' : ''}${r}`;
+  const handlePlayerTap = (e: React.MouseEvent) => {
+    // Only toggle if not clicking interactive controls
+    setIsControlsVisible((prev) => {
+      const next = !prev;
+      if (next && isPlaying) {
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => {
+          setIsControlsVisible(false);
+        }, 2500);
+      }
+      return next;
+    });
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -258,10 +337,10 @@ export const VideosPage: React.FC = () => {
     if (!videoRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const effectiveDur = videoDuration || videoRef.current.duration || 1;
+    const effectiveDur = videoDuration || videoRef.current.duration || parseSeconds(activeVideo?.duration) || 1;
     const targetTime = pos * effectiveDur;
 
-    const limitSec = Math.max(12, Math.floor((activeVideo?.duration || effectiveDur) * 0.20));
+    const limitSec = Math.max(12, Math.floor((parseSeconds(activeVideo?.duration) || effectiveDur) * 0.20));
     if (!activeVideo || isVideoUnlocked(activeVideo) || targetTime < limitSec) {
       videoRef.current.currentTime = targetTime;
       setVideoCurrentTime(targetTime);
@@ -290,7 +369,7 @@ export const VideosPage: React.FC = () => {
   // Timer for 20% preview on YouTube videos
   useEffect(() => {
     if (!activeVideo || isVideoUnlocked(activeVideo) || isPreviewEnded || !isPlaying || !isYouTubeVideo(activeVideo)) return;
-    const limit = Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20));
+    const limit = Math.max(12, Math.floor((parseSeconds(activeVideo.duration) || 300) * 0.20));
     const timer = setInterval(() => {
       setVideoCurrentTime((prev) => {
         const next = prev + 1;
@@ -521,23 +600,43 @@ export const VideosPage: React.FC = () => {
     }
   }, [routeVideoId, searchParams, videos]);
 
+  // Increment view count after watching for >3 seconds (avoid bounce views)
+  useEffect(() => {
+    if (!activeVideo) return;
+    const timer = setTimeout(() => {
+      axios.post(`/api/modules/videos/${activeVideo.id}/view`, { videoId: activeVideo.id }).catch(() => {});
+      setVideos((prev) => prev.map((v) => (v.id === activeVideo.id ? { ...v, views: (v.views || 0) + 1 } : v)));
+      setActiveVideo((prev) => (prev && prev.id === activeVideo.id ? { ...prev, views: (prev.views || 0) + 1 } : prev));
+      recordWatchInteraction(activeVideo.id, activeVideo.category, activeVideo.creator);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [activeVideo?.id]);
+
   // Periodically track video watch time in real time and calculate creator hours
   useEffect(() => {
-    if (!activeVideo || !isPlaying) return;
+    if (!activeVideo || !isPlaying || showVideoAd) return;
 
     const interval = setInterval(() => {
+      const creatorId = (activeVideo as any).userId || (activeVideo as any).user_id || activeVideo.channelName || activeVideo.creator;
       axios
-        .post('/api/videos/track-watch', {
+        .post('/api/modules/videos/watch-heartbeat', {
           videoId: activeVideo.id,
-          creatorId: (activeVideo as any).userId || activeVideo.channelName || activeVideo.creator,
-          durationSeconds: 15,
+          creatorId,
+          durationSeconds: 10,
           viewerId: user?.id || null
         })
-        .catch(() => {});
-    }, 15000);
+        .catch(() => {
+          axios.post('/api/videos/track-watch', {
+            videoId: activeVideo.id,
+            creatorId,
+            durationSeconds: 10,
+            viewerId: user?.id || null
+          }).catch(() => {});
+        });
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, [activeVideo, isPlaying, user]);
+  }, [activeVideo?.id, isPlaying, showVideoAd, user]);
 
   const isVideoUnlocked = (vid: VideoItem): boolean => {
     if (vid.price <= 0) return true;
@@ -683,6 +782,45 @@ export const VideosPage: React.FC = () => {
     const prevIdx = (currentIdx - 1 + filteredVideos.length) % filteredVideos.length;
     handleSelectVideo(filteredVideos[prevIdx]);
   };
+
+  const handleVideoEnded = useCallback(() => {
+    if (autoplayEnabled) {
+      if (!activeVideo || filteredVideos.length === 0) return;
+      const currentIdx = filteredVideos.findIndex(v => v.id === activeVideo.id);
+      const nextIdx = (currentIdx + 1) % filteredVideos.length;
+      handleSelectVideo(filteredVideos[nextIdx]);
+    } else {
+      setIsPlaying(false);
+    }
+  }, [autoplayEnabled, activeVideo, filteredVideos]);
+
+  // Listen for YouTube iframe events (duration, current time, ended state)
+  useEffect(() => {
+    const handleWindowMessage = (event: MessageEvent) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data?.event === 'infoDelivery' && data?.info) {
+          if (typeof data.info.duration === 'number' && data.info.duration > 0) {
+            setVideoDuration(data.info.duration);
+          }
+          if (typeof data.info.currentTime === 'number') {
+            setVideoCurrentTime(data.info.currentTime);
+          }
+          if (data.info.playerState === 0) {
+            // Player state 0 = YT.PlayerState.ENDED
+            handleVideoEnded();
+          } else if (data.info.playerState === 1) {
+            setIsPlaying(true);
+          } else if (data.info.playerState === 2) {
+            setIsPlaying(false);
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+    return () => window.removeEventListener('message', handleWindowMessage);
+  }, [activeVideo?.id, handleVideoEnded]);
 
   const toggleFullscreen = async () => {
     const container = playerContainerRef.current;
@@ -943,12 +1081,15 @@ export const VideosPage: React.FC = () => {
             {/* Left Column: Player, Title, Channel, Meta, Description & Comments */}
             <div className="lg:col-span-8 space-y-4">
               
-              {/* 16:9 Cinema Player Screen */}
+              {/* 16:9 Cinema Player Screen (YouTube-like larger mobile view) */}
               <div
                 ref={playerContainerRef}
                 onMouseMove={handleMouseMovePlayer}
                 onMouseEnter={() => setIsControlsVisible(true)}
-                className="relative aspect-video w-full rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl group select-none"
+                onClick={handlePlayerTap}
+                className={`relative aspect-video w-full -mx-4 sm:mx-0 rounded-none sm:rounded-3xl bg-black border-y sm:border border-slate-800 overflow-hidden shadow-2xl select-none min-h-[220px] sm:min-h-[380px] lg:min-h-[440px] ${
+                  !isControlsVisible && isPlaying ? 'cursor-none' : 'cursor-default'
+                }`}
               >
                 {/* Media Screen (YouTube / Direct Video Stream via /api/media/stream) */}
                 {isYouTubeVideo(activeVideo) ? (
@@ -976,10 +1117,11 @@ export const VideosPage: React.FC = () => {
                     onDurationChange={(e) => setVideoDuration(e.currentTarget.duration || 0)}
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
+                    onEnded={handleVideoEnded}
                     onTimeUpdate={(e) => {
                       const cur = e.currentTarget.currentTime;
                       setVideoCurrentTime(cur);
-                      const limitSec = Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20));
+                      const limitSec = Math.max(12, Math.floor((parseSeconds(activeVideo.duration) || 300) * 0.20));
                       if (!isVideoUnlocked(activeVideo) && cur >= limitSec) {
                         e.currentTarget.pause();
                         e.currentTarget.currentTime = limitSec;
@@ -993,7 +1135,7 @@ export const VideosPage: React.FC = () => {
                 {!isVideoUnlocked(activeVideo) && !isPreviewEnded && (
                   <div className="absolute top-3 left-3 z-30 pointer-events-none px-3 py-1 rounded-full bg-black/85 border border-amber-400/40 text-[11px] font-bold text-amber-300 flex items-center gap-1.5 backdrop-blur-md shadow-lg">
                     <Lock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>20% Free Preview ({Math.max(0, Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20)) - Math.floor(videoCurrentTime))}s left)</span>
+                    <span>20% Free Preview ({Math.max(0, Math.max(12, Math.floor((parseSeconds(activeVideo.duration) || 300) * 0.20)) - Math.floor(videoCurrentTime))}s left)</span>
                   </div>
                 )}
 
@@ -1004,7 +1146,7 @@ export const VideosPage: React.FC = () => {
                       <Lock className="w-8 h-8" />
                     </div>
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full mb-2">
-                      20% Free Preview Finished ({Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20))}s)
+                      20% Free Preview Finished ({Math.max(12, Math.floor((parseSeconds(activeVideo.duration) || 300) * 0.20))}s)
                     </span>
                     <h3 className="text-xl sm:text-2xl font-black text-white">Unlock Full Video to Continue</h3>
                     <p className="text-xs text-slate-300 mt-2 max-w-md">
@@ -1063,9 +1205,12 @@ export const VideosPage: React.FC = () => {
 
                 {/* On-Screen Bottom Custom Control Strip */}
                 <div
-                  className={`absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/75 to-transparent flex flex-col gap-2.5 transition-opacity duration-300 pointer-events-auto ${
-                    !isPlaying || isControlsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  className={`absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/75 to-transparent flex flex-col gap-2.5 transition-opacity duration-300 ${
+                    !isPlaying || isControlsVisible
+                      ? 'opacity-100 pointer-events-auto'
+                      : 'opacity-0 pointer-events-none'
                   }`}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {/* Custom Seek Scrubber Bar */}
                   <div
@@ -1077,7 +1222,7 @@ export const VideosPage: React.FC = () => {
                       <div
                         className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10"
                         style={{
-                          left: `${Math.min(100, (Math.max(12, Math.floor((activeVideo.duration || 300) * 0.20)) / (videoDuration || activeVideo.duration || 300)) * 100)}%`
+                          left: `${Math.min(100, (Math.max(12, Math.floor((parseSeconds(activeVideo.duration) || 300) * 0.20)) / (videoDuration || parseSeconds(activeVideo.duration) || 300)) * 100)}%`
                         }}
                         title="20% Free Preview End"
                       />
@@ -1086,7 +1231,7 @@ export const VideosPage: React.FC = () => {
                     <div
                       className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 rounded-full relative"
                       style={{
-                        width: `${(videoDuration || activeVideo.duration) ? Math.min(100, (videoCurrentTime / (videoDuration || activeVideo.duration || 1)) * 100) : 0}%`
+                        width: `${(videoDuration || parseSeconds(activeVideo.duration)) ? Math.min(100, (videoCurrentTime / (videoDuration || parseSeconds(activeVideo.duration) || 1)) * 100) : 0}%`
                       }}
                     >
                       <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity" />
@@ -1120,6 +1265,20 @@ export const VideosPage: React.FC = () => {
                         <SkipForward className="w-4 h-4" />
                       </button>
 
+                      {/* Autoplay Toggle Button */}
+                      <button
+                        onClick={toggleAutoplay}
+                        className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition flex items-center gap-1.5 ${
+                          autoplayEnabled
+                            ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
+                            : 'bg-slate-900/80 text-slate-400 border-slate-700/80 hover:text-slate-200'
+                        }`}
+                        title={autoplayEnabled ? 'Autoplay is ON: Next video plays automatically' : 'Autoplay is OFF'}
+                      >
+                        <span className="hidden sm:inline">Autoplay</span>
+                        <span className={`w-2 h-2 rounded-full ${autoplayEnabled ? 'bg-purple-400 animate-pulse' : 'bg-slate-500'}`} />
+                      </button>
+
                       <button
                         onClick={toggleMute}
                         className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
@@ -1130,7 +1289,7 @@ export const VideosPage: React.FC = () => {
 
                       {/* Video Timestamp Display */}
                       <span className="text-[11px] text-slate-300 font-mono font-bold pl-1 select-none">
-                        {formatTimestamp(videoCurrentTime)} / {formatTimestamp(videoDuration || activeVideo.duration || 0)}
+                        {formatTimestamp(videoCurrentTime)} / {formatTimestamp(videoDuration || parseSeconds(activeVideo.duration) || 0)}
                       </span>
 
                       <span className="hidden lg:inline-block text-[11px] text-slate-500 font-mono pl-2">
@@ -1318,12 +1477,17 @@ export const VideosPage: React.FC = () => {
               </h3>
 
               <SidebarRecommendationsMixedAds
-                items={videos.map((v) => ({
+                items={rankedVideos.filter((v) => v.id !== activeVideo.id).map((v) => ({
                   id: v.id,
                   title: v.title,
                   name: v.title,
                   thumbnail: v.thumbnail,
-                  category: v.category
+                  category: v.category,
+                  creator: v.channelName || v.creator,
+                  channelName: v.channelName || v.creator,
+                  duration: v.duration,
+                  views: v.views,
+                  price: v.price
                 }))}
                 type="video"
                 activeItemId={activeVideo.id}

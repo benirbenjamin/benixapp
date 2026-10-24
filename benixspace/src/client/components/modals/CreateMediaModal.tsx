@@ -158,6 +158,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const [selectedStoryFile, setSelectedStoryFile] = useState<File | null>(null);
   const [storyCaption, setStoryCaption] = useState('');
   const [storyPreview, setStoryPreview] = useState<string | null>(null);
+  const [storyDuration, setStoryDuration] = useState<number>(15);
 
   // Video Form State
   const [channelNameInput, setChannelNameInput] = useState(user?.channel_name || user?.name || '');
@@ -201,21 +202,57 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
   if (!isOpen) return null;
 
-  // Handle Story File Upload with Fast Preview & Chunk Preparation
+  // Handle Story File Upload with Fast Preview, Chunk Preparation & 45s Duration Limit
   const handleStoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const isVid = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(file.name);
+    if (isVid) {
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      const objUrl = URL.createObjectURL(file);
+      tempVideo.src = objUrl;
+      tempVideo.onloadedmetadata = () => {
+        URL.revokeObjectURL(objUrl);
+        const dur = Math.round(tempVideo.duration || 0);
+        if (tempVideo.duration > 45.5) {
+          setStatusMsg({
+            text: `⚠️ Story video exceeds 45 seconds limit (${dur}s). Videos posted on stories cannot exceed 45 seconds. Please choose a shorter video under 45s.`,
+            error: true
+          });
+          setSelectedStoryFile(null);
+          setStoryPreview(null);
+          setStoryMediaUrl('');
+          e.target.value = '';
+          return;
+        }
+
+        setStoryDuration(dur || 15);
+        setSelectedStoryFile(file);
+        const objectUrl = URL.createObjectURL(file);
+        setStoryPreview(objectUrl);
+        setStoryMediaUrl(objectUrl);
+        setStatusMsg({
+          text: `Video clip ready: "${file.name}" (${dur}s, ${(file.size / (1024 * 1024)).toFixed(1)} MB)`
+        });
+      };
+      tempVideo.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        setSelectedStoryFile(file);
+        const objectUrl = URL.createObjectURL(file);
+        setStoryPreview(objectUrl);
+        setStoryMediaUrl(objectUrl);
+      };
+      return;
+    }
 
     setSelectedStoryFile(file);
     const objectUrl = URL.createObjectURL(file);
     setStoryPreview(objectUrl);
     setStoryMediaUrl(objectUrl);
-
-    const isVid = file.type.startsWith('video/');
     setStatusMsg({
-      text: isVid
-        ? `Video clip ready: "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
-        : `Photo ready for story broadcast!`
+      text: `Photo ready for story broadcast!`
     });
   };
 
@@ -272,7 +309,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         body: JSON.stringify({
           mediaUrl: finalMediaUrl,
           caption: captionToUpload,
-          mediaType: isVidStory ? 'video' : 'image'
+          mediaType: isVidStory ? 'video' : 'image',
+          duration: isVidStory ? (storyDuration || 15) : undefined
         })
       });
 

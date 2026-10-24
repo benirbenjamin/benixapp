@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -38,6 +38,8 @@ import {
   Film,
   X,
   Volume2,
+  VolumeX,
+  Pause,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -67,6 +69,11 @@ export const HomePage: React.FC = () => {
   const [stories, setStories] = useState<any[]>([]);
   const [creatorVideos, setCreatorVideos] = useState<any[]>(() => (realVideosData as any[]).slice(0, 12));
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  const [storyProgress, setStoryProgress] = useState<number>(0);
+  const [isStoryPaused, setIsStoryPaused] = useState<boolean>(false);
+  const [isStoryMuted, setIsStoryMuted] = useState<boolean>(false);
+  const storyVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [customAds, setCustomAds] = useState<any[]>([]);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
 
   // Active Category Chip
@@ -97,10 +104,11 @@ export const HomePage: React.FC = () => {
   // Load Initial Data
   const loadStoriesAndVideos = async () => {
     try {
-      const [storyRes, vidRes, artList] = await Promise.all([
+      const [storyRes, vidRes, artList, adsRes] = await Promise.all([
         fetch('/api/stories').catch(() => null),
         fetch('/api/modules/videos').catch(() => fetch('/api/videos').catch(() => null)),
-        fetchArticles().catch(() => [])
+        fetchArticles().catch(() => []),
+        fetch('/api/ads/active').catch(() => null)
       ]);
 
       if (storyRes && storyRes.ok) {
@@ -120,8 +128,15 @@ export const HomePage: React.FC = () => {
       if (artList && artList.length > 0) {
         setArticles(artList);
       }
+
+      if (adsRes && adsRes.ok) {
+        const adData = await adsRes.json();
+        if (adData?.ads && Array.isArray(adData.ads) && adData.ads.length > 0) {
+          setCustomAds(adData.ads);
+        }
+      }
     } catch (err) {
-      console.warn('Stories/Videos/Articles load error:', err);
+      console.warn('Stories/Videos/Articles/Ads load error:', err);
     }
   };
 
@@ -214,19 +229,19 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  // Chips click handler: filter & scroll smoothly
+  // Chips click handler: Navigate directly to pages as requested by user
   const handleChipClick = (chip: string) => {
     setActiveChip(chip);
-    if (chip === 'Watch TV' && tvSectionRef.current) {
-      tvSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (chip === 'Live Radio' && radioSectionRef.current) {
-      radioSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (chip === 'Creator Videos' && videosSectionRef.current) {
-      videosSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (chip === 'News & Articles' && newsSectionRef.current) {
-      newsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (chip === 'Shorts' && shortsSectionRef.current) {
-      shortsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (chip === 'Watch TV') {
+      navigate('/tv');
+    } else if (chip === 'Live Radio') {
+      navigate('/radio');
+    } else if (chip === 'Creator Videos') {
+      navigate('/videos');
+    } else if (chip === 'News & Articles') {
+      navigate('/blog');
+    } else if (chip === 'Shorts') {
+      navigate('/videos?category=Shorts');
     } else if (chip === 'Kunda Dating') {
       navigate('/dating');
     } else if (chip === 'Voxify Music') {
@@ -240,18 +255,115 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  // Story progress auto-advance
+  const handleNextStory = useCallback(() => {
+    setStoryProgress(0);
+    setActiveStoryIndex((prev) => {
+      if (prev === null) return null;
+      if (prev < stories.length - 1) return prev + 1;
+      return null;
+    });
+  }, [stories.length]);
+
+  const handlePrevStory = useCallback(() => {
+    setStoryProgress(0);
+    setActiveStoryIndex((prev) => {
+      if (prev === null || prev === 0) return 0;
+      return prev - 1;
+    });
+  }, []);
+
+  // Photo story auto-advance (5 seconds smooth progress)
   useEffect(() => {
-    if (activeStoryIndex === null || stories.length === 0) return;
-    const timer = setTimeout(() => {
-      if (activeStoryIndex < stories.length - 1) {
-        setActiveStoryIndex((prev) => (prev !== null ? prev + 1 : null));
-      } else {
-        setActiveStoryIndex(null);
-      }
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [activeStoryIndex, stories.length]);
+    if (activeStoryIndex === null || stories.length === 0 || isStoryPaused) return;
+    const currentStory = stories[activeStoryIndex];
+    const mediaUrl = currentStory?.mediaUrl || '';
+    const isVideo =
+      mediaUrl.startsWith('data:video') ||
+      /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ||
+      currentStory?.mediaType === 'video';
+
+    if (isVideo) return; // Video story driven by video's onTimeUpdate & onEnded
+
+    const interval = setInterval(() => {
+      setStoryProgress((prev) => {
+        if (prev >= 100) {
+          handleNextStory();
+          return 0;
+        }
+        return prev + 1;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [activeStoryIndex, stories, isStoryPaused, handleNextStory]);
+
+  // Reset progress and pause state when activeStoryIndex changes
+  useEffect(() => {
+    setStoryProgress(0);
+    setIsStoryPaused(false);
+  }, [activeStoryIndex]);
+
+  // Track story ad impression on story load (rewards monetized creators with custom ads & AdSense)
+  useEffect(() => {
+    if (activeStoryIndex === null || !stories[activeStoryIndex]) return;
+    const currentStory = stories[activeStoryIndex];
+    const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
+    const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+
+    if (currentCustomAd) {
+      fetch('/api/ads/track-impression', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adId: currentCustomAd.id })
+      }).catch(() => {});
+    }
+
+    fetch('/api/ads/record-reward', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storyId: currentStory.id,
+        creatorId: authorId,
+        action: 'impression',
+        mediaType: 'story',
+        adSource: currentCustomAd ? 'custom' : 'adsense'
+      })
+    }).catch(() => {});
+  }, [activeStoryIndex, stories, customAds]);
+
+  const handleStoryAdClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (activeStoryIndex === null || !stories[activeStoryIndex]) return;
+    const currentStory = stories[activeStoryIndex];
+    const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
+    const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+
+    if (currentCustomAd) {
+      fetch('/api/ads/track-click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adId: currentCustomAd.id })
+      }).catch(() => {});
+    }
+
+    fetch('/api/ads/record-reward', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storyId: currentStory.id,
+        creatorId: authorId,
+        action: 'click',
+        mediaType: 'story',
+        adSource: currentCustomAd ? 'custom' : 'adsense'
+      })
+    }).catch(() => {});
+
+    if (currentCustomAd?.targetUrl) {
+      window.open(currentCustomAd.targetUrl, '_blank');
+    } else {
+      window.open('https://benix.space', '_blank');
+    }
+  };
 
   // Hero Slide Variants for Framer Motion animation
   const slideVariants = {
@@ -511,9 +623,12 @@ export const HomePage: React.FC = () => {
               const avatar = vid.channelAvatar || '/logo.png';
               const thumbnail = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
               const duration = vid.duration || '10:00';
-              const viewsCount = typeof vid.views === 'number' && vid.views > 0
-                ? (vid.views > 999 ? `${(vid.views / 1000).toFixed(1)}K` : vid.views)
-                : '1.2K';
+              const viewsNum = typeof vid.views === 'number' ? vid.views : (parseInt(vid.views, 10) || 0);
+              const viewsCount = viewsNum > 999999
+                ? `${(viewsNum / 1000000).toFixed(1)}M`
+                : viewsNum > 999
+                  ? `${(viewsNum / 1000).toFixed(1)}K`
+                  : viewsNum.toLocaleString();
               const priceLabel = Number(vid.price) > 0 ? `${Number(vid.price).toLocaleString()} RWF` : 'Free';
 
               return (
@@ -1345,18 +1460,85 @@ export const HomePage: React.FC = () => {
           mediaUrl.startsWith('data:video') ||
           /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ||
           currentStory.mediaType === 'video';
+        const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+
+        const handleScreenTap = (e: React.MouseEvent<HTMLDivElement>) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const width = rect.width;
+
+          if (clickX < width * 0.35) {
+            handlePrevStory();
+          } else if (clickX > width * 0.65) {
+            handleNextStory();
+          } else {
+            // Center tap: toggle play/pause
+            if (isVideo && storyVideoRef.current) {
+              if (storyVideoRef.current.paused) {
+                storyVideoRef.current.play().catch(() => {});
+                setIsStoryPaused(false);
+              } else {
+                storyVideoRef.current.pause();
+                setIsStoryPaused(true);
+              }
+            } else {
+              setIsStoryPaused((p) => !p);
+            }
+          }
+        };
+
+        const toggleMuteStory = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          setIsStoryMuted((prev) => {
+            const next = !prev;
+            if (storyVideoRef.current) storyVideoRef.current.muted = next;
+            return next;
+          });
+        };
+
+        const togglePlayStory = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          if (isVideo && storyVideoRef.current) {
+            if (storyVideoRef.current.paused) {
+              storyVideoRef.current.play().catch(() => {});
+              setIsStoryPaused(false);
+            } else {
+              storyVideoRef.current.pause();
+              setIsStoryPaused(true);
+            }
+          } else {
+            setIsStoryPaused((p) => !p);
+          }
+        };
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
-            <div className="relative max-w-md w-full h-[88vh] rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col justify-between">
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none">
+            <div className="relative max-w-md w-full h-[90vh] sm:h-[88vh] rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col justify-between">
               
-              {/* Top Bar with Auto-Advance Progress */}
-              <div className="absolute top-0 inset-x-0 z-30 p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent space-y-2">
-                <div className="w-full bg-white/20 h-1 rounded-full overflow-hidden">
-                  <div className="bg-white h-full animate-[progress_6s_linear]" />
+              {/* Top Segmented Progress Bar & Creator Header */}
+              <div className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-b from-black/95 via-black/60 to-transparent space-y-2.5 pointer-events-none">
+                {/* Multi-story Segmented Progress Bars */}
+                <div className="flex items-center gap-1.5 w-full">
+                  {stories.map((st, i) => {
+                    let widthPercent = 0;
+                    if (i < activeStoryIndex) widthPercent = 100;
+                    else if (i === activeStoryIndex) widthPercent = storyProgress;
+                    else widthPercent = 0;
+
+                    return (
+                      <div key={st.id || i} className="flex-1 bg-white/20 h-1 rounded-full overflow-hidden">
+                        <div
+                          className="bg-white h-full transition-[width] duration-75 ease-linear"
+                          style={{ width: `${widthPercent}%` }}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center justify-between text-white">
-                  <div className="flex items-center gap-2">
+
+                {/* Creator Info & Custom Player Controls */}
+                <div className="flex items-center justify-between text-white pointer-events-auto">
+                  <div className="flex items-center gap-2.5">
                     <img
                       src={currentStory.authorAvatar || mediaUrl}
                       alt={currentStory.authorName}
@@ -1364,56 +1546,133 @@ export const HomePage: React.FC = () => {
                     />
                     <div>
                       <span className="text-xs font-bold block">{currentStory.authorName}</span>
-                      <span className="text-[10px] text-slate-300">{currentStory.timestamp || 'Just now'}</span>
+                      <span className="text-[10px] text-slate-300">{currentStory.timestamp || 'Active 24h Story'}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setActiveStoryIndex(null)}
-                    className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/80 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    {/* Play/Pause Button */}
+                    <button
+                      onClick={togglePlayStory}
+                      className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/80 transition-colors"
+                      title={isStoryPaused ? 'Resume' : 'Pause'}
+                    >
+                      {isStoryPaused ? <Play className="w-4 h-4 fill-current ml-0.5" /> : <Pause className="w-4 h-4 fill-current" />}
+                    </button>
+
+                    {/* Mute/Unmute for Videos */}
+                    {isVideo && (
+                      <button
+                        onClick={toggleMuteStory}
+                        className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/80 transition-colors"
+                        title={isStoryMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isStoryMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+                    )}
+
+                    {/* Close Story Button */}
+                    <button
+                      onClick={() => setActiveStoryIndex(null)}
+                      className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/80 transition-colors"
+                      title="Close"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Story Media (Image or Video) */}
-              <div className="w-full h-full flex items-center justify-center bg-black overflow-hidden">
+              {/* Story Media with Screen Tap Navigation (<35% Prev, >65% Next) */}
+              <div
+                onClick={handleScreenTap}
+                className="w-full flex-1 flex items-center justify-center bg-black overflow-hidden relative cursor-pointer"
+              >
                 {isVideo ? (
                   <video
+                    ref={storyVideoRef}
+                    key={currentStory.id || activeStoryIndex}
                     src={mediaUrl}
                     autoPlay
                     playsInline
-                    controls
-                    className="w-full h-full max-h-[88vh] object-contain"
+                    muted={isStoryMuted}
+                    controls={false}
+                    className="w-full h-full object-contain pointer-events-none"
+                    onTimeUpdate={(e) => {
+                      const dur = e.currentTarget.duration || 1;
+                      const cur = e.currentTarget.currentTime;
+                      setStoryProgress(Math.min(100, (cur / dur) * 100));
+                    }}
+                    onEnded={handleNextStory}
+                    onPlay={() => setIsStoryPaused(false)}
+                    onPause={() => setIsStoryPaused(true)}
                   />
                 ) : (
                   <img
                     src={mediaUrl}
                     alt="Story"
-                    className="w-full h-full max-h-[88vh] object-contain"
+                    className="w-full h-full object-contain pointer-events-none"
                   />
+                )}
+
+                {/* Pause Indicator overlay if paused */}
+                {isStoryPaused && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-black/25">
+                    <div className="p-4 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20">
+                      <Pause className="w-8 h-8 fill-current" />
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Caption */}
+              {/* Story Caption (if provided) */}
               {currentStory.caption && (
-                <div className="absolute bottom-0 inset-x-0 z-30 p-5 bg-gradient-to-t from-black/95 via-black/60 to-transparent">
+                <div className="p-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
                   <p className="text-xs sm:text-sm font-semibold text-white text-center">
                     {currentStory.caption}
                   </p>
                 </div>
               )}
 
-              {/* Navigation Arrows */}
+              {/* Small Story Ad Banner (Loads on all stories; monetized owner earns impression & click revenue) */}
+              <div
+                className="w-full bg-[#121824]/95 border-t border-slate-800 p-2.5 flex items-center justify-between gap-2 z-40 backdrop-blur-md cursor-pointer select-none"
+                onClick={handleStoryAdClick}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">Sponsored Ad</span>
+                      <span className="text-xs font-bold text-white truncate">Benix Super App • Kigali</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate">
+                      Creator earns ad revenue per view & click
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleStoryAdClick}
+                  className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"
+                >
+                  Learn More
+                </button>
+              </div>
+
+              {/* Desktop Navigation Arrows */}
               <button
-                onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : null))}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
+                onClick={(e) => { e.stopPropagation(); handlePrevStory(); }}
+                className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 z-40 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
+                title="Previous Story"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
-                onClick={() => setActiveStoryIndex((prev) => (prev !== null && prev < stories.length - 1 ? prev + 1 : null))}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
+                onClick={(e) => { e.stopPropagation(); handleNextStory(); }}
+                className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 z-40 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
+                title="Next Story"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
