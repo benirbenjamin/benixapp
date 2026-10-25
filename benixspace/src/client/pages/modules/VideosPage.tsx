@@ -136,6 +136,10 @@ export function getSafeVideoSrc(video: { id?: string; embedUrl?: string; videoUr
       return `/api/media/stream/${match[1]}`;
     }
   }
+  if (url.startsWith('/uploads/') || url.includes('/uploads/')) {
+    const filename = url.split('/uploads/')[1];
+    if (filename) return `/api/uploads/${filename}`;
+  }
   return url;
 }
 
@@ -381,6 +385,29 @@ export const VideosPage: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, [activeVideo, unlockedVideoIds, isPreviewEnded, isPlaying]);
+  // Periodic watch time tracking ping: records 5 seconds of watch time while video is playing
+  useEffect(() => {
+    if (!activeVideo || !isPlaying) return;
+
+    const token = getAuthToken();
+    const interval = setInterval(() => {
+      fetch('/api/videos/watch-time', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          videoId: activeVideo.id,
+          seconds: 5,
+          creatorId: (activeVideo as any).userId || (activeVideo as any).creator_id || (activeVideo as any).creatorId
+        })
+      }).catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeVideo?.id, isPlaying]);
+
   useEffect(() => {
     const detectConnection = () => {
       const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;

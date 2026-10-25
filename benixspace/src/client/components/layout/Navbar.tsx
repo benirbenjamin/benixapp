@@ -121,7 +121,7 @@ export const Navbar: React.FC = () => {
                 <img
                   src="/logo.png"
                   alt="BenixSpace"
-                  className="h-8 sm:h-9 w-auto max-w-[130px] sm:max-w-[180px] object-contain transition-transform group-hover:scale-105"
+                  className="h-10 sm:h-12 md:h-13 w-auto max-w-[200px] sm:max-w-[240px] object-contain transition-transform group-hover:scale-105"
                 />
               </Link>
             </div>
@@ -148,11 +148,7 @@ export const Navbar: React.FC = () => {
               {/* Submit Ad / Promote Campaign Button */}
               <button
                 onClick={() => {
-                  if (!user) {
-                    setWizardAppKey('tv');
-                  } else {
-                    setShowSubmitAd(true);
-                  }
+                  navigate('/advertise');
                 }}
                 className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-md shadow-amber-500/10 transition-all hover:scale-105 shrink-0"
                 title="Create & Submit Ad Campaign (from 100 RWF)"
@@ -278,16 +274,23 @@ export const Navbar: React.FC = () => {
                           <span>My Dashboard & Profile</span>
                         </Link>
 
-                        <button
-                          onClick={() => {
-                            setIsAvatarMenuOpen(false);
-                            setShowSubmitAd(true);
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 transition-colors text-left"
+                        <Link
+                          to="/studio"
+                          onClick={() => setIsAvatarMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 transition-colors"
+                        >
+                          <Film className="w-4 h-4 text-rose-400" />
+                          <span>Creator Studio</span>
+                        </Link>
+
+                        <Link
+                          to="/advertise"
+                          onClick={() => setIsAvatarMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 transition-colors text-left"
                         >
                           <Megaphone className="w-4 h-4 text-amber-400" />
                           <span>Submit Ad Campaign</span>
-                        </button>
+                        </Link>
 
                         <Link
                           to="/dashboard#ads"
@@ -397,8 +400,8 @@ export const Navbar: React.FC = () => {
       />
 
       {/* Side Navigation Drawer */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex bg-black/80 backdrop-blur-sm">
+      {false && isDrawerOpen && (
+        <div className="fixed inset-0 z-[9999] flex bg-black/85 backdrop-blur-sm">
           <div className="w-72 max-w-[80%] bg-[#0B0E14] border-r border-slate-800 h-full p-5 flex flex-col justify-between text-white overflow-y-auto">
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -599,11 +602,20 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsDrawerOpen(false);
-                    if (!user) {
-                      setWizardAppKey('tv');
-                    } else {
-                      setShowSubmitAd(true);
-                    }
+                    navigate('/studio');
+                  }}
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-rose-300 hover:text-white transition-all text-left"
+                >
+                  <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400">
+                    <Film className="w-4 h-4" />
+                  </div>
+                  <span>Creator Studio</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    navigate('/advertise');
                   }}
                   className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-amber-300 hover:text-amber-200 transition-all text-left border border-amber-500/30 bg-amber-500/10 shadow-sm"
                 >

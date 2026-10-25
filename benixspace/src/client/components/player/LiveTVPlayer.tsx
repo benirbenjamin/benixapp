@@ -12,7 +12,9 @@ import {
   Tv,
   Sparkles,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  SlidersHorizontal,
+  Check
 } from 'lucide-react';
 import type { Station } from '../../services/mediaService';
 import { usePlayer } from '../../context/PlayerContext';
@@ -51,6 +53,37 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
   const feedbackTimerRef = useRef<any>(null);
   const controlsTimeoutRef = useRef<any>(null);
 
+  // Connection & Quality State
+  const [qualities, setQualities] = useState<{ id: number; label: string; height?: number }[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<'auto' | number>('auto');
+  const [activeResolutionLabel, setActiveResolutionLabel] = useState<string>('Auto');
+  const [isSlowConnection, setIsSlowConnection] = useState<boolean>(false);
+  const [showQualityMenu, setShowQualityMenu] = useState<boolean>(false);
+
+  const checkConnectionSpeed = () => {
+    const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
+    const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+    const slow = conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g' || conn?.effectiveType === '3g' || (conn?.downlink && conn.downlink < 1.8);
+    setIsSlowConnection(Boolean(slow));
+    return Boolean(slow);
+  };
+
+  const handleSelectQuality = (qualityId: 'auto' | number) => {
+    setCurrentQuality(qualityId);
+    setShowQualityMenu(false);
+    if (!hlsRef.current) return;
+    if (qualityId === 'auto') {
+      hlsRef.current.currentLevel = -1;
+      setActiveResolutionLabel('Auto');
+    } else {
+      hlsRef.current.currentLevel = qualityId;
+      const lvl = hlsRef.current.levels[qualityId];
+      if (lvl?.height) {
+        setActiveResolutionLabel(`${lvl.height}p`);
+      }
+    }
+  };
+
   const triggerFeedback = (type: 'play' | 'pause') => {
     setCenterFeedback(type);
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
@@ -82,22 +115,56 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
         hlsRef.current.destroy();
       }
 
+      const slow = checkConnectionSpeed();
+
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 0,
+        backBufferLength: slow ? 0 : 30,
+        maxBufferLength: slow ? 12 : 30, // Low buffer target for fast start on slow networks
+        maxMaxBufferLength: slow ? 25 : 60,
+        maxBufferSize: 25 * 1000 * 1000,
+        fragLoadingMaxRetry: 10,
+        manifestLoadingMaxRetry: 8,
+        levelLoadingMaxRetry: 8,
+        capLevelToPlayerSize: true, // Cap to screen size so slow networks don't download 1080p for small screens
+        startLevel: slow ? 0 : -1, // Start at lowest bitrate on slow connection for instant play
       });
 
       hlsRef.current = hls;
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
         setIsLoading(false);
+        if (data.levels && data.levels.length > 0) {
+          const lvls = data.levels.map((lvl, index) => {
+            const h = lvl.height || (lvl.bitrate ? Math.round(lvl.bitrate / 1500) : 360);
+            return {
+              id: index,
+              label: h >= 1000 ? `${h}p (FHD)` : h >= 700 ? `${h}p (HD)` : h <= 360 ? `${h}p (Data Saver)` : `${h}p`,
+              height: h
+            };
+          });
+          setQualities(lvls);
+        } else {
+          setQualities([
+            { id: 0, label: '360p (Data Saver / Slow Net)' },
+            { id: 1, label: '480p (Standard)' },
+            { id: 2, label: '720p (HD)' }
+          ]);
+        }
         video.muted = isTvMuted;
         if (autoPlay) {
           playTv(station);
           video.play().catch(() => {});
+        }
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+        const lvl = hls.levels[data.level];
+        if (lvl && lvl.height) {
+          setActiveResolutionLabel(`${lvl.height}p`);
         }
       });
 
@@ -199,30 +266,14 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
     }
   };
 
-  // Fullscreen change listener
-  useEffect(() => {
-    const onFs = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-      if (!document.fullscreenElement && screen.orientation && 'unlock' in screen.orientation) {
-        try { screen.orientation.unlock(); } catch {}
-      }
-    };
-    document.addEventListener('fullscreenchange', onFs);
-    document.addEventListener('webkitfullscreenchange', onFs);
-    return () => {
-      document.removeEventListener('fullscreenchange', onFs);
-      document.removeEventListener('webkitfullscreenchange', onFs);
-    };
-  }, []);
-
-  // Keyboard Shortcuts: Space (Play/Pause), M (Mute/Unmute), F (Landscape Fullscreen)
+  // Keyboard Shortcuts: Space (Play/Pause), M (Mute), F (Fullscreen)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
         return;
       }
-      if (e.code === 'Space' || e.key === ' ' || e.key.toLowerCase() === 'k') {
+      if (e.code === 'Space') {
         e.preventDefault();
         handleToggleTvPlay();
       } else if (e.key.toLowerCase() === 'm') {
@@ -368,8 +419,69 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
           </span>
         </div>
 
-        {/* Right: Volume & Fullscreen */}
+        {/* Right: Quality, Volume & Fullscreen */}
         <div className="flex items-center gap-2">
+          {/* Quality Selector (Auto / 360p Data Saver / 720p / 1080p) */}
+          <div className="relative">
+            <button
+              onClick={() => setShowQualityMenu(!showQualityMenu)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700/60 transition-all shadow"
+              title="Stream Quality & Bandwidth Optimizer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+              <span>{currentQuality === 'auto' ? `Auto (${activeResolutionLabel})` : activeResolutionLabel}</span>
+              {isSlowConnection && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Slow Network Optimizer Active" />
+              )}
+            </button>
+
+            {/* Quality Popover Menu */}
+            {showQualityMenu && (
+              <div className="absolute bottom-full right-0 mb-2 w-56 bg-[#0F141F] border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-1.5 border-b border-slate-800 text-[10px] font-black uppercase text-slate-400 flex items-center justify-between">
+                  <span>Stream Quality</span>
+                  {isSlowConnection ? (
+                    <span className="text-emerald-400 font-mono font-bold">⚡ Data Saver</span>
+                  ) : (
+                    <span className="text-blue-400 font-mono font-bold">HD Stream</span>
+                  )}
+                </div>
+
+                <div className="py-1 space-y-0.5 max-h-56 overflow-y-auto">
+                  <button
+                    onClick={() => handleSelectQuality('auto')}
+                    className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors ${
+                      currentQuality === 'auto'
+                        ? 'bg-blue-600/20 text-blue-300 font-bold border border-blue-500/30'
+                        : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <div>
+                      <span className="block font-bold">Auto (Adaptive)</span>
+                      <span className="text-[10px] text-slate-400 block">Matches network speed</span>
+                    </div>
+                    {currentQuality === 'auto' && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                  </button>
+
+                  {qualities.map((q) => (
+                    <button
+                      key={q.id}
+                      onClick={() => handleSelectQuality(q.id)}
+                      className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between transition-colors ${
+                        currentQuality === q.id
+                          ? 'bg-blue-600/20 text-blue-300 font-bold border border-blue-500/30'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="font-medium">{q.label}</span>
+                      {currentQuality === q.id && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={toggleTvMute}
             className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"

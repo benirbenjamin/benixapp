@@ -48,6 +48,7 @@ import { KundaPage } from './client/pages/modules/KundaPage';
 import { EasyCalcPage } from './client/pages/modules/EasyCalcPage';
 import { MessagesPage } from './client/pages/MessagesPage';
 import { CreatorStudioPage } from './client/pages/CreatorStudioPage';
+import { AdvertisePage } from './client/pages/AdvertisePage';
 import { PwaInstallBanner } from './client/components/pwa/PwaInstallBanner';
 
 // Admin System Pages
@@ -222,6 +223,8 @@ export const App: React.FC = () => {
                           <Route path="/videos" element={<VideosPage />} />
                           <Route path="/videos/:id" element={<VideosPage />} />
                           <Route path="/studio" element={<CreatorStudioPage />} />
+                          <Route path="/advertise" element={<AdvertisePage />} />
+                          <Route path="/ads/create" element={<AdvertisePage />} />
                           <Route path="/tv" element={<TvPage />} />
                           <Route path="/radio" element={<RadioPage />} />
                           <Route path="/games" element={<GamesPage />} />

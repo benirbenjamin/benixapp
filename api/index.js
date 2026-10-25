@@ -15360,11 +15360,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path4) {
-      if (!path4 || typeof path4 !== "string") {
+    function lookup(path5) {
+      if (!path5 || typeof path5 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path4).toLowerCase().slice(1);
+      var extension2 = extname("x." + path5).toLowerCase().slice(1);
       if (!extension2) {
         return false;
       }
@@ -19051,13 +19051,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports, module) {
     "use strict";
     var debug = require_src()("express:view");
-    var path4 = __require("node:path");
-    var fs6 = __require("node:fs");
-    var dirname = path4.dirname;
-    var basename = path4.basename;
-    var extname = path4.extname;
-    var join = path4.join;
-    var resolve3 = path4.resolve;
+    var path5 = __require("node:path");
+    var fs7 = __require("node:fs");
+    var dirname = path5.dirname;
+    var basename = path5.basename;
+    var extname = path5.extname;
+    var join = path5.join;
+    var resolve3 = path5.resolve;
     module.exports = View;
     function View(name2, options) {
       var opts = options || {};
@@ -19086,17 +19086,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name2) {
-      var path5;
+      var path6;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name2);
-      for (var i = 0; i < roots.length && !path5; i++) {
+      for (var i = 0; i < roots.length && !path6; i++) {
         var root = roots[i];
         var loc = resolve3(root, name2);
         var dir = dirname(loc);
         var file = basename(loc);
-        path5 = this.resolve(dir, file);
+        path6 = this.resolve(dir, file);
       }
-      return path5;
+      return path6;
     };
     View.prototype.render = function render(options, callback) {
       var sync = true;
@@ -19118,21 +19118,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve4(dir, file) {
       var ext = this.ext;
-      var path5 = join(dir, file);
-      var stat = tryStat(path5);
+      var path6 = join(dir, file);
+      var stat = tryStat(path6);
       if (stat && stat.isFile()) {
-        return path5;
+        return path6;
       }
-      path5 = join(dir, basename(file, ext), "index" + ext);
-      stat = tryStat(path5);
+      path6 = join(dir, basename(file, ext), "index" + ext);
+      stat = tryStat(path6);
       if (stat && stat.isFile()) {
-        return path5;
+        return path6;
       }
     };
-    function tryStat(path5) {
-      debug('stat "%s"', path5);
+    function tryStat(path6) {
+      debug('stat "%s"', path6);
       try {
-        return fs6.statSync(path5);
+        return fs7.statSync(path6);
       } catch (e) {
         return void 0;
       }
@@ -20388,15 +20388,15 @@ var require_dist3 = __commonJS({
       let index = 0;
       function consumeUntil(end) {
         const output = [];
-        let path4 = "";
+        let path5 = "";
         function writePath() {
-          if (!path4)
+          if (!path5)
             return;
           output.push({
             type: "text",
-            value: encodePath(path4)
+            value: encodePath(path5)
           });
-          path4 = "";
+          path5 = "";
         }
         while (index < chars.length) {
           const value = chars[index++];
@@ -20408,7 +20408,7 @@ var require_dist3 = __commonJS({
             if (index === chars.length) {
               throw new PathError(`Unexpected end after \\ at index ${index}`, str);
             }
-            path4 += chars[index++];
+            path5 += chars[index++];
             continue;
           }
           if (value === ":" || value === "*") {
@@ -20452,7 +20452,7 @@ var require_dist3 = __commonJS({
           if (value === "}" || value === "(" || value === ")" || value === "[" || value === "]" || value === "+" || value === "?" || value === "!") {
             throw new PathError(`Unexpected ${value} at index ${index - 1}`, str);
           }
-          path4 += value;
+          path5 += value;
         }
         if (end) {
           throw new PathError(`Unexpected end at index ${index}, expected ${end}`, str);
@@ -20462,17 +20462,17 @@ var require_dist3 = __commonJS({
       }
       return new TokenData(consumeUntil(""), str);
     }
-    function compile(path4, options = {}) {
+    function compile(path5, options = {}) {
       const { encode: encode4 = encodeURIComponent, delimiter: delimiter2 = DEFAULT_DELIMITER } = options;
-      const data = typeof path4 === "object" ? path4 : parse2(path4, options);
+      const data = typeof path5 === "object" ? path5 : parse2(path5, options);
       const fn = tokensToFunction(data.tokens, delimiter2, encode4);
-      return function path5(params = {}) {
+      return function path6(params = {}) {
         const missing = [];
-        const path6 = fn(params, missing);
+        const path7 = fn(params, missing);
         if (missing.length) {
           throw new TypeError(`Missing parameters: ${missing.join(", ")}`);
         }
-        return path6;
+        return path7;
       };
     }
     function tokensToFunction(tokens, delimiter2, encode4) {
@@ -20534,9 +20534,9 @@ var require_dist3 = __commonJS({
         return encodeValue(value);
       };
     }
-    function match(path4, options = {}) {
+    function match(path5, options = {}) {
       const { decode: decode2 = decodeURIComponent, delimiter: delimiter2 = DEFAULT_DELIMITER } = options;
-      const { regexp, keys } = pathToRegexp(path4, options);
+      const { regexp, keys } = pathToRegexp(path5, options);
       const decoders = keys.map((key) => {
         if (decode2 === false)
           return NOOP_VALUE;
@@ -20548,7 +20548,7 @@ var require_dist3 = __commonJS({
         const m = regexp.exec(input);
         if (!m)
           return false;
-        const path5 = m[0];
+        const path6 = m[0];
         const params = /* @__PURE__ */ Object.create(null);
         for (let i = 1; i < m.length; i++) {
           if (m[i] === void 0)
@@ -20557,21 +20557,21 @@ var require_dist3 = __commonJS({
           const decoder = decoders[i - 1];
           params[key.name] = decoder(m[i]);
         }
-        return { path: path5, params };
+        return { path: path6, params };
       };
     }
-    function pathToRegexp(path4, options = {}) {
+    function pathToRegexp(path5, options = {}) {
       const { delimiter: delimiter2 = DEFAULT_DELIMITER, end = true, sensitive = false, trailing = true } = options;
       const keys = [];
       let source = "";
       let combinations = 0;
-      function process2(path5) {
-        if (Array.isArray(path5)) {
-          for (const p2 of path5)
+      function process2(path6) {
+        if (Array.isArray(path6)) {
+          for (const p2 of path6)
             process2(p2);
           return;
         }
-        const data = typeof path5 === "object" ? path5 : parse2(path5, options);
+        const data = typeof path6 === "object" ? path6 : parse2(path6, options);
         flatten(data.tokens, 0, [], (tokens) => {
           if (combinations >= 256) {
             throw new PathError("Too many path combinations", data.originalPath);
@@ -20582,7 +20582,7 @@ var require_dist3 = __commonJS({
           combinations++;
         });
       }
-      process2(path4);
+      process2(path5);
       let pattern = `^(?:${source})`;
       if (trailing)
         pattern += "(?:" + escape2(delimiter2) + "$)?";
@@ -20722,18 +20722,18 @@ var require_layer = __commonJS({
     var TRAILING_SLASH_REGEXP = /\/+$/;
     var MATCHING_GROUP_REGEXP = /\((?:\?<(.*?)>)?(?!\?)/g;
     module.exports = Layer;
-    function Layer(path4, options, fn) {
+    function Layer(path5, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path4, options, fn);
+        return new Layer(path5, options, fn);
       }
-      debug("new %o", path4);
+      debug("new %o", path5);
       const opts = options || {};
       this.handle = fn;
       this.keys = [];
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.slash = path4 === "/" && opts.end === false;
+      this.slash = path5 === "/" && opts.end === false;
       function matcher(_path) {
         if (_path instanceof RegExp) {
           const keys = [];
@@ -20772,7 +20772,7 @@ var require_layer = __commonJS({
           decode: decodeParam
         });
       }
-      this.matchers = Array.isArray(path4) ? path4.map(matcher) : [matcher(path4)];
+      this.matchers = Array.isArray(path5) ? path5.map(matcher) : [matcher(path5)];
     }
     Layer.prototype.handleError = function handleError(error2, req, res, next) {
       const fn = this.handle;
@@ -20812,9 +20812,9 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match(path4) {
+    Layer.prototype.match = function match(path5) {
       let match2;
-      if (path4 != null) {
+      if (path5 != null) {
         if (this.slash) {
           this.params = {};
           this.path = "";
@@ -20822,7 +20822,7 @@ var require_layer = __commonJS({
         }
         let i = 0;
         while (!match2 && i < this.matchers.length) {
-          match2 = this.matchers[i](path4);
+          match2 = this.matchers[i](path5);
           i++;
         }
       }
@@ -20850,13 +20850,13 @@ var require_layer = __commonJS({
         throw err;
       }
     }
-    function loosen(path4) {
-      if (path4 instanceof RegExp || path4 === "/") {
-        return path4;
+    function loosen(path5) {
+      if (path5 instanceof RegExp || path5 === "/") {
+        return path5;
       }
-      return Array.isArray(path4) ? path4.map(function(p2) {
+      return Array.isArray(path5) ? path5.map(function(p2) {
         return loosen(p2);
-      }) : String(path4).replace(TRAILING_SLASH_REGEXP, "");
+      }) : String(path5).replace(TRAILING_SLASH_REGEXP, "");
     }
   }
 });
@@ -20872,9 +20872,9 @@ var require_route = __commonJS({
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
     module.exports = Route;
-    function Route(path4) {
-      debug("new %o", path4);
-      this.path = path4;
+    function Route(path5) {
+      debug("new %o", path5);
+      this.path = path5;
       this.stack = [];
       this.methods = /* @__PURE__ */ Object.create(null);
     }
@@ -21082,8 +21082,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        const path4 = getPathname(req);
-        if (path4 == null) {
+        const path5 = getPathname(req);
+        if (path5 == null) {
           return done(layerError);
         }
         let layer;
@@ -21091,7 +21091,7 @@ var require_router = __commonJS({
         let route;
         while (match !== true && idx < stack.length) {
           layer = stack[idx++];
-          match = matchLayer(layer, path4);
+          match = matchLayer(layer, path5);
           route = layer.route;
           if (typeof match !== "boolean") {
             layerError = layerError || match;
@@ -21129,18 +21129,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handleRequest(req, res, next);
           } else {
-            trimPrefix(layer, layerError, layerPath, path4);
+            trimPrefix(layer, layerError, layerPath, path5);
           }
           sync = 0;
         });
       }
-      function trimPrefix(layer, layerError, layerPath, path4) {
+      function trimPrefix(layer, layerError, layerPath, path5) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path4.substring(0, layerPath.length)) {
+          if (layerPath !== path5.substring(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          const c = path4[layerPath.length];
+          const c = path5[layerPath.length];
           if (c && c !== "/") {
             next(layerError);
             return;
@@ -21164,7 +21164,7 @@ var require_router = __commonJS({
     };
     Router.prototype.use = function use(handler2) {
       let offset = 0;
-      let path4 = "/";
+      let path5 = "/";
       if (typeof handler2 !== "function") {
         let arg = handler2;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -21172,7 +21172,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path4 = handler2;
+          path5 = handler2;
         }
       }
       const callbacks = flatten.call(slice.call(arguments, offset), Infinity);
@@ -21184,8 +21184,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("argument handler must be a function");
         }
-        debug("use %o %s", path4, fn.name || "<anonymous>");
-        const layer = new Layer(path4, {
+        debug("use %o %s", path5, fn.name || "<anonymous>");
+        const layer = new Layer(path5, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -21195,9 +21195,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router.prototype.route = function route(path4) {
-      const route2 = new Route(path4);
-      const layer = new Layer(path4, {
+    Router.prototype.route = function route(path5) {
+      const route2 = new Route(path5);
+      const layer = new Layer(path5, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -21210,8 +21210,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router.prototype[method] = function(path4) {
-        const route = this.route(path4);
+      Router.prototype[method] = function(path5) {
+        const route = this.route(path5);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -21240,9 +21240,9 @@ var require_router = __commonJS({
       const fqdnIndex = url.substring(0, pathLength).indexOf("://");
       return fqdnIndex !== -1 ? url.substring(0, url.indexOf("/", 3 + fqdnIndex)) : void 0;
     }
-    function matchLayer(layer, path4) {
+    function matchLayer(layer, path5) {
       try {
-        return layer.match(path4);
+        return layer.match(path5);
       } catch (err) {
         return err;
       }
@@ -21470,7 +21470,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path4 = "/";
+      var path5 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -21478,7 +21478,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path4 = fn;
+          path5 = fn;
         }
       }
       var fns = flatten.call(slice.call(arguments, offset), Infinity);
@@ -21488,12 +21488,12 @@ var require_application = __commonJS({
       var router = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path4, fn2);
+          return router.use(path5, fn2);
         }
-        debug(".use app under %s", path4);
-        fn2.mountpath = path4;
+        debug(".use app under %s", path5);
+        fn2.mountpath = path5;
         fn2.parent = this;
-        router.use(path4, function mounted_app(req, res, next) {
+        router.use(path5, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -21505,8 +21505,8 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path4) {
-      return this.router.route(path4);
+    app2.route = function route(path5) {
+      return this.router.route(path5);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -21549,7 +21549,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path4() {
+    app2.path = function path5() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -21565,17 +21565,17 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path4) {
+      app2[method] = function(path5) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path4);
+          return this.set(path5);
         }
-        var route = this.route(path4);
+        var route = this.route(path5);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all(path4) {
-      var route = this.route(path4);
+    app2.all = function all(path5) {
+      var route = this.route(path5);
       var args = slice.call(arguments, 1);
       for (var i = 0; i < methods.length; i++) {
         route[methods[i]].apply(route, args);
@@ -22560,7 +22560,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP(hostname) ? hostname.split(".").reverse() : [hostname];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path4() {
+    defineGetter(req, "path", function path5() {
       return parse2(this).pathname;
     });
     defineGetter(req, "host", function host() {
@@ -22771,8 +22771,8 @@ var require_content_disposition = __commonJS({
       this.type = type;
       this.parameters = parameters;
     }
-    function basename(path4) {
-      const normalized2 = path4.replaceAll("\\", "/");
+    function basename(path5) {
+      const normalized2 = path5.replaceAll("\\", "/");
       let end = normalized2.length;
       while (end > 0 && normalized2[end - 1] === "/") {
         end--;
@@ -23013,32 +23013,32 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs6 = __require("fs");
+    var fs7 = __require("fs");
     var mime = require_mime_types();
     var ms = require_ms();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path4 = __require("path");
+    var path5 = __require("path");
     var statuses = require_statuses();
     var Stream2 = __require("stream");
     var util3 = __require("util");
-    var extname = path4.extname;
-    var join = path4.join;
-    var normalize = path4.normalize;
-    var resolve3 = path4.resolve;
-    var sep = path4.sep;
+    var extname = path5.extname;
+    var join = path5.join;
+    var normalize = path5.normalize;
+    var resolve3 = path5.resolve;
+    var sep = path5.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module.exports = send;
-    function send(req, path5, options) {
-      return new SendStream(req, path5, options);
+    function send(req, path6, options) {
+      return new SendStream(req, path6, options);
     }
-    function SendStream(req, path5, options) {
+    function SendStream(req, path6, options) {
       Stream2.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path5;
+      this.path = path6;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -23152,10 +23152,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path5) {
+    SendStream.prototype.redirect = function redirect(path6) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path5);
+        this.emit("directory", res, path6);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -23175,38 +23175,38 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe(res) {
       var root = this._root;
       this.res = res;
-      var path5 = decode2(this.path);
-      if (path5 === -1) {
+      var path6 = decode2(this.path);
+      if (path6 === -1) {
         this.error(400);
         return res;
       }
-      if (~path5.indexOf("\0")) {
+      if (~path6.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path5) {
-          path5 = normalize("." + sep + path5);
+        if (path6) {
+          path6 = normalize("." + sep + path6);
         }
-        if (UP_PATH_REGEXP.test(path5)) {
-          debug('malicious path "%s"', path5);
+        if (UP_PATH_REGEXP.test(path6)) {
+          debug('malicious path "%s"', path6);
           this.error(403);
           return res;
         }
-        parts = path5.split(sep);
-        path5 = normalize(join(root, path5));
+        parts = path6.split(sep);
+        path6 = normalize(join(root, path6));
       } else {
-        if (UP_PATH_REGEXP.test(path5)) {
-          debug('malicious path "%s"', path5);
+        if (UP_PATH_REGEXP.test(path6)) {
+          debug('malicious path "%s"', path6);
           this.error(403);
           return res;
         }
-        parts = normalize(path5).split(sep);
-        path5 = resolve3(path5);
+        parts = normalize(path6).split(sep);
+        path6 = resolve3(path6);
       }
       if (containsDotFile(parts)) {
-        debug('%s dotfile "%s"', this._dotfiles, path5);
+        debug('%s dotfile "%s"', this._dotfiles, path6);
         switch (this._dotfiles) {
           case "allow":
             break;
@@ -23220,13 +23220,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path5);
+        this.sendIndex(path6);
         return res;
       }
-      this.sendFile(path5);
+      this.sendFile(path6);
       return res;
     };
-    SendStream.prototype.send = function send2(path5, stat) {
+    SendStream.prototype.send = function send2(path6, stat) {
       var len = stat.size;
       var options = this.options;
       var opts = {};
@@ -23238,9 +23238,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path5);
-      this.setHeader(path5, stat);
-      this.type(path5);
+      debug('pipe "%s"', path6);
+      this.setHeader(path6, stat);
+      this.type(path6);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -23289,30 +23289,30 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path5, opts);
+      this.stream(path6, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path5) {
+    SendStream.prototype.sendFile = function sendFile(path6) {
       var i = 0;
       var self = this;
-      debug('stat "%s"', path5);
-      fs6.stat(path5, function onstat(err, stat) {
-        var pathEndsWithSep = path5[path5.length - 1] === sep;
-        if (err && err.code === "ENOENT" && !extname(path5) && !pathEndsWithSep) {
+      debug('stat "%s"', path6);
+      fs7.stat(path6, function onstat(err, stat) {
+        var pathEndsWithSep = path6[path6.length - 1] === sep;
+        if (err && err.code === "ENOENT" && !extname(path6) && !pathEndsWithSep) {
           return next(err);
         }
         if (err) return self.onStatError(err);
-        if (stat.isDirectory()) return self.redirect(path5);
+        if (stat.isDirectory()) return self.redirect(path6);
         if (pathEndsWithSep) return self.error(404);
-        self.emit("file", path5, stat);
-        self.send(path5, stat);
+        self.emit("file", path6, stat);
+        self.send(path6, stat);
       });
       function next(err) {
         if (self._extensions.length <= i) {
           return err ? self.onStatError(err) : self.error(404);
         }
-        var p2 = path5 + "." + self._extensions[i++];
+        var p2 = path6 + "." + self._extensions[i++];
         debug('stat "%s"', p2);
-        fs6.stat(p2, function(err2, stat) {
+        fs7.stat(p2, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self.emit("file", p2, stat);
@@ -23320,7 +23320,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path5) {
+    SendStream.prototype.sendIndex = function sendIndex(path6) {
       var i = -1;
       var self = this;
       function next(err) {
@@ -23328,9 +23328,9 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p2 = join(path5, self._index[i]);
+        var p2 = join(path6, self._index[i]);
         debug('stat "%s"', p2);
-        fs6.stat(p2, function(err2, stat) {
+        fs7.stat(p2, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self.emit("file", p2, stat);
@@ -23339,10 +23339,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream(path5, options) {
+    SendStream.prototype.stream = function stream(path6, options) {
       var self = this;
       var res = this.res;
-      var stream2 = fs6.createReadStream(path5, options);
+      var stream2 = fs7.createReadStream(path6, options);
       this.emit("stream", stream2);
       stream2.pipe(res);
       function cleanup() {
@@ -23357,17 +23357,17 @@ var require_send = __commonJS({
         self.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path5) {
+    SendStream.prototype.type = function type(path6) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var ext = extname(path5);
+      var ext = extname(path6);
       var type2 = mime.contentType(ext) || "application/octet-stream";
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2);
     };
-    SendStream.prototype.setHeader = function setHeader(path5, stat) {
+    SendStream.prototype.setHeader = function setHeader(path6, stat) {
       var res = this.res;
-      this.emit("headers", res, path5, stat);
+      this.emit("headers", res, path6, stat);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -23425,9 +23425,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode2(path5) {
+    function decode2(path6) {
       try {
-        return decodeURIComponent(path5);
+        return decodeURIComponent(path6);
       } catch (err) {
         return -1;
       }
@@ -23571,7 +23571,7 @@ var require_response = __commonJS({
     var http2 = __require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
-    var path4 = __require("node:path");
+    var path5 = __require("node:path");
     var pathIsAbsolute = __require("node:path").isAbsolute;
     var statuses = require_statuses();
     var sign2 = require_cookie_signature().sign;
@@ -23580,8 +23580,8 @@ var require_response = __commonJS({
     var setCharset = require_utils3().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path4.extname;
-    var resolve3 = path4.resolve;
+    var extname = path5.extname;
+    var resolve3 = path5.resolve;
     var vary = require_vary();
     var { Buffer: Buffer2 } = __require("node:buffer");
     var res = Object.create(http2.ServerResponse.prototype);
@@ -23727,26 +23727,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path5, options, callback) {
+    res.sendFile = function sendFile(path6, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path5) {
+      if (!path6) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path5 !== "string") {
+      if (typeof path6 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !pathIsAbsolute(path5)) {
+      if (!opts.root && !pathIsAbsolute(path6)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path5);
+      var pathname = encodeURI(path6);
       opts.etag = this.app.enabled("etag");
       var file = send(req, pathname, opts);
       sendfile(res2, file, opts, function(err) {
@@ -23757,7 +23757,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.download = function download(path5, filename, options, callback) {
+    res.download = function download(path6, filename, options, callback) {
       var done = callback;
       var name2 = filename;
       var opts = options || null;
@@ -23774,7 +23774,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name2 || path5)
+        "Content-Disposition": contentDisposition(name2 || path6)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -23787,7 +23787,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve3(path5) : path5;
+      var fullPath = !opts.root ? resolve3(path6) : path6;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -24070,11 +24070,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl.original(req);
-        var path4 = parseUrl(req).pathname;
-        if (path4 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path4 = "";
+        var path5 = parseUrl(req).pathname;
+        if (path5 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path5 = "";
         }
-        var stream = send(req, path4, opts);
+        var stream = send(req, path5, opts);
         stream.on("directory", onDirectory);
         if (setHeaders) {
           stream.on("headers", setHeaders);
@@ -24462,8 +24462,8 @@ var require_lib3 = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports, module) {
-    var fs6 = __require("fs");
-    var path4 = __require("path");
+    var fs7 = __require("fs");
+    var path5 = __require("path");
     var os4 = __require("os");
     var crypto13 = __require("crypto");
     var TIPS = [
@@ -24594,7 +24594,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs6.existsSync(filepath)) {
+            if (fs7.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -24602,15 +24602,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path4.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path5.resolve(process.cwd(), ".env.vault");
       }
-      if (fs6.existsSync(possibleVaultPath)) {
+      if (fs7.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path4.join(os4.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path5.join(os4.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -24627,7 +24627,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path4.resolve(process.cwd(), ".env");
+      const dotenvPath = path5.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -24655,13 +24655,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path5 of optionPaths) {
+      for (const path6 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs6.readFileSync(path5, { encoding }));
+          const parsed = DotenvModule.parse(fs7.readFileSync(path6, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`failed to load ${path5} ${e.message}`);
+            _debug(`failed to load ${path6} ${e.message}`);
           }
           lastError = e;
         }
@@ -24674,7 +24674,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path4.relative(process.cwd(), filePath);
+            const relative = path5.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -28595,6 +28595,8 @@ var require_jsonwebtoken = __commonJS({
 var import_express = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_dotenv2 = __toESM(require_main(), 1);
+import fs6 from "fs";
+import path4 from "path";
 import crypto12 from "crypto";
 
 // node_modules/@neondatabase/serverless/index.mjs
@@ -37075,11 +37077,11 @@ var Cookies = class {
   getPath(pathname) {
     const pathParts = (pathname || "/").split("/");
     pathParts.pop();
-    const path4 = pathParts.join("/").trim();
-    if (path4.charAt(0) !== "/") {
+    const path5 = pathParts.join("/").trim();
+    if (path5.charAt(0) !== "/") {
       return "/";
     }
-    return path4;
+    return path5;
   }
 };
 var cookies_default = Cookies;
@@ -53910,15 +53912,41 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         }
       }
     }
+    const recUser = await query("SELECT last_seen_at FROM core_users WHERE id = $1", [recipientId]).catch(() => ({ rows: [] }));
+    const isRecipientOnline = recUser.rows[0]?.last_seen_at ? Date.now() - new Date(recUser.rows[0].last_seen_at).getTime() < 60 * 1e3 : false;
+    const initialStatus = isRecipientOnline ? "delivered" : "sent";
     const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+    await query(`ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent';`).catch(() => {
+    });
+    await query(`ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;`).catch(() => {
+    });
     await query(
-      `INSERT INTO chat_direct_messages (id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, amount_paid, creator_earning)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [msgId, senderId, recipientId, message || "", !!isVoice, voiceDuration || null, isPaid, amountPaid, creatorEarning]
+      `INSERT INTO chat_direct_messages (id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, amount_paid, creator_earning, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [msgId, senderId, recipientId, message || "", !!isVoice, voiceDuration || null, isPaid, amountPaid, creatorEarning, initialStatus]
     );
+    try {
+      const senderName = req.user?.channel_name || req.user?.name || req.user?.email?.split("@")[0] || "Someone";
+      await query(
+        `INSERT INTO core_notifications (user_id, title, message, type, recipient_role)
+         VALUES ($1, $2, $3, 'chat', 'user')`,
+        [recipientId, `New message from ${senderName}`, (message || "Sent an attachment").slice(0, 100)]
+      );
+    } catch {
+    }
     return res.json({
       success: true,
       messageId: msgId,
+      message: {
+        id: msgId,
+        sender: "me",
+        text: message || "",
+        time: (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        isVoice: !!isVoice,
+        voiceDuration: voiceDuration || void 0,
+        isPaid,
+        status: initialStatus
+      },
       isPaid,
       amountPaid,
       creatorEarning,
@@ -54105,11 +54133,21 @@ app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
       );
     `).catch(() => {
     });
+    await query("UPDATE core_users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1", [userId]).catch(() => {
+    });
+    await query(
+      `UPDATE chat_direct_messages SET status = 'delivered' WHERE recipient_id = $1 AND (status IS NULL OR status = 'sent')`,
+      [userId]
+    ).catch(() => {
+    });
     const partnersRes = await query(`
-      SELECT DISTINCT 
-        CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as partner_id
+      SELECT 
+        CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as partner_id,
+        MAX(created_at) as latest_time
       FROM chat_direct_messages
       WHERE sender_id = $1 OR recipient_id = $1
+      GROUP BY 1
+      ORDER BY latest_time DESC
     `, [userId]);
     const partnerIds = partnersRes.rows.map((r) => r.partner_id).filter(Boolean);
     const conversations = [];
@@ -54127,6 +54165,12 @@ app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
         SELECT id, name, email, phone, channel_name, app_profiles, chat_privacy_mode, last_seen_at
         FROM core_users WHERE id = $1
       `, [pid]);
+      const unreadRes = await query(`
+        SELECT COUNT(*) as unread 
+        FROM chat_direct_messages 
+        WHERE recipient_id = $1 AND sender_id = $2 AND (status IS NULL OR status != 'read')
+      `, [userId, pid]).catch(() => ({ rows: [{ unread: 0 }] }));
+      const unreadCount = Number(unreadRes.rows[0]?.unread || 0);
       if (uRes.rowCount > 0) {
         const u = uRes.rows[0];
         const kunda = u.app_profiles?.kunda || {};
@@ -54139,7 +54183,7 @@ app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
           partnerAvatar: avatar,
           partnerCity: kunda.city || "Kigali, Rwanda",
           tag: u.channel_name ? "Subscribed Creator" : "Member",
-          unreadCount: 0,
+          unreadCount,
           lastMessage: lastMsg ? lastMsg.is_voice ? "\u{1F3A4} Voice message" : lastMsg.message : "Conversation started",
           lastMessageTime: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today",
           verified: true,
@@ -54155,6 +54199,25 @@ app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message, conversations: [] });
   }
 });
+app.get("/api/chat/unread-count", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await query("UPDATE core_users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1", [userId]).catch(() => {
+    });
+    await query(
+      `UPDATE chat_direct_messages SET status = 'delivered' WHERE recipient_id = $1 AND (status IS NULL OR status = 'sent')`,
+      [userId]
+    ).catch(() => {
+    });
+    const r = await query(
+      `SELECT COUNT(*) as unread FROM chat_direct_messages WHERE recipient_id = $1 AND (status IS NULL OR status != 'read')`,
+      [userId]
+    ).catch(() => ({ rows: [{ unread: 0 }] }));
+    return res.json({ success: true, count: Number(r.rows[0]?.unread || 0) });
+  } catch {
+    return res.json({ success: true, count: 0 });
+  }
+});
 app.get("/api/chat/messages/:partnerId", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -54163,13 +54226,20 @@ app.get("/api/chat/messages/:partnerId", authenticateToken, async (req, res) => 
       return res.json({
         success: true,
         messages: [
-          { id: "s1", sender: "them", text: "Muraho! Welcome to Benix.Space Unified Platform.", time: "Today" },
-          { id: "s2", sender: "them", text: "Our concierge team is available 24/7 if you need any assistance.", time: "Today" }
+          { id: "s1", sender: "them", text: "Muraho! Welcome to Benix.Space Unified Platform.", time: "Today", status: "read" },
+          { id: "s2", sender: "them", text: "Our concierge team is available 24/7 if you need any assistance.", time: "Today", status: "read" }
         ]
       });
     }
+    await query(
+      `UPDATE chat_direct_messages 
+       SET status = 'read', read_at = CURRENT_TIMESTAMP 
+       WHERE recipient_id = $1 AND sender_id = $2 AND (status IS NULL OR status != 'read')`,
+      [userId, partnerId]
+    ).catch(() => {
+    });
     const rows = await query(`
-      SELECT id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, created_at
+      SELECT id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, COALESCE(status, 'sent') as status, created_at
       FROM chat_direct_messages
       WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
       ORDER BY created_at ASC
@@ -54182,7 +54252,8 @@ app.get("/api/chat/messages/:partnerId", authenticateToken, async (req, res) => 
       time: new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       isVoice: Boolean(r.is_voice),
       voiceDuration: r.voice_duration || void 0,
-      isPaid: Boolean(r.is_paid)
+      isPaid: Boolean(r.is_paid),
+      status: r.status || "delivered"
     }));
     return res.json({ success: true, messages });
   } catch (err) {
@@ -54741,6 +54812,88 @@ app.get("/api/videos/stream/:fileId", async (req, res) => {
     }
   }
 });
+var streamLocalChunkedMedia = (req, res) => {
+  const filename = req.params.filename || req.params[0];
+  if (!filename) return res.status(400).send("Filename required");
+  const safeName = path4.basename(filename);
+  const possibleDirs = [
+    path4.join(process.cwd(), "public", "uploads"),
+    path4.join(process.cwd(), "uploads"),
+    path4.join(process.cwd(), "public", "uploads", "media")
+  ];
+  let filePath = "";
+  for (const dir of possibleDirs) {
+    const candidate = path4.join(dir, safeName);
+    if (fs6.existsSync(candidate)) {
+      filePath = candidate;
+      break;
+    }
+  }
+  if (!filePath || !fs6.existsSync(filePath)) {
+    return res.status(404).send("Media file not found");
+  }
+  const stat = fs6.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+  const ext = path4.extname(filePath).toLowerCase();
+  const mimeMap = {
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".ogg": "video/ogg",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp"
+  };
+  const contentType = mimeMap[ext] || "application/octet-stream";
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const chunkSizeLimit = 1024 * 1024;
+    const requestedEnd = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const end = Math.min(requestedEnd, start + chunkSizeLimit - 1, fileSize - 1);
+    const chunksize = end - start + 1;
+    const file = fs6.createReadStream(filePath, { start, end });
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": chunksize,
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=86400",
+      "X-Content-Type-Options": "nosniff"
+    });
+    file.pipe(res);
+  } else {
+    if (ext === ".mp4" || ext === ".webm" || ext === ".mp3" || ext === ".m4a") {
+      const initialChunkSize = Math.min(fileSize, 512 * 1024);
+      const file = fs6.createReadStream(filePath, { start: 0, end: initialChunkSize - 1 });
+      res.writeHead(206, {
+        "Content-Range": `bytes 0-${initialChunkSize - 1}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": initialChunkSize,
+        "Content-Type": contentType,
+        "Cache-Control": "public, max-age=86400"
+      });
+      file.pipe(res);
+    } else {
+      res.writeHead(200, {
+        "Content-Length": fileSize,
+        "Content-Type": contentType,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=86400"
+      });
+      fs6.createReadStream(filePath).pipe(res);
+    }
+  }
+};
+app.get("/uploads/:filename", streamLocalChunkedMedia);
+app.get("/api/uploads/:filename", streamLocalChunkedMedia);
+app.get("/api/media/local/:filename", streamLocalChunkedMedia);
 var userVideosList = [];
 async function ensureStoriesTable() {
   await query(`
@@ -54768,6 +54921,8 @@ async function ensureStoriesTable() {
   });
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {
   });
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {
+  });
 }
 app.get("/api/stories", async (req, res) => {
   try {
@@ -54775,7 +54930,7 @@ app.get("/api/stories", async (req, res) => {
     const result = await query(
       `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
               media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType",
-              COALESCE(duration, 5.0) as duration, created_at,
+              COALESCE(duration, 5.0) as duration, COALESCE(views, 0) as views, created_at,
               to_char(created_at, 'HH12:MI AM') as timestamp
        FROM core_stories
        WHERE expires_at > CURRENT_TIMESTAMP OR expires_at IS NULL
@@ -54786,6 +54941,97 @@ app.get("/api/stories", async (req, res) => {
   } catch (err) {
     console.error("Error fetching real stories:", err?.message);
     return res.json({ stories: [] });
+  }
+});
+app.get("/api/creator/stories", authenticateToken, async (req, res) => {
+  try {
+    await ensureStoriesTable();
+    const userId = req.user.id;
+    const result = await query(
+      `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
+              media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType",
+              COALESCE(duration, 5.0) as duration, COALESCE(views, 0) as views,
+              created_at as "createdAt", expires_at as "expiresAt",
+              (expires_at < CURRENT_TIMESTAMP) as "isExpired"
+       FROM core_stories
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+    return res.json({ success: true, stories: result.rows || [] });
+  } catch (err) {
+    console.error("Error fetching creator stories:", err?.message);
+    return res.status(500).json({ error: err.message, stories: [] });
+  }
+});
+app.post("/api/stories/:id/view", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await ensureStoriesTable();
+    await query(`
+      CREATE TABLE IF NOT EXISTS story_viewers (
+        id VARCHAR(255) PRIMARY KEY,
+        story_id VARCHAR(255) NOT NULL,
+        viewer_id VARCHAR(255) NOT NULL,
+        viewer_name VARCHAR(255),
+        viewer_avatar TEXT,
+        viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(story_id, viewer_id)
+      );
+    `).catch(() => {
+    });
+    await query("UPDATE core_stories SET views = COALESCE(views, 0) + 1 WHERE id = $1", [id]);
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) {
+        const uRes = await query("SELECT name, channel_name, avatar_url FROM core_users WHERE id = $1", [decoded.id]).catch(() => ({ rows: [] }));
+        const viewerName = uRes.rows[0]?.channel_name || uRes.rows[0]?.name || decoded.email?.split("@")[0] || "Member";
+        const viewerAvatar = uRes.rows[0]?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(viewerName)}&background=3B82F6&color=fff`;
+        const vId = "sv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        await query(
+          `INSERT INTO story_viewers (id, story_id, viewer_id, viewer_name, viewer_avatar, viewed_at)
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+           ON CONFLICT (story_id, viewer_id) DO UPDATE SET viewed_at = CURRENT_TIMESTAMP`,
+          [vId, id, decoded.id, viewerName, viewerAvatar]
+        ).catch(() => {
+        });
+      }
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    return res.json({ success: false });
+  }
+});
+app.post("/api/stories/:id/repost", authenticateToken, async (req, res) => {
+  try {
+    await ensureStoriesTable();
+    const { id } = req.params;
+    const userId = req.user.id;
+    const storyRes = await query(`SELECT * FROM core_stories WHERE id = $1 AND user_id = $2`, [id, userId]);
+    if (storyRes.rowCount === 0) {
+      return res.status(404).json({ error: "Story not found or you are not the author." });
+    }
+    const old = storyRes.rows[0];
+    const newId = "story-" + Date.now();
+    await query(
+      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours')`,
+      [newId, userId, old.author_name, old.author_avatar, old.media_url, old.caption, old.media_type || "image", old.duration || 5]
+    );
+    return res.json({ success: true, message: "Story reposted successfully for 24 hours!", newStoryId: newId });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.delete("/api/stories/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    await query(`DELETE FROM core_stories WHERE id = $1 AND user_id = $2`, [id, userId]);
+    return res.json({ success: true, message: "Story deleted successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 app.post("/api/stories", authenticateToken, async (req, res) => {
@@ -55123,6 +55369,7 @@ app.get("/api/creators/:creatorId/sub-status", async (req, res) => {
 app.get("/api/creator/monetization-status", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    await ensureCreatorStudioTables();
     const watchRes = await query(
       `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds
        FROM video_watch_time
@@ -55138,15 +55385,25 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
       [userId]
     );
     const currentSubscribers = Number(subRes.rows[0]?.count || 0);
-    const requiredWatchHours = 300;
-    const requiredSubscribers = 30;
-    const eligibleForAdRevenue = currentWatchHours >= requiredWatchHours && currentSubscribers >= requiredSubscribers;
+    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const requiredWatchHours = Number(reqHoursStr) || 300;
+    const requiredSubscribers = Number(reqSubsStr) || 30;
+    const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
+    const overrideStatus = userOverrideRes.rows[0]?.monetization_status || "auto";
+    const monetizationNotice = userOverrideRes.rows[0]?.monetization_warning || null;
+    let isMonetized = currentWatchHours >= requiredWatchHours && currentSubscribers >= requiredSubscribers;
+    if (overrideStatus === "active") isMonetized = true;
+    if (overrideStatus === "paused" || overrideStatus === "suspended") isMonetized = false;
     return res.json({
       requiredWatchHours,
       currentWatchHours,
       requiredSubscribers,
       currentSubscribers,
-      eligibleForAdRevenue,
+      eligibleForAdRevenue: isMonetized,
+      isMonetized,
+      monetizationStatus: overrideStatus,
+      monetizationNotice,
       canSellPaidVideos: true
     });
   } catch (err) {
@@ -55156,8 +55413,49 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
       requiredSubscribers: 30,
       currentSubscribers: 0,
       eligibleForAdRevenue: false,
+      isMonetized: false,
+      monetizationStatus: "auto",
+      monetizationNotice: null,
       canSellPaidVideos: true
     });
+  }
+});
+app.post("/api/videos/watch-time", async (req, res) => {
+  try {
+    await ensureCreatorStudioTables();
+    const { videoId, seconds = 5, creatorId } = req.body;
+    if (!videoId) return res.status(400).json({ error: "videoId required" });
+    let finalCreatorId = creatorId;
+    if (!finalCreatorId) {
+      const vidRes = await query(`SELECT user_id FROM user_videos WHERE id = $1 LIMIT 1`, [videoId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (vidRes.rowCount > 0 && vidRes.rows[0].user_id) {
+        finalCreatorId = vidRes.rows[0].user_id;
+      }
+    }
+    const authHeader = req.headers.authorization;
+    let viewerId = "anon";
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) viewerId = decoded.id;
+    }
+    const durationSec = Math.min(60, Math.max(1, Number(seconds) || 5));
+    const recordId = "wt-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7);
+    await query(
+      `INSERT INTO video_watch_time (id, video_id, creator_id, user_id, duration_seconds, created_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+      [recordId, videoId, finalCreatorId || viewerId, viewerId, durationSec]
+    ).catch(() => {
+    });
+    await query(
+      `UPDATE user_videos 
+       SET watch_seconds = COALESCE(watch_seconds, 0) + $1 
+       WHERE id = $2`,
+      [durationSec, videoId]
+    ).catch(() => {
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 async function ensureCreatorStudioTables() {
@@ -55247,6 +55545,24 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
     }));
     const adData = adEarningsRes.rows[0] || {};
     const totalEarnings = Number(earningsRes.rows[0]?.earnings || 0) + Number(adData.lifetime_ad_earnings || 0);
+    const storiesRes = await query(
+      `SELECT COUNT(*) as story_count, COALESCE(SUM(views), 0) as total_story_views
+       FROM core_stories
+       WHERE user_id = $1`,
+      [userId]
+    ).catch(() => ({ rows: [{ story_count: 0, total_story_views: 0 }] }));
+    const storyCount = Number(storiesRes.rows[0]?.story_count || 0);
+    const totalStoryViews = Number(storiesRes.rows[0]?.total_story_views || 0);
+    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const requiredWatchHours = Number(reqHoursStr) || 300;
+    const requiredSubscribers = Number(reqSubsStr) || 30;
+    const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
+    const overrideStatus = userOverrideRes.rows[0]?.monetization_status || "auto";
+    const monetizationNotice = userOverrideRes.rows[0]?.monetization_warning || null;
+    let isMonetized = totalWatchHours >= requiredWatchHours && totalSubscribers >= requiredSubscribers;
+    if (overrideStatus === "active") isMonetized = true;
+    if (overrideStatus === "paused" || overrideStatus === "suspended") isMonetized = false;
     return res.json({
       success: true,
       analytics: {
@@ -55254,6 +55570,8 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
         totalWatchHours,
         totalSubscribers,
         totalEarnings,
+        storyCount,
+        totalStoryViews,
         lifetimeAdEarnings: Number(adData.lifetime_ad_earnings || 0),
         todayAdEarnings: Number(adData.today_ad_earnings || 0),
         todayGoogleImpressions: Number(adData.today_google_impressions || 0),
@@ -55261,9 +55579,11 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
         todayCustomImpressions: Number(adData.today_custom_impressions || 0),
         todayCustomClicks: Number(adData.today_custom_clicks || 0),
         videosCount: videosRes.rowCount,
-        requiredWatchHours: 300,
-        requiredSubscribers: 30,
-        isMonetized: totalWatchHours >= 300 && totalSubscribers >= 30,
+        requiredWatchHours,
+        requiredSubscribers,
+        isMonetized,
+        monetizationStatus: overrideStatus,
+        monetizationNotice,
         videos: videosRes.rows.map((v2) => ({
           id: v2.id,
           title: v2.title,
@@ -55281,6 +55601,304 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
   } catch (err) {
     console.error("Studio analytics error:", err);
     return res.status(500).json({ error: err.message });
+  }
+});
+app.patch("/api/creator/videos/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, price } = req.body;
+    const userId = req.user.id;
+    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const whereClause = isAdmin ? "WHERE id = $1" : "WHERE id = $1 AND user_id = $2";
+    const params = isAdmin ? [id] : [id, userId];
+    const existing = await query(`SELECT id FROM user_videos ${whereClause}`, params);
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ error: "Video not found or unauthorized." });
+    }
+    await query(
+      `UPDATE user_videos SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        category = COALESCE($3, category),
+        price = COALESCE($4, price),
+        is_paid = COALESCE($5, is_paid)
+       WHERE id = $6`,
+      [
+        title || null,
+        description !== void 0 ? description : null,
+        category || null,
+        price !== void 0 ? Number(price) : null,
+        price !== void 0 ? Number(price) > 0 : null,
+        id
+      ]
+    );
+    return res.json({ success: true, message: "Video updated successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.delete("/api/creator/videos/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const whereClause = isAdmin ? "WHERE id = $1" : "WHERE id = $1 AND user_id = $2";
+    const params = isAdmin ? [id] : [id, userId];
+    await query(`DELETE FROM user_videos ${whereClause}`, params);
+    return res.json({ success: true, message: "Video deleted successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/admin/videos/management", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const vids = await query(`
+      SELECT 
+        v.id, 
+        v.title, 
+        v.description, 
+        v.category, 
+        v.price, 
+        v.is_paid,
+        v.thumbnail_url, 
+        v.video_url, 
+        COALESCE(v.views, 0) as views,
+        ROUND((COALESCE(v.watch_seconds, 0)::numeric / 3600), 2) as watch_hours,
+        v.created_at,
+        u.id as user_id,
+        u.name as uploader_name,
+        u.email as uploader_email,
+        u.channel_name,
+        COALESCE(ad.custom_impressions, 0) as custom_ad_impressions,
+        COALESCE(ad.custom_clicks, 0) as custom_ad_clicks,
+        COALESCE(ad.google_impressions, 0) as google_ad_impressions,
+        COALESCE(ad.google_clicks, 0) as google_ad_clicks,
+        COALESCE(ad.total_earned, 0) as ad_revenue
+      FROM user_videos v
+      LEFT JOIN core_users u ON v.user_id = u.id
+      LEFT JOIN (
+        SELECT creator_id, 
+               SUM(custom_impressions) as custom_impressions,
+               SUM(custom_clicks) as custom_clicks,
+               SUM(google_impressions) as google_impressions,
+               SUM(google_clicks) as google_clicks,
+               SUM(total_earned) as total_earned
+        FROM creator_daily_ad_earnings
+        GROUP BY creator_id
+      ) ad ON u.id = ad.creator_id
+      ORDER BY v.created_at DESC
+      LIMIT 200
+    `).catch(() => ({ rows: [] }));
+    return res.json({ success: true, videos: vids.rows });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, videos: [] });
+  }
+});
+app.patch("/api/admin/videos/:id", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, price } = req.body;
+    await query(
+      `UPDATE user_videos SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        category = COALESCE($3, category),
+        price = COALESCE($4, price),
+        is_paid = COALESCE($5, is_paid)
+       WHERE id = $6`,
+      [
+        title || null,
+        description !== void 0 ? description : null,
+        category || null,
+        price !== void 0 ? Number(price) : null,
+        price !== void 0 ? Number(price) > 0 : null,
+        id
+      ]
+    );
+    return res.json({ success: true, message: "Video updated successfully by admin." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.delete("/api/admin/videos/:id", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await query(`DELETE FROM user_videos WHERE id = $1`, [id]);
+    return res.json({ success: true, message: "Video removed from platform." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/admin/monetization/settings", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    return res.json({
+      success: true,
+      requiredWatchHours: Number(reqHoursStr) || 300,
+      requiredSubscribers: Number(reqSubsStr) || 30
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/monetization/settings", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { requiredWatchHours, requiredSubscribers } = req.body;
+    if (requiredWatchHours !== void 0) {
+      await setSystemSetting("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
+    }
+    if (requiredSubscribers !== void 0) {
+      await setSystemSetting("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
+    }
+    return res.json({ success: true, message: "Monetization requirements updated in database." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/admin/creators/monetization", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_status VARCHAR(32) DEFAULT 'auto';`).catch(() => {
+    });
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {
+    });
+    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const reqHours = Number(reqHoursStr) || 300;
+    const reqSubs = Number(reqSubsStr) || 30;
+    const creatorsRes = await query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.channel_name, 
+        u.phone,
+        COALESCE(u.monetization_status, 'auto') as monetization_status,
+        u.monetization_warning,
+        COALESCE(v.video_count, 0) as video_count,
+        COALESCE(w.total_seconds, 0) as total_watch_seconds,
+        COALESCE(s.subscriber_count, 0) as subscriber_count
+      FROM core_users u
+      LEFT JOIN (
+        SELECT user_id, COUNT(*) as video_count FROM user_videos GROUP BY user_id
+      ) v ON u.id = v.user_id
+      LEFT JOIN (
+        SELECT creator_id, SUM(duration_seconds) as total_seconds FROM video_watch_time GROUP BY creator_id
+      ) w ON u.id = w.creator_id
+      LEFT JOIN (
+        SELECT creator_id, COUNT(*) as subscriber_count FROM creator_subscribers GROUP BY creator_id
+      ) s ON u.id = s.creator_id
+      WHERE u.channel_name IS NOT NULL OR v.video_count > 0
+      ORDER BY total_watch_seconds DESC
+      LIMIT 100
+    `);
+    const creators = creatorsRes.rows.map((r) => {
+      const watchHours = Math.round((Number(r.total_watch_seconds) || 0) / 3600 * 10) / 10;
+      const subs = Number(r.subscriber_count) || 0;
+      const status = r.monetization_status;
+      let isMonetized = watchHours >= reqHours && subs >= reqSubs;
+      if (status === "active") isMonetized = true;
+      if (status === "paused" || status === "suspended") isMonetized = false;
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        channelName: r.channel_name || r.name,
+        phone: r.phone,
+        videoCount: Number(r.video_count) || 0,
+        watchHours,
+        subscribers: subs,
+        monetizationStatus: status,
+        monetizationWarning: r.monetization_warning,
+        isMonetized
+      };
+    });
+    return res.json({ success: true, creators, requiredWatchHours: reqHours, requiredSubscribers: reqSubs });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, creators: [] });
+  }
+});
+app.post("/api/admin/creators/:userId/monetization", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status = "auto", warning } = req.body;
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_status VARCHAR(32) DEFAULT 'auto';`).catch(() => {
+    });
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {
+    });
+    await query(
+      `UPDATE core_users 
+       SET monetization_status = $1, 
+           monetization_warning = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [status, warning || null, userId]
+    );
+    if (warning) {
+      const notifId = "notif_mon_" + Date.now();
+      await query(
+        `INSERT INTO core_action_notifications (id, user_id, title, message, type, action_url, is_read, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, false, CURRENT_TIMESTAMP)`,
+        [
+          notifId,
+          userId,
+          `Monetization Notice: ${String(status).toUpperCase()}`,
+          warning,
+          status === "active" ? "success" : "warning",
+          "/studio"
+        ]
+      ).catch(() => {
+      });
+    }
+    return res.json({ success: true, message: `Creator monetization status updated to "${status}".` });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/stories/:id/viewers", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await ensureStoriesTable();
+    await query(`
+      CREATE TABLE IF NOT EXISTS story_viewers (
+        id VARCHAR(255) PRIMARY KEY,
+        story_id VARCHAR(255) NOT NULL,
+        viewer_id VARCHAR(255) NOT NULL,
+        viewer_name VARCHAR(255),
+        viewer_avatar TEXT,
+        viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(story_id, viewer_id)
+      );
+    `).catch(() => {
+    });
+    const rows = await query(
+      `SELECT viewer_id as "viewerId", viewer_name as "viewerName", viewer_avatar as "viewerAvatar", viewed_at as "viewedAt"
+       FROM story_viewers
+       WHERE story_id = $1
+       ORDER BY viewed_at DESC
+       LIMIT 100`,
+      [id]
+    ).catch(() => ({ rows: [] }));
+    return res.json({ success: true, viewers: rows.rows || [] });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, viewers: [] });
+  }
+});
+app.get("/api/admin/stories/all", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await ensureStoriesTable();
+    const result = await query(`
+      SELECT s.id, s.user_id as "authorId", s.author_name as "authorName", s.author_avatar as "authorAvatar",
+             s.media_url as "mediaUrl", s.caption, COALESCE(s.media_type, 'image') as "mediaType",
+             COALESCE(s.views, 0) as views, s.created_at as "createdAt", s.expires_at as "expiresAt",
+             (s.expires_at < CURRENT_TIMESTAMP) as "isExpired"
+      FROM core_stories s
+      ORDER BY s.created_at DESC
+      LIMIT 100
+    `).catch(() => ({ rows: [] }));
+    return res.json({ success: true, stories: result.rows || [] });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, stories: [] });
   }
 });
 app.get("/api/admin/creators/overview", authenticateToken, requireAdminRole, async (req, res) => {

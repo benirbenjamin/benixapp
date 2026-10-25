@@ -165,8 +165,8 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
   const progressPercent = Math.min(100, Math.max(0, ((countdownDuration - countdown) / countdownDuration) * 100));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md select-none animate-fadeIn">
-      <div className="relative w-full max-w-sm sm:max-w-md bg-[#0F1523] text-white rounded-3xl shadow-2xl border border-slate-700/80 flex flex-col max-h-[85vh] sm:max-h-[88vh] overflow-hidden animate-scaleUp">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md select-none animate-fadeIn overflow-hidden">
+      <div className="relative w-full max-w-sm sm:max-w-md bg-[#0F1523] text-white rounded-3xl shadow-2xl border border-slate-700/80 flex flex-col h-auto max-h-[95dvh] sm:max-h-[90vh] overflow-hidden animate-scaleUp">
         
         {/* Top Header Bar */}
         <div className="px-4 py-2.5 bg-gradient-to-r from-blue-900 via-indigo-950 to-[#0F1523] text-white flex items-center justify-between shrink-0 border-b border-slate-800">
@@ -178,26 +178,26 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/70 border border-amber-400/40 text-xs font-black text-amber-300">
+          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/70 border border-amber-400/40 text-xs font-black text-amber-300 shrink-0">
             <span>Ad: <strong className="text-white text-sm ml-0.5 font-black">{countdown}s</strong></span>
           </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-3 sm:p-4 space-y-2.5 overflow-y-auto">
+        {/* Modal Body - Vertically fitted without scrollbar */}
+        <div className="p-3 sm:p-4 space-y-2 flex-1 flex flex-col justify-between overflow-hidden">
           
           {/* Active Audio / Media indicator */}
-          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-300 font-semibold bg-[#182032] py-1.5 px-3 rounded-xl border border-slate-700/60 shrink-0">
+          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-300 font-semibold bg-[#182032] py-1 px-3 rounded-xl border border-slate-700/60 shrink-0">
             <Volume2 className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-pulse" />
             <span className="truncate">Media active • {title}</span>
           </div>
 
           {/* Ad Container: Custom Submitted Ad OR Real Google AdSense */}
           {isCustomTurn && activeCustomAd ? (
-            <div className="rounded-2xl bg-gradient-to-br from-indigo-950/70 to-slate-900 border border-indigo-500/40 p-3 space-y-2 text-left">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold border-b border-slate-800 pb-1">
+            <div className="rounded-2xl bg-gradient-to-br from-indigo-950/70 to-slate-900 border border-indigo-500/40 p-2.5 sm:p-3 space-y-2 text-left shrink overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 font-semibold border-b border-slate-800/80 pb-1 shrink-0">
                 <span className="flex items-center gap-1 text-amber-300">
-                  <ShieldCheck className="w-3.5 h-3.5" /> Verified Benix Partner
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Verified Benix Partner
                 </span>
                 <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
                   Sponsored
@@ -205,22 +205,24 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
               </div>
 
               {activeCustomAd.mediaUrl && (
-                <img
-                  src={activeCustomAd.mediaUrl}
-                  alt={activeCustomAd.title}
-                  className="w-full h-28 sm:h-32 object-cover rounded-xl border border-slate-800"
-                />
+                <div className="w-full max-h-[130px] sm:max-h-[160px] rounded-xl overflow-hidden border border-slate-800 shrink flex items-center justify-center bg-black">
+                  <img
+                    src={activeCustomAd.mediaUrl}
+                    alt={activeCustomAd.title}
+                    className="w-full h-full max-h-[130px] sm:max-h-[160px] object-cover"
+                  />
+                </div>
               )}
 
-              <div>
-                <p className="font-black text-sm text-white line-clamp-1">{activeCustomAd.title}</p>
-                <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">{activeCustomAd.description}</p>
+              <div className="shrink-0">
+                <p className="font-black text-xs sm:text-sm text-white line-clamp-1">{activeCustomAd.title}</p>
+                <p className="text-[11px] sm:text-xs text-slate-300 line-clamp-2 mt-0.5 leading-snug">{activeCustomAd.description}</p>
               </div>
 
               <button
                 type="button"
                 onClick={handleCustomAdClick}
-                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-blue-600/30"
+                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-blue-600/30 shrink-0"
               >
                 <span>Visit Sponsor</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -229,20 +231,20 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
           ) : (
             <div
               onClick={handleGoogleAdClick}
-              className="bg-[#090D14] rounded-2xl p-2 border border-slate-800 shadow-inner flex flex-col items-center justify-center min-h-[120px] max-h-[220px] relative overflow-hidden"
+              className="bg-[#090D14] rounded-2xl p-2 border border-slate-800 shadow-inner flex flex-col items-center justify-center min-h-[100px] max-h-[180px] relative overflow-hidden shrink"
             >
               <AdSenseUnit
                 slot={slot || '7034214536'}
                 clientId={ADS_CONFIG.CLIENT_ID}
                 format="rectangle"
                 responsive={true}
-                className="my-0"
+                className="my-0 max-h-[170px]"
               />
             </div>
           )}
 
           {/* Animated Progress Bar */}
-          <div className="space-y-1 shrink-0 pt-1">
+          <div className="space-y-1 shrink-0 pt-0.5">
             <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />

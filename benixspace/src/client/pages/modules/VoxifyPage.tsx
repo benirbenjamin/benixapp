@@ -47,6 +47,16 @@ export const VoxifyPage: React.FC = () => {
   const [currentTrack, setCurrentTrack] = useState<ChoirTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [actionSuccess, setActionSuccess] = useState<string>('');
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  const formatTime = (secs: number) => {
+    const s = Math.max(0, Math.floor(secs || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r < 10 ? '0' : ''}${r}`;
+  };
 
   // Upload Track Modal State
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
@@ -512,6 +522,76 @@ export const VoxifyPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Rehearsal Audio Player Bar with Chunked Streaming */}
+      {currentTrack && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0F1422]/95 backdrop-blur-xl border-t border-indigo-500/30 p-3 sm:p-4 shadow-2xl animate-in slide-in-from-bottom">
+          <audio
+            ref={audioRef}
+            key={currentTrack.id}
+            src={currentTrack.audioUrl}
+            preload="metadata"
+            autoPlay={isPlaying}
+            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+          />
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  if (!audioRef.current) return;
+                  if (isPlaying) audioRef.current.pause();
+                  else audioRef.current.play().catch(() => {});
+                }}
+                className="w-10 h-10 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 shrink-0"
+              >
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+              </button>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-black text-white truncate">{currentTrack.title}</h4>
+                <p className="text-[11px] text-slate-400 truncate">
+                  {currentTrack.choir} • <span className="text-indigo-400 font-bold uppercase">{currentTrack.voicePart}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Seekable Progress Bar & Timestamp */}
+            <div className="flex-1 max-w-xl w-full flex items-center gap-3">
+              <span className="text-[10px] font-mono text-slate-400 w-9 text-right">{formatTime(currentTime)}</span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                value={currentTime}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setCurrentTime(val);
+                  if (audioRef.current) audioRef.current.currentTime = val;
+                }}
+                className="flex-1 accent-indigo-500 h-1.5 bg-slate-800 rounded-full cursor-pointer"
+              />
+              <span className="text-[10px] font-mono text-slate-400 w-9">{formatTime(duration)}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (audioRef.current) audioRef.current.pause();
+                  setCurrentTrack(null);
+                  setIsPlaying(false);
+                }}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                title="Close player"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

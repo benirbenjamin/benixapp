@@ -45,6 +45,20 @@ export const YouTubeSidebar: React.FC = () => {
   const location = useLocation();
 
   const [wizardKey, setWizardKey] = useState<string | null>(null);
+
+  // Automatically dismiss mobile drawer on route navigation to prevent black screen overlay
+  useEffect(() => {
+    closeMobile();
+  }, [location.pathname, location.search]);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMobile();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeMobile]);
   const [showSubmitAd, setShowSubmitAd] = useState(false);
 
   const handleProtectedClick = (e: React.MouseEvent, appKey: string, route: string) => {

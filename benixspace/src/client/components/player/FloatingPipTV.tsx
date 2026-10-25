@@ -83,10 +83,20 @@ export const FloatingPipTV: React.FC = () => {
     if (!streamUrl) return;
 
     if (Hls.isSupported()) {
+      const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
+      const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+      const slow = conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g' || conn?.effectiveType === '3g' || (conn?.downlink && conn.downlink < 1.8);
+
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 0,
+        backBufferLength: slow ? 0 : 20,
+        maxBufferLength: slow ? 10 : 25,
+        maxMaxBufferLength: slow ? 20 : 50,
+        fragLoadingMaxRetry: 8,
+        manifestLoadingMaxRetry: 6,
+        capLevelToPlayerSize: true,
+        startLevel: slow ? 0 : -1,
       });
 
       hlsRef.current = hls;

@@ -53,6 +53,51 @@ import {
   ExternalLink
 } from 'lucide-react';
 
+// Lightweight Viewport Lazy Loader component for instant initial page paint (<100ms)
+const LazyViewport: React.FC<{ children: React.ReactNode; minHeight?: string }> = ({
+  children,
+  minHeight = '300px'
+}) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isVisible) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '350px 0px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
+  return (
+    <div ref={containerRef} style={{ minHeight: isVisible ? undefined : minHeight }}>
+      {isVisible ? (
+        children
+      ) : (
+        <div className="w-full h-44 rounded-3xl bg-slate-900/30 border border-slate-800/40 animate-pulse flex items-center justify-center">
+          <div className="w-5 h-5 border-2 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, wallet, hasAppProfile } = useAuth();
@@ -101,62 +146,34 @@ export const HomePage: React.FC = () => {
   const newsSectionRef = useRef<HTMLElement | null>(null);
   const shortsSectionRef = useRef<HTMLElement | null>(null);
 
-  // Load Initial Data
-  const loadStoriesAndVideos = async () => {
-    try {
-      const [storyRes, vidRes, artList, adsRes] = await Promise.all([
-        fetch('/api/stories').catch(() => null),
-        fetch('/api/modules/videos').catch(() => fetch('/api/videos').catch(() => null)),
-        fetchArticles().catch(() => []),
-        fetch('/api/ads/active').catch(() => null)
-      ]);
-
-      if (storyRes && storyRes.ok) {
-        const sData = await storyRes.json();
-        if (sData.stories && sData.stories.length > 0) {
-          setStories(sData.stories);
-        }
-      }
-
-      if (vidRes && vidRes.ok) {
-        const vData = await vidRes.json();
-        if (vData.videos && Array.isArray(vData.videos) && vData.videos.length > 0) {
-          setCreatorVideos(vData.videos);
-        }
-      }
-
-      if (artList && artList.length > 0) {
-        setArticles(artList);
-      }
-
-      if (adsRes && adsRes.ok) {
-        const adData = await adsRes.json();
-        if (adData?.ads && Array.isArray(adData.ads) && adData.ads.length > 0) {
-          setCustomAds(adData.ads);
-        }
-      }
-    } catch (err) {
-      console.warn('Stories/Videos/Articles/Ads load error:', err);
-    }
-  };
-
+  // Instant Non-Blocking Parallel Data Loading (Page renders immediately in <100ms)
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [tv, radio] = await Promise.all([
-          fetchTvStations(),
-          fetchRadioStations()
-        ]);
-        setTvStations(tv);
-        setRadioStations(radio);
-        await loadStoriesAndVideos();
-      } catch (e) {
-        console.error('Failed to load media stations:', e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+    fetchTvStations().then(setTvStations).catch(() => {});
+    fetchRadioStations().then(setRadioStations).catch(() => {});
+    fetchArticles().then((artList) => {
+      if (artList && artList.length > 0) setArticles(artList);
+    }).catch(() => {});
+
+    fetch('/api/stories')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.stories && Array.isArray(d.stories) && d.stories.length > 0) setStories(d.stories);
+      })
+      .catch(() => {});
+
+    fetch('/api/ads/active')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.ads && Array.isArray(d.ads) && d.ads.length > 0) setCustomAds(d.ads);
+      })
+      .catch(() => {});
+
+    fetch('/api/modules/videos')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.videos && Array.isArray(d.videos) && d.videos.length > 0) setCreatorVideos(d.videos);
+      })
+      .catch(() => {});
   }, []);
 
   // Protected feature click handler
@@ -303,12 +320,17 @@ export const HomePage: React.FC = () => {
     setIsStoryPaused(false);
   }, [activeStoryIndex]);
 
-  // Track story ad impression on story load (rewards monetized creators with custom ads & AdSense)
+  // Track story ad impression on story load (rewards monetized creators with custom ads & AdSense, and increments story views)
   useEffect(() => {
     if (activeStoryIndex === null || !stories[activeStoryIndex]) return;
     const currentStory = stories[activeStoryIndex];
     const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
     const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+
+    // Increment story view count
+    if (currentStory.id) {
+      fetch(`/api/stories/${currentStory.id}/view`, { method: 'POST' }).catch(() => {});
+    }
 
     if (currentCustomAd) {
       fetch('/api/ads/track-impression', {
@@ -1125,6 +1147,7 @@ export const HomePage: React.FC = () => {
         {/* ========================================================
             4. ROW 2: LIVE RADIOS - SLIDING HORIZONTALLY
            ======================================================== */}
+        <LazyViewport minHeight="260px">
         <section ref={radioSectionRef} className="space-y-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -1193,6 +1216,8 @@ export const HomePage: React.FC = () => {
                     <img
                       src={station.logo_url}
                       alt={station.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = '/logo.png';
@@ -1234,12 +1259,14 @@ export const HomePage: React.FC = () => {
             })}
           </div>
         </section>
+        </LazyViewport>
 
 
 
         {/* ========================================================
             6. ROW 4: ARTICLES FROM NEWS (3 CARDS IN A ROW)
            ======================================================== */}
+        <LazyViewport minHeight="320px">
         <section ref={newsSectionRef} className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -1278,6 +1305,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={art.featured_image_url || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&auto=format&fit=crop&q=80'}
                     alt={art.title}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute top-2.5 left-2.5">
@@ -1316,12 +1345,14 @@ export const HomePage: React.FC = () => {
             ))}
           </div>
         </section>
+        </LazyViewport>
 
 
 
         {/* ========================================================
             8. ROW 6: ECOSYSTEM SPOTLIGHT CARDS (3 CARDS IN A ROW)
            ======================================================== */}
+        <LazyViewport minHeight="280px">
         <section className="space-y-4">
           <div>
             <h2 className="text-lg sm:text-xl font-black text-white">Ecosystem Services & Rewards</h2>
@@ -1422,10 +1453,12 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
         </section>
+        </LazyViewport>
 
         {/* ========================================================
             9. REFERRAL BANNER (Invite Friends & Earn Rewards)
            ======================================================== */}
+        <LazyViewport minHeight="120px">
         <section className="relative rounded-3xl bg-gradient-to-r from-violet-950/80 via-purple-900/60 to-indigo-950/80 border border-purple-800/40 p-5 sm:p-7 flex flex-col sm:flex-row items-center justify-between gap-5 shadow-xl">
           <div className="flex items-center gap-3.5 text-center sm:text-left">
             <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-300 shrink-0 border border-purple-500/30">
@@ -1449,6 +1482,7 @@ export const HomePage: React.FC = () => {
             Open Referral Portal
           </button>
         </section>
+        </LazyViewport>
 
       </div>
 
@@ -1512,8 +1546,8 @@ export const HomePage: React.FC = () => {
         };
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none">
-            <div className="relative max-w-md w-full h-[90vh] sm:h-[88vh] rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col justify-between">
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none overflow-hidden">
+            <div className="relative max-w-md w-full h-[94dvh] sm:h-[88vh] max-h-[96dvh] rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col justify-between">
               
               {/* Top Segmented Progress Bar & Creator Header */}
               <div className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-b from-black/95 via-black/60 to-transparent space-y-2.5 pointer-events-none">
@@ -1545,7 +1579,15 @@ export const HomePage: React.FC = () => {
                       className="w-8 h-8 rounded-full object-cover border border-white/40"
                     />
                     <div>
-                      <span className="text-xs font-bold block">{currentStory.authorName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold block">{currentStory.authorName}</span>
+                        {currentStory.views !== undefined && (
+                          <span className="flex items-center gap-1 text-[10px] text-amber-300 font-bold bg-black/50 px-1.5 py-0.2 rounded-full border border-amber-400/30">
+                            <Eye className="w-2.5 h-2.5 text-amber-400" />
+                            {currentStory.views}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-slate-300">{currentStory.timestamp || 'Active 24h Story'}</span>
                     </div>
                   </div>

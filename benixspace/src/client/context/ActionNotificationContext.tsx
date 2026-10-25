@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import axios from 'axios';
 import { useAuth } from './AuthContext';
 import { usePwa } from './PwaContext';
 import { notificationSound } from '../utils/notificationSound';
+import { getAuthToken } from '../services/api';
 
 export interface InAppActionItem {
   id: string;
@@ -157,6 +159,33 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
     return list;
   }, [user, wallet?.bonus_balance, hasAppProfile, readIds]);
 
+  // Dynamic real-time direct chat unread count from database
+  const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const checkUnread = () => {
+      const token = getAuthToken();
+      if (!token) return;
+      axios
+        .get('/api/chat/unread-count', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (res.data?.success && typeof res.data.count === 'number') {
+            setUnreadChatCount(res.data.count);
+          }
+        })
+        .catch(() => {});
+    };
+
+    checkUnread();
+    const interval = setInterval(checkUnread, 3000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   // Combine computed actions and custom notifications
   const allItems = useMemo<InAppActionItem[]>(() => {
     return [...computedActions, ...customNotifications];
@@ -164,13 +193,14 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
 
   // Total unread/actionable items badge count
   const totalBadgeCount = useMemo(() => {
-    return allItems.filter(item => item.unread).length;
-  }, [allItems]);
+    return allItems.filter(item => item.unread).length + unreadChatCount;
+  }, [allItems, unreadChatCount]);
 
-  // Inbox specific badge count (actions related to inbox or unread direct messages)
+  // Inbox specific badge count (actions related to inbox or real unread direct messages from chat)
   const inboxBadgeCount = useMemo(() => {
-    return allItems.filter(item => item.unread && (item.category === 'inbox' || item.category === 'dating')).length;
-  }, [allItems]);
+    const actionInboxCount = allItems.filter(item => item.unread && (item.category === 'inbox' || item.category === 'dating')).length;
+    return unreadChatCount > 0 ? unreadChatCount : actionInboxCount;
+  }, [allItems, unreadChatCount]);
 
   // Sync badge count with OS/PWA tray app badge
   useEffect(() => {
@@ -234,8 +264,9 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
       return next;
     });
 
-    // Play chime sound
+    // Play chime sound and trigger push notification
     notificationSound.playNotificationChime();
+    notificationSound.requestPushPermissionAndSend(notif.title, { body: notif.body, url: notif.route });
   }, []);
 
   const clearItem = useCallback((id: string) => {

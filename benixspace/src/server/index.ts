@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
@@ -2233,16 +2235,44 @@ app.post('/api/chat/send-message', authenticateToken, async (req: AuthenticatedR
       }
     }
 
+    const recUser = await query('SELECT last_seen_at FROM core_users WHERE id = $1', [recipientId]).catch(() => ({ rows: [] }));
+    const isRecipientOnline = recUser.rows[0]?.last_seen_at
+      ? (Date.now() - new Date(recUser.rows[0].last_seen_at).getTime()) < 60 * 1000
+      : false;
+    const initialStatus = isRecipientOnline ? 'delivered' : 'sent';
+
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    await query(`ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent';`).catch(() => {});
+    await query(`ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;`).catch(() => {});
     await query(
-      `INSERT INTO chat_direct_messages (id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, amount_paid, creator_earning)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [msgId, senderId, recipientId, message || '', !!isVoice, voiceDuration || null, isPaid, amountPaid, creatorEarning]
+      `INSERT INTO chat_direct_messages (id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, amount_paid, creator_earning, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [msgId, senderId, recipientId, message || '', !!isVoice, voiceDuration || null, isPaid, amountPaid, creatorEarning, initialStatus]
     );
+
+    // Also inject notification for recipient so push & bell notice are updated
+    try {
+      const senderName = req.user?.channel_name || req.user?.name || req.user?.email?.split('@')[0] || 'Someone';
+      await query(
+        `INSERT INTO core_notifications (user_id, title, message, type, recipient_role)
+         VALUES ($1, $2, $3, 'chat', 'user')`,
+        [recipientId, `New message from ${senderName}`, (message || 'Sent an attachment').slice(0, 100)]
+      );
+    } catch {}
 
     return res.json({
       success: true,
       messageId: msgId,
+      message: {
+        id: msgId,
+        sender: 'me',
+        text: message || '',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isVoice: !!isVoice,
+        voiceDuration: voiceDuration || undefined,
+        isPaid,
+        status: initialStatus
+      },
       isPaid,
       amountPaid,
       creatorEarning,
@@ -2453,12 +2483,24 @@ app.get('/api/chat/conversations', authenticateToken, async (req: AuthenticatedR
       );
     `).catch(() => {});
 
-    // Find all distinct partner IDs
+    // Update user's last_seen_at
+    await query("UPDATE core_users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1", [userId]).catch(() => {});
+
+    // Automatically mark incoming messages as delivered
+    await query(
+      `UPDATE chat_direct_messages SET status = 'delivered' WHERE recipient_id = $1 AND (status IS NULL OR status = 'sent')`,
+      [userId]
+    ).catch(() => {});
+
+    // Find all distinct partner IDs ordered by latest activity descending (newest chat on top)
     const partnersRes = await query(`
-      SELECT DISTINCT 
-        CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as partner_id
+      SELECT 
+        CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as partner_id,
+        MAX(created_at) as latest_time
       FROM chat_direct_messages
       WHERE sender_id = $1 OR recipient_id = $1
+      GROUP BY 1
+      ORDER BY latest_time DESC
     `, [userId]);
 
     const partnerIds: string[] = partnersRes.rows.map((r: any) => r.partner_id).filter(Boolean);
@@ -2485,6 +2527,14 @@ app.get('/api/chat/conversations', authenticateToken, async (req: AuthenticatedR
         FROM core_users WHERE id = $1
       `, [pid]);
 
+      // Calculate unread messages sent by this partner to current user
+      const unreadRes = await query(`
+        SELECT COUNT(*) as unread 
+        FROM chat_direct_messages 
+        WHERE recipient_id = $1 AND sender_id = $2 AND (status IS NULL OR status != 'read')
+      `, [userId, pid]).catch(() => ({ rows: [{ unread: 0 }] }));
+      const unreadCount = Number(unreadRes.rows[0]?.unread || 0);
+
       if (uRes.rowCount > 0) {
         const u = uRes.rows[0];
         const kunda = u.app_profiles?.kunda || {};
@@ -2498,7 +2548,7 @@ app.get('/api/chat/conversations', authenticateToken, async (req: AuthenticatedR
           partnerAvatar: avatar,
           partnerCity: kunda.city || 'Kigali, Rwanda',
           tag: u.channel_name ? 'Subscribed Creator' : 'Member',
-          unreadCount: 0,
+          unreadCount,
           lastMessage: lastMsg ? (lastMsg.is_voice ? '🎤 Voice message' : lastMsg.message) : 'Conversation started',
           lastMessageTime: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
           verified: true,
@@ -2516,7 +2566,26 @@ app.get('/api/chat/conversations', authenticateToken, async (req: AuthenticatedR
   }
 });
 
-// GET Direct Messages History for a Specific Partner
+// GET Total Unread Direct Messages Count for Top Navbar & Drawer Badge
+app.get('/api/chat/unread-count', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    await query("UPDATE core_users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1", [userId]).catch(() => {});
+    await query(
+      `UPDATE chat_direct_messages SET status = 'delivered' WHERE recipient_id = $1 AND (status IS NULL OR status = 'sent')`,
+      [userId]
+    ).catch(() => {});
+    const r = await query(
+      `SELECT COUNT(*) as unread FROM chat_direct_messages WHERE recipient_id = $1 AND (status IS NULL OR status != 'read')`,
+      [userId]
+    ).catch(() => ({ rows: [{ unread: 0 }] }));
+    return res.json({ success: true, count: Number(r.rows[0]?.unread || 0) });
+  } catch {
+    return res.json({ success: true, count: 0 });
+  }
+});
+
+// GET Direct Messages History for a Specific Partner (and automatically mark them as READ)
 app.get('/api/chat/messages/:partnerId', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -2526,14 +2595,22 @@ app.get('/api/chat/messages/:partnerId', authenticateToken, async (req: Authenti
       return res.json({
         success: true,
         messages: [
-          { id: 's1', sender: 'them', text: 'Muraho! Welcome to Benix.Space Unified Platform.', time: 'Today' },
-          { id: 's2', sender: 'them', text: 'Our concierge team is available 24/7 if you need any assistance.', time: 'Today' }
+          { id: 's1', sender: 'them', text: 'Muraho! Welcome to Benix.Space Unified Platform.', time: 'Today', status: 'read' },
+          { id: 's2', sender: 'them', text: 'Our concierge team is available 24/7 if you need any assistance.', time: 'Today', status: 'read' }
         ]
       });
     }
 
+    // Mark incoming messages from partnerId as READ
+    await query(
+      `UPDATE chat_direct_messages 
+       SET status = 'read', read_at = CURRENT_TIMESTAMP 
+       WHERE recipient_id = $1 AND sender_id = $2 AND (status IS NULL OR status != 'read')`,
+      [userId, partnerId]
+    ).catch(() => {});
+
     const rows = await query(`
-      SELECT id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, created_at
+      SELECT id, sender_id, recipient_id, message, is_voice, voice_duration, is_paid, COALESCE(status, 'sent') as status, created_at
       FROM chat_direct_messages
       WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
       ORDER BY created_at ASC
@@ -2547,7 +2624,8 @@ app.get('/api/chat/messages/:partnerId', authenticateToken, async (req: Authenti
       time: new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isVoice: Boolean(r.is_voice),
       voiceDuration: r.voice_duration || undefined,
-      isPaid: Boolean(r.is_paid)
+      isPaid: Boolean(r.is_paid),
+      status: r.status || 'delivered'
     }));
 
     return res.json({ success: true, messages });
@@ -3201,6 +3279,101 @@ app.get('/api/videos/stream/:fileId', async (req, res) => {
   }
 });
 
+/**
+ * Stream Local Uploaded Media (Videos & Songs/Audio) with HTTP 206 Partial Content Chunking
+ * Allows slow 2G/3G connections to play videos and music instantly in small stream chunks without stalling
+ */
+const streamLocalChunkedMedia = (req: express.Request, res: express.Response) => {
+  const filename = req.params.filename || (req.params as any)[0];
+  if (!filename) return res.status(400).send('Filename required');
+  const safeName = path.basename(filename);
+  const possibleDirs = [
+    path.join(process.cwd(), 'public', 'uploads'),
+    path.join(process.cwd(), 'uploads'),
+    path.join(process.cwd(), 'public', 'uploads', 'media')
+  ];
+
+  let filePath = '';
+  for (const dir of possibleDirs) {
+    const candidate = path.join(dir, safeName);
+    if (fs.existsSync(candidate)) {
+      filePath = candidate;
+      break;
+    }
+  }
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(404).send('Media file not found');
+  }
+
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeMap: Record<string, string> = {
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp'
+  };
+  const contentType = mimeMap[ext] || 'application/octet-stream';
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    // Use smaller chunk for slow connection buffering (up to 1MB per chunk response)
+    const chunkSizeLimit = 1024 * 1024; // 1MB chunk limit for rapid start on slow networks
+    const requestedEnd = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const end = Math.min(requestedEnd, start + chunkSizeLimit - 1, fileSize - 1);
+    const chunksize = end - start + 1;
+    const file = fs.createReadStream(filePath, { start, end });
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    file.pipe(res);
+  } else {
+    // Return first 512KB chunk with 206 if no range requested for videos/audio, or 200 for small files
+    if (ext === '.mp4' || ext === '.webm' || ext === '.mp3' || ext === '.m4a') {
+      const initialChunkSize = Math.min(fileSize, 512 * 1024);
+      const file = fs.createReadStream(filePath, { start: 0, end: initialChunkSize - 1 });
+      res.writeHead(206, {
+        'Content-Range': `bytes 0-${initialChunkSize - 1}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': initialChunkSize,
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400'
+      });
+      file.pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': contentType,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'public, max-age=86400'
+      });
+      fs.createReadStream(filePath).pipe(res);
+    }
+  }
+};
+
+app.get('/uploads/:filename', streamLocalChunkedMedia);
+app.get('/api/uploads/:filename', streamLocalChunkedMedia);
+app.get('/api/media/local/:filename', streamLocalChunkedMedia);
+
 
 // ==================== 2.5 STORIES & CREATOR MEDIA API ==================== //
 
@@ -3227,6 +3400,7 @@ async function ensureStoriesTable() {
   await query('ALTER TABLE core_stories ALTER COLUMN author_name TYPE TEXT;').catch(() => {});
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {});
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {});
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {});
 }
 
 // GET real active stories from PostgreSQL core_stories table
@@ -3237,7 +3411,7 @@ app.get('/api/stories', async (req, res) => {
     const result = await query(
       `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
               media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType",
-              COALESCE(duration, 5.0) as duration, created_at,
+              COALESCE(duration, 5.0) as duration, COALESCE(views, 0) as views, created_at,
               to_char(created_at, 'HH12:MI AM') as timestamp
        FROM core_stories
        WHERE expires_at > CURRENT_TIMESTAMP OR expires_at IS NULL
@@ -3249,6 +3423,113 @@ app.get('/api/stories', async (req, res) => {
   } catch (err: any) {
     console.error('Error fetching real stories:', err?.message);
     return res.json({ stories: [] });
+  }
+});
+
+// GET creator's own stories (active & past) for Creator Studio
+app.get('/api/creator/stories', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureStoriesTable();
+    const userId = req.user!.id;
+
+    const result = await query(
+      `SELECT id, user_id as "authorId", author_name as "authorName", author_avatar as "authorAvatar",
+              media_url as "mediaUrl", caption, COALESCE(media_type, 'image') as "mediaType",
+              COALESCE(duration, 5.0) as duration, COALESCE(views, 0) as views,
+              created_at as "createdAt", expires_at as "expiresAt",
+              (expires_at < CURRENT_TIMESTAMP) as "isExpired"
+       FROM core_stories
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    return res.json({ success: true, stories: result.rows || [] });
+  } catch (err: any) {
+    console.error('Error fetching creator stories:', err?.message);
+    return res.status(500).json({ error: err.message, stories: [] });
+  }
+});
+
+// Increment story view count & track viewer identity
+app.post('/api/stories/:id/view', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await ensureStoriesTable();
+    await query(`
+      CREATE TABLE IF NOT EXISTS story_viewers (
+        id VARCHAR(255) PRIMARY KEY,
+        story_id VARCHAR(255) NOT NULL,
+        viewer_id VARCHAR(255) NOT NULL,
+        viewer_name VARCHAR(255),
+        viewer_avatar TEXT,
+        viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(story_id, viewer_id)
+      );
+    `).catch(() => {});
+
+    await query('UPDATE core_stories SET views = COALESCE(views, 0) + 1 WHERE id = $1', [id]);
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) {
+        const uRes = await query('SELECT name, channel_name, avatar_url FROM core_users WHERE id = $1', [decoded.id]).catch(() => ({ rows: [] }));
+        const viewerName = uRes.rows[0]?.channel_name || uRes.rows[0]?.name || decoded.email?.split('@')[0] || 'Member';
+        const viewerAvatar = uRes.rows[0]?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(viewerName)}&background=3B82F6&color=fff`;
+        const vId = 'sv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+        await query(
+          `INSERT INTO story_viewers (id, story_id, viewer_id, viewer_name, viewer_avatar, viewed_at)
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+           ON CONFLICT (story_id, viewer_id) DO UPDATE SET viewed_at = CURRENT_TIMESTAMP`,
+          [vId, id, decoded.id, viewerName, viewerAvatar]
+        ).catch(() => {});
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.json({ success: false });
+  }
+});
+
+// Repost a previous story (resets expiration to 24 hours from now)
+app.post('/api/stories/:id/repost', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureStoriesTable();
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    const storyRes = await query(`SELECT * FROM core_stories WHERE id = $1 AND user_id = $2`, [id, userId]);
+    if (storyRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Story not found or you are not the author.' });
+    }
+
+    const old = storyRes.rows[0];
+    const newId = 'story-' + Date.now();
+
+    await query(
+      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours')`,
+      [newId, userId, old.author_name, old.author_avatar, old.media_url, old.caption, old.media_type || 'image', old.duration || 5.0]
+    );
+
+    return res.json({ success: true, message: 'Story reposted successfully for 24 hours!', newStoryId: newId });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a story
+app.delete('/api/stories/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    await query(`DELETE FROM core_stories WHERE id = $1 AND user_id = $2`, [id, userId]);
+    return res.json({ success: true, message: 'Story deleted successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -3637,10 +3918,11 @@ app.get('/api/creators/:creatorId/sub-status', async (req, res) => {
   }
 });
 
-// Real Monetization Status calculated from PostgreSQL
+// Real Monetization Status calculated from PostgreSQL with Dynamic Admin Requirements
 app.get('/api/creator/monetization-status', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
+    await ensureCreatorStudioTables();
 
     // Calculate real watch hours
     const watchRes = await query(
@@ -3661,16 +3943,30 @@ app.get('/api/creator/monetization-status', authenticateToken, async (req: Authe
     );
     const currentSubscribers = Number(subRes.rows[0]?.count || 0);
 
-    const requiredWatchHours = 300;
-    const requiredSubscribers = 30;
-    const eligibleForAdRevenue = currentWatchHours >= requiredWatchHours && currentSubscribers >= requiredSubscribers;
+    // Read dynamic requirements from database
+    const reqHoursStr = await getSystemSetting('monetization_required_watch_hours', '300');
+    const reqSubsStr = await getSystemSetting('monetization_required_subscribers', '30');
+    const requiredWatchHours = Number(reqHoursStr) || 300;
+    const requiredSubscribers = Number(reqSubsStr) || 30;
+
+    // Check user's monetization override & warning
+    const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
+    const overrideStatus = userOverrideRes.rows[0]?.monetization_status || 'auto';
+    const monetizationNotice = userOverrideRes.rows[0]?.monetization_warning || null;
+
+    let isMonetized = currentWatchHours >= requiredWatchHours && currentSubscribers >= requiredSubscribers;
+    if (overrideStatus === 'active') isMonetized = true;
+    if (overrideStatus === 'paused' || overrideStatus === 'suspended') isMonetized = false;
 
     return res.json({
       requiredWatchHours,
       currentWatchHours,
       requiredSubscribers,
       currentSubscribers,
-      eligibleForAdRevenue,
+      eligibleForAdRevenue: isMonetized,
+      isMonetized,
+      monetizationStatus: overrideStatus,
+      monetizationNotice,
       canSellPaidVideos: true
     });
   } catch (err: any) {
@@ -3680,8 +3976,56 @@ app.get('/api/creator/monetization-status', authenticateToken, async (req: Authe
       requiredSubscribers: 30,
       currentSubscribers: 0,
       eligibleForAdRevenue: false,
+      isMonetized: false,
+      monetizationStatus: 'auto',
+      monetizationNotice: null,
       canSellPaidVideos: true
     });
+  }
+});
+
+// Watch Time Ping Endpoint (Updates user video watch time & view counts in real-time)
+app.post('/api/videos/watch-time', async (req, res) => {
+  try {
+    await ensureCreatorStudioTables();
+    const { videoId, seconds = 5, creatorId } = req.body;
+    if (!videoId) return res.status(400).json({ error: 'videoId required' });
+
+    let finalCreatorId = creatorId;
+    if (!finalCreatorId) {
+      const vidRes = await query(`SELECT user_id FROM user_videos WHERE id = $1 LIMIT 1`, [videoId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (vidRes.rowCount > 0 && vidRes.rows[0].user_id) {
+        finalCreatorId = vidRes.rows[0].user_id;
+      }
+    }
+
+    const authHeader = req.headers.authorization;
+    let viewerId = 'anon';
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) viewerId = decoded.id;
+    }
+
+    const durationSec = Math.min(60, Math.max(1, Number(seconds) || 5));
+    const recordId = 'wt-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+
+    await query(
+      `INSERT INTO video_watch_time (id, video_id, creator_id, user_id, duration_seconds, created_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+      [recordId, videoId, finalCreatorId || viewerId, viewerId, durationSec]
+    ).catch(() => {});
+
+    // Update watch_seconds on user_videos
+    await query(
+      `UPDATE user_videos 
+       SET watch_seconds = COALESCE(watch_seconds, 0) + $1 
+       WHERE id = $2`,
+      [durationSec, videoId]
+    ).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -3790,6 +4134,31 @@ app.get('/api/creator/studio-analytics', authenticateToken, async (req: Authenti
     const adData = adEarningsRes.rows[0] || {};
     const totalEarnings = Number(earningsRes.rows[0]?.earnings || 0) + Number(adData.lifetime_ad_earnings || 0);
 
+    // 7. Story Analytics
+    const storiesRes = await query(
+      `SELECT COUNT(*) as story_count, COALESCE(SUM(views), 0) as total_story_views
+       FROM core_stories
+       WHERE user_id = $1`,
+      [userId]
+    ).catch(() => ({ rows: [{ story_count: 0, total_story_views: 0 }] }));
+    const storyCount = Number(storiesRes.rows[0]?.story_count || 0);
+    const totalStoryViews = Number(storiesRes.rows[0]?.total_story_views || 0);
+
+    // Read dynamic monetization settings
+    const reqHoursStr = await getSystemSetting('monetization_required_watch_hours', '300');
+    const reqSubsStr = await getSystemSetting('monetization_required_subscribers', '30');
+    const requiredWatchHours = Number(reqHoursStr) || 300;
+    const requiredSubscribers = Number(reqSubsStr) || 30;
+
+    // Check creator monetization override & warning notice
+    const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
+    const overrideStatus = userOverrideRes.rows[0]?.monetization_status || 'auto';
+    const monetizationNotice = userOverrideRes.rows[0]?.monetization_warning || null;
+
+    let isMonetized = totalWatchHours >= requiredWatchHours && totalSubscribers >= requiredSubscribers;
+    if (overrideStatus === 'active') isMonetized = true;
+    if (overrideStatus === 'paused' || overrideStatus === 'suspended') isMonetized = false;
+
     return res.json({
       success: true,
       analytics: {
@@ -3797,6 +4166,8 @@ app.get('/api/creator/studio-analytics', authenticateToken, async (req: Authenti
         totalWatchHours,
         totalSubscribers,
         totalEarnings,
+        storyCount,
+        totalStoryViews,
         lifetimeAdEarnings: Number(adData.lifetime_ad_earnings || 0),
         todayAdEarnings: Number(adData.today_ad_earnings || 0),
         todayGoogleImpressions: Number(adData.today_google_impressions || 0),
@@ -3804,9 +4175,11 @@ app.get('/api/creator/studio-analytics', authenticateToken, async (req: Authenti
         todayCustomImpressions: Number(adData.today_custom_impressions || 0),
         todayCustomClicks: Number(adData.today_custom_clicks || 0),
         videosCount: videosRes.rowCount,
-        requiredWatchHours: 300,
-        requiredSubscribers: 30,
-        isMonetized: totalWatchHours >= 300 && totalSubscribers >= 30,
+        requiredWatchHours,
+        requiredSubscribers,
+        isMonetized,
+        monetizationStatus: overrideStatus,
+        monetizationNotice,
         videos: videosRes.rows.map((v: any) => ({
           id: v.id,
           title: v.title,
@@ -3824,6 +4197,340 @@ app.get('/api/creator/studio-analytics', authenticateToken, async (req: Authenti
   } catch (err: any) {
     console.error('Studio analytics error:', err);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// User / Creator: Edit Video (Title, Description, Category, Price)
+app.patch('/api/creator/videos/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, price } = req.body;
+    const userId = req.user!.id;
+    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'superadmin';
+
+    const whereClause = isAdmin ? 'WHERE id = $1' : 'WHERE id = $1 AND user_id = $2';
+    const params = isAdmin ? [id] : [id, userId];
+
+    const existing = await query(`SELECT id FROM user_videos ${whereClause}`, params);
+    if (existing.rowCount === 0) {
+      return res.status(404).json({ error: 'Video not found or unauthorized.' });
+    }
+
+    await query(
+      `UPDATE user_videos SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        category = COALESCE($3, category),
+        price = COALESCE($4, price),
+        is_paid = COALESCE($5, is_paid)
+       WHERE id = $6`,
+      [
+        title || null,
+        description !== undefined ? description : null,
+        category || null,
+        price !== undefined ? Number(price) : null,
+        price !== undefined ? Number(price) > 0 : null,
+        id
+      ]
+    );
+
+    return res.json({ success: true, message: 'Video updated successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// User / Creator: Delete Video
+app.delete('/api/creator/videos/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'superadmin';
+
+    const whereClause = isAdmin ? 'WHERE id = $1' : 'WHERE id = $1 AND user_id = $2';
+    const params = isAdmin ? [id] : [id, userId];
+
+    await query(`DELETE FROM user_videos ${whereClause}`, params);
+    return res.json({ success: true, message: 'Video deleted successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Get All Videos with Comprehensive Analytics & Uploader Details
+app.get('/api/admin/videos/management', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const vids = await query(`
+      SELECT 
+        v.id, 
+        v.title, 
+        v.description, 
+        v.category, 
+        v.price, 
+        v.is_paid,
+        v.thumbnail_url, 
+        v.video_url, 
+        COALESCE(v.views, 0) as views,
+        ROUND((COALESCE(v.watch_seconds, 0)::numeric / 3600), 2) as watch_hours,
+        v.created_at,
+        u.id as user_id,
+        u.name as uploader_name,
+        u.email as uploader_email,
+        u.channel_name,
+        COALESCE(ad.custom_impressions, 0) as custom_ad_impressions,
+        COALESCE(ad.custom_clicks, 0) as custom_ad_clicks,
+        COALESCE(ad.google_impressions, 0) as google_ad_impressions,
+        COALESCE(ad.google_clicks, 0) as google_ad_clicks,
+        COALESCE(ad.total_earned, 0) as ad_revenue
+      FROM user_videos v
+      LEFT JOIN core_users u ON v.user_id = u.id
+      LEFT JOIN (
+        SELECT creator_id, 
+               SUM(custom_impressions) as custom_impressions,
+               SUM(custom_clicks) as custom_clicks,
+               SUM(google_impressions) as google_impressions,
+               SUM(google_clicks) as google_clicks,
+               SUM(total_earned) as total_earned
+        FROM creator_daily_ad_earnings
+        GROUP BY creator_id
+      ) ad ON u.id = ad.creator_id
+      ORDER BY v.created_at DESC
+      LIMIT 200
+    `).catch(() => ({ rows: [] }));
+
+    return res.json({ success: true, videos: vids.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message, videos: [] });
+  }
+});
+
+// Admin: Edit Any Video
+app.patch('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, price } = req.body;
+
+    await query(
+      `UPDATE user_videos SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        category = COALESCE($3, category),
+        price = COALESCE($4, price),
+        is_paid = COALESCE($5, is_paid)
+       WHERE id = $6`,
+      [
+        title || null,
+        description !== undefined ? description : null,
+        category || null,
+        price !== undefined ? Number(price) : null,
+        price !== undefined ? Number(price) > 0 : null,
+        id
+      ]
+    );
+
+    return res.json({ success: true, message: 'Video updated successfully by admin.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Delete Any Video
+app.delete('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    await query(`DELETE FROM user_videos WHERE id = $1`, [id]);
+    return res.json({ success: true, message: 'Video removed from platform.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Get & Set Dynamic Monetization Thresholds
+app.get('/api/admin/monetization/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const reqHoursStr = await getSystemSetting('monetization_required_watch_hours', '300');
+    const reqSubsStr = await getSystemSetting('monetization_required_subscribers', '30');
+    return res.json({
+      success: true,
+      requiredWatchHours: Number(reqHoursStr) || 300,
+      requiredSubscribers: Number(reqSubsStr) || 30
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/monetization/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { requiredWatchHours, requiredSubscribers } = req.body;
+    if (requiredWatchHours !== undefined) {
+      await setSystemSetting('monetization_required_watch_hours', String(Math.max(1, Number(requiredWatchHours) || 300)));
+    }
+    if (requiredSubscribers !== undefined) {
+      await setSystemSetting('monetization_required_subscribers', String(Math.max(1, Number(requiredSubscribers) || 30)));
+    }
+    return res.json({ success: true, message: 'Monetization requirements updated in database.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Manage Creators Monetization Status & Send Warnings
+app.get('/api/admin/creators/monetization', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_status VARCHAR(32) DEFAULT 'auto';`).catch(() => {});
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {});
+
+    const reqHoursStr = await getSystemSetting('monetization_required_watch_hours', '300');
+    const reqSubsStr = await getSystemSetting('monetization_required_subscribers', '30');
+    const reqHours = Number(reqHoursStr) || 300;
+    const reqSubs = Number(reqSubsStr) || 30;
+
+    const creatorsRes = await query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.channel_name, 
+        u.phone,
+        COALESCE(u.monetization_status, 'auto') as monetization_status,
+        u.monetization_warning,
+        COALESCE(v.video_count, 0) as video_count,
+        COALESCE(w.total_seconds, 0) as total_watch_seconds,
+        COALESCE(s.subscriber_count, 0) as subscriber_count
+      FROM core_users u
+      LEFT JOIN (
+        SELECT user_id, COUNT(*) as video_count FROM user_videos GROUP BY user_id
+      ) v ON u.id = v.user_id
+      LEFT JOIN (
+        SELECT creator_id, SUM(duration_seconds) as total_seconds FROM video_watch_time GROUP BY creator_id
+      ) w ON u.id = w.creator_id
+      LEFT JOIN (
+        SELECT creator_id, COUNT(*) as subscriber_count FROM creator_subscribers GROUP BY creator_id
+      ) s ON u.id = s.creator_id
+      WHERE u.channel_name IS NOT NULL OR v.video_count > 0
+      ORDER BY total_watch_seconds DESC
+      LIMIT 100
+    `);
+
+    const creators = creatorsRes.rows.map((r: any) => {
+      const watchHours = Math.round(((Number(r.total_watch_seconds) || 0) / 3600) * 10) / 10;
+      const subs = Number(r.subscriber_count) || 0;
+      const status = r.monetization_status;
+      let isMonetized = watchHours >= reqHours && subs >= reqSubs;
+      if (status === 'active') isMonetized = true;
+      if (status === 'paused' || status === 'suspended') isMonetized = false;
+
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        channelName: r.channel_name || r.name,
+        phone: r.phone,
+        videoCount: Number(r.video_count) || 0,
+        watchHours,
+        subscribers: subs,
+        monetizationStatus: status,
+        monetizationWarning: r.monetization_warning,
+        isMonetized
+      };
+    });
+
+    return res.json({ success: true, creators, requiredWatchHours: reqHours, requiredSubscribers: reqSubs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message, creators: [] });
+  }
+});
+
+app.post('/api/admin/creators/:userId/monetization', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { userId } = req.params;
+    const { status = 'auto', warning } = req.body; // 'auto' | 'active' | 'paused' | 'suspended'
+
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_status VARCHAR(32) DEFAULT 'auto';`).catch(() => {});
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {});
+
+    await query(
+      `UPDATE core_users 
+       SET monetization_status = $1, 
+           monetization_warning = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [status, warning || null, userId]
+    );
+
+    // If warning notice provided, insert Action Notification for the creator
+    if (warning) {
+      const notifId = 'notif_mon_' + Date.now();
+      await query(
+        `INSERT INTO core_action_notifications (id, user_id, title, message, type, action_url, is_read, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, false, CURRENT_TIMESTAMP)`,
+        [
+          notifId,
+          userId,
+          `Monetization Notice: ${String(status).toUpperCase()}`,
+          warning,
+          status === 'active' ? 'success' : 'warning',
+          '/studio'
+        ]
+      ).catch(() => {});
+    }
+
+    return res.json({ success: true, message: `Creator monetization status updated to "${status}".` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Story Viewers API: Get list of users who viewed a story
+app.get('/api/stories/:id/viewers', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    await ensureStoriesTable();
+    await query(`
+      CREATE TABLE IF NOT EXISTS story_viewers (
+        id VARCHAR(255) PRIMARY KEY,
+        story_id VARCHAR(255) NOT NULL,
+        viewer_id VARCHAR(255) NOT NULL,
+        viewer_name VARCHAR(255),
+        viewer_avatar TEXT,
+        viewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(story_id, viewer_id)
+      );
+    `).catch(() => {});
+
+    const rows = await query(
+      `SELECT viewer_id as "viewerId", viewer_name as "viewerName", viewer_avatar as "viewerAvatar", viewed_at as "viewedAt"
+       FROM story_viewers
+       WHERE story_id = $1
+       ORDER BY viewed_at DESC
+       LIMIT 100`,
+      [id]
+    ).catch(() => ({ rows: [] }));
+
+    return res.json({ success: true, viewers: rows.rows || [] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message, viewers: [] });
+  }
+});
+
+// Admin: Get all stories across platform
+app.get('/api/admin/stories/all', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureStoriesTable();
+    const result = await query(`
+      SELECT s.id, s.user_id as "authorId", s.author_name as "authorName", s.author_avatar as "authorAvatar",
+             s.media_url as "mediaUrl", s.caption, COALESCE(s.media_type, 'image') as "mediaType",
+             COALESCE(s.views, 0) as views, s.created_at as "createdAt", s.expires_at as "expiresAt",
+             (s.expires_at < CURRENT_TIMESTAMP) as "isExpired"
+      FROM core_stories s
+      ORDER BY s.created_at DESC
+      LIMIT 100
+    `).catch(() => ({ rows: [] }));
+
+    return res.json({ success: true, stories: result.rows || [] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message, stories: [] });
   }
 });
 

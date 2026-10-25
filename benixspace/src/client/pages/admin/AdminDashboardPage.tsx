@@ -41,8 +41,64 @@ import {
   Check,
   Megaphone,
   Pause,
-  Ban
+  Ban,
+  Edit2,
+  X,
+  Award,
+  DollarSign,
+  AlertTriangle
 } from 'lucide-react';
+
+interface AdminVideoRecord {
+  id: string;
+  title: string;
+  description?: string;
+  uploader_name?: string;
+  uploader_email?: string;
+  uploader_channel?: string;
+  category: string;
+  price: number;
+  is_paid: boolean;
+  views: number;
+  watch_seconds: number;
+  watch_hours: number;
+  revenue_generated: number;
+  custom_ad_views: number;
+  custom_ad_clicks: number;
+  google_ad_views: number;
+  google_ad_clicks: number;
+  thumbnail_url: string;
+  video_url: string;
+  created_at: string;
+}
+
+interface AdminCreatorRecord {
+  id: string;
+  name: string;
+  email: string;
+  channel_name?: string;
+  watch_seconds: number;
+  watch_hours: number;
+  subscribers: number;
+  total_earnings: number;
+  monetization_status: string;
+  monetization_notice?: string;
+  isMonetized: boolean;
+}
+
+interface AdminStoryRecord {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  media_url: string;
+  media_type: string;
+  caption: string;
+  views: number;
+  viewers: { id: string; name: string; email: string; viewed_at: string }[];
+  created_at: string;
+  expires_at: string;
+}
 
 interface AdminVideo {
   id: string;
@@ -119,7 +175,32 @@ export const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Active App Management Tab
-  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads'>('videos');
+  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads' | 'monetization' | 'stories'>('videos');
+
+  // Monetization & Creators Control State
+  const [monetizationSettings, setMonetizationSettings] = useState({ requiredWatchHours: 300, requiredSubscribers: 30 });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [creatorsList, setCreatorsList] = useState<AdminCreatorRecord[]>([]);
+  const [loadingCreators, setLoadingCreators] = useState(false);
+  const [warningModalCreator, setWarningModalCreator] = useState<AdminCreatorRecord | null>(null);
+  const [warningNoticeText, setWarningNoticeText] = useState('');
+  const [warningStatusChoice, setWarningStatusChoice] = useState<'auto' | 'active' | 'paused' | 'suspended'>('paused');
+  const [submittingNotice, setSubmittingNotice] = useState(false);
+
+  // Live Admin Videos Management State
+  const [adminVideos, setAdminVideos] = useState<AdminVideoRecord[]>([]);
+  const [loadingAdminVideos, setLoadingAdminVideos] = useState(false);
+  const [editingAdminVideo, setEditingAdminVideo] = useState<AdminVideoRecord | null>(null);
+  const [editAdminTitle, setEditAdminTitle] = useState('');
+  const [editAdminDesc, setEditAdminDesc] = useState('');
+  const [editAdminCat, setEditAdminCat] = useState('General');
+  const [editAdminPrice, setEditAdminPrice] = useState(0);
+  const [savingAdminVideo, setSavingAdminVideo] = useState(false);
+
+  // Admin Stories Management State
+  const [adminStories, setAdminStories] = useState<AdminStoryRecord[]>([]);
+  const [loadingAdminStories, setLoadingAdminStories] = useState(false);
+  const [storyViewersModal, setStoryViewersModal] = useState<AdminStoryRecord | null>(null);
 
   // Ad Campaigns Moderation State
   const [adminAds, setAdminAds] = useState<any[]>([]);
@@ -191,7 +272,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Hash change detection (for sidebar clicks like /admin#videos or /admin#marketplace)
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads'].includes(hash)) {
+    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads', 'monetization', 'stories'].includes(hash)) {
       setActiveAppTab(hash as any);
       setTimeout(() => {
         document.getElementById('apps-control-center')?.scrollIntoView({ behavior: 'smooth' });
@@ -266,8 +347,214 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Monetization Handlers
+  const loadMonetizationData = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      setLoadingCreators(true);
+      const [setRes, creRes] = await Promise.all([
+        fetch('/api/admin/monetization/settings', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/creators/monetization', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      if (setRes.ok) {
+        const sData = await setRes.json();
+        setMonetizationSettings({
+          requiredWatchHours: sData.requiredWatchHours || 300,
+          requiredSubscribers: sData.requiredSubscribers || 30
+        });
+      }
+      if (creRes.ok) {
+        const cData = await creRes.json();
+        if (cData.success && Array.isArray(cData.creators)) {
+          setCreatorsList(cData.creators);
+        }
+      }
+    } catch (e) {
+      console.warn('Monetization load error:', e);
+    } finally {
+      setLoadingCreators(false);
+    }
+  };
+
+  const handleSaveMonetizationSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = getAuthToken();
+    if (!token) return;
+    setSavingSettings(true);
+    try {
+      const res = await fetch('/api/admin/monetization/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(monetizationSettings)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage('Monetization criteria updated successfully!');
+        setTimeout(() => setActionMessage(''), 3000);
+        loadMonetizationData();
+      } else {
+        alert(data.error || 'Failed to update settings');
+      }
+    } catch {
+      alert('Error updating monetization settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleUpdateCreatorStatus = async (userId: string, status: 'auto' | 'active' | 'paused' | 'suspended', notice?: string) => {
+    const token = getAuthToken();
+    if (!token) return;
+    setSubmittingNotice(true);
+    try {
+      const res = await fetch(`/api/admin/creators/${userId}/monetization`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status, notice: notice || '' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage(`Creator monetization status updated to "${status}".`);
+        setTimeout(() => setActionMessage(''), 3000);
+        setWarningModalCreator(null);
+        setWarningNoticeText('');
+        loadMonetizationData();
+      } else {
+        alert(data.error || 'Failed to update creator status');
+      }
+    } catch {
+      alert('Error updating creator monetization');
+    } finally {
+      setSubmittingNotice(false);
+    }
+  };
+
+  // Live Videos Management Handlers
+  const loadAdminVideos = async () => {
+    const token = getAuthToken();
+    try {
+      setLoadingAdminVideos(true);
+      const res = await fetch('/api/admin/videos/management', {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.videos)) {
+        setAdminVideos(data.videos);
+      }
+    } catch (e) {
+      console.warn('Admin videos load error:', e);
+    } finally {
+      setLoadingAdminVideos(false);
+    }
+  };
+
+  const handleStartEditAdminVideo = (v: AdminVideoRecord) => {
+    setEditingAdminVideo(v);
+    setEditAdminTitle(v.title);
+    setEditAdminDesc(v.description || '');
+    setEditAdminCat(v.category || 'General');
+    setEditAdminPrice(v.price || 0);
+  };
+
+  const handleSaveAdminVideoEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdminVideo) return;
+    const token = getAuthToken();
+    setSavingAdminVideo(true);
+    try {
+      const res = await fetch(`/api/admin/videos/${editingAdminVideo.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          title: editAdminTitle,
+          description: editAdminDesc,
+          category: editAdminCat,
+          price: editAdminPrice
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage('Video updated successfully!');
+        setTimeout(() => setActionMessage(''), 3000);
+        setEditingAdminVideo(null);
+        loadAdminVideos();
+      } else {
+        alert(data.error || 'Failed to update video');
+      }
+    } catch {
+      alert('Error updating video');
+    } finally {
+      setSavingAdminVideo(false);
+    }
+  };
+
+  const handleDeleteLiveVideo = async (id: string, title: string) => {
+    if (!window.confirm(`Permanently delete video "${title}"?`)) return;
+    const token = getAuthToken();
+    try {
+      const res = await fetch(`/api/admin/videos/${id}`, {
+        method: 'DELETE',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage('Video deleted from platform.');
+        setTimeout(() => setActionMessage(''), 3000);
+        loadAdminVideos();
+      } else {
+        alert(data.error || 'Failed to delete video');
+      }
+    } catch {
+      alert('Error deleting video');
+    }
+  };
+
+  // Admin Stories Handlers
+  const loadAdminStories = async () => {
+    const token = getAuthToken();
+    try {
+      setLoadingAdminStories(true);
+      const res = await fetch('/api/admin/stories/all', {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.stories)) {
+        setAdminStories(data.stories);
+      }
+    } catch (e) {
+      console.warn('Admin stories load error:', e);
+    } finally {
+      setLoadingAdminStories(false);
+    }
+  };
+
+  const handleDeleteAdminStory = async (id: string) => {
+    if (!window.confirm('Delete this story from the platform?')) return;
+    const token = getAuthToken();
+    try {
+      const res = await fetch(`/api/stories/${id}`, {
+        method: 'DELETE',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      if (res.ok) {
+        setActionMessage('Story deleted.');
+        setTimeout(() => setActionMessage(''), 3000);
+        loadAdminStories();
+      }
+    } catch {
+      alert('Error deleting story');
+    }
+  };
+
   useEffect(() => {
     loadAdminAds();
+    loadMonetizationData();
+    loadAdminVideos();
+    loadAdminStories();
   }, []);
 
   const loadAppsControl = async () => {
@@ -457,9 +744,40 @@ export const AdminDashboardPage: React.FC = () => {
 
   const recentTx = adminOverview?.recent_transactions || [];
 
-  const filteredVideos = videosList.filter((v) =>
-    v.title.toLowerCase().includes(videoSearch.toLowerCase()) ||
-    v.creator.toLowerCase().includes(videoSearch.toLowerCase())
+  // Video filters
+  const unusedFv = [].filter(() => {
+
+    return true; }
+  );
+
+  const displayAdminVideos: any[] = adminVideos.length > 0
+    ? adminVideos.filter((v) =>
+        (v.title || '').toLowerCase().includes(videoSearch.toLowerCase()) ||
+        (v.uploader_channel || v.uploader_name || '').toLowerCase().includes(videoSearch.toLowerCase())
+      )
+    : videosList.map((v) => ({
+        ...v,
+        thumbnail_url: v.thumbnail,
+        uploader_channel: v.creator,
+        uploader_name: v.creator,
+        uploader_email: 'catalog@benix.space',
+        watch_hours: 0,
+        revenue_generated: 0,
+        custom_ad_views: 0,
+        custom_ad_clicks: 0,
+        google_ad_views: 0,
+        google_ad_clicks: 0,
+        views: 0,
+        is_paid: v.price > 0,
+        watch_seconds: 0,
+        video_url: v.embedUrl,
+        created_at: new Date().toISOString()
+      }));
+  const unusedFv2 = [].filter(() => {
+
+
+
+    return true; }
   );
 
   return (
@@ -720,6 +1038,36 @@ export const AdminDashboardPage: React.FC = () => {
                 <Megaphone className="w-3.5 h-3.5" />
                 <span>Ads & Campaigns ({adminAds.length})</span>
               </button>
+
+              <button
+                onClick={() => {
+                  setActiveAppTab('monetization');
+                  loadMonetizationData();
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'monetization'
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 font-bold'
+                    : 'text-emerald-400 hover:text-white'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Monetization & Creators ({creatorsList.length})</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveAppTab('stories');
+                  loadAdminStories();
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'stories'
+                    ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 font-bold'
+                    : 'text-rose-400 hover:text-white'
+                }`}
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Stories ({adminStories.length})</span>
+              </button>
             </div>
           </div>
 
@@ -797,7 +1145,7 @@ export const AdminDashboardPage: React.FC = () => {
               {/* Videos Search & Filter */}
               <div className="flex items-center justify-between gap-4">
                 <span className="text-xs font-bold uppercase text-slate-400">
-                  Active Video Catalog ({filteredVideos.length} of {videosList.length})
+                  Active Video Management ({displayAdminVideos.length} Total)
                 </span>
                 <div className="relative w-72">
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -817,14 +1165,19 @@ export const AdminDashboardPage: React.FC = () => {
                   <thead className="bg-slate-900/90 text-slate-400 text-[11px] uppercase tracking-wider sticky top-0 border-b border-slate-800">
                     <tr>
                       <th className="p-3">Video</th>
-                      <th className="p-3">Channel</th>
+                      <th className="p-3">Channel / Uploader</th>
+                      <th className="p-3">Views</th>
+                      <th className="p-3">Watch Hours</th>
+                      <th className="p-3">Revenue</th>
+                      <th className="p-3">Custom Ads</th>
+                      <th className="p-3">Google Ads</th>
                       <th className="p-3">Category</th>
                       <th className="p-3">Price</th>
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
-                    {filteredVideos.map((video) => (
+                    {displayAdminVideos.map((video: any) => (
                       <tr key={video.id} className="hover:bg-slate-900/50 transition-colors">
                         <td className="p-3 flex items-center gap-3">
                           <img
@@ -837,7 +1190,19 @@ export const AdminDashboardPage: React.FC = () => {
                             <span className="text-[10px] text-slate-500 font-mono">ID: {video.id}</span>
                           </div>
                         </td>
-                        <td className="p-3 font-semibold text-slate-300">{video.creator}</td>
+                        <td className="p-3">
+                          <p className="font-semibold text-white">{video.uploader_channel || video.creator}</p>
+                          <span className="text-[10px] text-slate-400 block">{video.uploader_email || video.uploader_name || 'Channel'}</span>
+                        </td>
+                        <td className="p-3 font-bold text-white">{(video.views || 0).toLocaleString()}</td>
+                        <td className="p-3 font-bold text-emerald-400">{(video.watch_hours || 0).toFixed(1)} hrs</td>
+                        <td className="p-3 font-bold text-amber-400">{(video.revenue_generated || 0).toLocaleString()} RWF</td>
+                        <td className="p-3 text-[11px] font-mono text-slate-300">
+                          {video.custom_ad_views || 0} imp / {video.custom_ad_clicks || 0} clk
+                        </td>
+                        <td className="p-3 text-[11px] font-mono text-blue-300">
+                          {video.google_ad_views || 0} imp / {video.google_ad_clicks || 0} clk
+                        </td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold border border-purple-500/20">
                             {video.category}
@@ -862,7 +1227,14 @@ export const AdminDashboardPage: React.FC = () => {
                               <ExternalLink className="w-4 h-4" />
                             </a>
                             <button
-                              onClick={() => handleDeleteVideo(video.id, video.title)}
+                              onClick={() => handleStartEditAdminVideo(video)}
+                              className="p-1.5 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors"
+                              title="Edit Video (Title, Description, Category, Price)"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLiveVideo(video.id, video.title)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                               title="Delete Video"
                             >
@@ -879,7 +1251,7 @@ export const AdminDashboardPage: React.FC = () => {
           )}
 
           {/* ============================================================== */}
-          {/* TAB 2: MARKETPLACE PRODUCTS                                    */}
+          {/* TAB 2: MARKETPLACE PRODUCTS */}  
           {/* ============================================================== */}
           {activeAppTab === 'marketplace' && (
             <div className="space-y-6 animate-fade-in">
@@ -989,7 +1361,7 @@ export const AdminDashboardPage: React.FC = () => {
           )}
 
           {/* ============================================================== */}
-          {/* TAB 3: TV & RADIO BROADCASTS                                   */}
+          {/* TAB 3: TV & RADIO BROADCASTS */} 
           {/* ============================================================== */}
           {activeAppTab === 'tv_radio' && (
             <div className="space-y-6 animate-fade-in">
@@ -1397,6 +1769,8 @@ export const AdminDashboardPage: React.FC = () => {
                                   <div className="w-full h-full flex items-center justify-center text-slate-600">
                                     <Megaphone className="w-6 h-6" />
                                   </div>
+
+
                                 )}
                                 <span className="absolute bottom-1 right-1 text-[8px] bg-black/80 px-1 py-0.5 rounded font-mono text-slate-300">
                                   {ad.media_type || 'image'}
@@ -1447,6 +1821,9 @@ export const AdminDashboardPage: React.FC = () => {
                                     <ExternalLink className="w-3 h-3 shrink-0" />
                                     <span className="truncate">{ad.target_url}</span>
                                   </a>
+
+
+
                                   <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
                                     CTA: {ad.cta_text || 'Learn More'}
                                   </span>
@@ -1749,6 +2126,216 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
       </div>
+        {/* ============================================================== */}
+        {/* MODALS: VIDEO EDIT, CREATOR NOTICE, STORY VIEWERS              */}
+        {/* ============================================================== */}
+
+        {/* Video Edit Modal */}
+        {editingAdminVideo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="max-w-lg w-full bg-[#131926] rounded-3xl border border-slate-800 p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Edit2 className="w-5 h-5 text-purple-400" />
+                  <h3 className="font-black text-sm text-white">Admin Edit Video: {editingAdminVideo.title}</h3>
+                </div>
+                <button
+                  onClick={() => setEditingAdminVideo(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAdminVideoEdit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Video Title</label>
+                  <input
+                    type="text"
+                    value={editAdminTitle}
+                    onChange={(e) => setEditAdminTitle(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Description</label>
+                  <textarea
+                    rows={3}
+                    value={editAdminDesc}
+                    onChange={(e) => setEditAdminDesc(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500 font-medium resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Category</label>
+                    <select
+                      value={editAdminCat}
+                      onChange={(e) => setEditAdminCat(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500"
+                    >
+                      <option value="General">General</option>
+                      <option value="Gospel & Choirs">Gospel & Choirs</option>
+                      <option value="Series & Comedy">Series & Comedy</option>
+                      <option value="Culture & Documentaries">Culture & Documentaries</option>
+                      <option value="Music & Shows">Music & Shows</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Price (RWF)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editAdminPrice}
+                      onChange={(e) => setEditAdminPrice(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingAdminVideo(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingAdminVideo}
+                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold disabled:opacity-50"
+                  >
+                    {savingAdminVideo ? 'Saving...' : 'Save Video Details'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Creator Warning / Monetization Notice Modal */}
+        {warningModalCreator && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="max-w-md w-full bg-[#131926] rounded-3xl border border-slate-800 p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-black text-sm text-white">Monetization Notice & Status</h3>
+                </div>
+                <button
+                  onClick={() => setWarningModalCreator(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#0B0E14] border border-slate-800 text-xs space-y-1">
+                <p className="font-bold text-white">{warningModalCreator.channel_name || warningModalCreator.name}</p>
+                <span className="text-slate-400 font-mono block text-[11px]">{warningModalCreator.email}</span>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Set Creator Status Override</label>
+                  <select
+                    value={warningStatusChoice}
+                    onChange={(e) => setWarningStatusChoice(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-amber-500"
+                  >
+                    <option value="active">Active (Monetized & Eligible for Ad Revenue)</option>
+                    <option value="paused">Paused (Monetization Paused with Warning Notice)</option>
+                    <option value="suspended">Suspended (Monetization Terminated)</option>
+                    <option value="auto">Auto (Calculate via Watch Hours & Subs Thresholds)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Warning / Explanation Notice to Creator
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={warningNoticeText}
+                    onChange={(e) => setWarningNoticeText(e.target.value)}
+                    placeholder="e.g. Monetization paused: Please ensure your content complies with Community Guidelines regarding broadcast ad insertion."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-amber-500 resize-none font-medium"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    This notice will appear in the creator's studio banner and send an in-app alert.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setWarningModalCreator(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleUpdateCreatorStatus(warningModalCreator.id, warningStatusChoice, warningNoticeText)}
+                    disabled={submittingNotice}
+                    className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {submittingNotice ? 'Dispatching...' : 'Save & Dispatch Notice'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Story Viewers Modal */}
+        {storyViewersModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="max-w-md w-full bg-[#131926] rounded-3xl border border-slate-800 p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-blue-400" />
+                  <h3 className="font-black text-sm text-white">Audience Viewers: {storyViewersModal.caption || 'Story'}</h3>
+                </div>
+                <button
+                  onClick={() => setStoryViewersModal(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {!storyViewersModal.viewers || storyViewersModal.viewers.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p>No viewer records recorded yet.</p>
+                </div>
+              ) : (
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                  {storyViewersModal.viewers.map((viewer) => (
+                    <div
+                      key={viewer.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80"
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-white">{viewer.name}</p>
+                        <span className="text-[10px] text-slate-400">{viewer.email}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {new Date(viewer.viewed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
     </AdminLayout>
   );
 };

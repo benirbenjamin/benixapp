@@ -46,9 +46,11 @@ interface ChatMessage {
   sender: 'them' | 'me';
   text: string;
   time: string;
+  status?: 'sent' | 'delivered' | 'read';
   reaction?: string;
   isVoice?: boolean;
   voiceDuration?: string;
+  isPaid?: boolean;
 }
 
 interface ChatConversation {
@@ -284,6 +286,8 @@ export const MessagesPage: React.FC = () => {
   const [broadcastsList, setBroadcastsList] = useState<any[]>([]);
 
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastNotifiedMsgIdRef = useRef<string>('');
+  const lastTotalUnreadRef = useRef<number>(0);
 
   // Load user's unlocked contacts list
   const fetchUnlockedContacts = () => {
@@ -325,17 +329,40 @@ export const MessagesPage: React.FC = () => {
       .get('/api/chat/conversations', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         if (res.data?.conversations && Array.isArray(res.data.conversations)) {
+          const incomingConvos: ChatConversation[] = res.data.conversations;
+          const currentTotalUnread = incomingConvos.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+
+          if (currentTotalUnread > lastTotalUnreadRef.current && lastTotalUnreadRef.current !== 0) {
+            notificationSound.playMessageSound();
+            const topConvoWithUnread = incomingConvos.find((c) => c.unreadCount > 0);
+            if (topConvoWithUnread) {
+              notificationSound.requestPushPermissionAndSend(
+                `💬 Message from ${topConvoWithUnread.partnerName}`,
+                {
+                  body: topConvoWithUnread.lastMessage || 'Sent you a direct message on Benix.Space',
+                  url: `/messages?user=${topConvoWithUnread.partnerId}`
+                }
+              );
+            }
+          }
+          lastTotalUnreadRef.current = currentTotalUnread;
+
           setConversations((prev) => {
             const map = new Map<string, ChatConversation>();
+            // Keep support conversation
             const supportConvo = prev.find((c) => c.partnerId === 'support') || INITIAL_CONVERSATIONS[0];
-            map.set('support', supportConvo);
 
-            for (const c of res.data.conversations) {
+            for (const c of incomingConvos) {
               const existing = prev.find((p) => p.partnerId === c.partnerId);
               map.set(c.partnerId, {
                 ...c,
                 messages: existing?.messages && existing.messages.length > 0 ? existing.messages : []
               });
+            }
+
+            // Put support at the end if not already in list
+            if (!map.has('support')) {
+              map.set('support', supportConvo);
             }
 
             for (const p of prev) {
@@ -358,12 +385,34 @@ export const MessagesPage: React.FC = () => {
       .get(`/api/chat/messages/${partnerId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         if (res.data?.messages && Array.isArray(res.data.messages)) {
+          const msgs: ChatMessage[] = res.data.messages;
+
+          // Check if a new message from partner arrived
+          if (msgs.length > 0) {
+            const lastMsg = msgs[msgs.length - 1];
+            if (lastMsg.sender === 'them' && lastMsg.id !== lastNotifiedMsgIdRef.current) {
+              lastNotifiedMsgIdRef.current = lastMsg.id;
+              notificationSound.playMessageSound();
+              if (document.hidden || !document.hasFocus()) {
+                const partnerObj = conversations.find((c) => c.partnerId === partnerId);
+                notificationSound.requestPushPermissionAndSend(
+                  `💬 ${partnerObj?.partnerName || 'New Message'}`,
+                  {
+                    body: lastMsg.text || 'Sent an attachment',
+                    url: `/messages?user=${partnerId}`
+                  }
+                );
+              }
+            }
+          }
+
           setConversations((prev) =>
             prev.map((c) => {
               if (c.partnerId === partnerId) {
                 return {
                   ...c,
-                  messages: res.data.messages
+                  unreadCount: 0,
+                  messages: msgs
                 };
               }
               return c;
@@ -460,6 +509,24 @@ export const MessagesPage: React.FC = () => {
       fetchMessages(activePartnerId);
     }
   }, [activePartnerId]);
+
+  // Real-time Chat Polling (2.5 seconds) for instant messaging, delivered/read receipts and push notifications
+  useEffect(() => {
+    if (!user) return;
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    const interval = setInterval(() => {
+      fetchConversations();
+      if (activePartnerId && activePartnerId !== 'support') {
+        fetchMessages(activePartnerId);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [user, activePartnerId]);
 
   // Sync active partner's privacy mode & message restrictions
   useEffect(() => {
@@ -657,11 +724,13 @@ export const MessagesPage: React.FC = () => {
 
     setModerationWarning(null);
 
+    const localMsgId = 'msg_' + Date.now();
     const newMsg: ChatMessage = {
-      id: 'msg_' + Date.now(),
+      id: localMsgId,
       sender: 'me',
       text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'sent',
       isVoice,
       voiceDuration: isVoice ? '0:07' : undefined
     };
@@ -698,6 +767,24 @@ export const MessagesPage: React.FC = () => {
           { headers: { Authorization: `Bearer ${token}` } }
         )
         .then((res) => {
+          if (res.data?.message) {
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.partnerId === activeConversation.partnerId) {
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === localMsgId
+                        ? { ...m, id: res.data.message.id, status: res.data.message.status || 'delivered' }
+                        : m
+                    )
+                  };
+                }
+                return c;
+              })
+            );
+          }
+
           if (res.data?.isPaid) {
             if (res.data.newBalance !== undefined) {
               updateWalletBalance(res.data.newBalance, res.data.newBonusBalance);
@@ -1178,9 +1265,16 @@ export const MessagesPage: React.FC = () => {
                           <span className="text-[9px] font-semibold text-emerald-400 block mt-0.5">
                             {convo.tag}
                           </span>
-                          <p className="text-[11px] text-slate-300 truncate mt-1">
-                            {convo.lastMessage}
-                          </p>
+                          <div className="flex items-center justify-between mt-1 gap-2">
+                            <p className="text-[11px] text-slate-300 truncate">
+                              {convo.lastMessage}
+                            </p>
+                            {convo.unreadCount > 0 && (
+                              <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-emerald-500 text-[10px] font-black text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                                {convo.unreadCount}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1390,7 +1484,17 @@ export const MessagesPage: React.FC = () => {
                             }`}
                           >
                             <span>{msg.time}</span>
-                            {isMe && <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />}
+                            {isMe && (
+                              <span className="inline-flex items-center ml-0.5">
+                                {msg.status === 'read' ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-sky-400" title="Read" />
+                                ) : msg.status === 'delivered' ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-slate-300" title="Delivered" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5 text-slate-300" title="Sent" />
+                                )}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
