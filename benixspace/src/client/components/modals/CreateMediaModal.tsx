@@ -328,7 +328,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       }
 
       updateProgress(100);
-      if (onSuccess) onSuccess();
+      if (onSuccess) {
+        try {
+          onSuccess();
+        } catch (err) {
+          console.error('onSuccess callback notice:', err);
+        }
+      }
       return data;
     });
 
@@ -539,7 +545,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       }
 
       updateProgress(100);
-      if (onSuccess) onSuccess();
+      if (onSuccess) {
+        try {
+          onSuccess();
+        } catch (err) {
+          console.error('onSuccess callback notice:', err);
+        }
+      }
       return data;
     });
 

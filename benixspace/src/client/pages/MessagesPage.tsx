@@ -689,10 +689,12 @@ export const MessagesPage: React.FC = () => {
         }
       }
     } catch (err: any) {
-      if (err.response?.data?.error === 'INSUFFICIENT_FUNDS') {
+      const errMsg = err.response?.data?.error || err.response?.data?.message || 'Failed to unlock contact phone.';
+      if (err.response?.status === 400 && (errMsg.toLowerCase().includes('insufficient') || errMsg.toLowerCase().includes('wallet') || errMsg.toLowerCase().includes('funds'))) {
+        alert(errMsg);
         setShowWalletModal(true);
       } else {
-        alert(err.response?.data?.message || 'Failed to unlock contact phone.');
+        alert(errMsg);
       }
     }
   };

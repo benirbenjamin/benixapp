@@ -146,6 +146,23 @@ export const HomePage: React.FC = () => {
   const newsSectionRef = useRef<HTMLElement | null>(null);
   const shortsSectionRef = useRef<HTMLElement | null>(null);
 
+  // Dynamic Reload Handler for Stories and Creator Videos
+  const loadStoriesAndVideos = useCallback(() => {
+    fetch('/api/stories')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.stories && Array.isArray(d.stories)) setStories(d.stories);
+      })
+      .catch(() => {});
+
+    fetch('/api/modules/videos')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.videos && Array.isArray(d.videos)) setCreatorVideos(d.videos);
+      })
+      .catch(() => {});
+  }, []);
+
   // Instant Non-Blocking Parallel Data Loading (Page renders immediately in <100ms)
   useEffect(() => {
     fetchTvStations().then(setTvStations).catch(() => {});
@@ -154,12 +171,7 @@ export const HomePage: React.FC = () => {
       if (artList && artList.length > 0) setArticles(artList);
     }).catch(() => {});
 
-    fetch('/api/stories')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.stories && Array.isArray(d.stories) && d.stories.length > 0) setStories(d.stories);
-      })
-      .catch(() => {});
+    loadStoriesAndVideos();
 
     fetch('/api/ads/active')
       .then((r) => r.json())
@@ -167,14 +179,7 @@ export const HomePage: React.FC = () => {
         if (d?.ads && Array.isArray(d.ads) && d.ads.length > 0) setCustomAds(d.ads);
       })
       .catch(() => {});
-
-    fetch('/api/modules/videos')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.videos && Array.isArray(d.videos) && d.videos.length > 0) setCreatorVideos(d.videos);
-      })
-      .catch(() => {});
-  }, []);
+  }, [loadStoriesAndVideos]);
 
   // Protected feature click handler
   const handleProtectedAccess = (appKey: string, targetRoute: string) => {

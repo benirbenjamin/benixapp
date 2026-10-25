@@ -63,6 +63,18 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   const [verifyCode, setVerifyCode] = useState<string>('');
   const [resendLoading, setResendLoading] = useState<boolean>(false);
 
+  // Forgot Password 5-Digit Verification State
+  const [showForgotPw, setShowForgotPw] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotCode, setForgotCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccessMsg, setForgotSuccessMsg] = useState('');
+  const [forgotErrorMsg, setForgotErrorMsg] = useState('');
+  const [receivedDemoCode, setReceivedDemoCode] = useState('');
+
   // 5-field registration form state
   const [name, setName] = useState('');
   const [channelName, setChannelName] = useState('');
@@ -145,6 +157,87 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     setAuthError(err.message || 'Login failed with an unexpected error.');
   }
 };
+
+  const handleSendResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotErrorMsg('');
+    setForgotSuccessMsg('');
+    if (!forgotEmail.trim()) {
+      setForgotErrorMsg('Please enter your account email address.');
+      return;
+    }
+    try {
+      setForgotLoading(true);
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to send verification code.');
+      }
+      setForgotStep(2);
+      setForgotSuccessMsg(data.message || '5-digit code sent! Check your email.');
+      if (data.verificationCode) {
+        setReceivedDemoCode(data.verificationCode);
+      }
+    } catch (err: any) {
+      setForgotErrorMsg(err.message || 'Failed to send verification code.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotErrorMsg('');
+    setForgotSuccessMsg('');
+    if (!forgotCode.trim() || forgotCode.trim().length !== 5) {
+      setForgotErrorMsg('Please enter the exact 5-digit verification code.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setForgotErrorMsg('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setForgotErrorMsg('Passwords do not match. Please re-enter your new password.');
+      return;
+    }
+    try {
+      setForgotLoading(true);
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          code: forgotCode.trim(),
+          newPassword
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update password.');
+      }
+      setForgotSuccessMsg(data.message || 'Password updated successfully! Redirecting to sign in...');
+      setTimeout(() => {
+        setEmail(forgotEmail);
+        setPassword('');
+        setShowForgotPw(false);
+        setForgotStep(1);
+        setForgotCode('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setForgotSuccessMsg('');
+        setAuthTab('login');
+      }, 1800);
+    } catch (err: any) {
+      setForgotErrorMsg(err.message || 'Failed to update password.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -543,6 +636,152 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>
+              ) : showForgotPw ? (
+                /* Forgot Password Form (5-Digit Verification Code Flow) */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <div>
+                      <h4 className="text-sm font-black text-white">Reset Password</h4>
+                      <p className="text-[11px] text-slate-400">
+                        {forgotStep === 1 ? 'Step 1 of 2: Request 5-digit verification code' : 'Step 2 of 2: Enter 5-digit code & set new password'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPw(false)}
+                      className="text-[11px] text-slate-400 hover:text-white"
+                    >
+                      ← Back to Sign In
+                    </button>
+                  </div>
+
+                  {forgotSuccessMsg && (
+                    <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{forgotSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {forgotErrorMsg && (
+                    <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{forgotErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {receivedDemoCode && forgotStep === 2 && (
+                    <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs flex items-center justify-between">
+                      <span>Verification Code: <strong className="text-white font-mono text-sm tracking-wider">{receivedDemoCode}</strong></span>
+                      <button
+                        type="button"
+                        onClick={() => setForgotCode(receivedDemoCode)}
+                        className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold"
+                      >
+                        Auto-Fill
+                      </button>
+                    </div>
+                  )}
+
+                  {forgotStep === 1 ? (
+                    <form onSubmit={handleSendResetCode} className="space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                          Registered Email Address *
+                        </label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                          <input
+                            type="email"
+                            required
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            placeholder="user@gmail.com"
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={forgotLoading}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
+                      >
+                        {forgotLoading ? 'Sending 5-Digit Code...' : 'Send Verification Code (5 Digits)'}
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                          5-Digit Verification Code *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={5}
+                          value={forgotCode}
+                          onChange={(e) => setForgotCode(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder="12345"
+                          className="w-full px-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-center text-lg font-mono font-black tracking-widest text-emerald-400 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                          New Password *
+                        </label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                          <input
+                            type="password"
+                            required
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="At least 6 characters"
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                          Confirm New Password *
+                        </label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                          <input
+                            type="password"
+                            required
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Re-type new password"
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={forgotLoading}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
+                      >
+                        {forgotLoading ? 'Updating Password...' : 'Update Password with Code'}
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+
+                      <div className="text-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setForgotStep(1)}
+                          className="text-[11px] text-slate-400 hover:text-slate-200"
+                        >
+                          Didn't receive code? Change email or resend
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               ) : (
                 /* Login Form */
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -564,9 +803,24 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
-                      Password *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-300 uppercase">
+                        Password *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          setShowForgotPw(true);
+                          setForgotStep(1);
+                          setForgotErrorMsg('');
+                          setForgotSuccessMsg('');
+                        }}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
                       <input

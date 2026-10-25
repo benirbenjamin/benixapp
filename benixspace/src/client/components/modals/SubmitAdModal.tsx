@@ -439,43 +439,63 @@ export const SubmitAdModal: React.FC<Props> = ({
               {/* Bidding Controls: CPM & CPC */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 {/* CPM Bidding */}
-                <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <div className="flex justify-between text-[11px]">
+                <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center text-[11px]">
                     <span className="font-bold text-slate-300">CPM (Per 1,000 Views):</span>
-                    <span className="font-black text-amber-400">{cpmBid} RWF</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="10"
+                        value={cpmBid}
+                        onChange={(e) => setCpmBid(Math.max(10, parseInt(e.target.value) || 10))}
+                        className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[11px] font-black text-amber-400 text-right outline-none"
+                      />
+                      <span className="font-bold text-amber-400">RWF</span>
+                    </div>
                   </div>
                   <input
                     type="range"
                     min="10"
-                    max="100"
+                    max="1000"
                     step="5"
-                    value={cpmBid}
+                    value={Math.min(1000, cpmBid)}
                     onChange={(e) => setCpmBid(parseInt(e.target.value))}
                     className="w-full accent-amber-500 cursor-pointer"
                   />
-                  <p className="text-[10px] text-slate-400">
-                    Higher CPM bid = higher rotation priority over competitors
-                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Higher bid = priority rotation</span>
+                    <span>Max: 1,000 RWF</span>
+                  </div>
                 </div>
 
                 {/* CPC Bidding */}
-                <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <div className="flex justify-between text-[11px]">
+                <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center text-[11px]">
                     <span className="font-bold text-slate-300">CPC (Per Verified Click):</span>
-                    <span className="font-black text-purple-400">{cpcBid} RWF</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="5"
+                        value={cpcBid}
+                        onChange={(e) => setCpcBid(Math.max(5, parseInt(e.target.value) || 5))}
+                        className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[11px] font-black text-purple-400 text-right outline-none"
+                      />
+                      <span className="font-bold text-purple-400">RWF</span>
+                    </div>
                   </div>
                   <input
                     type="range"
                     min="5"
-                    max="60"
+                    max="1000"
                     step="5"
-                    value={cpcBid}
+                    value={Math.min(1000, cpcBid)}
                     onChange={(e) => setCpcBid(parseInt(e.target.value))}
                     className="w-full accent-purple-500 cursor-pointer"
                   />
-                  <p className="text-[10px] text-slate-400">
-                    You only pay when a viewer genuinely clicks your link
-                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Deducted only on verified link clicks</span>
+                    <span>Max: 1,000 RWF</span>
+                  </div>
                 </div>
               </div>
 

@@ -14,6 +14,7 @@ export interface User {
   selected_modules?: string[];
   homepage_layout?: { order: string[] };
   referral_code?: string;
+  avatar_url?: string;
   app_profiles?: Record<string, any>;
 }
 
@@ -54,7 +55,8 @@ interface AuthContextType {
   updatePreferences: (modules: string[], layout?: any) => Promise<void>;
   updateWalletBalance: (newBalance: number, newBonusBalance?: number) => void;
   claimDailyBonus: () => Promise<{ success: boolean; bonusAmount?: number; message?: string }>;
-  updateProfile: (data: { name?: string; phone?: string; channel_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: { name?: string; phone?: string; channel_name?: string; avatar_url?: string }) => Promise<{ success: boolean; error?: string }>;
+  updateProfilePhoto: (avatarUrl: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -74,7 +76,8 @@ const AuthContext = createContext<AuthContextType>({
   updatePreferences: async () => {},
   updateWalletBalance: () => {},
   claimDailyBonus: async () => ({ success: false }),
-  updateProfile: async () => ({ success: false })
+  updateProfile: async () => ({ success: false }),
+  updateProfilePhoto: async () => ({ success: false })
 });
 
 // Configure Axios instance
@@ -530,7 +533,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfile = async (profileData: { name?: string; phone?: string; channel_name?: string }): Promise<{ success: boolean; error?: string }> => {
+  const updateProfile = async (profileData: { name?: string; phone?: string; channel_name?: string; avatar_url?: string }): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await apiClient.put('/api/auth/profile', profileData, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
@@ -541,6 +544,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
       return { success: false, error: res.data?.error || 'Failed to update profile' };
+    } catch (err: any) {
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
+  };
+
+  const updateProfilePhoto = async (avatarUrl: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await apiClient.post('/api/auth/profile-photo', { avatarUrl }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      });
+      if (res.data?.success) {
+        setUser((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, avatar_url: avatarUrl };
+          localStorage.setItem('benix_user', JSON.stringify(updated));
+          return updated;
+        });
+        return { success: true };
+      }
+      return { success: false, error: res.data?.error || 'Failed to update profile photo' };
     } catch (err: any) {
       return { success: false, error: err.response?.data?.error || err.message };
     }
@@ -580,7 +603,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePreferences,
         updateWalletBalance,
         claimDailyBonus,
-        updateProfile
+        updateProfile,
+        updateProfilePhoto
       }}
     >
       {children}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -39,11 +39,18 @@ import {
   Pause,
   Play,
   Plus,
-  BarChart3
+  BarChart3,
+  Camera,
+  Edit3,
+  Eye,
+  Save,
+  X,
+  Layers,
+  Clock
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
-  const { user, wallet, token, updateWalletBalance, updatePreferences } = useAuth();
+  const { user, wallet, token, updateWalletBalance, updatePreferences, updateProfilePhoto } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { mode, accent, setMode, setAccent } = useTheme();
 
@@ -55,6 +62,123 @@ export const DashboardPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  // Profile Avatar Upload State
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoSuccessMsg, setPhotoSuccessMsg] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Campaign Editing & Details View State
+  const [editingCampaign, setEditingCampaign] = useState<any | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editTargetUrl, setEditTargetUrl] = useState('');
+  const [editCtaText, setEditCtaText] = useState('Learn More');
+  const [editDailyBudget, setEditDailyBudget] = useState(100);
+  const [editCpmBid, setEditCpmBid] = useState(20);
+  const [editCpcBid, setEditCpcBid] = useState(15);
+  const [editSaving, setEditSaving] = useState(false);
+  const [detailsCampaign, setDetailsCampaign] = useState<any | null>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, WebP).');
+      return;
+    }
+
+    try {
+      setUploadingPhoto(true);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 400;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+
+          const res = await updateProfilePhoto(compressed);
+          setUploadingPhoto(false);
+          if (res.success) {
+            setPhotoSuccessMsg('Profile photo updated successfully!');
+            setTimeout(() => setPhotoSuccessMsg(''), 3000);
+          } else {
+            alert(res.error || 'Failed to update photo');
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setUploadingPhoto(false);
+      alert(err.message || 'Error uploading photo');
+    }
+  };
+
+  const openEditModal = (c: any) => {
+    setEditingCampaign(c);
+    setEditTitle(c.title || '');
+    setEditDesc(c.description || '');
+    setEditTargetUrl(c.targetUrl || c.target_url || '');
+    setEditCtaText(c.ctaText || c.cta_text || 'Learn More');
+    setEditDailyBudget(Number(c.dailyBudget ?? c.daily_budget ?? 100));
+    setEditCpmBid(Number(c.cpmBid ?? c.cpm_bid ?? 20));
+    setEditCpcBid(Number(c.cpcBid ?? c.cpc_bid ?? 15));
+  };
+
+  const handleSaveCampaignEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCampaign) return;
+    try {
+      setEditSaving(true);
+      const authToken = token || localStorage.getItem('token') || localStorage.getItem('benix_auth_token');
+      const res = await fetch(`/api/ads/${editingCampaign.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          title: editTitle,
+          description: editDesc,
+          targetUrl: editTargetUrl,
+          ctaText: editCtaText,
+          dailyBudget: editDailyBudget,
+          cpmBid: editCpmBid,
+          cpcBid: editCpcBid
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdActionMsg('Campaign details updated successfully!');
+        setTimeout(() => setAdActionMsg(''), 3000);
+        setEditingCampaign(null);
+        loadUserCampaigns();
+      } else {
+        alert(data.error || 'Failed to update campaign');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error saving campaign');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   useEffect(() => {
     const isWalletHash = window.location.hash === '#wallet';
@@ -183,9 +307,40 @@ export const DashboardPage: React.FC = () => {
         {/* Dashboard Top Header Profile Card */}
         <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#141B2D] via-[#101726] to-[#0D121F] border border-slate-800 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white font-black text-2xl flex items-center justify-center border-2 border-white/20 shadow-xl">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+            <input
+              type="file"
+              ref={avatarInputRef}
+              onChange={handleAvatarChange}
+              accept="image/*"
+              className="hidden"
+            />
+            <div className="relative group shrink-0">
+              <div 
+                onClick={() => avatarInputRef.current?.click()}
+                title="Click to update profile photo"
+                className="w-16 h-16 rounded-2xl overflow-hidden cursor-pointer bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white font-black text-2xl flex items-center justify-center border-2 border-white/20 shadow-xl relative hover:opacity-90 transition-all"
+              >
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{user?.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                )}
+                {uploadingPhoto && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                title="Update Profile Photo"
+                className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg border-2 border-[#141B2D] transition-transform active:scale-95"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
             </div>
+
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
@@ -196,6 +351,11 @@ export const DashboardPage: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-400">{user?.email}</p>
+              {photoSuccessMsg && (
+                <span className="text-[11px] text-emerald-400 font-bold block animate-fade-in">
+                  ✓ {photoSuccessMsg}
+                </span>
+              )}
             </div>
           </div>
 
@@ -459,6 +619,31 @@ export const DashboardPage: React.FC = () => {
               <p className="text-xs text-slate-400">Manage your language, credentials, and profile settings.</p>
             </div>
 
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#161D2E] border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xl border border-slate-700">
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Personal Profile Photo</h4>
+                  <p className="text-[11px] text-slate-400">Personalize your avatar across BenixSpace modules and comments.</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+              >
+                <Camera className="w-4 h-4" />
+                <span>{uploadingPhoto ? 'Uploading Photo...' : 'Update Profile Photo'}</span>
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-1">
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Full Name</span>
@@ -584,10 +769,16 @@ export const DashboardPage: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {userCampaigns.map(campaign => {
-                  const targetImp = Number(campaign.target_impressions || 0);
-                  const deliveredImp = Number(campaign.impressions_count || 0);
-                  const clicks = Number(campaign.clicks_count || 0);
-                  const spent = Number(campaign.total_spent || 0);
+                  const dailyBudget = Number(campaign.dailyBudget ?? campaign.daily_budget ?? 100);
+                  const cpmBid = Number(campaign.cpmBid ?? campaign.cpm_bid ?? 20);
+                  const cpcBid = Number(campaign.cpcBid ?? campaign.cpc_bid ?? 15);
+                  const mediaUrl = campaign.mediaUrl || campaign.media_url || '';
+                  const targetUrl = campaign.targetUrl || campaign.target_url || '';
+                  const ctaText = campaign.ctaText || campaign.cta_text || 'Learn More';
+                  const targetImp = Number(campaign.targetImpressions ?? campaign.target_impressions ?? 1000);
+                  const deliveredImp = Number(campaign.currentImpressions ?? campaign.impressions_count ?? 0);
+                  const clicks = Number(campaign.currentClicks ?? campaign.clicks_count ?? 0);
+                  const spent = Number(campaign.totalSpent ?? campaign.total_spent ?? 0);
                   const progressPct = targetImp > 0 ? Math.min(100, Math.round((deliveredImp / targetImp) * 100)) : 0;
                   const ctr = deliveredImp > 0 ? ((clicks / deliveredImp) * 100).toFixed(1) : '0.0';
 
@@ -602,9 +793,9 @@ export const DashboardPage: React.FC = () => {
                           
                           {/* Image preview */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-black border border-slate-800 overflow-hidden shrink-0 relative">
-                            {campaign.media_url ? (
+                            {mediaUrl ? (
                               <img
-                                src={campaign.media_url}
+                                src={mediaUrl}
                                 alt={campaign.title}
                                 className="w-full h-full object-cover"
                               />
@@ -640,17 +831,19 @@ export const DashboardPage: React.FC = () => {
                             </p>
 
                             <div className="flex items-center gap-3 text-xs flex-wrap pt-0.5">
-                              <a
-                                href={campaign.target_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-400 hover:underline flex items-center gap-1 font-semibold truncate max-w-xs"
-                              >
-                                <ExternalLink className="w-3 h-3 shrink-0" />
-                                <span className="truncate">{campaign.target_url}</span>
-                              </a>
+                              {targetUrl && (
+                                <a
+                                  href={targetUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:underline flex items-center gap-1 font-semibold truncate max-w-xs"
+                                >
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{targetUrl}</span>
+                                </a>
+                              )}
                               <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
-                                Button: {campaign.cta_text || 'Learn More'}
+                                Button: {ctaText}
                               </span>
                             </div>
                           </div>
@@ -661,11 +854,11 @@ export const DashboardPage: React.FC = () => {
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#0B0E14] p-3 rounded-2xl border border-slate-800 shrink-0 w-full sm:w-auto">
                           <div>
                             <span className="text-[9px] uppercase font-bold text-slate-500 block">Daily Budget</span>
-                            <span className="text-xs font-black text-white">{Number(campaign.daily_budget).toLocaleString()} RWF</span>
+                            <span className="text-xs font-black text-white">{dailyBudget.toLocaleString()} RWF</span>
                           </div>
                           <div>
                             <span className="text-[9px] uppercase font-bold text-slate-500 block">Bids (CPM / CPC)</span>
-                            <span className="text-xs font-black text-amber-400">{campaign.cpm_bid} / {campaign.cpc_bid} RWF</span>
+                            <span className="text-xs font-black text-amber-400">{cpmBid} / {cpcBid} RWF</span>
                           </div>
                           <div>
                             <span className="text-[9px] uppercase font-bold text-slate-500 block">Delivered Views</span>
@@ -709,39 +902,55 @@ export const DashboardPage: React.FC = () => {
                       )}
 
                       {/* Action Bar */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs flex-wrap gap-2">
                         <div className="flex items-center gap-2">
                           <span className="text-slate-500 text-[11px]">
                             Clicks: <strong className="text-white">{clicks}</strong> ({ctr}% CTR)
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setDetailsCampaign(campaign)}
+                            className="px-3 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-400 text-xs font-bold flex items-center gap-1.5 transition-all"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Details</span>
+                          </button>
+
+                          <button
+                            onClick={() => openEditModal(campaign)}
+                            className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+
                           {campaign.status === 'active' && (
                             <button
                               onClick={() => handleTogglePause(campaign.id)}
-                              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-all"
                             >
                               <Pause className="w-3.5 h-3.5" />
-                              <span>Pause Campaign</span>
+                              <span>Pause</span>
                             </button>
                           )}
 
                           {campaign.status === 'paused' && (
                             <button
                               onClick={() => handleTogglePause(campaign.id)}
-                              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
                             >
                               <Play className="w-3.5 h-3.5" />
-                              <span>Resume Campaign</span>
+                              <span>Resume</span>
                             </button>
                           )}
 
                           <button
                             onClick={() => setShowSubmitAdModal(true)}
-                            className="px-3.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all"
+                            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all"
                           >
-                            New Ad
+                            + New Ad
                           </button>
                         </div>
                       </div>
@@ -756,6 +965,273 @@ export const DashboardPage: React.FC = () => {
         )}
 
       </div>
+
+      {/* View Details Modal */}
+      {detailsCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-xl rounded-3xl bg-[#101726] border border-slate-800 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-800">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-white">{detailsCampaign.title}</h3>
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                    detailsCampaign.status === 'active'
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : 'bg-slate-700 text-slate-300 border-slate-600'
+                  }`}>
+                    {detailsCampaign.status}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">Campaign ID: <span className="font-mono text-slate-300">{detailsCampaign.id}</span></p>
+              </div>
+              <button
+                onClick={() => setDetailsCampaign(null)}
+                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Media Creative Preview */}
+            <div className="rounded-2xl overflow-hidden bg-black border border-slate-800 aspect-video max-h-56 relative flex items-center justify-center">
+              {(detailsCampaign.mediaUrl || detailsCampaign.media_url) ? (
+                <img
+                  src={detailsCampaign.mediaUrl || detailsCampaign.media_url}
+                  alt={detailsCampaign.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Megaphone className="w-12 h-12 text-slate-600" />
+              )}
+            </div>
+
+            {/* Description & Target */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-[#0D121F] border border-slate-800/80 text-xs">
+              <p className="text-slate-300 leading-relaxed">{detailsCampaign.description || 'No description provided.'}</p>
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800 text-[11px] flex-wrap">
+                <span className="text-slate-400">Target Link:</span>
+                <a
+                  href={detailsCampaign.targetUrl || detailsCampaign.target_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline flex items-center gap-1 font-semibold truncate max-w-xs"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="truncate">{detailsCampaign.targetUrl || detailsCampaign.target_url}</span>
+                </a>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Button Label:</span>
+                <span className="font-bold text-white">{detailsCampaign.ctaText || detailsCampaign.cta_text || 'Learn More'}</span>
+              </div>
+            </div>
+
+            {/* Performance Analytics Grid */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Live Delivery Analytics</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Spent</span>
+                  <span className="text-base font-black text-emerald-400">{Number(detailsCampaign.totalSpent ?? detailsCampaign.total_spent ?? 0).toLocaleString()} RWF</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Delivered Views</span>
+                  <span className="text-base font-black text-blue-400">{Number(detailsCampaign.currentImpressions ?? detailsCampaign.impressions_count ?? 0).toLocaleString()}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Verified Clicks</span>
+                  <span className="text-base font-black text-purple-400">{Number(detailsCampaign.currentClicks ?? detailsCampaign.clicks_count ?? 0).toLocaleString()}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Click Rate (CTR)</span>
+                  <span className="text-base font-black text-amber-400">
+                    {Number(detailsCampaign.currentImpressions ?? detailsCampaign.impressions_count ?? 0) > 0
+                      ? (((Number(detailsCampaign.currentClicks ?? detailsCampaign.clicks_count ?? 0) / Number(detailsCampaign.currentImpressions ?? detailsCampaign.impressions_count ?? 1)) * 100).toFixed(1))
+                      : '0.0'}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Campaign Bidding & Budget Breakdown */}
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block font-semibold">Daily Budget</span>
+                <span className="font-bold text-white text-sm">{Number(detailsCampaign.dailyBudget ?? detailsCampaign.daily_budget ?? 100).toLocaleString()} RWF</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block font-semibold">CPM Bid</span>
+                <span className="font-bold text-amber-400 text-sm">{detailsCampaign.cpmBid ?? detailsCampaign.cpm_bid ?? 20} RWF</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block font-semibold">CPC Bid</span>
+                <span className="font-bold text-purple-400 text-sm">{detailsCampaign.cpcBid ?? detailsCampaign.cpc_bid ?? 15} RWF</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const c = detailsCampaign;
+                  setDetailsCampaign(null);
+                  openEditModal(c);
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black flex items-center gap-1.5 transition-all"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Campaign</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailsCampaign(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Ad Campaign Modal */}
+      {editingCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg rounded-3xl bg-[#101726] border border-slate-800 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-white">Edit Ad Campaign</h3>
+              </div>
+              <button
+                onClick={() => setEditingCampaign(null)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCampaignEdit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                  Campaign Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                  Description / Pitch
+                </label>
+                <textarea
+                  rows={2}
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl text-white outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                  Target Website / Destination URL *
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={editTargetUrl}
+                  onChange={(e) => setEditTargetUrl(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
+                  Call-to-Action Button Text
+                </label>
+                <select
+                  value={editCtaText}
+                  onChange={(e) => setEditCtaText(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl text-white outline-none"
+                >
+                  <option value="Learn More">Learn More</option>
+                  <option value="Shop Now">Shop Now</option>
+                  <option value="Visit Website">Visit Website</option>
+                  <option value="Subscribe">Subscribe</option>
+                  <option value="Contact Us">Contact Us</option>
+                  <option value="Download App">Download App</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">
+                    Daily Budget (RWF)
+                  </label>
+                  <input
+                    type="number"
+                    min={100}
+                    value={editDailyBudget}
+                    onChange={(e) => setEditDailyBudget(Math.max(100, Number(e.target.value) || 100))}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl text-white font-bold outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">
+                    CPM Bid (1k Views)
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    value={editCpmBid}
+                    onChange={(e) => setEditCpmBid(Math.max(10, Number(e.target.value) || 10))}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl text-amber-400 font-bold outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">
+                    CPC Bid (Per Click)
+                  </label>
+                  <input
+                    type="number"
+                    min={5}
+                    value={editCpcBid}
+                    onChange={(e) => setEditCpcBid(Math.max(5, Number(e.target.value) || 5))}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl text-purple-400 font-bold outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingCampaign(null)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black flex items-center gap-1.5 transition-all disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{editSaving ? 'Saving Changes...' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Central Wallet Modal */}
       {showWalletModal && (

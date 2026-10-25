@@ -400,38 +400,64 @@ export const AdvertisePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* CPM & CPC Sliders */}
+              {/* CPM & CPC Sliders & Custom Inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-3.5 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1.5">
+                <div className="p-3.5 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400 font-semibold">CPM (Per 1,000 Views)</span>
-                    <span className="font-black text-amber-400">{cpmBid} RWF</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={10}
+                        value={cpmBid}
+                        onChange={(e) => setCpmBid(Math.max(10, Number(e.target.value) || 10))}
+                        className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg text-xs font-black text-amber-400 text-right outline-none"
+                      />
+                      <span className="text-xs font-bold text-amber-400">RWF</span>
+                    </div>
                   </div>
                   <input
                     type="range"
                     min={10}
-                    max={100}
-                    value={cpmBid}
+                    max={1000}
+                    step={5}
+                    value={Math.min(1000, cpmBid)}
                     onChange={(e) => setCpmBid(Number(e.target.value))}
                     className="w-full accent-amber-500 cursor-pointer"
                   />
-                  <span className="text-[10px] text-slate-500 block">Higher bids give priority display in rotation.</span>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Higher bids give priority display in rotation</span>
+                    <span>Max slider: 1,000 RWF</span>
+                  </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-1.5">
+                <div className="p-3.5 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400 font-semibold">CPC (Per Verified Click)</span>
-                    <span className="font-black text-purple-400">{cpcBid} RWF</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={5}
+                        value={cpcBid}
+                        onChange={(e) => setCpcBid(Math.max(5, Number(e.target.value) || 5))}
+                        className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-lg text-xs font-black text-purple-400 text-right outline-none"
+                      />
+                      <span className="text-xs font-bold text-purple-400">RWF</span>
+                    </div>
                   </div>
                   <input
                     type="range"
                     min={5}
-                    max={60}
-                    value={cpcBid}
+                    max={1000}
+                    step={5}
+                    value={Math.min(1000, cpcBid)}
                     onChange={(e) => setCpcBid(Number(e.target.value))}
                     className="w-full accent-purple-500 cursor-pointer"
                   />
-                  <span className="text-[10px] text-slate-500 block">Only deducted when a viewer visits your link.</span>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Only deducted when a viewer clicks your link</span>
+                    <span>Max slider: 1,000 RWF</span>
+                  </div>
                 </div>
               </div>
 

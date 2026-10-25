@@ -845,21 +845,160 @@ app.put('/api/auth/preferences', authenticateToken, async (req: AuthenticatedReq
  */
 app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { name, phone, channel_name } = req.body;
+    const { name, phone, channel_name, avatar_url, avatar } = req.body;
     await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);').catch(() => {});
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
+    const finalAvatar = avatar_url || avatar || null;
     await query(
       `UPDATE core_users SET
         name = COALESCE($1, name),
         phone = COALESCE($2, phone),
         channel_name = COALESCE($3, channel_name),
+        avatar_url = COALESCE($4, avatar_url),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4`,
-      [name ? String(name).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, req.user?.id]
+       WHERE id = $5`,
+      [name ? String(name).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id]
     );
-    const updated = await query('SELECT id, email, name, channel_name, role, phone FROM core_users WHERE id = $1', [req.user?.id]);
+    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1', [req.user?.id]);
     return res.json({ success: true, user: updated.rows[0], message: 'Channel profile updated successfully.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update User Profile Photo (Avatar)
+ */
+app.post('/api/auth/profile-photo', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { avatarUrl, photoUrl, image } = req.body;
+    const finalPhoto = avatarUrl || photoUrl || image;
+    if (!finalPhoto) {
+      return res.status(400).json({ error: 'Profile photo data or URL is required.' });
+    }
+
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
+    await query(
+      `UPDATE core_users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [finalPhoto, req.user!.id]
+    );
+
+    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1', [req.user!.id]);
+    return res.json({
+      success: true,
+      message: 'Profile photo updated successfully!',
+      avatar_url: finalPhoto,
+      user: updated.rows[0]
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update profile photo.' });
+  }
+});
+
+/**
+ * Request Password Reset Verification Code (5-Digit Code)
+ */
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ error: 'Please enter your account email address.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    
+    // Check if user exists in core_users or users
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
+    const userRes = await query('SELECT id, email, name FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    const legacyRes = userRes.rowCount === 0 ? await query('SELECT id, email, name FROM users WHERE LOWER(email) = $1', [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] })) : { rowCount: 0, rows: [] };
+
+    if (userRes.rowCount === 0 && legacyRes.rowCount === 0) {
+      return res.status(404).json({ error: 'No account registered with this email address.' });
+    }
+
+    // Generate 5-digit verification code
+    const verificationCode = String(Math.floor(10000 + Math.random() * 90000));
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS password_reset_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_pwd_resets_email ON password_reset_codes (email);
+    `).catch(() => {});
+
+    // Code valid for 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await query(
+      `INSERT INTO password_reset_codes (email, code, expires_at) VALUES ($1, $2, $3)`,
+      [cleanEmail, verificationCode, expiresAt]
+    );
+
+    return res.json({
+      success: true,
+      message: `A 5-digit verification code has been generated for ${cleanEmail}.`,
+      verificationCode, // Returned for instant UX delivery & in-app verification prompt
+      expiresInMinutes: 15
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to generate verification code.' });
+  }
+});
+
+/**
+ * Verify 5-Digit Code and Reset Password
+ */
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Email, 5-digit verification code, and new password are required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    if (cleanCode.length !== 5) {
+      return res.status(400).json({ error: 'Verification code must be exactly 5 digits.' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    // Check code in password_reset_codes table
+    const codeRes = await query(
+      `SELECT id, email, code, expires_at 
+       FROM password_reset_codes 
+       WHERE LOWER(email) = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP 
+       ORDER BY created_at DESC LIMIT 1`,
+      [cleanEmail, cleanCode]
+    );
+
+    if (codeRes.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid or expired 5-digit verification code. Please request a new code.' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(String(newPassword), salt);
+
+    // Update in core_users and legacy users
+    await query('UPDATE core_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2', [passwordHash, cleanEmail]);
+    await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2', [passwordHash, cleanEmail]).catch(() => {});
+
+    // Invalidate used code
+    await query('DELETE FROM password_reset_codes WHERE LOWER(email) = $1', [cleanEmail]).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: 'Your password has been successfully updated! You can now sign in with your new password.'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update password.' });
   }
 });
 
@@ -1935,12 +2074,27 @@ async function getSystemSetting(key: string, defaultValue: string): Promise<stri
         value TEXT NOT NULL,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS core_system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        description TEXT,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
     `).catch(() => {});
+
+    // 1. Direct query in system_settings
     const res = await query('SELECT value FROM system_settings WHERE key = $1', [key]);
     if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== undefined && String(res.rows[0].value).trim() !== '') {
       return String(res.rows[0].value);
     }
-    // Fallback check in core_system_settings platform_all_apps
+
+    // 2. Direct query in core_system_settings
+    const coreRes = await query('SELECT value FROM core_system_settings WHERE key = $1', [key]).catch(() => ({ rowCount: 0, rows: [] }));
+    if (coreRes.rowCount > 0 && coreRes.rows[0].value !== null && coreRes.rows[0].value !== undefined && String(coreRes.rows[0].value).trim() !== '') {
+      return String(coreRes.rows[0].value);
+    }
+
+    // 3. Fallback check in core_system_settings platform_all_apps
     const allAppsRes = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
     if (allAppsRes.rowCount > 0 && allAppsRes.rows[0]?.value) {
       const parsed = typeof allAppsRes.rows[0].value === 'string' ? JSON.parse(allAppsRes.rows[0].value) : allAppsRes.rows[0].value;
@@ -1956,6 +2110,12 @@ async function getSystemSetting(key: string, defaultValue: string): Promise<stri
       if (key === 'kunda_free_messages' && parsed?.modules?.kunda_free_messages) {
         return String(parsed.modules.kunda_free_messages);
       }
+      if (key === 'monetization_required_watch_hours' && parsed?.monetization?.required_watch_hours) {
+        return String(parsed.monetization.required_watch_hours);
+      }
+      if (key === 'monetization_required_subscribers' && parsed?.monetization?.required_subscribers) {
+        return String(parsed.monetization.required_subscribers);
+      }
     }
   } catch {}
   return defaultValue;
@@ -1969,13 +2129,28 @@ async function setSystemSetting(key: string, value: string): Promise<void> {
         value TEXT NOT NULL,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS core_system_settings (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL,
+        description TEXT,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
     `).catch(() => {});
+
+    // Save to both system_settings and core_system_settings for 100% persistent cross-deploy stability
     await query(
       `INSERT INTO system_settings (key, value, updated_at)
        VALUES ($1, $2, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
       [key, String(value)]
     );
+
+    await query(
+      `INSERT INTO core_system_settings (key, value, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+      [key, String(value)]
+    ).catch(() => {});
   } catch {}
 }
 
@@ -2601,6 +2776,31 @@ app.get('/api/chat/messages/:partnerId', authenticateToken, async (req: Authenti
       });
     }
 
+    // Ensure chat_direct_messages table and columns exist in PostgreSQL
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_direct_messages (
+        id VARCHAR(255) PRIMARY KEY,
+        sender_id VARCHAR(255) NOT NULL,
+        recipient_id VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        is_voice BOOLEAN DEFAULT false,
+        voice_duration INT,
+        is_paid BOOLEAN DEFAULT false,
+        amount_paid NUMERIC(10,2) DEFAULT 0,
+        creator_earning NUMERIC(10,2) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'sent',
+        read_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent';
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS is_voice BOOLEAN DEFAULT false;
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS voice_duration INT;
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false;
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10,2) DEFAULT 0;
+      ALTER TABLE chat_direct_messages ADD COLUMN IF NOT EXISTS creator_earning NUMERIC(10,2) DEFAULT 0;
+    `).catch(() => {});
+
     // Mark incoming messages from partnerId as READ
     await query(
       `UPDATE chat_direct_messages 
@@ -2630,7 +2830,8 @@ app.get('/api/chat/messages/:partnerId', authenticateToken, async (req: Authenti
 
     return res.json({ success: true, messages });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message, messages: [] });
+    console.error('Chat history fetch notice:', err?.message || err);
+    return res.json({ success: true, messages: [] });
   }
 });
 
@@ -4612,58 +4813,9 @@ interface CustomAdCampaign {
   expiresAt: string;
 }
 
-let customAdCampaigns: CustomAdCampaign[] = [
-  {
-    id: 'ad-default-kigali-prime',
-    userId: 'adv-kigali-prime',
-    userName: 'Kigali Prime Gadgets',
-    title: 'Kigali Prime Tech Store — Save 20% on Laptops',
-    description: 'Get verified genuine MacBooks, iPhones & gaming gear delivered to your doorstep in Kigali within 2 hours.',
-    targetUrl: 'https://benix.space/marketplace',
-    mediaType: 'image',
-    mediaUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&auto=format&fit=crop&q=80',
-    targetAudience: 'all',
-    targetImpressions: 50000,
-    costPerImpression: 0.02,
-    costPerClick: 15,
-    cpmBid: 25,
-    cpcBid: 15,
-    dailyBudget: 500,
-    durationDays: 7,
-    currentImpressions: 12450,
-    currentClicks: 620,
-    totalSpent: 3500,
-    status: 'active',
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    expiresAt: new Date(Date.now() + 4 * 86400000).toISOString()
-  },
-  {
-    id: 'ad-default-visit-rwanda',
-    userId: 'adv-visit-rwanda',
-    userName: 'Visit Rwanda Tour Desk',
-    title: 'Visit Rwanda: Volcanoes & Nyungwe Canopy Tours',
-    description: 'Book weekend expeditions to the Volcanoes National Park & Lake Kivu with instant Mobile Money payments.',
-    targetUrl: 'https://benix.space/blog',
-    mediaType: 'image',
-    mediaUrl: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=800&auto=format&fit=crop&q=80',
-    targetAudience: 'all',
-    targetImpressions: 80000,
-    costPerImpression: 0.03,
-    costPerClick: 20,
-    cpmBid: 30,
-    cpcBid: 20,
-    dailyBudget: 1000,
-    durationDays: 14,
-    currentImpressions: 28400,
-    currentClicks: 1420,
-    totalSpent: 7000,
-    status: 'active',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-    expiresAt: new Date(Date.now() + 9 * 86400000).toISOString()
-  }
-];
+let customAdCampaigns: CustomAdCampaign[] = [];
 
-// Ensure core_custom_ads table exists in PostgreSQL
+// Ensure core_custom_ads table exists in PostgreSQL and purge dummy seed ads
 const initAdsTable = async () => {
   try {
     await query(`
@@ -4690,12 +4842,16 @@ const initAdsTable = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         expires_at TIMESTAMP
       );
+      ALTER TABLE core_custom_ads ADD COLUMN IF NOT EXISTS cta_text VARCHAR(64) DEFAULT 'Learn More';
     `);
+
+    // Strictly purge all dummy/mock seed ads from database so only user-created campaigns run
+    await query("DELETE FROM core_custom_ads WHERE id LIKE 'ad-default-%' OR user_id LIKE 'adv-%'").catch(() => {});
 
     // Load from database into memory
     const dbAds = await query('SELECT * FROM core_custom_ads ORDER BY created_at DESC');
     if (dbAds.rows && dbAds.rows.length > 0) {
-      const mapped: CustomAdCampaign[] = dbAds.rows.map((r: any) => ({
+      customAdCampaigns = dbAds.rows.map((r: any) => ({
         id: r.id,
         userId: r.user_id,
         userName: r.user_name || 'Advertiser',
@@ -4720,10 +4876,8 @@ const initAdsTable = async () => {
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString()
       }));
-
-      // Combine with defaults
-      const existingIds = new Set(mapped.map((m) => m.id));
-      customAdCampaigns = [...mapped, ...customAdCampaigns.filter((d) => !existingIds.has(d.id))];
+    } else {
+      customAdCampaigns = [];
     }
   } catch (err) {
     console.warn('Could not initialize core_custom_ads table:', err);
@@ -5046,33 +5200,125 @@ app.get('/api/ads/my-campaigns', authenticateToken, async (req: AuthenticatedReq
       const mapped = dbRes.rows.map((r: any) => ({
         id: r.id,
         userId: r.user_id,
+        user_id: r.user_id,
         userName: r.user_name || 'Advertiser',
+        user_name: r.user_name || 'Advertiser',
         title: r.title,
         description: r.description || '',
         targetUrl: r.target_url,
+        target_url: r.target_url,
         mediaType: r.media_type || 'image',
+        media_type: r.media_type || 'image',
         mediaUrl: r.media_url,
+        media_url: r.media_url,
+        ctaText: r.cta_text || 'Learn More',
+        cta_text: r.cta_text || 'Learn More',
         targetAudience: r.target_audience || 'all',
+        target_audience: r.target_audience || 'all',
         targetImpressions: Number(r.target_impressions || 1000),
+        target_impressions: Number(r.target_impressions || 1000),
         cpmBid: Number(r.cpm_bid || 20),
+        cpm_bid: Number(r.cpm_bid || 20),
         cpcBid: Number(r.cpc_bid || 15),
+        cpc_bid: Number(r.cpc_bid || 15),
         dailyBudget: Number(r.daily_budget || 100),
+        daily_budget: Number(r.daily_budget || 100),
         durationDays: Number(r.duration_days || 7),
+        duration_days: Number(r.duration_days || 7),
         currentImpressions: Number(r.current_impressions || 0),
+        impressions_count: Number(r.current_impressions || 0),
         currentClicks: Number(r.current_clicks || 0),
+        clicks_count: Number(r.current_clicks || 0),
         totalSpent: Number(r.total_spent || 0),
+        total_spent: Number(r.total_spent || 0),
         status: r.status || 'active',
         rejectionReason: r.rejection_reason || undefined,
+        rejection_reason: r.rejection_reason || undefined,
         createdAt: r.created_at,
-        expiresAt: r.expires_at
+        created_at: r.created_at,
+        expiresAt: r.expires_at,
+        expires_at: r.expires_at
       }));
       return res.json({ success: true, campaigns: mapped });
     }
-    const myAds = customAdCampaigns.filter((a) => a.userId === req.user!.id);
+    const myAds = customAdCampaigns.filter((a) => a.userId === req.user!.id).map((a) => ({
+      ...a,
+      user_id: a.userId,
+      user_name: a.userName,
+      target_url: a.targetUrl,
+      media_type: a.mediaType,
+      media_url: a.mediaUrl,
+      cpm_bid: a.cpmBid,
+      cpc_bid: a.cpcBid,
+      daily_budget: a.dailyBudget,
+      duration_days: a.durationDays,
+      target_impressions: a.targetImpressions,
+      impressions_count: a.currentImpressions,
+      clicks_count: a.currentClicks,
+      total_spent: a.totalSpent,
+      created_at: a.createdAt,
+      expires_at: a.expiresAt
+    }));
     return res.json({ success: true, campaigns: myAds });
   } catch (err: any) {
     const myAds = customAdCampaigns.filter((a) => a.userId === req.user!.id);
     return res.json({ success: true, campaigns: myAds });
+  }
+});
+
+// 6.0. Edit Ad Campaign (Advertiser / Admin)
+app.put('/api/ads/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, targetUrl, target_url, mediaUrl, media_url, dailyBudget, daily_budget, cpmBid, cpm_bid, cpcBid, cpc_bid, ctaText, cta_text } = req.body;
+
+    const existing = await query('SELECT user_id FROM core_custom_ads WHERE id = $1', [id]).catch(() => ({ rows: [] }));
+    const memAd = customAdCampaigns.find((a) => a.id === id);
+    const ownerId = existing.rows[0]?.user_id || memAd?.userId;
+
+    if (ownerId && ownerId !== req.user!.id && req.user!.role !== 'admin' && req.user!.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Unauthorized to edit this campaign.' });
+    }
+
+    const finalTitle = title !== undefined ? String(title).trim() : null;
+    const finalDesc = description !== undefined ? String(description).trim() : null;
+    const finalTarget = (targetUrl || target_url) !== undefined ? String(targetUrl || target_url).trim() : null;
+    const finalMedia = (mediaUrl || media_url) !== undefined ? String(mediaUrl || media_url).trim() : null;
+    const finalBudget = (dailyBudget !== undefined || daily_budget !== undefined) ? Number(dailyBudget ?? daily_budget) : null;
+    const finalCpm = (cpmBid !== undefined || cpm_bid !== undefined) ? Number(cpmBid ?? cpm_bid) : null;
+    const finalCpc = (cpcBid !== undefined || cpc_bid !== undefined) ? Number(cpcBid ?? cpc_bid) : null;
+    const finalCta = (ctaText || cta_text) !== undefined ? String(ctaText || cta_text).trim() : null;
+
+    await query(`
+      ALTER TABLE core_custom_ads ADD COLUMN IF NOT EXISTS cta_text VARCHAR(64) DEFAULT 'Learn More';
+    `).catch(() => {});
+
+    await query(`
+      UPDATE core_custom_ads SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        target_url = COALESCE($3, target_url),
+        media_url = COALESCE($4, media_url),
+        daily_budget = COALESCE($5, daily_budget),
+        cpm_bid = COALESCE($6, cpm_bid),
+        cpc_bid = COALESCE($7, cpc_bid),
+        cta_text = COALESCE($8, cta_text)
+      WHERE id = $9
+    `, [finalTitle, finalDesc, finalTarget, finalMedia, finalBudget, finalCpm, finalCpc, finalCta, id]);
+
+    if (memAd) {
+      if (finalTitle) memAd.title = finalTitle;
+      if (finalDesc !== null) memAd.description = finalDesc;
+      if (finalTarget) memAd.targetUrl = finalTarget;
+      if (finalMedia) memAd.mediaUrl = finalMedia;
+      if (finalBudget) memAd.dailyBudget = finalBudget;
+      if (finalCpm) memAd.cpmBid = finalCpm;
+      if (finalCpc) memAd.cpcBid = finalCpc;
+    }
+
+    return res.json({ success: true, message: 'Campaign updated successfully!' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update campaign.' });
   }
 });
 
@@ -8080,11 +8326,26 @@ app.get('/api/settings', async (req, res) => {
     const companyRes = await query('SELECT * FROM company_settings LIMIT 1');
     const socialRes = await query('SELECT * FROM social_links ORDER BY sort_order ASC');
     const sysRes = await query('SELECT key, value FROM core_system_settings').catch(() => ({ rows: [] }));
+    const rawSysRes = await query('SELECT key, value FROM system_settings').catch(() => ({ rows: [] }));
+
     const systemSettings: Record<string, any> = {
       welcome_bonus_amount: 1000,
       referral_reward: 1000,
-      affiliate_commission_percentage: 15
+      affiliate_commission_percentage: 15,
+      monetization_required_watch_hours: 300,
+      monetization_required_subscribers: 30,
+      contact_unlock_price: 500,
+      kunda_creator_rev_share_pct: 15,
+      kunda_message_cost: 50,
+      kunda_free_messages: 3
     };
+
+    if (rawSysRes && rawSysRes.rows) {
+      for (const row of rawSysRes.rows) {
+        systemSettings[row.key] = row.value;
+      }
+    }
+
     if (sysRes && sysRes.rows) {
       for (const row of sysRes.rows) {
         systemSettings[row.key] = row.value;
