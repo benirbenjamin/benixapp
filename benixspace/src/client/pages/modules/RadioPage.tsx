@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
 import { fetchRadioStations, type Station } from '../../services/mediaService';
@@ -34,6 +34,7 @@ const GENRES = [
 
 export const RadioPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, hasAppProfile } = useAuth();
   const { playStation, currentStation, isPlaying } = usePlayer();
 
@@ -52,6 +53,24 @@ export const RadioPage: React.FC = () => {
       return [];
     }
   });
+
+  // Open & play target radio station from search query param (e.g. /radio?station=kiss-fm)
+  useEffect(() => {
+    const targetSlug = searchParams.get('station');
+    if (targetSlug && stations.length > 0) {
+      const match = stations.find(
+        (s) =>
+          s.slug.toLowerCase() === targetSlug.toLowerCase() ||
+          s.id.toLowerCase() === targetSlug.toLowerCase() ||
+          s.name.toLowerCase().includes(targetSlug.toLowerCase())
+      );
+      if (match) {
+        setActiveStation(match);
+        playStation(match);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [searchParams, stations, playStation]);
 
   useEffect(() => {
     async function load() {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { WalletModal } from '../../components/modals/WalletModal';
@@ -60,6 +60,7 @@ const CATEGORIES = [
 ];
 
 export const MarketplacePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { user, wallet, hasAppProfile } = useAuth();
   const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -70,6 +71,18 @@ export const MarketplacePage: React.FC = () => {
   const [actionSuccess, setActionSuccess] = useState<string>('');
   const [shareProduct, setShareProduct] = useState<MarketItem | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Sync category or search query from URL parameters
+  useEffect(() => {
+    const cat = searchParams.get('category') || searchParams.get('cat');
+    const q = searchParams.get('q') || searchParams.get('query');
+    if (cat) {
+      setSelectedCategory(cat);
+    }
+    if (q) {
+      setSearchQuery(q);
+    }
+  }, [searchParams]);
 
   // Sell Item Modal State
   const [showSellModal, setShowSellModal] = useState<boolean>(false);

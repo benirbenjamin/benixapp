@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { SeoHead } from '../../components/common/SeoHead';
@@ -46,6 +46,7 @@ const QUICK_PICKS = [
 ];
 
 export const EasyCalcPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { user, hasAppProfile } = useAuth();
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string>('');
@@ -54,6 +55,31 @@ export const EasyCalcPage: React.FC = () => {
   const [selectedSlug, setSelectedSlug] = useState<string>('rwf-currency-converter');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // Sync selected calculator or category from URL query parameters (e.g. /calculators?calc=rwanda-vat-calculator)
+  useEffect(() => {
+    const calc = searchParams.get('calc') || searchParams.get('slug');
+    const cat = searchParams.get('cat') || searchParams.get('category');
+    const q = searchParams.get('q');
+    if (calc) {
+      const match = getCalculatorBySlug(calc);
+      if (match) {
+        setSelectedSlug(match.slug);
+      } else {
+        const found = ALL_CALCULATORS.find((c) => 
+          c.slug.toLowerCase().includes(calc.toLowerCase()) || 
+          c.name.toLowerCase().includes(calc.toLowerCase())
+        );
+        if (found) setSelectedSlug(found.slug);
+      }
+    }
+    if (cat) {
+      setActiveCategory(cat);
+    }
+    if (q) {
+      setSearchQuery(q);
+    }
+  }, [searchParams]);
 
   // Active calculator definition
   const currentCalc: CalculatorDefinition = useMemo(() => {

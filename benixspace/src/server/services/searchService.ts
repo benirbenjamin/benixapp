@@ -372,7 +372,6 @@ export class SearchService {
         });
       });
     } catch (e) {
-      // Fallback ILIKE if regex operator unsupported
       try {
         const fallbackTerm = `%${tokens[0]}%`;
         const artRes = await query(
@@ -396,55 +395,36 @@ export class SearchService {
       } catch (err2) {}
     }
 
-    // 2. Query database: tv_stations and radio_stations
+    // 2. Query database: stations (Real stations table with TV & Radio)
     try {
-      const tvRes = await query(
-        `SELECT id, name, slug, description, logo_url
-         FROM tv_stations 
-         WHERE (name ~* $1 OR description ~* $1)
-         LIMIT 8`,
+      const stRes = await query(
+        `SELECT id, name, slug, description, logo_url, station_type
+         FROM stations 
+         WHERE (name ~* $1 OR description ~* $1 OR slug ~* $1)
+         LIMIT 10`,
         [regexPattern]
       );
-      tvRes.rows.forEach((r: any) => {
+      stRes.rows.forEach((r: any) => {
+        const isTv = (r.station_type || '').toUpperCase() === 'TV';
         addResult({
-          id: 'tv-' + r.id,
-          module: 'tv',
+          id: 'st-' + r.id,
+          module: isTv ? 'tv' : 'radio',
           title: r.name,
-          description: r.description || 'Live Rwandan Television Broadcast',
-          url: `/tv?station=${r.slug}`,
+          description: r.description || (isTv ? 'Live Rwandan Television Broadcast' : 'Live FM Radio Station'),
+          url: isTv ? `/tv?station=${r.slug}` : `/radio?station=${r.slug}`,
           thumbnail: r.logo_url,
-          category: 'Live TV'
+          category: isTv ? 'Live TV' : 'Live Radio'
         });
       });
     } catch (e) {}
 
-    try {
-      const radioRes = await query(
-        `SELECT id, name, slug, description, slogan
-         FROM radio_stations 
-         WHERE (name ~* $1 OR description ~* $1 OR slogan ~* $1)
-         LIMIT 8`,
-        [regexPattern]
-      );
-      radioRes.rows.forEach((r: any) => {
-        addResult({
-          id: 'radio-' + r.id,
-          module: 'radio',
-          title: r.name,
-          description: r.description || r.slogan || 'Live FM Radio Station',
-          url: `/radio?station=${r.slug}`,
-          category: 'Live Radio'
-        });
-      });
-    } catch (e) {}
-
-    // 3. Query database: tv_videos
+    // 3. Query database: user_videos (Real videos table)
     try {
       const vidRes = await query(
-        `SELECT id, title, slug, description, thumbnail_url
-         FROM tv_videos 
+        `SELECT id, title, description, thumbnail_url, category, price
+         FROM user_videos 
          WHERE (title ~* $1 OR description ~* $1)
-         LIMIT 8`,
+         ORDER BY views DESC LIMIT 8`,
         [regexPattern]
       );
       vidRes.rows.forEach((r: any) => {
@@ -452,18 +432,18 @@ export class SearchService {
           id: 'vid-' + r.id,
           module: 'videos',
           title: r.title,
-          description: r.description || 'Benix Creator Studio Video',
-          url: `/videos/${r.slug || r.id}`,
+          description: r.description || 'BenixSpace Creator Video',
+          url: `/videos?v=${r.id}`,
           thumbnail: r.thumbnail_url,
-          category: 'Videos'
+          category: r.category || 'Videos'
         });
       });
     } catch (e) {}
 
-    // 4. Query database: mkt_products
+    // 4. Query database: mkt_products (Real marketplace products)
     try {
       const mktRes = await query(
-        `SELECT id, title, description, price
+        `SELECT id, title, description, price, category
          FROM mkt_products 
          WHERE (title ~* $1 OR description ~* $1)
          LIMIT 6`,
@@ -475,13 +455,34 @@ export class SearchService {
           module: 'marketplace',
           title: r.title,
           description: `${r.price} RWF • ${r.description || ''}`,
-          url: `/marketplace`,
-          category: 'Marketplace'
+          url: `/marketplace?q=${encodeURIComponent(r.title)}&category=${encodeURIComponent(r.category || 'all')}`,
+          category: r.category || 'Marketplace'
         });
       });
     } catch (e) {}
 
-    // 5. Query database: core_users (Creators, Verified Members)
+    // 5. Query database: voxify_songs (Real choir & artist songs)
+    try {
+      const songRes = await query(
+        `SELECT id, title, artist_name, price, category
+         FROM voxify_songs 
+         WHERE (title ~* $1 OR artist_name ~* $1)
+         LIMIT 6`,
+        [regexPattern]
+      );
+      songRes.rows.forEach((r: any) => {
+        addResult({
+          id: 'song-' + r.id,
+          module: 'music',
+          title: r.title + (r.artist_name ? ` — ${r.artist_name}` : ''),
+          description: `${r.price} RWF • Voxify Licensed Music`,
+          url: `/music?tab=marketplace&song=${r.id}`,
+          category: 'Voxify Music'
+        });
+      });
+    } catch (e) {}
+
+    // 6. Query database: core_users (Creators, Verified Members)
     try {
       const uRes = await query(
         `SELECT id, name, email, role 

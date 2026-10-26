@@ -50259,52 +50259,33 @@ var SearchService = class {
       }
     }
     try {
-      const tvRes = await query(
-        `SELECT id, name, slug, description, logo_url
-         FROM tv_stations 
-         WHERE (name ~* $1 OR description ~* $1)
-         LIMIT 8`,
+      const stRes = await query(
+        `SELECT id, name, slug, description, logo_url, station_type
+         FROM stations 
+         WHERE (name ~* $1 OR description ~* $1 OR slug ~* $1)
+         LIMIT 10`,
         [regexPattern]
       );
-      tvRes.rows.forEach((r) => {
+      stRes.rows.forEach((r) => {
+        const isTv = (r.station_type || "").toUpperCase() === "TV";
         addResult({
-          id: "tv-" + r.id,
-          module: "tv",
+          id: "st-" + r.id,
+          module: isTv ? "tv" : "radio",
           title: r.name,
-          description: r.description || "Live Rwandan Television Broadcast",
-          url: `/tv?station=${r.slug}`,
+          description: r.description || (isTv ? "Live Rwandan Television Broadcast" : "Live FM Radio Station"),
+          url: isTv ? `/tv?station=${r.slug}` : `/radio?station=${r.slug}`,
           thumbnail: r.logo_url,
-          category: "Live TV"
-        });
-      });
-    } catch (e) {
-    }
-    try {
-      const radioRes = await query(
-        `SELECT id, name, slug, description, slogan
-         FROM radio_stations 
-         WHERE (name ~* $1 OR description ~* $1 OR slogan ~* $1)
-         LIMIT 8`,
-        [regexPattern]
-      );
-      radioRes.rows.forEach((r) => {
-        addResult({
-          id: "radio-" + r.id,
-          module: "radio",
-          title: r.name,
-          description: r.description || r.slogan || "Live FM Radio Station",
-          url: `/radio?station=${r.slug}`,
-          category: "Live Radio"
+          category: isTv ? "Live TV" : "Live Radio"
         });
       });
     } catch (e) {
     }
     try {
       const vidRes = await query(
-        `SELECT id, title, slug, description, thumbnail_url
-         FROM tv_videos 
+        `SELECT id, title, description, thumbnail_url, category, price
+         FROM user_videos 
          WHERE (title ~* $1 OR description ~* $1)
-         LIMIT 8`,
+         ORDER BY views DESC LIMIT 8`,
         [regexPattern]
       );
       vidRes.rows.forEach((r) => {
@@ -50312,17 +50293,17 @@ var SearchService = class {
           id: "vid-" + r.id,
           module: "videos",
           title: r.title,
-          description: r.description || "Benix Creator Studio Video",
-          url: `/videos/${r.slug || r.id}`,
+          description: r.description || "BenixSpace Creator Video",
+          url: `/videos?v=${r.id}`,
           thumbnail: r.thumbnail_url,
-          category: "Videos"
+          category: r.category || "Videos"
         });
       });
     } catch (e) {
     }
     try {
       const mktRes = await query(
-        `SELECT id, title, description, price
+        `SELECT id, title, description, price, category
          FROM mkt_products 
          WHERE (title ~* $1 OR description ~* $1)
          LIMIT 6`,
@@ -50334,8 +50315,28 @@ var SearchService = class {
           module: "marketplace",
           title: r.title,
           description: `${r.price} RWF \u2022 ${r.description || ""}`,
-          url: `/marketplace`,
-          category: "Marketplace"
+          url: `/marketplace?q=${encodeURIComponent(r.title)}&category=${encodeURIComponent(r.category || "all")}`,
+          category: r.category || "Marketplace"
+        });
+      });
+    } catch (e) {
+    }
+    try {
+      const songRes = await query(
+        `SELECT id, title, artist_name, price, category
+         FROM voxify_songs 
+         WHERE (title ~* $1 OR artist_name ~* $1)
+         LIMIT 6`,
+        [regexPattern]
+      );
+      songRes.rows.forEach((r) => {
+        addResult({
+          id: "song-" + r.id,
+          module: "music",
+          title: r.title + (r.artist_name ? ` \u2014 ${r.artist_name}` : ""),
+          description: `${r.price} RWF \u2022 Voxify Licensed Music`,
+          url: `/music?tab=marketplace&song=${r.id}`,
+          category: "Voxify Music"
         });
       });
     } catch (e) {

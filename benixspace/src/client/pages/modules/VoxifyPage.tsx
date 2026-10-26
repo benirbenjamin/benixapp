@@ -96,7 +96,20 @@ export const VoxifyPage: React.FC = () => {
   const navigate = useNavigate();
 
   // Active Voxify Tab: 'choirs' (private workspace & SATB stems) | 'marketplace' (buy & own songs) | 'my_library'
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'choirs' | 'marketplace' | 'my_library'>('choirs');
+
+  // Sync tab or target song from search URL (e.g. /music?tab=marketplace&song=123)
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['choirs', 'marketplace', 'my_library'].includes(tab)) {
+      setActiveTab(tab as any);
+    }
+    const songId = searchParams.get('song');
+    if (songId) {
+      setActiveTab('marketplace');
+    }
+  }, [searchParams]);
   const [loading, setLoading] = useState<boolean>(true);
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);

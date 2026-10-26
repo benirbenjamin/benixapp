@@ -34,51 +34,42 @@ interface SearchItem {
 }
 
 const CLIENT_CATALOG: SearchItem[] = [
-  // Videos & Shows
+  // Videos & Shows (Connected with real video IDs from video registry)
   {
-    id: 'vid-kwetu',
+    id: 'vid-alarm-01',
     module: 'videos',
-    title: 'Kwetu Pazuri — Ambassadors of Christ Choir Live',
-    description: 'Iconic Rwandan choir performance in concert 4K.',
-    url: '/videos?v=vid-01',
+    title: 'MUNGU NI YULE YULE By Alarm Ministries (Official Video)',
+    description: 'Iconic Rwandan gospel choir performance in 4K.',
+    url: '/videos?v=w35ybfqDQUo',
     category: 'Gospel & Choirs',
-    keywords: ['ambassadors', 'choir', 'kwetu', 'pazuri', 'gospel', 'video', 'music']
+    keywords: ['alarm', 'ministries', 'mungu', 'ni', 'yule', 'gospel', 'video', 'choir']
   },
   {
-    id: 'vid-mbonyi',
+    id: 'vid-alarm-02',
     module: 'videos',
-    title: 'Israel Mbonyi — Nina Siri Live BK Arena',
-    description: 'Acoustic live praise & worship concert in Kigali.',
-    url: '/videos?v=vid-02',
+    title: 'TURAKOMEYE by Alarm Ministries (Official Video)',
+    description: 'Live praise & worship concert in Kigali.',
+    url: '/videos?v=fw_5cHYRSPU',
     category: 'Gospel & Choirs',
-    keywords: ['israel', 'mbonyi', 'nina', 'siri', 'bk arena', 'gospel', 'video']
+    keywords: ['alarm', 'ministries', 'turakomeye', 'gospel', 'video', 'music']
   },
   {
-    id: 'vid-seburikoko',
+    id: 'vid-alarm-03',
     module: 'videos',
-    title: 'Seburikoko Season 18 — Afrifame Pictures',
-    description: 'Rwanda most popular comedy series full episode.',
-    url: '/videos?v=vid-03',
-    category: 'Series & Comedy',
-    keywords: ['seburikoko', 'afrifame', 'comedy', 'series', 'film', 'video', 'nyarwanda']
+    title: 'TURAVUGA ISHIMWE RYAWE By ALARM Ministries | IWACU Filmz',
+    description: 'Praise anthem and worship video production.',
+    url: '/videos?v=WJjPXyOVElY',
+    category: 'Gospel & Choirs',
+    keywords: ['alarm', 'ishimwe', 'iwacu', 'worship', 'video']
   },
   {
-    id: 'vid-bamenya',
+    id: 'vid-alarm-04',
     module: 'videos',
-    title: 'Bamenya Series — Zacu TV',
-    description: 'City life comedy drama starring Denis Nsanzimahoro.',
-    url: '/videos?v=vid-04',
-    category: 'Series & Comedy',
-    keywords: ['bamenya', 'zacu', 'comedy', 'series', 'film', 'video']
-  },
-  {
-    id: 'vid-citymaid',
-    module: 'videos',
-    title: 'City Maid Season Finale — Zacu Entertainment',
-    description: 'Emotional drama series exploring urban youth life.',
-    url: '/videos?v=vid-05',
-    category: 'Series & Comedy',
-    keywords: ['city maid', 'citymaid', 'zacu', 'drama', 'series', 'video']
+    title: 'NZAKOMEZA NKWIZERE by Alarm Ministries (Lyrics & Audio)',
+    description: 'Traditional worship hymn with full choral arrangement.',
+    url: '/videos?v=Ef_q7XDyKU0',
+    category: 'Gospel & Choirs',
+    keywords: ['alarm', 'nzakomeza', 'nkwizere', 'lyrics', 'choir', 'video']
   },
 
   // TV Channels
@@ -170,7 +161,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'radio',
     title: 'Flash FM 89.2 Kigali',
     description: 'Live urban radio hits, sports, and entertainment.',
-    url: '/radio?station=flash-fm-rwanda',
+    url: '/radio?station=flash-fm',
     category: 'Live Radio',
     keywords: ['flash', 'flash fm', '89.2', 'radio', 'fm']
   },
@@ -188,7 +179,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'radio',
     title: 'Royal FM 94.3 Kigali',
     description: 'Connecting Kigali with English & Kinyarwanda shows.',
-    url: '/radio?station=royal-fm-943',
+    url: '/radio?station=royal-fm',
     category: 'Live Radio',
     keywords: ['royal', 'royal fm', '94.3', 'radio', 'fm']
   },
@@ -197,7 +188,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'radio',
     title: 'Radio Isango Star 91.5 FM',
     description: 'Trustworthy source of information and entertainment.',
-    url: '/radio?station=isango-star-radio',
+    url: '/radio?station=isango-star',
     category: 'Live Radio',
     keywords: ['isango', 'isango star', '91.5', 'radio', 'fm']
   },
@@ -211,13 +202,13 @@ const CLIENT_CATALOG: SearchItem[] = [
     keywords: ['kt radio', 'kt', 'kigali today', '96.7', 'radio', 'fm']
   },
 
-  // Marketplace Products
+  // Marketplace Products & Services
   {
     id: 'mp-app-template',
     module: 'marketplace',
     title: 'Modern Super-App React & Vite Template',
     description: 'Production-ready starter repository with Tailwind CSS & DB.',
-    url: '/marketplace',
+    url: '/marketplace?category=Software%20%26%20Code',
     category: 'Software & Code',
     keywords: ['template', 'react', 'vite', 'software', 'code', 'marketplace', 'shop']
   },
@@ -226,7 +217,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'marketplace',
     title: 'Rwandan High-Resolution UI Kit',
     description: 'Figma component library tailored for East African apps.',
-    url: '/marketplace',
+    url: '/marketplace?category=Design%20%26%20Graphics',
     category: 'Design & Graphics',
     keywords: ['figma', 'ui kit', 'design', 'graphics', 'marketplace', 'shop']
   },
@@ -235,7 +226,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'marketplace',
     title: 'Full-Stack Web App Development (1 Week Sprint)',
     description: 'Custom React & Node.js development service delivered with tested APIs.',
-    url: '/marketplace',
+    url: '/marketplace?category=Services%20%26%20Freelance',
     category: 'Tech Services',
     keywords: ['developer', 'freelance', 'development', 'software', 'services', 'marketplace']
   },
@@ -244,7 +235,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'marketplace',
     title: 'Professional Audio Mixing & Gospel Mastering',
     description: 'Studio acoustic master for choir performances and vocal tracks.',
-    url: '/marketplace',
+    url: '/marketplace?category=Creative%20%26%20Audio',
     category: 'Creative Audio',
     keywords: ['audio', 'mixing', 'mastering', 'studio', 'music', 'marketplace']
   },
@@ -253,36 +244,63 @@ const CLIENT_CATALOG: SearchItem[] = [
     module: 'marketplace',
     title: 'Rwanda Small Business Tax & Accounting Toolkit',
     description: 'PAYE payroll, VAT declaration, and cash flow spreadsheet models.',
-    url: '/marketplace',
+    url: '/marketplace?category=Business%20%26%20Finance',
     category: 'Business Tools',
     keywords: ['tax', 'accounting', 'vat', 'paye', 'excel', 'finance', 'marketplace']
   },
 
-  // Calculators
-  {
-    id: 'calc-loan',
-    module: 'calc',
-    title: 'Rwanda Loan & Mortgage Calculator',
-    description: 'Calculate monthly payments, interest amortization, and total cost.',
-    url: '/calculators?cat=finance',
-    category: 'Financial Calculator',
-    keywords: ['loan', 'mortgage', 'interest', 'bank', 'calc', 'calculator']
-  },
+  // Calculators (Exact Slugs)
   {
     id: 'calc-vat',
     module: 'calc',
     title: 'Rwanda 18% VAT & Tax Calculator',
     description: 'Compute inclusive and exclusive Value Added Tax.',
-    url: '/calculators?cat=business',
+    url: '/calculators?calc=rwanda-vat-calculator',
     category: 'Tax Calculator',
     keywords: ['vat', 'tax', '18%', 'rra', 'calculator', 'calc']
+  },
+  {
+    id: 'calc-paye',
+    module: 'calc',
+    title: 'Rwanda PAYE Salary & Net Income Tax Calculator',
+    description: 'Compute gross-to-net salary with CSR, maternity, and RSSB deductions.',
+    url: '/calculators?calc=rwanda-paye-calculator',
+    category: 'Tax Calculator',
+    keywords: ['paye', 'salary', 'tax', 'net', 'gross', 'rssb', 'calculator']
+  },
+  {
+    id: 'calc-loan',
+    module: 'calc',
+    title: 'Rwanda Personal Loan & EMI Calculator',
+    description: 'Calculate monthly payments, interest amortization, and total cost.',
+    url: '/calculators?calc=loan-calculator',
+    category: 'Financial Calculator',
+    keywords: ['loan', 'interest', 'bank', 'calc', 'calculator', 'emi']
+  },
+  {
+    id: 'calc-mortgage',
+    module: 'calc',
+    title: 'Mortgage Home Loan & Property Calculator',
+    description: 'Property down payments, tenure, and monthly installment estimates.',
+    url: '/calculators?calc=mortgage-calculator',
+    category: 'Financial Calculator',
+    keywords: ['mortgage', 'home', 'property', 'house', 'loan', 'calculator']
+  },
+  {
+    id: 'calc-currency',
+    module: 'calc',
+    title: 'RWF Rwandan Franc Currency Converter',
+    description: 'Live exchange rates against USD, EUR, GBP, KES, and UGX.',
+    url: '/calculators?calc=rwf-currency-converter',
+    category: 'Currency Calculator',
+    keywords: ['currency', 'exchange', 'usd', 'rwf', 'converter', 'rate']
   },
   {
     id: 'calc-bmi',
     module: 'calc',
     title: 'BMI Body Mass Index & Health Calculator',
     description: 'Check healthy weight ranges, body metrics, and caloric targets.',
-    url: '/calculators?cat=health',
+    url: '/calculators?calc=bmi-calculator',
     category: 'Health Calculator',
     keywords: ['bmi', 'health', 'weight', 'calculator', 'calc']
   },
@@ -300,13 +318,22 @@ const CLIENT_CATALOG: SearchItem[] = [
 
   // Voxify Music
   {
-    id: 'voxify-music',
+    id: 'voxify-choirs',
     module: 'music',
-    title: 'Voxify Gospel & East African Choir Hub',
-    description: 'Stream traditional choirs, praise hymns, and sacred tracks.',
-    url: '/music',
+    title: 'Voxify Choirs & Private Stem Practice',
+    description: 'Access SATB stems, rehearsals, and Sunday-ready readiness.',
+    url: '/music?tab=choirs',
     category: 'Music & Audio',
-    keywords: ['music', 'voxify', 'songs', 'choir', 'hymns', 'audio']
+    keywords: ['choir', 'stems', 'soprano', 'alto', 'tenor', 'bass', 'voxify', 'rehearsal']
+  },
+  {
+    id: 'voxify-marketplace',
+    module: 'music',
+    title: 'Voxify Song Ownership & Digital Licenses',
+    description: 'Buy exclusive song rights or digital copies directly from composers.',
+    url: '/music?tab=marketplace',
+    category: 'Music & Audio',
+    keywords: ['music', 'buy song', 'license', 'ownership', 'composer', 'audio', 'songs']
   },
 
   // Kunda Space
@@ -314,7 +341,7 @@ const CLIENT_CATALOG: SearchItem[] = [
     id: 'kunda-space',
     module: 'dating',
     title: 'Kunda Space Verified Rwandan Matchmaking',
-    description: 'Find authentic local connections, chat, and date safely.',
+    description: 'Find authentic local connections, matched compatibility, and date safely.',
     url: '/dating',
     category: 'Dating & Social',
     keywords: ['kunda', 'dating', 'love', 'match', 'chat', 'friends', 'social']
@@ -324,9 +351,9 @@ const CLIENT_CATALOG: SearchItem[] = [
   {
     id: 'central-wallet',
     module: 'wallet',
-    title: 'Central Multi-Currency Wallet & Bonus Account',
-    description: 'View real balance, claim daily 200 RWF login bonus, deposit & withdraw.',
-    url: '/dashboard',
+    title: 'Central Multi-Currency Wallet & Ledger',
+    description: 'Manage real balance, view full transaction history, deposit & withdraw.',
+    url: '/dashboard?tab=wallet',
     category: 'Finance & Wallet',
     keywords: ['wallet', 'money', 'balance', 'bonus', 'deposit', 'withdraw', 'transfer', 'rwf']
   }
@@ -400,11 +427,27 @@ export const SearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
     return list;
   }, [clientFilteredResults, apiResults]);
 
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSelect = (url: string) => {
     onClose();
-    navigate(url);
+    if (!url) return;
+    if (url.startsWith('http')) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      navigate(url);
+    }
   };
 
   const getModuleIcon = (mod: string) => {
@@ -436,9 +479,10 @@ export const SearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
     <div
       role="dialog"
       aria-modal="true"
+      onClick={onClose}
       className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
     >
-      <div className="bg-[#121824] rounded-3xl shadow-2xl border border-slate-700/80 w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh] text-slate-100">
+      <div onClick={(e) => e.stopPropagation()} className="bg-[#121824] rounded-3xl shadow-2xl border border-slate-700/80 w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh] text-slate-100">
         
         {/* Search Input Bar */}
         <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-[#151D2C]">

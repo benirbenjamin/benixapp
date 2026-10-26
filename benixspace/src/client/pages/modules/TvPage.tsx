@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
 import { fetchTvStations, type Station } from '../../services/mediaService';
@@ -39,6 +39,7 @@ export const TvPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, hasAppProfile } = useAuth();
   const { activeTvStation, playTv } = usePlayer();
+  const [searchParams] = useSearchParams();
 
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,6 +56,23 @@ export const TvPage: React.FC = () => {
       return [];
     }
   });
+
+  // Open & play specific TV station if passed in search URL (e.g. /tv?station=kc2)
+  useEffect(() => {
+    const targetSlug = searchParams.get('station');
+    if (targetSlug && stations.length > 0) {
+      const match = stations.find(
+        (s) =>
+          s.slug.toLowerCase() === targetSlug.toLowerCase() ||
+          s.id.toLowerCase() === targetSlug.toLowerCase() ||
+          s.name.toLowerCase().includes(targetSlug.toLowerCase())
+      );
+      if (match) {
+        playTv(match);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [searchParams, stations, playTv]);
 
   useEffect(() => {
     async function load() {

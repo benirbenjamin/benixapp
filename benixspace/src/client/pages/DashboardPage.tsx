@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme, ThemeMode, AccentColor } from '../context/ThemeContext';
@@ -58,7 +58,19 @@ export const DashboardPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
   const { mode, accent, setMode, setAccent } = useTheme();
 
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads'>('overview');
+
+  // React to hash (e.g. #wallet) or query param (e.g. ?tab=wallet)
+  useEffect(() => {
+    const hash = (location.hash || '').replace('#', '').toLowerCase();
+    const tabParam = (searchParams.get('tab') || '').toLowerCase();
+    const candidate = hash || tabParam;
+    if (['wallet', 'overview', 'customizer', 'referrals', 'security', 'ads'].includes(candidate)) {
+      setActiveTab(candidate as any);
+    }
+  }, [location.hash, searchParams]);
   const [showSubmitAdModal, setShowSubmitAdModal] = useState(false);
   const [userCampaigns, setUserCampaigns] = useState<any[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
