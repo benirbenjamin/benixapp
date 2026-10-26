@@ -112,13 +112,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (res.data?.user) {
         let cachedAppProfiles = {};
+        let cachedAvatar = '';
         try {
           const savedUser = JSON.parse(localStorage.getItem('benix_user') || '{}');
           if (savedUser.app_profiles) cachedAppProfiles = savedUser.app_profiles;
+          if (savedUser.avatar_url) cachedAvatar = savedUser.avatar_url;
         } catch {}
 
+        const savedAvatar = localStorage.getItem('benix_avatar') || '';
         const mergedUser = {
           ...res.data.user,
+          avatar_url: res.data.user.avatar_url || savedAvatar || cachedAvatar || undefined,
           app_profiles: {
             ...cachedAppProfiles,
             ...(res.data.user.app_profiles || {})
@@ -167,12 +171,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             if (res.data?.user) {
               let cachedProfiles = {};
+              let cachedAvatar = '';
               try {
                 const s = JSON.parse(localStorage.getItem('benix_user') || '{}');
                 if (s.app_profiles) cachedProfiles = s.app_profiles;
+                if (s.avatar_url) cachedAvatar = s.avatar_url;
               } catch {}
+              const savedLocalAvatar = localStorage.getItem('benix_avatar') || '';
               const merged = {
                 ...res.data.user,
+                avatar_url: res.data.user.avatar_url || savedLocalAvatar || cachedAvatar || undefined,
                 app_profiles: {
                   ...cachedProfiles,
                   ...(res.data.user.app_profiles || {})
@@ -539,6 +547,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
       if (res.data?.success && res.data?.user) {
+        if (res.data.user.avatar_url) {
+          localStorage.setItem('benix_avatar', res.data.user.avatar_url);
+        }
         setUser((prev) => (prev ? { ...prev, ...res.data.user } : res.data.user));
         localStorage.setItem('benix_user', JSON.stringify({ ...user, ...res.data.user }));
         return { success: true };
@@ -555,9 +566,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
       if (res.data?.success) {
+        const finalUrl = res.data.avatar_url || avatarUrl;
+        localStorage.setItem('benix_avatar', finalUrl);
         setUser((prev) => {
           if (!prev) return prev;
-          const updated = { ...prev, avatar_url: avatarUrl };
+          const updated = { ...prev, avatar_url: finalUrl };
           localStorage.setItem('benix_user', JSON.stringify(updated));
           return updated;
         });

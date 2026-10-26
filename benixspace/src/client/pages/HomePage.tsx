@@ -50,7 +50,10 @@ import {
   RadioTower,
   Eye,
   SlidersHorizontal,
-  ExternalLink
+  ExternalLink,
+  Crown,
+  Lock,
+  Disc
 } from 'lucide-react';
 
 // Lightweight Viewport Lazy Loader component for instant initial page paint (<100ms)
@@ -1456,6 +1459,114 @@ export const HomePage: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+        </section>
+        </LazyViewport>
+
+        {/* ========================================================
+        {/* ========================================================
+            8.5 ORIGINAL SONGS TO BUY & OWN (VOXIFY MARKETPLACE)
+           ======================================================== */}
+        <LazyViewport minHeight="300px">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                  <span>Original Songs to Buy & Own</span>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    EXCLUSIVE LICENSES
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Own exclusive master copyrights and licensed choral arrangements directly from Rwandan composers.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/voxify"
+              className="text-xs font-bold text-amber-400 hover:text-amber-300 inline-flex items-center gap-1"
+            >
+              <span>Explore All Songs in Voxify</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              {
+                id: 'song-01',
+                title: 'Umunsi Mukuru (Easter Choral Anthem)',
+                composer: 'Chorale de Kigali Masters',
+                price: 25000,
+                type: 'exclusive',
+                lyrics: 'Verse 1: Umunsi mukuru urageze, abatunganye bose nibishime...',
+                image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80'
+              },
+              {
+                id: 'song-02',
+                title: 'Nzahora Nshima (Acoustic Choral Score)',
+                composer: 'Gakwaya Innocent & St. Paul Choir',
+                price: 15000,
+                type: 'digital_copy',
+                lyrics: 'Verse 1: Nzahora nshima Nyagasani ibihe byose, ishimwe rye...',
+                image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80'
+              },
+              {
+                id: 'song-03',
+                title: 'Imana Ni Urukundo (Sacred SATB Full Stem)',
+                composer: 'Kigali Choral Fellowship',
+                price: 45000,
+                type: 'exclusive',
+                lyrics: 'Verse 1: Imana ni urukundo ruzira icyasha, urukundo ruhebuje...',
+                image: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=600&q=80'
+              }
+            ].map((s) => (
+              <div
+                key={s.id}
+                className="p-5 rounded-3xl bg-[#121824] border border-slate-800 hover:border-amber-500/40 space-y-4 flex flex-col justify-between transition-all hover:scale-[1.01] shadow-lg"
+              >
+                <div className="space-y-3">
+                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-slate-800">
+                    <img src={s.image} alt={s.title} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1">
+                        <Crown className="w-3 h-3" />
+                        {s.type === 'exclusive' ? 'Exclusive Ownership' : 'Digital License'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-white text-sm line-clamp-1">{s.title}</h3>
+                    <p className="text-[11px] text-slate-400">By {s.composer}</p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300 italic line-clamp-2">
+                    "{s.lyrics}"
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-base font-black text-emerald-400">{s.price.toLocaleString()}</span>{' '}
+                    <span className="text-[10px] text-slate-400">RWF</span>
+                  </div>
+
+                  <Link
+                    to="/voxify"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition active:scale-95"
+                  >
+                    <span>Buy & Own</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
         </LazyViewport>

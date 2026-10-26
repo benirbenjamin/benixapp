@@ -34,13 +34,20 @@ interface MarketItem {
   title: string;
   description: string;
   price: number;
+  oldPrice?: number;
   category: string;
   seller: string;
+  sellerId?: string;
   rating: number;
   downloads: number;
   badge?: string;
   image_url?: string;
+  imageUrl?: string;
+  gallery_urls?: string[];
+  isNewArrival?: boolean;
   commission_pct?: number;
+  listingType?: 'product' | 'service';
+  priceRange?: string;
 }
 
 const CATEGORIES = [
@@ -66,11 +73,18 @@ export const MarketplacePage: React.FC = () => {
 
   // Sell Item Modal State
   const [showSellModal, setShowSellModal] = useState<boolean>(false);
+  const [listingType, setListingType] = useState<'product' | 'service'>('product');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [newPrice, setNewPrice] = useState<number | string>(10000);
+  const [newPrice, setNewPrice] = useState<number | string>(15000);
+  const [newOldPrice, setNewOldPrice] = useState<number | string>(20000);
   const [newCategory, setNewCategory] = useState('Software & Code');
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [newGalleryUrls, setNewGalleryUrls] = useState('');
+  const [isNewArrival, setIsNewArrival] = useState(true);
+  const [affiliateCommissionPct, setAffiliateCommissionPct] = useState<number>(10);
+  const [servicePriceRange, setServicePriceRange] = useState('50,000 - 150,000 RWF');
+  const [isNegotiable, setIsNegotiable] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchItems = () => {
@@ -154,15 +168,26 @@ export const MarketplacePage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const token = getAuthToken();
+      const galleryList = newGalleryUrls
+        .split(',')
+        .map((u) => u.trim())
+        .filter((u) => u.startsWith('http'));
+
       const res = await axios.post(
-        '/api/modules/marketplace/items',
+        '/api/modules/marketplace/publish',
         {
+          type: listingType,
           title: newTitle.trim(),
           description: newDescription.trim(),
-          price: Number(newPrice) || 0,
+          price: listingType === 'service' ? (isNegotiable ? 0 : Number(newPrice) || 0) : Number(newPrice) || 0,
+          oldPrice: listingType === 'product' && Number(newOldPrice) > Number(newPrice) ? Number(newOldPrice) : undefined,
           category: newCategory,
-          imageUrl: newImageUrl.trim() || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
-          commissionPct: 10
+          featuredImage: newImageUrl.trim() || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
+          galleryImages: galleryList,
+          isNewArrival: listingType === 'product' ? isNewArrival : false,
+          affiliateCommissionPct: Number(affiliateCommissionPct) || 10,
+          priceRange: listingType === 'service' ? (isNegotiable ? 'Negotiable' : servicePriceRange) : undefined,
+          isNegotiable
         },
         { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
       );
@@ -367,18 +392,36 @@ export const MarketplacePage: React.FC = () => {
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="group rounded-3xl bg-[#131926] border border-slate-800/80 hover:border-emerald-500/50 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-950/20 flex flex-col justify-between"
+                className="group rounded-3xl bg-[#131926] border border-slate-800/80 hover:border-emerald-500/50 p-5 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-950/20 flex flex-col justify-between"
               >
                 <div>
-                  {/* Top Badges */}
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {item.category}
-                    </span>
+                  {/* Item Image with Badges */}
+                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-black mb-4">
+                    <img
+                      src={item.imageUrl || item.image_url || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80'}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/75 backdrop-blur-sm text-emerald-400 border border-emerald-500/30">
+                        {item.category}
+                      </span>
+                      {item.listingType === 'service' && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-md">
+                          Service
+                        </span>
+                      )}
+                      {(item.isNewArrival || item.badge === 'New Arrival') && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md">
+                          ✨ New Arrival
+                        </span>
+                      )}
+                    </div>
 
-                    {item.badge && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow-md">
-                        {item.badge}
+                    {/* Auto Discount Badge */}
+                    {item.oldPrice && item.oldPrice > item.price && (
+                      <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg text-[10px] font-black bg-rose-600 text-white shadow-lg shadow-rose-600/30">
+                        -{Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100)}% OFF
                       </span>
                     )}
                   </div>
@@ -387,12 +430,12 @@ export const MarketplacePage: React.FC = () => {
                     {item.title}
                   </h3>
 
-                  <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
+                  <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
                     {item.description}
                   </p>
 
-                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="font-semibold text-slate-300">{item.seller}</span>
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-300 truncate max-w-[140px]">{item.seller}</span>
                     <div className="flex items-center gap-1 text-amber-400 font-bold">
                       <Star className="w-3.5 h-3.5 fill-amber-400" />
                       <span>{item.rating || 5.0}</span>
@@ -400,31 +443,55 @@ export const MarketplacePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Bottom Price & Purchase */}
-                <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between">
+                {/* Bottom Price & Purchase or Book Service */}
+                <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Price</span>
-                    <span className="text-xl font-black text-white">
-                      {(item.price || 0).toLocaleString()} <span className="text-xs text-emerald-400 font-bold">RWF</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                      {item.listingType === 'service' ? 'Service Rate' : 'Price'}
                     </span>
+                    {item.listingType === 'service' ? (
+                      <span className="text-sm font-black text-white">
+                        {item.priceRange || (item.price ? `${item.price.toLocaleString()} RWF` : 'Negotiable')}
+                      </span>
+                    ) : (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-lg font-black text-white">
+                          {(item.price || 0).toLocaleString()} <span className="text-xs text-emerald-400 font-bold">RWF</span>
+                        </span>
+                        {item.oldPrice && item.oldPrice > item.price && (
+                          <span className="text-xs text-slate-500 line-through">
+                            {item.oldPrice.toLocaleString()} RWF
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShareProduct(item)}
                       className="p-2.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-300 transition-colors"
-                      title="Share & Earn 10% Affiliate Commission"
+                      title="Share & Earn Affiliate Commission"
                     >
                       <Share2 className="w-4 h-4" />
                     </button>
 
-                    <button
-                      onClick={() => handleProtectedAction(item)}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      Buy Now
-                    </button>
+                    {item.listingType === 'service' ? (
+                      <Link
+                        to={`/messages?chatWith=${encodeURIComponent(item.sellerId || item.seller)}&topic=${encodeURIComponent(`Service: ${item.title}`)}`}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5"
+                      >
+                        Book & Deal
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => handleProtectedAction(item)}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        Buy Now
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

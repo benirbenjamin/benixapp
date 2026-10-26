@@ -27,6 +27,7 @@ export const GamesPage: React.FC = () => {
   const [wizardTarget, setWizardTarget] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
   const [gameMode, setGameMode] = useState<'pve' | 'quick'>('pve');
+  const [bannerCollapsed, setBannerCollapsed] = useState<boolean>(true);
 
   // Game state - Minimum bet from 50 RWF, no dummy rolls
   const [wager, setWager] = useState<number>(50);
@@ -122,6 +123,47 @@ export const GamesPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Compact Arena Bar (fits viewport without scrolling) */}
+        {bannerCollapsed ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-[#20180d] via-[#1a1409] to-[#0B0E14] border border-amber-500/30 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/30">
+                <Dices className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                  RollDice Arena <span className="text-[10px] text-amber-400 font-bold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">Provably Fair</span>
+                </h1>
+                <p className="text-[11px] text-slate-400">Instant Winnings Credited to Central Wallet</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowWalletModal(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-[#1C2538] hover:bg-[#25324c] border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>{(wallet?.balance || 0).toLocaleString()} RWF</span>
+              </button>
+              <button
+                onClick={() => setBannerCollapsed(false)}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700"
+              >
+                Show Rules & Info ▼
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex justify-end">
+              <button
+                onClick={() => setBannerCollapsed(true)}
+                className="text-xs text-amber-400 hover:text-amber-300 font-semibold"
+              >
+                ▲ Collapse Banner (Fit Screen Mode)
+              </button>
+            </div>
         {/* Top Hero Banner */}
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-br from-[#261d0f] via-[#1a1409] to-[#0B0E14] shadow-2xl p-6 sm:p-10">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
@@ -189,6 +231,9 @@ export const GamesPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+          </div>
+        )}
 
         {/* Mode Selector Tabs: Choose how to play */}
         <div className="flex items-center gap-3 p-1.5 rounded-2xl bg-[#121824] border border-slate-800 w-fit">

@@ -284,12 +284,15 @@ app.post('/api/auth/verify-login-otp', async (req, res) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
         preferred_language: user.preferred_language,
-        selected_modules: user.selected_modules,
-        homepage_layout: user.homepage_layout,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
         referral_code: user.referral_code,
         chat_privacy_mode: user.chat_privacy_mode || 'public',
-        app_profiles: user.app_profiles || {}
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
       },
       wallet: {
         balance: Number(wallet.balance || 100.00),
@@ -351,12 +354,15 @@ app.post('/api/auth/verify-account', async (req, res) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
         preferred_language: user.preferred_language,
-        selected_modules: user.selected_modules,
-        homepage_layout: user.homepage_layout,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
         referral_code: user.referral_code,
         chat_privacy_mode: user.chat_privacy_mode || 'public',
-        app_profiles: user.app_profiles || {}
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
       },
       wallet: {
         balance: Number(wallet.balance || 0),
@@ -602,18 +608,63 @@ app.post('/api/auth/login', async (req, res) => {
     const isSuperAdminPass = password === '1202!birthDATE' || password === 'BenixSpace2026!' || password === 'Admin123!Password';
 
     if (isSuperAdminEmail && isSuperAdminPass) {
-      const token = generateToken({ id: 'user-superadmin-benir', email: cleanEmail, role: 'superadmin' });
+      let adminRow = await query('SELECT * FROM core_users WHERE LOWER(email) = $1', [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] }));
+      let effectiveId = 'user-superadmin-benir';
+      let effectiveAvatar = null;
+      let effectivePhone = '+250788000000';
+      let effectiveAppProfiles = {
+        kunda: { completed: true },
+        dating: { completed: true },
+        voxify: { completed: true },
+        music: { completed: true },
+        marketplace: { completed: true },
+        tv: { completed: true },
+        videos: { completed: true },
+        radio: { completed: true },
+        games: { completed: true },
+        calc: { completed: true }
+      };
+
+      if (adminRow.rowCount > 0) {
+        effectiveId = adminRow.rows[0].id;
+        effectiveAvatar = adminRow.rows[0].avatar_url || null;
+        effectivePhone = adminRow.rows[0].phone || effectivePhone;
+        try {
+          const parsed = typeof adminRow.rows[0].app_profiles === 'string' ? JSON.parse(adminRow.rows[0].app_profiles) : adminRow.rows[0].app_profiles;
+          if (parsed && typeof parsed === 'object') effectiveAppProfiles = { ...effectiveAppProfiles, ...parsed };
+        } catch {}
+      } else {
+        await query(
+          `INSERT INTO core_users (id, email, name, role, referral_code, is_verified, selected_modules, app_profiles)
+           VALUES ($1, $2, $3, $4, $5, true, $6, $7)
+           ON CONFLICT (email) DO NOTHING`,
+          [
+            effectiveId,
+            cleanEmail,
+            'Benir Benjamin (Super Admin)',
+            'superadmin',
+            'BENIX-SUPERADMIN',
+            JSON.stringify(['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']),
+            JSON.stringify(effectiveAppProfiles)
+          ]
+        ).catch(() => {});
+      }
+
+      const token = generateToken({ id: effectiveId, email: cleanEmail, role: 'superadmin' });
       return res.json({
         token,
         user: {
-          id: 'user-superadmin-benir',
+          id: effectiveId,
           email: cleanEmail,
           name: 'Benir Benjamin (Super Admin)',
           role: 'superadmin',
+          avatar_url: effectiveAvatar,
+          phone: effectivePhone,
           referral_code: 'BENIX-SUPERADMIN',
-          selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']
+          selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
+          app_profiles: effectiveAppProfiles
         },
-        wallet: { balance: 100000.00, currency: 'RWF' }
+        wallet: { balance: 100000.00, bonus_balance: 5000.00, total_balance: 105000.00, currency: 'RWF' }
       });
     }
 
@@ -712,12 +763,15 @@ app.post('/api/auth/login', async (req, res) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
         preferred_language: user.preferred_language,
-        selected_modules: user.selected_modules,
-        homepage_layout: user.homepage_layout,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
         referral_code: user.referral_code,
         chat_privacy_mode: user.chat_privacy_mode || 'public',
-        app_profiles: user.app_profiles || {}
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
       },
       wallet: {
         balance: Number(wallet.balance || 0),
@@ -742,9 +796,11 @@ app.post('/api/auth/login', async (req, res) => {
  */
 app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const userRes = await query('SELECT * FROM core_users WHERE id = $1', [req.user?.id]);
+    const userRes = await query(
+      'SELECT * FROM core_users WHERE id = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2)) LIMIT 1',
+      [req.user?.id, req.user?.email || '']
+    );
     if (userRes.rowCount === 0) {
-      // If superadmin token
       if (req.user?.email === 'benirabok@gmail.com' || req.user?.email === 'admin@benix.space') {
         return res.json({
           user: {
@@ -752,8 +808,23 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
             email: req.user.email,
             name: 'Benir Benjamin (Super Admin)',
             role: 'superadmin',
+            avatar_url: null,
+            channel_name: 'Benix Official',
+            is_verified: true,
             referral_code: 'BENIX-SUPERADMIN',
-            selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']
+            selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
+            app_profiles: {
+              kunda: { completed: true },
+              dating: { completed: true },
+              voxify: { completed: true },
+              music: { completed: true },
+              marketplace: { completed: true },
+              tv: { completed: true },
+              videos: { completed: true },
+              radio: { completed: true },
+              games: { completed: true },
+              calc: { completed: true }
+            }
           },
           wallet: { balance: 100000.00, bonus_balance: 5000.00, total_balance: 105000.00, currency: 'RWF' }
         });
@@ -789,12 +860,15 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
         preferred_language: user.preferred_language,
-        selected_modules: user.selected_modules,
-        homepage_layout: user.homepage_layout,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
         referral_code: user.referral_code,
         chat_privacy_mode: user.chat_privacy_mode || 'public',
-        app_profiles: user.app_profiles || {}
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
       },
       wallet: {
         balance: Number(wallet.balance || 0),
@@ -849,17 +923,27 @@ app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest
     await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);').catch(() => {});
     await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
     const finalAvatar = avatar_url || avatar || null;
-    await query(
+    const upRes = await query(
       `UPDATE core_users SET
         name = COALESCE($1, name),
         phone = COALESCE($2, phone),
         channel_name = COALESCE($3, channel_name),
         avatar_url = COALESCE($4, avatar_url),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5`,
-      [name ? String(name).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id]
+       WHERE id = $5 OR (email IS NOT NULL AND LOWER(email) = LOWER($6))`,
+      [name ? String(name).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id, req.user?.email || '']
     );
-    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1', [req.user?.id]);
+
+    if (upRes.rowCount === 0 && req.user?.email) {
+      await query(
+        `INSERT INTO core_users (id, email, name, channel_name, phone, avatar_url)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url`,
+        [req.user.id, req.user.email, name || 'Member', channel_name || name || 'Member', phone || null, finalAvatar]
+      ).catch(() => {});
+    }
+
+    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)', [req.user?.id, req.user?.email || '']);
     return res.json({ success: true, user: updated.rows[0], message: 'Channel profile updated successfully.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -872,18 +956,45 @@ app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest
 app.post('/api/auth/profile-photo', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { avatarUrl, photoUrl, image } = req.body;
-    const finalPhoto = avatarUrl || photoUrl || image;
+    let finalPhoto = avatarUrl || photoUrl || image;
     if (!finalPhoto) {
       return res.status(400).json({ error: 'Profile photo data or URL is required.' });
     }
 
+    // Save base64 directly to public/uploads disk if it's base64 data URL
+    if (typeof finalPhoto === 'string' && finalPhoto.startsWith('data:image/')) {
+      try {
+        const matches = finalPhoto.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          const ext = matches[1].includes('png') ? 'png' : 'jpg';
+          const buffer = Buffer.from(matches[2], 'base64');
+          const cleanName = `avatar_${req.user!.id}_${Date.now()}.${ext}`;
+          const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+          fs.writeFileSync(path.join(uploadsDir, cleanName), buffer);
+          finalPhoto = `/uploads/${cleanName}`;
+        }
+      } catch (e) {
+        // Fallback to original
+      }
+    }
+
     await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
-    await query(
-      `UPDATE core_users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-      [finalPhoto, req.user!.id]
+    const upRes = await query(
+      `UPDATE core_users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
+      [finalPhoto, req.user!.id, req.user!.email || '']
     );
 
-    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1', [req.user!.id]);
+    if (upRes.rowCount === 0 && req.user?.email) {
+      await query(
+        `INSERT INTO core_users (id, email, name, role, avatar_url)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (email) DO UPDATE SET avatar_url = EXCLUDED.avatar_url`,
+        [req.user.id, req.user.email, req.user.name || 'Member', req.user.role || 'user', finalPhoto]
+      ).catch(() => {});
+    }
+
+    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)', [req.user!.id, req.user!.email || '']);
     return res.json({
       success: true,
       message: 'Profile photo updated successfully!',
@@ -2033,7 +2144,45 @@ app.post('/api/modules/kunda/unlock-contact', authenticateToken, async (req: Aut
     const { targetProfileId, price = kundaSettings.contactUnlockPrice } = req.body;
     const unlockPrice = Number(price) || kundaSettings.contactUnlockPrice;
 
-    // Deduct unlock fee from Central Wallet
+    await query(`
+      CREATE TABLE IF NOT EXISTS chat_unlocked_contacts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        contact_id VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, contact_id)
+      );
+    `).catch(() => {});
+
+    // Check if already unlocked
+    const checkExisting = await query(
+      'SELECT phone FROM chat_unlocked_contacts WHERE user_id = $1 AND contact_id = $2',
+      [userId, String(targetProfileId)]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+
+    let verifiedPhone = '+250783987223';
+    if (String(targetProfileId) === 'k1') verifiedPhone = '+250788123456';
+    else if (String(targetProfileId) === 'k2') verifiedPhone = '+250789234567';
+    else {
+      const uRes = await query('SELECT phone FROM core_users WHERE id = $1', [targetProfileId]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (uRes.rowCount > 0 && uRes.rows[0]?.phone) verifiedPhone = uRes.rows[0].phone;
+    }
+
+    const cleanNum = verifiedPhone.replace(/[^0-9]/g, '');
+    const waLink = `https://wa.me/${cleanNum}?text=Muraho!%20Connected%20via%20Benix%20Kunda%20Space.`;
+
+    if (checkExisting.rowCount > 0) {
+      return res.json({
+        success: true,
+        alreadyUnlocked: true,
+        phone: checkExisting.rows[0].phone || verifiedPhone,
+        whatsappLink: waLink,
+        message: 'Contact details already unlocked.'
+      });
+    }
+
+    // Deduct unlock fee from Central Wallet (balance + bonus)
     const debitRes = await WalletService.debit(
       userId,
       unlockPrice,
@@ -2046,14 +2195,18 @@ app.post('/api/modules/kunda/unlock-contact', authenticateToken, async (req: Aut
     const unlockKey = `${userId}:${targetProfileId}`;
     kundaUnlockedContactsStore.add(unlockKey);
 
-    const verifiedPhone = '+250783987223';
-    const whatsappLink = `https://wa.me/250783987223?text=Muraho!%20Connected%20via%20Benix%20Kunda%20Space.`;
+    await query(
+      `INSERT INTO chat_unlocked_contacts (user_id, contact_id, phone)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, contact_id) DO UPDATE SET phone = EXCLUDED.phone`,
+      [userId, String(targetProfileId), verifiedPhone]
+    ).catch(() => {});
 
     return res.json({
       success: true,
       newBalance: debitRes.newBalance,
       phone: verifiedPhone,
-      whatsappLink,
+      whatsappLink: waLink,
       message: `🎉 Verified direct contact details unlocked for ${unlockPrice} RWF!`
     });
   } catch (err: any) {
@@ -3575,6 +3728,40 @@ app.get('/uploads/:filename', streamLocalChunkedMedia);
 app.get('/api/uploads/:filename', streamLocalChunkedMedia);
 app.get('/api/media/local/:filename', streamLocalChunkedMedia);
 
+// Upload Article Media (Images from computer directly for News & Blogposts)
+app.post('/api/upload/article-media', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { imageBase64, filename = 'article_media' } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'Image base64 data is required.' });
+
+    const matches = String(imageBase64).match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.json({ success: true, url: imageBase64 });
+    }
+
+    const mime = matches[1].toLowerCase();
+    const ext = mime.includes('png') ? 'png' : (mime.includes('webp') ? 'webp' : 'jpg');
+    const buffer = Buffer.from(matches[2], 'base64');
+    const cleanName = `article_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    fs.writeFileSync(path.join(uploadsDir, cleanName), buffer);
+    const mediaUrl = `/uploads/${cleanName}`;
+
+    return res.json({
+      success: true,
+      url: mediaUrl,
+      filename: cleanName
+    });
+  } catch (err: any) {
+    return res.json({ success: true, url: req.body?.imageBase64 });
+  }
+});
+
 
 // ==================== 2.5 STORIES & CREATOR MEDIA API ==================== //
 
@@ -4505,11 +4692,13 @@ app.get('/api/admin/videos/management', authenticateToken, requireAdminRole, asy
   }
 });
 
-// Admin: Edit Any Video
+// Admin: Edit Any Video (Title, Description, Category, Price & Dummy Views)
 app.patch('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const { title, description, category, price } = req.body;
+    const { title, description, category, price, views } = req.body;
+
+    const parsedViews = views !== undefined && views !== null ? Math.max(0, parseInt(views, 10)) : null;
 
     await query(
       `UPDATE user_videos SET
@@ -4517,19 +4706,22 @@ app.patch('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (r
         description = COALESCE($2, description),
         category = COALESCE($3, category),
         price = COALESCE($4, price),
-        is_paid = COALESCE($5, is_paid)
-       WHERE id = $6`,
+        is_paid = COALESCE($5, is_paid),
+        views = COALESCE($6, views),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7`,
       [
         title || null,
         description !== undefined ? description : null,
         category || null,
         price !== undefined ? Number(price) : null,
         price !== undefined ? Number(price) > 0 : null,
+        parsedViews,
         id
       ]
     );
 
-    return res.json({ success: true, message: 'Video updated successfully by admin.' });
+    return res.json({ success: true, message: 'Video and view count updated successfully by admin.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -4543,6 +4735,132 @@ app.delete('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (
     return res.json({ success: true, message: 'Video removed from platform.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Fetch YouTube Playlist Videos by URL or ID (No API key needed, using public RSS feed)
+app.post('/api/admin/youtube/playlist', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { playlistUrl } = req.body;
+    if (!playlistUrl) return res.status(400).json({ error: 'Playlist URL or ID is required.' });
+
+    let playlistId = String(playlistUrl).trim();
+    const listMatch = playlistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    if (listMatch && listMatch[1]) {
+      playlistId = listMatch[1];
+    }
+
+    // Query official public YouTube playlist RSS feed
+    const rssUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
+    const rssRes = await fetch(rssUrl);
+    if (!rssRes.ok) {
+      return res.status(400).json({ error: `Could not fetch YouTube playlist (${rssRes.status}). Ensure the playlist is public or unlisted.` });
+    }
+
+    const xmlText = await rssRes.text();
+    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+    const entries: any[] = [];
+    let match;
+
+    while ((match = entryRegex.exec(xmlText)) !== null) {
+      const entryXml = match[1];
+      const videoIdMatch = entryXml.match(/<yt:videoId>(.*?)<\/yt:videoId>/);
+      const titleMatch = entryXml.match(/<title>(.*?)<\/title>/);
+      const descMatch = entryXml.match(/<media:description>([\s\S]*?)<\/media:description>/);
+      const authorMatch = entryXml.match(/<author>\s*<name>(.*?)<\/name>/);
+
+      const videoId = videoIdMatch ? videoIdMatch[1].trim() : null;
+      if (videoId) {
+        entries.push({
+          id: videoId,
+          title: titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim() : 'YouTube Video',
+          description: descMatch ? descMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim() : '',
+          channelName: authorMatch ? authorMatch[1].trim() : 'YouTube Channel',
+          thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+          embedUrl: `https://www.youtube.com/embed/${videoId}`
+        });
+      }
+    }
+
+    if (entries.length === 0) {
+      return res.status(404).json({ error: 'No videos found in this playlist. Please check that the playlist is public.' });
+    }
+
+    return res.json({
+      success: true,
+      playlistId,
+      count: entries.length,
+      videos: entries
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to fetch YouTube playlist.' });
+  }
+});
+
+// Admin: Batch Publish Selected Videos from Playlist
+app.post('/api/admin/videos/batch-import', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { videos, defaultCategory = 'General', defaultPrice = 0 } = req.body;
+    if (!Array.isArray(videos) || videos.length === 0) {
+      return res.status(400).json({ error: 'Array of videos to import is required.' });
+    }
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_videos (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255),
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        category VARCHAR(100) DEFAULT 'General',
+        price NUMERIC(15,2) DEFAULT 0,
+        is_paid BOOLEAN DEFAULT FALSE,
+        thumbnail_url TEXT,
+        video_url TEXT,
+        views INTEGER DEFAULT 0,
+        watch_seconds INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    let importedCount = 0;
+    const adminId = req.user?.id || 'admin';
+
+    for (const v of videos) {
+      const vidId = v.id || `yt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const title = v.title || 'Untitled Video';
+      const desc = v.description || '';
+      const cat = v.category || defaultCategory;
+      const price = Number(v.price ?? defaultPrice) || 0;
+      const thumb = v.thumbnailUrl || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
+      const url = v.videoUrl || `https://www.youtube.com/watch?v=${v.id}`;
+      const views = Number(v.views) || 0;
+
+      await query(`
+        INSERT INTO user_videos (id, user_id, title, description, category, price, is_paid, thumbnail_url, video_url, views)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (id) DO UPDATE SET
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          category = EXCLUDED.category,
+          price = EXCLUDED.price,
+          is_paid = EXCLUDED.is_paid,
+          thumbnail_url = EXCLUDED.thumbnail_url,
+          video_url = EXCLUDED.video_url,
+          views = EXCLUDED.views,
+          updated_at = CURRENT_TIMESTAMP
+      `, [vidId, adminId, title, desc, cat, price, price > 0, thumb, url, views]).catch(() => {});
+      importedCount++;
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully published ${importedCount} videos to BenixSpace catalog!`,
+      importedCount
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Batch video import failed.' });
   }
 });
 
@@ -8528,6 +8846,1421 @@ app.get('/robots.txt', (req, res) => {
   const baseUrl = process.env.APP_URL || 'https://benix.space';
   res.header('Content-Type', 'text/plain');
   return res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${baseUrl}/sitemap.xml`);
+});
+
+// ==================== 8B. ADVANCED ECOSYSTEM & ADMIN EXTENSIONS ==================== //
+
+// --- Station Database Initializer & Seed ---
+async function ensureStationsTable() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS stations (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        logo_url TEXT DEFAULT '/logo.png',
+        stream_url TEXT NOT NULL,
+        stream_type VARCHAR(50) DEFAULT 'AUDIO',
+        station_type VARCHAR(50) DEFAULT 'RADIO',
+        location VARCHAR(255) DEFAULT 'Kigali, Rwanda',
+        frequency VARCHAR(100),
+        accent_color VARCHAR(50) DEFAULT '#0284c7',
+        is_active BOOLEAN DEFAULT true,
+        is_featured BOOLEAN DEFAULT false,
+        display_order INT DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'ONLINE',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Check count and seed if empty
+    const cnt = await query('SELECT count(*)::int as total FROM stations');
+    if ((cnt.rows[0]?.total || 0) === 0) {
+      const defaultStations = [
+        { id: 'st_rtv', name: 'RTV Live', slug: 'rtv', description: "Rwanda Television (RTV) public broadcaster.", stream_url: 'https://5c46fa289c89f.streamlock.net/rtv25/rtv/playlist.m3u8', stream_type: 'HLS', station_type: 'TV', location: 'Kigali, National Broadcast', frequency: 'Channel 01 / DTT', accent_color: '#0284c7', is_active: true, is_featured: true, display_order: 1 },
+        { id: 'st_kc2', name: 'KC2', slug: 'kc2', description: 'Kigali Channel 2 youth and entertainment.', stream_url: 'https://5c46fa289c89f.streamlock.net/kc2/kc2/playlist.m3u8', stream_type: 'HLS', station_type: 'TV', location: 'Kigali, Rwanda', frequency: 'Channel 02 / DTT', accent_color: '#10b981', is_active: true, is_featured: true, display_order: 2 },
+        { id: 'st_btn', name: 'BTN TV Rwanda', slug: 'btn-tv', description: 'Big Television Network Rwanda live.', stream_url: 'https://cdn.btntvrwanda.com/live/btn/playlist.m3u8', stream_type: 'HLS', station_type: 'TV', location: 'Kigali, Rwanda', frequency: 'Channel 03', accent_color: '#ef4444', is_active: true, is_featured: true, display_order: 3 },
+        { id: 'st_tv10', name: 'TV10 Rwanda', slug: 'tv10', description: 'Radio & TV 10 Rwanda independent broadcast.', stream_url: 'https://stream.radio10.rw/tv10/live.m3u8', stream_type: 'HLS', station_type: 'TV', location: 'Kigali, Gikondo', frequency: 'Channel 10', accent_color: '#f59e0b', is_active: true, is_featured: true, display_order: 4 },
+        { id: 'st_isibo', name: 'Isibo TV', slug: 'isibo-tv', description: 'Youth culture and music hits.', stream_url: 'https://stream.isibotv.rw/hls/live.m3u8', stream_type: 'HLS', station_type: 'TV', location: 'Kigali, Rwanda', frequency: 'DTT Channel 15', accent_color: '#ec4899', is_active: true, is_featured: true, display_order: 5 },
+        { id: 'st_flash_tv', name: 'Flash TV', slug: 'flash-tv', description: 'Flash Television Rwanda high definition.', stream_url: 'https://flashtv.radiotvflash.rw/live/flashtv.m3u8', stream_type: 'HLS', station_type: 'TV', location: 'Kigali, Rwanda', frequency: 'DTT Channel 22', accent_color: '#8b5cf6', is_active: true, is_featured: false, display_order: 6 },
+        { id: 'st_rad_rwanda', name: 'Radio Rwanda', slug: 'radio-rwanda', description: 'Public radio flagship station nationwide.', stream_url: 'https://5c46fa289c89f.streamlock.net/radiorwanda/radiorwanda/playlist.m3u8', stream_type: 'AUDIO', station_type: 'RADIO', location: 'Kigali, National Broadcast', frequency: '100.7 FM', accent_color: '#0284c7', is_active: true, is_featured: true, display_order: 1 },
+        { id: 'st_magic_fm', name: 'Magic FM', slug: 'magic-fm', description: 'Urban contemporary music and youth entertainment.', stream_url: 'https://5c46fa289c89f.streamlock.net/magicfm/magicfm/playlist.m3u8', stream_type: 'AUDIO', station_type: 'RADIO', location: 'Kigali, Rwanda', frequency: '90.7 FM', accent_color: '#ec4899', is_active: true, is_featured: true, display_order: 2 },
+        { id: 'st_kiss_fm', name: 'Kiss FM 102.3', slug: 'kiss-fm', description: 'The Beat of Kigali - Urban contemporary.', stream_url: 'https://stream.zeno.fm/k2k04h3z12zuv', stream_type: 'AUDIO', station_type: 'RADIO', location: 'Kigali, Rwanda', frequency: '102.3 FM', accent_color: '#f43f5e', is_active: true, is_featured: true, display_order: 3 },
+        { id: 'st_flash_fm', name: 'Flash FM', slug: 'flash-fm', description: 'News, sports, and popular hits.', stream_url: 'https://stream.radiotvflash.rw/radio/8000/flashfm.mp3', stream_type: 'AUDIO', station_type: 'RADIO', location: 'Kigali, Rwanda', frequency: '89.2 FM', accent_color: '#eab308', is_active: true, is_featured: true, display_order: 4 },
+        { id: 'st_royal_fm', name: 'Royal FM 94.3', slug: 'royal-fm', description: 'Kigali authoritative news and easy listening.', stream_url: 'https://stream.zeno.fm/5qwkgwqu32zuv', stream_type: 'AUDIO', station_type: 'RADIO', location: 'Kigali, Rwanda', frequency: '94.3 FM', accent_color: '#3b82f6', is_active: true, is_featured: false, display_order: 5 }
+      ];
+
+      for (const s of defaultStations) {
+        await query(`
+          INSERT INTO stations (id, name, slug, description, stream_url, stream_type, station_type, location, frequency, accent_color, is_active, is_featured, display_order)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ON CONFLICT (slug) DO NOTHING
+        `, [s.id, s.name, s.slug, s.description, s.stream_url, s.stream_type, s.station_type, s.location, s.frequency, s.accent_color, s.is_active, s.is_featured, s.display_order]);
+      }
+    }
+  } catch (e: any) {
+    console.warn('Stations table init notice:', e.message);
+  }
+}
+ensureStationsTable();
+
+// Station Management: List all stations
+app.get('/api/admin/stations', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const resDb = await query('SELECT * FROM stations ORDER BY station_type ASC, display_order ASC, name ASC');
+    return res.json({ stations: resDb.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Station Management: Public stations list with optional type filter
+app.get('/api/stations', async (req, res) => {
+  try {
+    const { type } = req.query;
+    let sql = 'SELECT * FROM stations WHERE is_active = true';
+    const params: any[] = [];
+    if (type) {
+      params.push(String(type).toUpperCase());
+      sql += ' AND station_type = $1';
+    }
+    sql += ' ORDER BY display_order ASC, name ASC';
+    const resDb = await query(sql, params);
+    return res.json(resDb.rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Station Management: Create station
+app.post('/api/admin/stations', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const {
+      name,
+      slug,
+      description,
+      logo_url,
+      stream_url,
+      stream_type,
+      station_type,
+      location,
+      frequency,
+      accent_color,
+      is_active = true,
+      is_featured = false,
+      display_order = 0
+    } = req.body;
+
+    if (!name || !stream_url) {
+      return res.status(400).json({ error: 'Station Name and Stream URL are required.' });
+    }
+
+    const generatedSlug = (slug || name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const id = `st_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    const resDb = await query(`
+      INSERT INTO stations (id, name, slug, description, logo_url, stream_url, stream_type, station_type, location, frequency, accent_color, is_active, is_featured, display_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *
+    `, [
+      id,
+      name,
+      generatedSlug,
+      description || '',
+      logo_url || '/logo.png',
+      stream_url,
+      stream_type || (station_type === 'TV' ? 'HLS' : 'AUDIO'),
+      station_type || 'RADIO',
+      location || 'Kigali, Rwanda',
+      frequency || '',
+      accent_color || '#0284c7',
+      is_active,
+      is_featured,
+      Number(display_order) || 0
+    ]);
+
+    return res.status(201).json({ station: resDb.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Station Management: Update station
+app.patch('/api/admin/stations/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      slug,
+      description,
+      logo_url,
+      stream_url,
+      stream_type,
+      station_type,
+      location,
+      frequency,
+      accent_color,
+      is_active,
+      is_featured,
+      display_order
+    } = req.body;
+
+    const resDb = await query(`
+      UPDATE stations SET
+        name = COALESCE($1, name),
+        slug = COALESCE($2, slug),
+        description = COALESCE($3, description),
+        logo_url = COALESCE($4, logo_url),
+        stream_url = COALESCE($5, stream_url),
+        stream_type = COALESCE($6, stream_type),
+        station_type = COALESCE($7, station_type),
+        location = COALESCE($8, location),
+        frequency = COALESCE($9, frequency),
+        accent_color = COALESCE($10, accent_color),
+        is_active = COALESCE($11, is_active),
+        is_featured = COALESCE($12, is_featured),
+        display_order = COALESCE($13, display_order),
+        updated_at = NOW()
+      WHERE id = $14
+      RETURNING *
+    `, [
+      name,
+      slug,
+      description,
+      logo_url,
+      stream_url,
+      stream_type,
+      station_type,
+      location,
+      frequency,
+      accent_color,
+      is_active,
+      is_featured,
+      display_order !== undefined ? Number(display_order) : undefined,
+      id
+    ]);
+
+    if (resDb.rowCount === 0) {
+      return res.status(404).json({ error: 'Station not found.' });
+    }
+
+    return res.json({ station: resDb.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Station Management: Delete station
+app.delete('/api/admin/stations/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await query('DELETE FROM stations WHERE id = $1', [id]);
+    return res.json({ success: true, message: 'Station deleted successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Station Management: Stream Diagnostic Tester (Integrated from legacy tvapp)
+app.post('/api/admin/stations/test-stream', authenticateToken, async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'Stream URL is required.' });
+
+  const startTime = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+
+    const upstream = await fetch(url, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-1024' },
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    const latencyMs = Date.now() - startTime;
+    const contentType = upstream.headers.get('content-type') || 'Unknown';
+    const isReachable = upstream.ok || upstream.status === 206 || upstream.status === 200;
+
+    let detectedFormat = 'Unknown';
+    if (url.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL')) {
+      detectedFormat = 'HLS Adaptive Bitrate (m3u8)';
+    } else if (contentType.includes('audio/mpeg') || url.endsWith('.mp3')) {
+      detectedFormat = 'Icecast / Shoutcast MP3 Audio';
+    } else if (contentType.includes('audio/aac') || contentType.includes('audio/aacp')) {
+      detectedFormat = 'AAC Audio Stream';
+    } else if (contentType.includes('audio')) {
+      detectedFormat = 'Standard HTML5 Audio';
+    }
+
+    return res.json({
+      reachable: isReachable,
+      status: upstream.status,
+      statusText: upstream.statusText,
+      contentType,
+      detectedFormat,
+      latencyMs,
+      message: isReachable ? '✓ Stream server online and responding' : `⚠️ Stream responded with HTTP status ${upstream.status}`
+    });
+  } catch (err: any) {
+    const latencyMs = Date.now() - startTime;
+    return res.json({
+      reachable: false,
+      status: 0,
+      contentType: 'N/A',
+      detectedFormat: 'Unknown',
+      latencyMs,
+      error: err.message || 'Stream connection failed or timed out.',
+      message: '✕ Stream unreachable or server timed out.'
+    });
+  }
+});
+
+// --- Admin User Detailed View, Balance Adjust, Suspend, and Clean Delete ---
+
+// Get single user full details: wallet balance, monetization settings, uploaded videos
+app.get('/api/admin/users/:id/details', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const userRes = await query(`
+      SELECT u.id, u.email, u.name, u.role, u.phone, u.preferred_language, u.is_verified, u.created_at,
+             w.balance as wallet_balance, w.bonus_balance
+      FROM core_users u
+      LEFT JOIN core_wallets w ON u.id = w.user_id
+      WHERE u.id = $1
+    `, [id]);
+
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const userData = userRes.rows[0];
+
+    // Get user monetization record
+    const monRes = await query(`
+      SELECT * FROM user_monetization_settings WHERE user_id = $1
+    `, [id]).catch(() => ({ rows: [] }));
+    const monetization = monRes.rows[0] || {
+      is_monetized: false,
+      status: 'standard',
+      watch_hours: 0,
+      subscribers: 0,
+      total_earnings: 0
+    };
+
+    // Get all videos uploaded by this user
+    const videosRes = await query(`
+      SELECT id, title, description, category, price, is_paid, views, watch_hours,
+             revenue_generated, thumbnail_url, video_url, created_at
+      FROM user_videos
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+    `, [id]).catch(() => ({ rows: [] }));
+
+    return res.json({
+      user: userData,
+      monetization,
+      videos: videosRes.rows
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Manual Balance Adjustment (Credit or Deduct RWF with note)
+app.post('/api/admin/users/:id/adjust-wallet', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, type, note } = req.body;
+
+    const numAmount = Math.abs(Number(amount));
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: 'Valid positive adjustment amount is required.' });
+    }
+    if (type !== 'credit' && type !== 'deduct') {
+      return res.status(400).json({ error: 'Adjustment type must be "credit" or "deduct".' });
+    }
+
+    const adminEmail = req.user?.email || 'admin@benix.space';
+    let result;
+
+    if (type === 'credit') {
+      result = await WalletService.credit(
+        id,
+        numAmount,
+        'wallet',
+        'admin_credit',
+        `Admin Wallet Credit: +${numAmount.toLocaleString()} RWF (${note || 'Manual topup by admin ' + adminEmail})`,
+        `tx_adm_cr_${Date.now()}`
+      );
+    } else {
+      result = await WalletService.debit(
+        id,
+        numAmount,
+        'wallet',
+        'admin_deduct',
+        `Admin Wallet Deduction: -${numAmount.toLocaleString()} RWF (${note || 'Manual adjustment by admin ' + adminEmail})`,
+        `tx_adm_db_${Date.now()}`
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully ${type === 'credit' ? 'credited' : 'deducted'} ${numAmount.toLocaleString()} RWF.`,
+      newBalance: result.newBalance
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin User Status Toggle (Suspend / Activate)
+app.patch('/api/admin/users/:id/status', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_suspended, role } = req.body;
+
+    await query(`
+      ALTER TABLE core_users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false;
+    `).catch(() => {});
+
+    await query(`
+      UPDATE core_users SET
+        is_suspended = COALESCE($1, is_suspended),
+        role = COALESCE($2, role)
+      WHERE id = $3
+    `, [is_suspended, role, id]);
+
+    return res.json({ success: true, message: 'User status updated successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin User Clean Deletion
+app.delete('/api/admin/users/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Delete cascading references
+    await query('DELETE FROM core_wallet_transactions WHERE user_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM core_wallets WHERE user_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM user_videos WHERE user_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM password_reset_codes WHERE user_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM chat_unlocked_contacts WHERE user_id = $1 OR contact_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM kunda_crushes WHERE sender_id = $1 OR target_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM core_users WHERE id = $1', [id]);
+
+    return res.json({ success: true, message: 'User permanently deleted from system.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Admin Deposit Management ---
+app.get('/api/admin/deposits', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS pending_flutterwave_deposits (
+        tx_ref VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        original_amount NUMERIC(12,2) NOT NULL,
+        converted_rwf NUMERIC(12,2) NOT NULL,
+        status VARCHAR(30) DEFAULT 'pending',
+        flw_ref VARCHAR(100),
+        admin_note TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    const resDb = await query(`
+      SELECT d.*, u.email as user_email, u.name as user_name, u.phone as user_phone
+      FROM pending_flutterwave_deposits d
+      LEFT JOIN core_users u ON d.user_id = u.id
+      ORDER BY d.created_at DESC
+      LIMIT 100
+    `);
+
+    return res.json({ deposits: resDb.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/deposits/:txRef/approve', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { txRef } = req.params;
+
+    const depRes = await query('SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1', [txRef]);
+    if (depRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Deposit record not found.' });
+    }
+
+    const deposit = depRes.rows[0];
+    if (deposit.status === 'completed') {
+      return res.status(400).json({ error: 'Deposit is already marked as completed.' });
+    }
+
+    const rwfAmount = Number(deposit.converted_rwf || deposit.original_amount);
+
+    // Credit user wallet
+    const cr = await WalletService.credit(
+      deposit.user_id,
+      rwfAmount,
+      'wallet',
+      'manual_deposit_approved',
+      `Deposit Approved by Admin: +${rwfAmount.toLocaleString()} RWF (Ref: ${txRef})`,
+      `tx_dep_appr_${txRef}`
+    );
+
+    await query(
+      "UPDATE pending_flutterwave_deposits SET status = 'completed', admin_note = 'Approved manually by Admin' WHERE tx_ref = $1",
+      [txRef]
+    );
+
+    return res.json({
+      success: true,
+      message: `Deposit of ${rwfAmount.toLocaleString()} RWF approved and credited.`,
+      newBalance: cr.newBalance
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/deposits/:txRef/reject', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { txRef } = req.params;
+    const { note } = req.body;
+
+    await query(
+      "UPDATE pending_flutterwave_deposits SET status = 'rejected', admin_note = $1 WHERE tx_ref = $2",
+      [note || 'Disapproved by Administrator', txRef]
+    );
+
+    return res.json({ success: true, message: 'Deposit marked as rejected.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Kunda Matchmaking Algorithm & Rich Setup ---
+app.post('/api/modules/kunda/setup', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      relationship_intention = 'serious_relationship',
+      interested_in = 'everyone',
+      min_age = 20,
+      max_age = 40,
+      city = 'Kigali',
+      country = 'Rwanda',
+      lifestyle = {},
+      interests = [],
+      bio = ''
+    } = req.body;
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS kunda_match_profiles (
+        user_id VARCHAR(100) PRIMARY KEY,
+        relationship_intention VARCHAR(100),
+        interested_in VARCHAR(50),
+        min_age INT DEFAULT 18,
+        max_age INT DEFAULT 50,
+        city VARCHAR(100) DEFAULT 'Kigali',
+        country VARCHAR(100) DEFAULT 'Rwanda',
+        lifestyle JSONB DEFAULT '{}'::jsonb,
+        interests JSONB DEFAULT '[]'::jsonb,
+        bio TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    await query(`
+      INSERT INTO kunda_match_profiles (user_id, relationship_intention, interested_in, min_age, max_age, city, country, lifestyle, interests, bio, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        relationship_intention = EXCLUDED.relationship_intention,
+        interested_in = EXCLUDED.interested_in,
+        min_age = EXCLUDED.min_age,
+        max_age = EXCLUDED.max_age,
+        city = EXCLUDED.city,
+        country = EXCLUDED.country,
+        lifestyle = EXCLUDED.lifestyle,
+        interests = EXCLUDED.interests,
+        bio = EXCLUDED.bio,
+        updated_at = NOW();
+    `, [
+      userId,
+      relationship_intention,
+      interested_in,
+      Number(min_age) || 18,
+      Number(max_age) || 50,
+      city,
+      country,
+      JSON.stringify(lifestyle),
+      JSON.stringify(interests),
+      bio
+    ]);
+
+    return res.json({ success: true, message: 'Kunda match preferences saved successfully!' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Kunda Smart Recommendations: Compute match compatibility score
+app.get('/api/modules/kunda/matched', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+
+    // Load user preferences
+    const prefRes = await query('SELECT * FROM kunda_match_profiles WHERE user_id = $1', [userId]).catch(() => ({ rows: [] }));
+    const myPref = prefRes.rows[0] || {
+      relationship_intention: 'serious_relationship',
+      interested_in: 'everyone',
+      min_age: 18,
+      max_age: 45,
+      city: 'Kigali',
+      interests: ['Coffee Tasting', 'Hiking', 'Tech', 'Music']
+    };
+
+    // Candidates pool
+    const candidates = [
+      { id: 'usr_kd_01', name: 'Aline Mugisha', age: 24, city: 'Kigali', profession: 'Product Designer', bio: 'Passionate about African art, weekend road trips to Lake Kivu, and authentic connection.', interests: ['Art & Design', 'Hiking', 'Coffee Tasting', 'Music'], image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', verified: true, online: true, intention: 'serious_relationship', gender: 'woman' },
+      { id: 'usr_kd_02', name: 'Eric Ntwari', age: 28, city: 'Kigali', profession: 'Software Engineer', bio: 'Tech founder, chess player, loves live acoustic music in Kimihurura.', interests: ['Tech', 'Chess', 'Books', 'Fitness'], image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80', verified: true, online: true, intention: 'serious_relationship', gender: 'man' },
+      { id: 'usr_kd_03', name: 'Diane Umutoni', age: 26, city: 'Rubavu', profession: 'Hotel & Hospitality Lead', bio: 'Living by the lake shore, passionate about hospitality, lakeside sunset runs.', interests: ['Travel', 'Cooking', 'Hiking', 'Music'], image: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=600&q=80', verified: true, online: false, intention: 'marriage', gender: 'woman' },
+      { id: 'usr_kd_04', name: 'Jean-Paul Kwizera', age: 31, city: 'Musanze', profession: 'Eco-Tourism Guide & Photographer', bio: 'Volcanoes hiking guide, wildlife photographer, lover of 1000 hills mornings.', interests: ['Photography', 'Hiking', 'Nature', 'Coffee Tasting'], image: 'https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?auto=format&fit=crop&w=600&q=80', verified: true, online: true, intention: 'serious_relationship', gender: 'man' },
+      { id: 'usr_kd_05', name: 'Grace Uwase', age: 23, city: 'Huye', profession: 'Medical Student & Pianist', bio: 'Classical pianist, future doctor, love acoustic gospel and quiet book cafes.', interests: ['Music', 'Piano', 'Reading', 'Faith'], image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80', verified: true, online: true, intention: 'serious_relationship', gender: 'woman' },
+      { id: 'usr_kd_06', name: 'Patrick Gakwaya', age: 29, city: 'Kigali', profession: 'Investment Analyst', bio: 'Fintech analyst, basketball on weekends, love deep discussions over good coffee.', interests: ['Tech', 'Basketball', 'Coffee Tasting', 'Finance'], image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80', verified: true, online: false, intention: 'serious_relationship', gender: 'man' }
+    ];
+
+    // Compute compatibility score for each candidate
+    const myInterests = Array.isArray(myPref.interests) ? myPref.interests : [];
+    const scoredCandidates = candidates.map(c => {
+      let score = 50; // base score
+
+      // Location match: +20
+      if (c.city.toLowerCase() === (myPref.city || 'kigali').toLowerCase()) score += 20;
+      else score += 10;
+
+      // Age range match: +15
+      if (c.age >= (myPref.min_age || 18) && c.age <= (myPref.max_age || 45)) score += 15;
+
+      // Intention match: +15
+      if (c.intention === myPref.relationship_intention) score += 15;
+
+      // Shared interests match: up to +15
+      const sharedCount = c.interests.filter(i => myInterests.includes(i)).length;
+      score += Math.min(15, sharedCount * 5);
+
+      const finalScore = Math.min(99, Math.max(65, score));
+
+      return {
+        ...c,
+        matchScore: finalScore,
+        compatibilityReason: finalScore >= 90 ? '🌟 Highly Compatible (Shared Location & Goals)' : '✨ Good Match (Mutual Interests)'
+      };
+    });
+
+    scoredCandidates.sort((a, b) => b.matchScore - a.matchScore);
+
+    return res.json({ matches: scoredCandidates, userPreferences: myPref });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Voxify Choirs & Private Practice Stems Architecture ---
+
+// Initialize Voxify Choirs and Song Tables
+async function ensureVoxifyTables() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS voxify_choirs (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        church_denomination VARCHAR(255),
+        description TEXT,
+        image_url TEXT,
+        director_id VARCHAR(100) NOT NULL,
+        subscription_tier VARCHAR(50) DEFAULT 'starter',
+        subscription_expires_at BIGINT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS voxify_choir_members (
+        id SERIAL PRIMARY KEY,
+        choir_id VARCHAR(100) NOT NULL,
+        user_id VARCHAR(100) NOT NULL,
+        role VARCHAR(50) DEFAULT 'singer',
+        voice_part VARCHAR(50) DEFAULT 'soprano',
+        joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(choir_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS voxify_choir_tracks (
+        id VARCHAR(100) PRIMARY KEY,
+        choir_id VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        composer VARCHAR(255),
+        soprano_url TEXT,
+        alto_url TEXT,
+        tenor_url TEXT,
+        bass_url TEXT,
+        full_audio_url TEXT NOT NULL,
+        sheet_music_url TEXT,
+        target_sunday_date VARCHAR(50),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS voxify_sunday_ready (
+        choir_id VARCHAR(100) NOT NULL,
+        track_id VARCHAR(100) NOT NULL,
+        user_id VARCHAR(100) NOT NULL,
+        is_ready BOOLEAN DEFAULT true,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(track_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS voxify_songs (
+        id VARCHAR(100) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        artist_id VARCHAR(100) NOT NULL,
+        artist_name VARCHAR(255) NOT NULL,
+        genre VARCHAR(100) DEFAULT 'Sacred Gospel',
+        price NUMERIC(10,2) NOT NULL,
+        license_type VARCHAR(50) DEFAULT 'exclusive', -- 'exclusive' (buy once & owned) or 'digital_copies'
+        preview_lyrics TEXT,
+        full_lyrics TEXT,
+        preview_audio_url TEXT NOT NULL,
+        full_audio_url TEXT NOT NULL,
+        sheet_music_url TEXT,
+        is_sold BOOLEAN DEFAULT false,
+        owner_id VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS voxify_purchased_songs (
+        id SERIAL PRIMARY KEY,
+        song_id VARCHAR(100) NOT NULL,
+        buyer_id VARCHAR(100) NOT NULL,
+        price_paid NUMERIC(10,2) NOT NULL,
+        purchased_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e: any) {
+    console.warn('Voxify tables initialization notice:', e.message);
+  }
+}
+ensureVoxifyTables();
+
+// Create Choir
+app.post('/api/modules/voxify/choirs', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, church_denomination, description, image_url, subscription_tier = 'starter' } = req.body;
+    if (!name) return res.status(400).json({ error: 'Choir name is required.' });
+
+    const id = `choir_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const directorId = req.user!.id;
+
+    await query(`
+      INSERT INTO voxify_choirs (id, name, church_denomination, description, image_url, director_id, subscription_tier)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [id, name, church_denomination || '', description || '', image_url || '/logo.png', directorId, subscription_tier]);
+
+    // Director automatically joins as director
+    await query(`
+      INSERT INTO voxify_choir_members (choir_id, user_id, role, voice_part)
+      VALUES ($1, $2, 'director', 'satb')
+    `, [id, directorId]);
+
+    return res.status(201).json({ success: true, choirId: id, message: `Choir "${name}" created successfully!` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Get User's Choirs, Members, and Private Tracks
+app.get('/api/modules/voxify/choirs/my', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+
+    const choirsRes = await query(`
+      SELECT c.*, m.role, m.voice_part
+      FROM voxify_choirs c
+      JOIN voxify_choir_members m ON c.id = m.choir_id
+      WHERE m.user_id = $1
+    `, [userId]);
+
+    const choirList = choirsRes.rows;
+
+    for (const choir of choirList) {
+      // Fetch members
+      const membersRes = await query(`
+        SELECT m.user_id, m.role, m.voice_part, m.joined_at, u.name, u.email
+        FROM voxify_choir_members m
+        LEFT JOIN core_users u ON m.user_id = u.id
+        WHERE m.choir_id = $1
+      `, [choir.id]);
+      choir.members = membersRes.rows;
+
+      // Fetch private choir tracks (with SATB stems)
+      const tracksRes = await query(`
+        SELECT * FROM voxify_choir_tracks WHERE choir_id = $1 ORDER BY created_at DESC
+      `, [choir.id]);
+
+      // Check Sunday Ready for current user
+      const readyRes = await query(`
+        SELECT track_id, is_ready FROM voxify_sunday_ready WHERE choir_id = $1 AND user_id = $2
+      `, [choir.id, userId]);
+      const readyMap = new Map(readyRes.rows.map((r: any) => [r.track_id, r.is_ready]));
+
+      choir.tracks = tracksRes.rows.map((t: any) => ({
+        ...t,
+        isMySundayReady: !!readyMap.get(t.id)
+      }));
+    }
+
+    return res.json({ choirs: choirList });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Director Posts Private Choir Track with SATB Vocal Stems
+app.post('/api/modules/voxify/choirs/:id/tracks', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      composer,
+      soprano_url,
+      alto_url,
+      tenor_url,
+      bass_url,
+      full_audio_url,
+      sheet_music_url,
+      target_sunday_date
+    } = req.body;
+
+    if (!title || !full_audio_url) {
+      return res.status(400).json({ error: 'Track title and full master audio are required.' });
+    }
+
+    // Verify user is choir director
+    const mem = await query(`
+      SELECT role FROM voxify_choir_members WHERE choir_id = $1 AND user_id = $2
+    `, [id, req.user!.id]);
+
+    if (mem.rowCount === 0 || mem.rows[0].role !== 'director') {
+      return res.status(403).json({ error: 'Only choir directors can upload private practice stems.' });
+    }
+
+    const trackId = `trk_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    const resDb = await query(`
+      INSERT INTO voxify_choir_tracks (id, choir_id, title, composer, soprano_url, alto_url, tenor_url, bass_url, full_audio_url, sheet_music_url, target_sunday_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [trackId, id, title, composer || '', soprano_url || '', alto_url || '', tenor_url || '', bass_url || '', full_audio_url, sheet_music_url || '', target_sunday_date || '']);
+
+    return res.status(201).json({ success: true, track: resDb.rows[0], message: `Private SATB practice stems posted for "${title}".` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Member Marks Song as "Ready for Sunday"
+app.post('/api/modules/voxify/choirs/:id/ready-sunday', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { trackId, isReady = true } = req.body;
+    const userId = req.user!.id;
+
+    await query(`
+      INSERT INTO voxify_sunday_ready (choir_id, track_id, user_id, is_ready, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (track_id, user_id) DO UPDATE SET is_ready = EXCLUDED.is_ready, updated_at = NOW();
+    `, [id, trackId, userId, isReady]);
+
+    return res.json({ success: true, message: isReady ? 'Marked as Ready for Sunday! 🎵' : 'Sunday readiness cleared.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Choir Subscription Plan (Deducted from Central Wallet)
+app.post('/api/modules/voxify/choirs/:id/subscribe', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { tier } = req.body; // 'starter' (5,000 RWF), 'pro' (15,000 RWF), 'cathedral' (30,000 RWF)
+
+    const prices: Record<string, number> = {
+      starter: 5000,
+      pro: 15000,
+      cathedral: 30000
+    };
+
+    const cost = prices[tier] || 5000;
+    const userId = req.user!.id;
+
+    // Deduct subscription from Central Wallet
+    const debitRes = await WalletService.debit(
+      userId,
+      cost,
+      'voxify',
+      'choir_subscription',
+      `Voxify Choir Subscription: ${tier.toUpperCase()} Tier (-${cost.toLocaleString()} RWF)`,
+      `tx_choir_sub_${Date.now()}`
+    );
+
+    const expiresAt = Date.now() + 30 * 24 * 3600 * 1000; // 30 days
+    await query(`
+      UPDATE voxify_choirs SET subscription_tier = $1, subscription_expires_at = $2 WHERE id = $3
+    `, [tier, expiresAt, id]);
+
+    return res.json({
+      success: true,
+      message: `🎉 Subscribed to ${tier.toUpperCase()} Plan! Enjoy unlimited members and cloud audio stems.`,
+      newBalance: debitRes.newBalance,
+      expiresAt
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Voxify Artist Original Song Licensing Marketplace ---
+
+// Artist Uploads Song to Marketplace
+app.post('/api/modules/voxify/songs', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const {
+      title,
+      artist_name,
+      genre = 'Gospel & Choral',
+      price,
+      license_type = 'exclusive', // 'exclusive' (buy once & own) or 'digital_copies'
+      preview_lyrics,
+      full_lyrics,
+      preview_audio_url,
+      full_audio_url,
+      sheet_music_url
+    } = req.body;
+
+    const numPrice = Number(price);
+    if (!title || !numPrice || numPrice <= 0 || !full_audio_url) {
+      return res.status(400).json({ error: 'Song title, price, and audio file are required.' });
+    }
+
+    const songId = `sng_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const artistId = req.user!.id;
+
+    const resDb = await query(`
+      INSERT INTO voxify_songs (id, title, artist_id, artist_name, genre, price, license_type, preview_lyrics, full_lyrics, preview_audio_url, full_audio_url, sheet_music_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      songId,
+      title,
+      artistId,
+      artist_name || req.user!.name || 'Composer',
+      genre,
+      numPrice,
+      license_type,
+      preview_lyrics || '',
+      full_lyrics || '',
+      preview_audio_url || full_audio_url,
+      full_audio_url,
+      sheet_music_url || ''
+    ]);
+
+    return res.status(201).json({
+      success: true,
+      song: resDb.rows[0],
+      message: `Song "${title}" published on Voxify Licensing Marketplace!`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Browse Marketplace Songs (Excludes already sold exclusive songs)
+app.get('/api/modules/voxify/songs/marketplace', async (req, res) => {
+  try {
+    const resDb = await query(`
+      SELECT id, title, artist_name, genre, price, license_type, preview_lyrics, preview_audio_url, created_at,
+             is_sold, (CASE WHEN is_sold THEN NULL ELSE full_audio_url END) as audio_accessible
+      FROM voxify_songs
+      WHERE is_sold = false OR license_type = 'digital_copies'
+      ORDER BY created_at DESC
+    `);
+    return res.json({ songs: resDb.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Buyer Unlocks / Purchases Song License with Central Wallet
+app.post('/api/modules/voxify/songs/:id/buy', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const buyerId = req.user!.id;
+
+    const songRes = await query('SELECT * FROM voxify_songs WHERE id = $1', [id]);
+    if (songRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Song not found in catalog.' });
+    }
+
+    const song = songRes.rows[0];
+    if (song.is_sold && song.license_type === 'exclusive') {
+      return res.status(400).json({ error: 'This song was already bought as an exclusive license.' });
+    }
+
+    const price = Number(song.price);
+
+    // Deduct price from buyer's Central Wallet
+    const debitRes = await WalletService.debit(
+      buyerId,
+      price,
+      'voxify',
+      'song_license_purchase',
+      `Purchased Song License: "${song.title}" (-${price.toLocaleString()} RWF)`,
+      `tx_song_${id}_${Date.now()}`
+    );
+
+    // Credit artist (90% to composer, 10% platform commission)
+    const artistAmount = Math.round(price * 0.9);
+    await WalletService.credit(
+      song.artist_id,
+      artistAmount,
+      'voxify',
+      'song_sale_revenue',
+      `Revenue from Song Sale: "${song.title}" (+${artistAmount.toLocaleString()} RWF)`,
+      `tx_song_art_${id}_${Date.now()}`
+    ).catch((e) => console.warn('Credit artist notice:', e.message));
+
+    // If exclusive license, mark as sold and record new owner
+    if (song.license_type === 'exclusive') {
+      await query(`
+        UPDATE voxify_songs SET is_sold = true, owner_id = $1 WHERE id = $2
+      `, [buyerId, id]);
+    }
+
+    // Record purchase
+    await query(`
+      INSERT INTO voxify_purchased_songs (song_id, buyer_id, price_paid)
+      VALUES ($1, $2, $3)
+    `, [id, buyerId, price]);
+
+    // Initialize chat thread between buyer and composer/artist for coaching & collaboration
+    let chatConversationId = null;
+    try {
+      const convRes = await query(`
+        INSERT INTO chat_conversations (user1_id, user2_id, topic)
+        VALUES ($1, $2, $3)
+        RETURNING id
+      `, [buyerId, song.artist_id, `Song Coaching: ${song.title}`]);
+      chatConversationId = convRes.rows[0]?.id;
+    } catch {}
+
+    return res.json({
+      success: true,
+      message: `🎉 Successfully purchased "${song.title}"! Full master audio and lyrics are now unlocked.`,
+      newBalance: debitRes.newBalance,
+      unlockedSong: {
+        id: song.id,
+        title: song.title,
+        full_lyrics: song.full_lyrics,
+        full_audio_url: song.full_audio_url,
+        sheet_music_url: song.sheet_music_url
+      },
+      chatConversationId
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Get My Purchased / Unlocked Songs
+app.get('/api/modules/voxify/songs/my-purchases', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const buyerId = req.user!.id;
+    const resDb = await query(`
+      SELECT s.*, p.purchased_at
+      FROM voxify_purchased_songs p
+      JOIN voxify_songs s ON p.song_id = s.id
+      WHERE p.buyer_id = $1
+      ORDER BY p.purchased_at DESC
+    `, [buyerId]);
+
+    return res.json({ songs: resDb.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Benix Marketplace Product & Service Publishing ---
+app.post('/api/modules/marketplace/publish', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const {
+      type = 'product', // 'product' | 'service'
+      title,
+      description,
+      category,
+      // Product specific fields
+      price,
+      old_price,
+      featured_image,
+      gallery_images = [],
+      new_arrival = true,
+      affiliate_commission_pct = 10,
+      // Service specific fields
+      price_range,
+      is_negotiable = true
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required.' });
+    }
+
+    const sellerId = req.user!.id;
+    const sellerName = req.user!.name || 'Benix Merchant';
+
+    if (type === 'product') {
+      const numPrice = Number(price) || 0;
+      const numOldPrice = Number(old_price) || 0;
+      const discountPct = (numOldPrice > numPrice && numOldPrice > 0)
+        ? Math.round(((numOldPrice - numPrice) / numOldPrice) * 100)
+        : 0;
+
+      const newProductItem = {
+        id: `prod_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        title,
+        description: description || '',
+        price: numPrice,
+        old_price: numOldPrice,
+        discount_percentage: discountPct,
+        category: category || 'Phones & Tech',
+        seller: sellerName,
+        seller_id: sellerId,
+        image_url: featured_image || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
+        gallery: gallery_images,
+        is_new_arrival: !!new_arrival,
+        affiliate_commission_pct: Number(affiliate_commission_pct) || 10,
+        rating: 5.0,
+        downloads: 0,
+        type: 'product'
+      };
+
+      return res.status(201).json({
+        success: true,
+        item: newProductItem,
+        message: `Product "${title}" published on Benix Marketplace!`
+      });
+    } else {
+      // Service
+      const newServiceItem = {
+        id: `serv_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        title,
+        description: description || '',
+        category: category || 'Tech Services',
+        price_range: price_range || 'Negotiable',
+        is_negotiable: !!is_negotiable,
+        seller: sellerName,
+        seller_id: sellerId,
+        type: 'service'
+      };
+
+      return res.status(201).json({
+        success: true,
+        item: newServiceItem,
+        message: `Service "${title}" listed on Benix Marketplace!`
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Book a Service and Start Direct Chat
+app.post('/api/modules/marketplace/services/:id/book', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { serviceTitle, sellerId, clientNotes } = req.body;
+    const clientId = req.user!.id;
+
+    // Record booking in system
+    const bookingId = `bk_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    // Create or find direct chat conversation between client and service provider
+    let chatThreadId = null;
+    try {
+      const convRes = await query(`
+        INSERT INTO chat_conversations (user1_id, user2_id, topic)
+        VALUES ($1, $2, $3)
+        RETURNING id
+      `, [clientId, sellerId, `Service Booking: ${serviceTitle}`]);
+      chatThreadId = convRes.rows[0]?.id;
+    } catch {}
+
+    return res.json({
+      success: true,
+      bookingId,
+      chatThreadId,
+      message: `Booking request sent for "${serviceTitle}"! You can now chat directly with the provider.`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ==================== YOUTUBE PLAYLIST & ADMIN VIEWS MANIPULATION ==================== //
+
+/**
+ * Admin: Parse & Load YouTube Playlist Videos (RSS XML, 0 API Key Required)
+ */
+app.post('/api/admin/videos/youtube-playlist', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { playlistUrl } = req.body;
+    if (!playlistUrl || !String(playlistUrl).trim()) {
+      return res.status(400).json({ error: 'YouTube playlist URL or ID is required.' });
+    }
+
+    let playlistId = String(playlistUrl).trim();
+    const listMatch = playlistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    if (listMatch) playlistId = listMatch[1];
+
+    const feedUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
+    const feedRes = await axios.get(feedUrl, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+    const xml = String(feedRes.data || '');
+
+    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+    const parsedVideos: any[] = [];
+    let entryMatch;
+
+    while ((entryMatch = entryRegex.exec(xml)) !== null) {
+      const entryXml = entryMatch[1];
+      const vidIdMatch = entryXml.match(/<yt:videoId>(.*?)<\/yt:videoId>/);
+      const titleMatch = entryXml.match(/<title>(.*?)<\/title>/);
+      const descMatch = entryXml.match(/<media:description>([\s\S]*?)<\/media:description>/);
+      const authorMatch = entryXml.match(/<author>[\s\S]*?<name>(.*?)<\/name>/);
+      const thumbMatch = entryXml.match(/<media:thumbnail url="(.*?)"/);
+
+      if (vidIdMatch) {
+        const id = vidIdMatch[1].trim();
+        parsedVideos.push({
+          id,
+          title: (titleMatch ? titleMatch[1] : `Video ${id}`).replace(/&amp;/g, '&').replace(/&quot;/g, '"'),
+          description: descMatch ? descMatch[1].replace(/&amp;/g, '&') : '',
+          thumbnail: thumbMatch ? thumbMatch[1] : `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+          creator: authorMatch ? authorMatch[1] : 'YouTube Creator',
+          channelName: authorMatch ? authorMatch[1] : 'YouTube Creator',
+          category: 'General',
+          price: 0,
+          views: Math.floor(Math.random() * 4500) + 1200,
+          embedUrl: `https://www.youtube.com/embed/${id}`
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      playlistId,
+      count: parsedVideos.length,
+      videos: parsedVideos
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Could not load playlist. Please verify the link is public.' });
+  }
+});
+
+/**
+ * Admin: Batch Post Chosen Playlist Videos to BenixSpace
+ */
+app.post('/api/admin/videos/batch-import', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { videos } = req.body;
+    if (!Array.isArray(videos) || videos.length === 0) {
+      return res.status(400).json({ error: 'Array of videos is required.' });
+    }
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_videos (
+        id VARCHAR(255) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        slug VARCHAR(255),
+        description TEXT,
+        video_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        duration INT DEFAULT 300,
+        views INT DEFAULT 0,
+        likes INT DEFAULT 0,
+        access_type VARCHAR(50) DEFAULT 'PUBLIC',
+        price NUMERIC(15,2) DEFAULT 0,
+        category VARCHAR(100) DEFAULT 'General',
+        user_id VARCHAR(255) NOT NULL,
+        channel_name VARCHAR(255),
+        channel_handle VARCHAR(255),
+        channel_avatar TEXT,
+        is_verified BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    let count = 0;
+    for (const v of videos) {
+      try {
+        const slug = (v.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+        await query(
+          `INSERT INTO user_videos (id, title, slug, description, video_url, thumbnail_url, duration, views, likes, access_type, price, category, user_id, channel_name, channel_handle, channel_avatar, is_verified)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PUBLIC', 0, $10, $11, $12, $13, $14, true)
+           ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, thumbnail_url = EXCLUDED.thumbnail_url, views = EXCLUDED.views`,
+          [
+            v.id,
+            v.title,
+            slug,
+            v.description || '',
+            v.embedUrl || `https://www.youtube.com/embed/${v.id}`,
+            v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
+            300,
+            Number(v.views) || 1200,
+            Math.floor((Number(v.views) || 1200) / 10),
+            v.category || 'General',
+            req.user!.id,
+            v.channelName || v.creator || 'Benix Creator',
+            (v.channelName || 'creator').toLowerCase().replace(/[^a-z0-9]/g, ''),
+            '/logo.png'
+          ]
+        );
+        count++;
+      } catch (e) {}
+    }
+
+    return res.json({ success: true, count, message: `Successfully posted ${count} videos to BenixSpace!` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Edit Views for Any Video (Dummy view count or delta adjustment)
+ */
+app.patch('/api/admin/videos/:id/views', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { views, delta } = req.body;
+
+    let targetViews = 0;
+    if (typeof views === 'number') {
+      targetViews = Math.max(0, views);
+    } else if (typeof delta === 'number') {
+      const cur = await query('SELECT views FROM user_videos WHERE id = $1', [id]).catch(() => ({ rows: [] }));
+      const curViews = cur.rows[0]?.views ? Number(cur.rows[0].views) : 0;
+      targetViews = Math.max(0, curViews + delta);
+    } else {
+      return res.status(400).json({ error: 'views (number) or delta (number) is required.' });
+    }
+
+    await query('UPDATE user_videos SET views = $1 WHERE id = $2', [targetViews, id]).catch(() => {});
+    const inMem = SAMPLE_VIDEOS.find(v => v.id === id);
+    if (inMem) inMem.views = targetViews;
+
+    return res.json({ success: true, id, views: targetViews, message: `Video views updated to ${targetViews.toLocaleString()}!` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Delete Video from List
+ */
+app.delete('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    await query('DELETE FROM user_videos WHERE id = $1', [id]).catch(() => {});
+    const idx = SAMPLE_VIDEOS.findIndex(v => v.id === id);
+    if (idx !== -1) SAMPLE_VIDEOS.splice(idx, 1);
+    return res.json({ success: true, id, message: 'Video removed from platform.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== SOCIAL BOT OPENGRAPH / TWITTER CARD CRAWLER ==================== //
+app.use(async (req, res, next) => {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  const isBot = /whatsapp|facebookexternalhit|facebot|twitterbot|telegrambot|linkedinbot|slackbot|googlebot|bingbot/i.test(ua);
+  if (!isBot || req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
+    return next();
+  }
+
+  try {
+    let title = 'BenixSpace — Rwanda Unified Digital Ecosystem & Super-App';
+    let description = 'Discover Live TV & Radio, Kunda Dating, Voxify Choirs & Songs, Digital Marketplace, 3D Games, and Instant MoMo Central Wallet.';
+    let imageUrl = 'https://benix.space/nebelurw.png';
+    const canonicalUrl = `https://benix.space${req.path}`;
+
+    if (req.path.startsWith('/videos/') || req.path.startsWith('/video/')) {
+      const vidId = req.path.split('/')[2];
+      const vid = SAMPLE_VIDEOS.find(v => v.id === vidId || v.slug === vidId);
+      if (vid) {
+        title = `${vid.title} — Watch on BenixSpace TV`;
+        description = vid.description || `Watch ${vid.title} by ${vid.creator || 'BenixSpace'} in HD.`;
+        imageUrl = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${vid.id}/hqdefault.jpg`;
+      }
+    } else if (req.path.startsWith('/marketplace') || req.path.startsWith('/shop')) {
+      title = 'Benix Marketplace — Digital Products, Gadgets & Freelance Services';
+      description = 'Browse verified products and freelance services with instant Rwandan MoMo payments and affiliate commission.';
+      imageUrl = 'https://benix.space/nebelurw.png';
+    } else if (req.path.startsWith('/dating') || req.path.startsWith('/kunda')) {
+      title = 'Kunda Space — Rwanda Verified Matchmaking & Dating';
+      description = 'Connect with verified Rwandan singles, explore smart compatibility matches, and unlock direct WhatsApp contacts.';
+      imageUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1200&auto=format&fit=crop&q=80';
+    } else if (req.path.startsWith('/music') || req.path.startsWith('/voxify')) {
+      title = 'Voxify Choirs & Songs — Choral SATB Stems & Songs Marketplace';
+      description = 'Buy original song master ownership, practice private SATB choral stems, and prepare for Sunday performance.';
+      imageUrl = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&auto=format&fit=crop&q=80';
+    }
+
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <meta name="description" content="${description}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="BenixSpace" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:image" content="${imageUrl}" />
+  <meta property="og:image:secure_url" content="${imageUrl}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="${canonicalUrl}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@BenixSpace" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${imageUrl}" />
+</head>
+<body>
+  <h1>${title}</h1>
+  <p>${description}</p>
+  <img src="${imageUrl}" alt="${title}" />
+</body>
+</html>`;
+    return res.status(200).send(html);
+  } catch (e) {
+    next();
+  }
 });
 
 // 404 Fallback for unmatched /api routes

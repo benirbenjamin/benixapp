@@ -1,6 +1,9 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/index?__path=sitemap.xml" },
+    { "source": "/robots.txt", "destination": "/api/index?__path=robots.txt" },
+    { "source": "/share/(.*)", "destination": "/api/index?__path=share/$1" },
     { "source": "/api", "destination": "/api/index" },
     { "source": "/api/(.*)", "destination": "/api/index?__path=$1" },
     { "source": "/((?!api/).*)", "destination": "/benixspace/dist/$1" }

@@ -408,6 +408,39 @@ export const VideosPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeVideo?.id, isPlaying]);
 
+  // 10-Second View Counter Rule: 1 view is recorded after user watches for 10 continuous seconds
+  useEffect(() => {
+    if (!activeVideo || !isPlaying) return;
+    let secondsWatched = 0;
+    let counted = false;
+
+    const viewInterval = setInterval(() => {
+      if (!isPlaying) return;
+      secondsWatched += 1;
+      if (secondsWatched >= 10 && !counted) {
+        counted = true;
+        const token = getAuthToken();
+        fetch(`/api/videos/${activeVideo.id}/view`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && typeof data.views === 'number') {
+              setActiveVideo((prev) => (prev ? { ...prev, views: data.views } : prev));
+              setVideos((list) => list.map((v) => (v.id === activeVideo.id ? { ...v, views: data.views } : v)));
+            }
+          })
+          .catch(() => {});
+      }
+    }, 1000);
+
+    return () => clearInterval(viewInterval);
+  }, [activeVideo?.id, isPlaying]);
+
   useEffect(() => {
     const detectConnection = () => {
       const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;

@@ -6,6 +6,10 @@ import { useTheme, ThemeMode, AccentColor } from '../context/ThemeContext';
 import { SeoHead } from '../components/common/SeoHead';
 import { WalletModal } from '../components/modals/WalletModal';
 import { SubmitAdModal } from '../components/modals/SubmitAdModal';
+import { DashboardCreatorBar } from '../components/dashboard/DashboardCreatorBar';
+import { DashboardReceiptModal } from '../components/dashboard/DashboardReceiptModal';
+import { CreateMediaModal } from '../components/modals/CreateMediaModal';
+import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal';
 import {
   LayoutDashboard,
   Wallet,
@@ -62,6 +66,48 @@ export const DashboardPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showCreateMediaModal, setShowCreateMediaModal] = useState(false);
+  const [selectedReceiptTx, setSelectedReceiptTx] = useState<any | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
+  const [transactionsList, setTransactionsList] = useState<any[]>([
+    {
+      id: 'tx-2026-001',
+      title: 'Welcome Super-Account Activation Bonus',
+      type: 'bonus_credit',
+      amount: 100,
+      fee: 0,
+      currency: 'RWF',
+      date: 'Today, Just now',
+      status: 'completed',
+      balance_after: 100,
+      description: 'BenixSpace unified welcome bonus credited to Central Wallet'
+    },
+    {
+      id: 'tx-2026-002',
+      title: 'MoMo Rwandan Instant Deposit',
+      type: 'deposit',
+      amount: 5000,
+      fee: 0,
+      currency: 'RWF',
+      date: 'Today, 14:22',
+      status: 'completed',
+      balance_after: 5100,
+      description: 'MTN Mobile Money direct wallet top-up'
+    },
+    {
+      id: 'tx-2026-003',
+      title: 'RollDice Arena PvE Wager Winnings',
+      type: 'game_win',
+      amount: 1200,
+      fee: 0,
+      currency: 'RWF',
+      date: 'Yesterday, 19:40',
+      status: 'completed',
+      balance_after: 6300,
+      description: 'RollDice High-Low challenge round payout'
+    }
+  ]);
 
   // Profile Avatar Upload State
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -273,6 +319,61 @@ export const DashboardPage: React.FC = () => {
 
   const isSuperAdmin = user?.role === 'superadmin' || user?.role === 'admin';
 
+  // Guard: Unauthenticated visitors cannot see private user dashboard
+  if (!user && !token) {
+    return (
+      <div className="min-h-[85vh] bg-[#0B0E14] text-white flex items-center justify-center p-4">
+        <SeoHead
+          title="Sign In to Access Dashboard — Benix.Space"
+          description="Access your central wallet, applications, analytics, and creator studio."
+        />
+        <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 text-center space-y-6 shadow-2xl animate-fade-in">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center mx-auto shadow-xl">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Private User Dashboard
+            </span>
+            <h2 className="text-2xl font-black text-white">Sign In Required</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              The BenixSpace Super-Account Dashboard is reserved for registered users. Please sign in or create your unified account to access your central wallet, media tools, and personal settings.
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={() => { setAuthModalTab('login'); setShowAuthModal(true); }}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
+            >
+              <User className="w-4 h-4" />
+              <span>Sign In to Your Account</span>
+            </button>
+            <button
+              onClick={() => { setAuthModalTab('register'); setShowAuthModal(true); }}
+              className="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all"
+            >
+              Create Free Account
+            </button>
+            <Link
+              to="/"
+              className="block text-xs text-slate-500 hover:text-slate-300 transition-colors pt-2"
+            >
+              ← Return to Public Homepage
+            </Link>
+          </div>
+        </div>
+        {showAuthModal && (
+          <AppAccessWizardModal
+            isOpen={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            targetAppKey="tv"
+            initialTab={authModalTab}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white py-6 sm:py-8 transition-colors font-sans selection:bg-blue-600">
       <SeoHead
@@ -431,6 +532,7 @@ export const DashboardPage: React.FC = () => {
         {/* TAB 1: OVERVIEW & CONNECTED APPS */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            <DashboardCreatorBar onOpenMediaModal={() => setShowCreateMediaModal(true)} onOpenAdModal={() => setShowSubmitAdModal(true)} />
             <div>
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 mb-4">
                 Your Enabled Application Suite
@@ -532,6 +634,59 @@ export const DashboardPage: React.FC = () => {
               >
                 Withdraw to MoMo / Bank
               </button>
+            </div>
+
+            {/* Clickable Financial Transactions Ledger */}
+            <div className="space-y-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-slate-400" />
+                  <span>Recent Financial Transactions Ledger</span>
+                </h4>
+                <span className="text-[11px] text-slate-400">Click any transaction to view official receipt</span>
+              </div>
+
+              <div className="divide-y divide-slate-800/80 rounded-2xl bg-[#0B0E14] border border-slate-800 overflow-hidden">
+                {transactionsList.map((tx) => (
+                  <div
+                    key={tx.id}
+                    onClick={() => setSelectedReceiptTx(tx)}
+                    className="p-4 hover:bg-slate-800/40 cursor-pointer flex items-center justify-between transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                        tx.type === 'deposit' || tx.type === 'game_win' || tx.type === 'bonus_credit'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : 'bg-rose-500/10 text-rose-400'
+                      }`}>
+                        {tx.type === 'deposit' || tx.type === 'game_win' || tx.type === 'bonus_credit' ? (
+                          <ArrowDownLeft className="w-4 h-4" />
+                        ) : (
+                          <ArrowUpRight className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
+                          {tx.title}
+                        </h5>
+                        <p className="text-[11px] text-slate-500">{tx.date} • Ref: {tx.id}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs font-black block ${
+                        tx.type === 'deposit' || tx.type === 'game_win' || tx.type === 'bonus_credit'
+                          ? 'text-emerald-400'
+                          : 'text-white'
+                      }`}>
+                        +{tx.amount.toLocaleString()} {tx.currency}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Bal: {tx.balance_after.toLocaleString()} RWF
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1234,6 +1389,21 @@ export const DashboardPage: React.FC = () => {
       )}
 
       {/* Central Wallet Modal */}
+      {showCreateMediaModal && (
+        <CreateMediaModal
+          isOpen={showCreateMediaModal}
+          onClose={() => setShowCreateMediaModal(false)}
+        />
+      )}
+
+      {selectedReceiptTx && (
+        <DashboardReceiptModal
+          isOpen={!!selectedReceiptTx}
+          onClose={() => setSelectedReceiptTx(null)}
+          tx={selectedReceiptTx}
+        />
+      )}
+
       {showWalletModal && (
         <WalletModal
           isOpen={showWalletModal}

@@ -94,7 +94,13 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     if (initialTab) {
       setAuthTab(initialTab);
     }
-  }, [initialTab, isOpen]);
+    if (user?.email) {
+      setVerifyEmail(user.email);
+    }
+    if (targetAppKey === 'account_verification') {
+      setAuthTab('verify');
+    }
+  }, [initialTab, isOpen, user, targetAppKey]);
 
   const normalizedKey = targetAppKey === 'dating' ? 'kunda' : (targetAppKey === 'music' ? 'voxify' : (targetAppKey === 'videos' ? 'tv' : (targetAppKey || 'tv')));
   const appConfig: AppRequirementConfig = APP_REQUIREMENTS[normalizedKey] || APP_REQUIREMENTS[targetAppKey || 'tv'] || APP_REQUIREMENTS['tv'];
@@ -381,8 +387,8 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
         {/* Modal Body - Scrollable within viewport */}
         <div className="p-4 sm:p-6 text-slate-200 overflow-y-auto flex-1 overscroll-contain">
           
-          {/* STEP A: User is NOT logged in -> Ask to Register or Login */}
-          {!user ? (
+          {/* STEP A: User is NOT logged in OR verifying account -> Ask to Register, Login, or Verify */}
+          {(!user || authTab === 'verify' || targetAppKey === 'account_verification') ? (
             <div className="space-y-5">
               <div className="text-center space-y-1">
                 <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">

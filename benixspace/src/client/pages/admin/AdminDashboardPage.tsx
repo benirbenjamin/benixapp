@@ -3,6 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { fetchAnalyticsStats, fetchProjects, fetchArticles, getAuthToken } from '../../services/api';
 import type { Project, Article } from '../../types';
+import { AdminStationsPanel } from '../../components/admin/AdminStationsPanel';
+import { AdminUsersPanel } from '../../components/admin/AdminUsersPanel';
+import { AdminDepositsPanel } from '../../components/admin/AdminDepositsPanel';
+import { AdminMonetizationPanel } from '../../components/admin/AdminMonetizationPanel';
+import { AdminStoriesPanel } from '../../components/admin/AdminStoriesPanel';
+import { AdminLedgerSchemaPanel } from '../../components/admin/AdminLedgerSchemaPanel';
+import { AdminYouTubePlaylistModal } from '../../components/admin/AdminYouTubePlaylistModal';
+import { AdminVideoEditViewsModal } from '../../components/admin/AdminVideoEditViewsModal';
 import realVideosData from '../../config/realVideos.json';
 import {
   Users,
@@ -175,7 +183,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Active App Management Tab
-  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads' | 'monetization' | 'stories'>('videos');
+  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads' | 'monetization' | 'stories' | 'users' | 'deposits' | 'ledger_db'>('videos');
 
   // Monetization & Creators Control State
   const [monetizationSettings, setMonetizationSettings] = useState({ requiredWatchHours: 300, requiredSubscribers: 30 });
@@ -191,6 +199,8 @@ export const AdminDashboardPage: React.FC = () => {
   const [adminVideos, setAdminVideos] = useState<AdminVideoRecord[]>([]);
   const [loadingAdminVideos, setLoadingAdminVideos] = useState(false);
   const [editingAdminVideo, setEditingAdminVideo] = useState<AdminVideoRecord | null>(null);
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [editingViewsVideo, setEditingViewsVideo] = useState<any | null>(null);
   const [editAdminTitle, setEditAdminTitle] = useState('');
   const [editAdminDesc, setEditAdminDesc] = useState('');
   const [editAdminCat, setEditAdminCat] = useState('General');
@@ -272,7 +282,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Hash change detection (for sidebar clicks like /admin#videos or /admin#marketplace)
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads', 'monetization', 'stories'].includes(hash)) {
+    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads', 'monetization', 'stories', 'users', 'deposits', 'ledger_db'].includes(hash)) {
       setActiveAppTab(hash as any);
       setTimeout(() => {
         document.getElementById('apps-control-center')?.scrollIntoView({ behavior: 'smooth' });
@@ -953,6 +963,29 @@ export const AdminDashboardPage: React.FC = () => {
             {/* App Selection Tabs */}
             <div className="flex flex-wrap items-center gap-1.5 bg-[#0B0E14] p-1.5 rounded-2xl border border-slate-800">
               <button
+                onClick={() => setActiveAppTab('users')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'users'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Users & Wallets</span>
+              </button>
+
+              <button
+                onClick={() => setActiveAppTab('deposits')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'deposits'
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Deposits</span>
+              </button>
+              <button
                 onClick={() => setActiveAppTab('videos')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                   activeAppTab === 'videos'
@@ -1068,10 +1101,36 @@ export const AdminDashboardPage: React.FC = () => {
                 <Play className="w-3.5 h-3.5" />
                 <span>Stories ({adminStories.length})</span>
               </button>
+
+              <button
+                onClick={() => setActiveAppTab('ledger_db')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'ledger_db'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-bold'
+                    : 'text-indigo-400 hover:text-white'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span>Ledger & DB</span>
+              </button>
             </div>
           </div>
 
           {/* ============================================================== */}
+          {/* TAB 0: UNIFIED USERS & WALLET CONTROL */}
+          {activeAppTab === 'users' && (
+            <div className="space-y-6 animate-fade-in">
+              <AdminUsersPanel />
+            </div>
+          )}
+
+          {/* TAB 0.5: DEPOSIT APPROVALS */}
+          {activeAppTab === 'deposits' && (
+            <div className="space-y-6 animate-fade-in">
+              <AdminDepositsPanel />
+            </div>
+          )}
+
           {/* TAB 1: VIDEOS & CHANNELS MANAGEMENT                            */}
           {/* ============================================================== */}
           {activeAppTab === 'videos' && (
@@ -1085,9 +1144,19 @@ export const AdminDashboardPage: React.FC = () => {
 
               {/* Add New Video Form */}
               <form onSubmit={handleAddVideo} className="p-5 rounded-2xl bg-[#0B0E14] border border-slate-800 space-y-4">
-                <span className="text-xs font-bold uppercase text-purple-400 block">
-                  Add Real YouTube Video to Catalog
-                </span>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-bold uppercase text-purple-400 block">
+                    Add Real YouTube Video to Catalog
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPlaylistModal(true)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold shadow-md shadow-red-600/20 flex items-center gap-1.5 transition-all"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>Import YouTube Playlist (Batch)</span>
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <input
                     type="text"
@@ -1364,6 +1433,11 @@ export const AdminDashboardPage: React.FC = () => {
           {/* TAB 3: TV & RADIO BROADCASTS */} 
           {/* ============================================================== */}
           {activeAppTab === 'tv_radio' && (
+            <div className="space-y-6 animate-fade-in">
+              <AdminStationsPanel />
+            </div>
+          )}
+          {false && (
             <div className="space-y-6 animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
@@ -2014,10 +2088,32 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           )}
 
+          {/* TAB 8: CREATOR MONETIZATION POLICIES & PARTNER AUDIT */}
+          {activeAppTab === 'monetization' && (
+            <div className="space-y-6 animate-fade-in">
+              <AdminMonetizationPanel />
+            </div>
+          )}
+
+          {/* TAB 9: EPHEMERAL STORIES MODERATION */}
+          {activeAppTab === 'stories' && (
+            <div className="space-y-6 animate-fade-in">
+              <AdminStoriesPanel />
+            </div>
+          )}
+
+          {/* TAB 10: CENTRAL LEDGER & NEON POSTGRESQL ARCHITECTURE */}
+          {activeAppTab === 'ledger_db' && (
+            <div className="space-y-6 animate-fade-in">
+              <AdminLedgerSchemaPanel />
+            </div>
+          )}
+
         </div>
 
-        {/* Central Wallet Ledger & Database Architecture */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Central Wallet Ledger & Database Architecture */}
+        {/* Central Wallet Ledger & Database Architecture (Unconditional view hidden; active in dedicated Ledger & DB tab) */}
+        <div className="hidden grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Central Wallet Real-Time Ledger */}
           <div className="lg:col-span-7 rounded-3xl p-6 border border-slate-800 bg-[#131926] shadow-xl space-y-4">
@@ -2130,7 +2226,34 @@ export const AdminDashboardPage: React.FC = () => {
         {/* MODALS: VIDEO EDIT, CREATOR NOTICE, STORY VIEWERS              */}
         {/* ============================================================== */}
 
-        {/* Video Edit Modal */}
+        {/* YouTube Playlist Importer Modal */}
+      {showPlaylistModal && (
+        <AdminYouTubePlaylistModal
+          isOpen={showPlaylistModal}
+          onClose={() => setShowPlaylistModal(false)}
+          onImportComplete={() => {
+            loadAdminVideos();
+            setActionMessage('Playlist videos successfully imported to catalog!');
+            setTimeout(() => setActionMessage(''), 4000);
+          }}
+        />
+      )}
+
+      {/* Video Views Manipulator Modal */}
+      {editingViewsVideo && (
+        <AdminVideoEditViewsModal
+          isOpen={!!editingViewsVideo}
+          onClose={() => setEditingViewsVideo(null)}
+          video={editingViewsVideo}
+          onSuccess={() => {
+            loadAdminVideos();
+            setActionMessage('Video views updated successfully!');
+            setTimeout(() => setActionMessage(''), 3000);
+          }}
+        />
+      )}
+
+      {/* Video Edit Modal */}
         {editingAdminVideo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <div className="max-w-lg w-full bg-[#131926] rounded-3xl border border-slate-800 p-6 space-y-4 shadow-2xl">

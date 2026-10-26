@@ -8,7 +8,7 @@ A comprehensive multi-application platform unified under a single architecture, 
 - **radioapp**: 24/7 radio stations, live audio visualizer, and streaming.
 - **voxify**: Choir management, song library, audio part practice, and sheet music marketplace.
 - **kunda**: Dating and social community platform with feed, stories, and verified profiles.
-- **umuguzi**: E-commerce marketplace with multi-vendor shop, checkout, and inventory management.
+- **market**: E-commerce marketplace with multi-vendor shop, checkout, and inventory management.
 - **rollDice**: Interactive dice wagering mini-game integrated with central wallet.
 - **benixEasyCalc**: Financial and scientific calculation utility tools.
 

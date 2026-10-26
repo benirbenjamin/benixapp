@@ -397,6 +397,11 @@ export const Navbar: React.FC = () => {
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
         onOpenWallet={() => navigate('/dashboard#wallet')}
+        onOpenVerify={() => {
+          setShowNotifications(false);
+          setWizardInitialTab('verify' as any);
+          setWizardAppKey('account_verification');
+        }}
       />
 
       {/* Side Navigation Drawer */}

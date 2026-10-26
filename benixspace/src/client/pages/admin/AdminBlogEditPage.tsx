@@ -280,12 +280,68 @@ export const AdminBlogEditPage: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Featured Image URL</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Featured Cover Image</label>
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold shadow-md transition-all">
+                    <span>Upload from Computer</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const img = new Image();
+                          img.onload = async () => {
+                            const canvas = document.createElement('canvas');
+                            const maxDim = 1200;
+                            let w = img.width;
+                            let h = img.height;
+                            if (w > maxDim || h > maxDim) {
+                              if (w > h) {
+                                h = Math.round((h * maxDim) / w);
+                                w = maxDim;
+                              } else {
+                                w = Math.round((w * maxDim) / h);
+                                h = maxDim;
+                              }
+                            }
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx?.drawImage(img, 0, 0, w, h);
+                            const b64 = canvas.toDataURL('image/jpeg', 0.85);
+
+                            try {
+                              const token = getAuthToken();
+                              const res = await fetch('/api/upload/article-media', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  ...(token ? { Authorization: `Bearer ${token}` } : {})
+                                },
+                                body: JSON.stringify({ imageBase64: b64, filename: file.name })
+                              });
+                              const data = await res.json();
+                              setFormData((prev) => ({ ...prev, featured_image_url: data.url || b64 }));
+                            } catch {
+                              setFormData((prev) => ({ ...prev, featured_image_url: b64 }));
+                            }
+                          };
+                          img.src = event.target?.result as string;
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                </div>
                 <input
                   type="url"
                   value={formData.featured_image_url || ''}
                   onChange={(e) => setFormData({ ...formData, featured_image_url: e.target.value })}
-                  placeholder="https://i.postimg.cc/..."
+                  placeholder="Image URL or upload from computer"
                   className="w-full p-3 rounded-xl bg-[#1A2234] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 placeholder-slate-500"
                 />
               </div>

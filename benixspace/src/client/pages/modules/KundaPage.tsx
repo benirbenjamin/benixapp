@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { KundaChatModal } from '../../components/modals/KundaChatModal';
 import { KundaSubscriptionModal } from '../../components/modals/KundaSubscriptionModal';
+import { KundaSetupModal } from '../../components/modals/KundaSetupModal';
 import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
 import {
@@ -35,6 +36,9 @@ interface MatchProfile {
   image: string;
   verified: boolean;
   online: boolean;
+  matchScore?: number;
+  compatibilityReason?: string;
+  intention?: string;
 }
 
 export const KundaPage: React.FC = () => {
@@ -52,11 +56,42 @@ export const KundaPage: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [isSubscriptionOpen, setIsSubscriptionOpen] = useState<boolean>(false);
   const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);
+  const [isSetupOpen, setIsSetupOpen] = useState<boolean>(false);
+  const [userPreferences, setUserPreferences] = useState<any>(null);
+
+  const fetchMatches = () => {
+    // call fetch
+    // if
+    setLoadingMatches(true);
+    fetch('/api/modules/kunda/matched', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.matches && Array.isArray(data.matches)) {
+          setMatches(data.matches);
+        }
+        if (data?.userPreferences) {
+          setUserPreferences(data.userPreferences);
+        }
+      })
+      .catch(() => {
+        fetch('/api/modules/kunda/matches')
+          .then((res) => res.json())
+          .then((fallback) => {
+            if (fallback?.matches) setMatches(fallback.matches);
+          });
+      })
+      .finally(() => setLoadingMatches(false));
+  };
 
   // Load real registered user matches from database
   React.useEffect(() => {
+    // call fetch
+    // if
     setLoadingMatches(true);
-    fetch('/api/modules/kunda/matches', {
+    fetchMatches();
+    if (false) fetch('/api/modules/kunda/matches', {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined
     })
       .then((res) => res.json())
@@ -146,6 +181,14 @@ export const KundaPage: React.FC = () => {
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Home</span>
           </Link>
+
+          <button
+            onClick={() => setIsSetupOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-md transition-all hover:scale-105"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Match Questionnaire</span>
+          </button>
 
           <button
             onClick={() => setIsSubscriptionOpen(true)}
@@ -288,7 +331,13 @@ export const KundaPage: React.FC = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#131926] via-transparent to-black/30" />
 
                     {/* Verification & Online Status */}
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+                      {match.matchScore && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-500 to-rose-600 text-white flex items-center gap-1 shadow-lg shadow-rose-600/30">
+                          <Sparkles className="w-3 h-3 fill-current" />
+                          {match.matchScore}% MATCH
+                        </span>
+                      )}
                       {match.verified && (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-600/90 backdrop-blur-md text-white flex items-center gap-1 shadow-md">
                           <ShieldCheck className="w-3 h-3" />
@@ -320,6 +369,11 @@ export const KundaPage: React.FC = () => {
                         <MapPin className="w-3 h-3" />
                         {match.city} • {match.profession}
                       </p>
+                      {match.compatibilityReason && (
+                        <p className="text-[10px] text-amber-300 font-bold mt-1 line-clamp-1 drop-shadow">
+                          {match.compatibilityReason}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -402,6 +456,16 @@ export const KundaPage: React.FC = () => {
           }}
           onOpenSubscription={() => setIsSubscriptionOpen(true)}
           onOpenWallet={() => setIsWalletOpen(true)}
+        />
+      )}
+
+      {/* Kunda Match Preferences & Questionnaire Modal */}
+      {isSetupOpen && (
+        <KundaSetupModal
+          isOpen={isSetupOpen}
+          onClose={() => setIsSetupOpen(false)}
+          onSaved={fetchMatches}
+          initialData={userPreferences}
         />
       )}
 

@@ -28,9 +28,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onOpenWallet?: () => void;
+  onOpenVerify?: () => void;
 }
 
-export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWallet }) => {
+export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWallet, onOpenVerify }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showTrayNotification } = usePwa();
@@ -69,6 +70,13 @@ export const NotificationTray: React.FC<Props> = ({ isOpen, onClose, onOpenWalle
     notificationSound.playNotificationChime();
     markAsRead(item.id);
     onClose();
+
+    if (item.id === 'act_verify_account' || item.title.toLowerCase().includes('verify your account')) {
+      if (onOpenVerify) {
+        onOpenVerify();
+        return;
+      }
+    }
 
     if (item.category === 'wallet' && onOpenWallet && item.route.includes('#wallet')) {
       onOpenWallet();
