@@ -5,6 +5,7 @@ import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardMod
 import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
 import { getAuthToken } from '../../services/api';
+import { buildSecureUrl } from '../../utils/urlSecurity';
 import {
   ShoppingBag,
   Tag,
@@ -548,7 +549,11 @@ export const MarketplacePage: React.FC = () => {
 
                     {item.listingType === 'service' ? (
                       <Link
-                        to={`/messages?chatWith=${encodeURIComponent(item.sellerId || item.seller)}&topic=${encodeURIComponent(`Service: ${item.title}`)}`}
+                        to={buildSecureUrl('/messages', {
+                          chatWith: item.sellerId || item.seller,
+                          name: item.seller,
+                          topic: `Service: ${item.title}`
+                        })}
                         className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5"
                       >
                         Book & Deal

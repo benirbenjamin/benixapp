@@ -5,6 +5,7 @@ import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardMod
 import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
 import { getAuthToken } from '../../services/api';
+import { buildSecureUrl } from '../../utils/urlSecurity';
 import {
   Music,
   Play,
@@ -928,7 +929,7 @@ export const VoxifyPage: React.FC = () => {
                         <button
                           onClick={() => {
                             if (!user) setWizardTarget('voxify');
-                            else navigate(`/messages?chatWith=${song.owner_id || ''}`);
+                            else navigate(buildSecureUrl('/messages', { chatWith: song.owner_id || '', topic: `Choir Song: ${song.title}` }));
                           }}
                           className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition"
                           title="Chat with composer about arrangement / choir coaching"

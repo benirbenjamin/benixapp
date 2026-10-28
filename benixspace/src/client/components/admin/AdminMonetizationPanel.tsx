@@ -15,7 +15,11 @@ import {
   Filter,
   Check,
   X,
-  Sliders
+  Sliders,
+  ArrowLeft,
+  ExternalLink,
+  Tv,
+  Film
 } from 'lucide-react';
 import { getAuthToken } from '../../services/api';
 
@@ -37,6 +41,7 @@ export const AdminMonetizationPanel: React.FC = () => {
 
   // Creators list
   const [creators, setCreators] = useState<any[]>([]);
+  const [viewingCreatorDetails, setViewingCreatorDetails] = useState<any | null>(null);
 
   // Notice & Status Modal
   const [selectedCreator, setSelectedCreator] = useState<any | null>(null);
@@ -49,22 +54,26 @@ export const AdminMonetizationPanel: React.FC = () => {
     setLoading(true);
     try {
       const token = getAuthToken();
-      // Fetch users list
-      const res = await fetch('/api/admin/users', {
+      // Fetch real creators monetization list
+      const res = await fetch('/api/admin/creators/monetization', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
-      if (data.users) {
-        // Filter or enrich creators
-        const enriched = data.users.map((u: any, idx: number) => ({
-          ...u,
-          channel_name: u.channel_name || `${u.name}'s Studio`,
-          watch_hours: u.watch_hours ?? Math.floor(120 + idx * 240),
-          subscribers_count: u.subscribers_count ?? Math.floor(80 + idx * 310),
-          total_earnings: u.total_earnings ?? Math.floor(idx * 15400),
-          monetization_status: u.is_monetized ? 'active' : (idx % 2 === 0 ? 'paused' : 'under_review')
-        }));
-        setCreators(enriched);
+      if (data.creators && Array.isArray(data.creators)) {
+        setCreators(data.creators);
+      } else {
+        const uRes = await fetch('/api/admin/users', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        const uData = await uRes.json();
+        if (uData.users) {
+          setCreators(uData.users.map((u: any) => ({
+            ...u,
+            channel_name: u.channel_name || `${u.name}'s Studio`,
+            watch_hours: Number(u.watch_hours) || 0,
+            subscribers_count: Number(u.subscribers_count) || 0,
+            total_earnings: Number(u.total_earnings || u.wallet_balance) || 0,
+            monetization_status: u.is_monetized ? 'active' : 'not_monetized'
+          })));
+        }
       }
 
       // Load saved settings from server (synced with platform settings) or local fallback
@@ -121,13 +130,13 @@ export const AdminMonetizationPanel: React.FC = () => {
     try {
       const token = getAuthToken();
       const nextVal = !currentStatus;
-      const res = await fetch(`/api/admin/users/${creatorId}/status`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/admin/creators/${creatorId}/monetization`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ is_monetized: nextVal })
+        body: JSON.stringify({ status: nextVal ? 'active' : 'paused' })
       });
       if (res.ok) {
         setCreators((prev) =>
@@ -141,6 +150,13 @@ export const AdminMonetizationPanel: React.FC = () => {
               : c
           )
         );
+        if (viewingCreatorDetails?.id === creatorId) {
+          setViewingCreatorDetails((prev: any) => ({
+            ...prev,
+            is_monetized: nextVal,
+            monetization_status: nextVal ? 'active' : 'paused'
+          }));
+        }
         setStatusMessage({
           type: 'success',
           text: `Creator monetization ${nextVal ? 'activated' : 'paused'}!`
@@ -334,7 +350,129 @@ export const AdminMonetizationPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Creators Moderation Table */}
+      {/* Creator Details View OR Creators Moderation Table */}
+      {viewingCreatorDetails ? (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <button
+              onClick={() => setViewingCreatorDetails(null)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#1A2234] hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition-all hover:scale-105 shadow-lg w-fit"
+            >
+              <ArrowLeft className="w-4 h-4 text-emerald-400" />
+              <span>← Back to Creators List</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleToggleMonetize(viewingCreatorDetails.id, !!viewingCreatorDetails.is_monetized)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md ${
+                  viewingCreatorDetails.is_monetized
+                    ? 'bg-amber-950/80 border border-amber-800 text-amber-300 hover:bg-amber-900'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                }`}
+              >
+                {viewingCreatorDetails.is_monetized ? 'Pause Monetization' : 'Activate Partner'}
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedCreator(viewingCreatorDetails);
+                  setOverrideStatus(viewingCreatorDetails.is_monetized ? 'active' : 'paused');
+                  setNoticeText('');
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+              >
+                <Send className="w-3.5 h-3.5 text-blue-400" /> Send Notice
+              </button>
+            </div>
+          </div>
+
+          {/* Full Creator Channel Card */}
+          <div className="p-6 bg-slate-900/90 border border-slate-800 rounded-3xl shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-black shadow-lg">
+                  {(viewingCreatorDetails.name || 'C')[0].toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-black text-white">{viewingCreatorDetails.channel_name || viewingCreatorDetails.channelName}</h2>
+                    {viewingCreatorDetails.is_monetized ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                        MONETIZED PARTNER
+                      </span>
+                    ) : viewingCreatorDetails.monetization_status === 'paused' ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                        MONETIZATION PAUSED
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-slate-400 border border-slate-700">
+                        NOT MONETIZED
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Creator: <strong className="text-slate-200">{viewingCreatorDetails.name}</strong> • {viewingCreatorDetails.email} • {viewingCreatorDetails.phone || 'No phone recorded'}</p>
+                </div>
+              </div>
+              <a
+                href={`/videos?channel=${encodeURIComponent(viewingCreatorDetails.channel_name || viewingCreatorDetails.name)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition w-fit"
+              >
+                <span>View Public Channel</span>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              </a>
+            </div>
+
+            {/* 4 Detail Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-[#0F141F] border border-slate-800/80 space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Real Watch Hours</span>
+                <p className="text-2xl font-black text-white">
+                  {typeof viewingCreatorDetails.watch_hours === 'number' && viewingCreatorDetails.watch_hours > 0 && viewingCreatorDetails.watch_hours < 0.1
+                    ? viewingCreatorDetails.watch_hours.toFixed(3)
+                    : Number(viewingCreatorDetails.watch_hours || 0).toLocaleString()} <span className="text-xs text-slate-400 font-normal">hrs</span>
+                </p>
+                <p className="text-[11px] text-slate-500">Target: {thresholds.minWatchHours} hrs</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0F141F] border border-slate-800/80 space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Subscribers Count</span>
+                <p className="text-2xl font-black text-white">
+                  {Number(viewingCreatorDetails.subscribers_count || viewingCreatorDetails.subscribers || 0).toLocaleString()} <span className="text-xs text-slate-400 font-normal">subs</span>
+                </p>
+                <p className="text-[11px] text-slate-500">Target: {thresholds.minSubscribers} subs</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0F141F] border border-slate-800/80 space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Total Revenue / Earnings</span>
+                <p className="text-2xl font-black text-emerald-400">
+                  {Number(viewingCreatorDetails.total_earnings || 0).toLocaleString()} <span className="text-xs text-slate-400 font-normal">RWF</span>
+                </p>
+                <p className="text-[11px] text-slate-500">Share: {thresholds.creatorSharePercent}% of CPM</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0F141F] border border-slate-800/80 space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Published Videos</span>
+                <p className="text-2xl font-black text-white">
+                  {Number(viewingCreatorDetails.video_count || viewingCreatorDetails.videoCount || 0).toLocaleString()} <span className="text-xs text-slate-400 font-normal">videos</span>
+                </p>
+                <p className="text-[11px] text-slate-500">Catalog active</p>
+              </div>
+            </div>
+
+            {/* Compliance Warning / Notice status */}
+            {viewingCreatorDetails.monetization_warning && (
+              <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  Active Compliance Notice
+                </div>
+                <p>{viewingCreatorDetails.monetization_warning}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden backdrop-blur-sm">
         {loading ? (
           <div className="p-8 text-center text-slate-400 text-xs">
@@ -360,20 +498,28 @@ export const AdminMonetizationPanel: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredCreators.map((creator) => {
-                  const meetsHours = creator.watch_hours >= thresholds.minWatchHours;
-                  const meetsSubs = creator.subscribers_count >= thresholds.minSubscribers;
-                  const isEligible = meetsHours && meetsSubs;
+                  const watchHrs = typeof creator.watch_hours === 'number' && creator.watch_hours > 0 && creator.watch_hours < 0.1
+                    ? creator.watch_hours.toFixed(3)
+                    : Number(creator.watch_hours || 0).toLocaleString();
+                  const subsCount = Number(creator.subscribers_count || creator.subscribers || 0);
+                  const meetsHours = Number(creator.watch_hours || 0) >= thresholds.minWatchHours;
+                  const meetsSubs = subsCount >= thresholds.minSubscribers;
 
                   return (
-                    <tr key={creator.id} className="hover:bg-slate-800/30 transition">
+                    <tr
+                      key={creator.id}
+                      onClick={() => setViewingCreatorDetails(creator)}
+                      className="hover:bg-slate-800/50 cursor-pointer transition group"
+                      title="Click to view creator channel details & analytics"
+                    >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold">
+                          <div className="w-8 h-8 rounded-full bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold group-hover:scale-105 transition-transform">
                             {(creator.name || 'C')[0].toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-bold text-white flex items-center gap-1.5">
-                              {creator.channel_name}
+                            <div className="font-bold text-white flex items-center gap-1.5 group-hover:text-emerald-400 transition-colors">
+                              {creator.channel_name || creator.channelName}
                               {creator.is_monetized && (
                                 <Award className="w-3.5 h-3.5 text-emerald-400" />
                               )}
@@ -385,26 +531,26 @@ export const AdminMonetizationPanel: React.FC = () => {
 
                       <td className="py-3 px-4">
                         <div className="font-mono font-semibold text-slate-200">
-                          {creator.watch_hours.toLocaleString()} hrs
+                          {watchHrs} hrs
                         </div>
                         <div className="text-[10px] text-slate-500">
                           {meetsHours ? (
                             <span className="text-emerald-400">✓ Target met</span>
                           ) : (
-                            <span className="text-amber-400">Need {thresholds.minWatchHours - creator.watch_hours} hrs</span>
+                            <span className="text-amber-400">Need {Math.max(0, Math.round(thresholds.minWatchHours - (Number(creator.watch_hours) || 0)))} hrs</span>
                           )}
                         </div>
                       </td>
 
                       <td className="py-3 px-4">
                         <div className="font-mono font-semibold text-slate-200">
-                          {creator.subscribers_count.toLocaleString()} subs
+                          {subsCount.toLocaleString()} subs
                         </div>
                         <div className="text-[10px] text-slate-500">
                           {meetsSubs ? (
                             <span className="text-emerald-400">✓ Target met</span>
                           ) : (
-                            <span className="text-amber-400">Need {thresholds.minSubscribers - creator.subscribers_count}</span>
+                            <span className="text-amber-400">Need {Math.max(0, thresholds.minSubscribers - subsCount)}</span>
                           )}
                         </div>
                       </td>
@@ -432,7 +578,7 @@ export const AdminMonetizationPanel: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleToggleMonetize(creator.id, !!creator.is_monetized)}
                             className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1 ${
@@ -465,6 +611,7 @@ export const AdminMonetizationPanel: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Notice & Override Modal */}
       {selectedCreator && (

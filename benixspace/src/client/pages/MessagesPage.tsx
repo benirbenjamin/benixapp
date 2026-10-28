@@ -7,6 +7,7 @@ import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal'
 import { WalletModal } from '../components/modals/WalletModal';
 import { formatCurrencyCompact } from '../utils/formatCurrency';
 import { getAuthToken } from '../services/api';
+import { decryptPayload } from '../utils/urlSecurity';
 import axios from 'axios';
 import {
   MessageSquare,
@@ -224,11 +225,22 @@ function checkContactModerationText(message: string): { isViolation: boolean; re
 
 export const MessagesPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const queryUserId = searchParams.get('user');
-  const queryUserName = searchParams.get('name');
-  const queryUserAvatar = searchParams.get('avatar');
+  const secToken = searchParams.get('sec');
+  const decrypted = secToken ? decryptPayload(secToken) : null;
 
-  const { user, wallet, refreshMe, updateWalletBalance } = useAuth();
+  const queryUserId = decrypted?.user || decrypted?.chatWith || searchParams.get('user') || searchParams.get('chatWith');
+  const queryUserName = decrypted?.name || searchParams.get('name');
+  const queryUserAvatar = decrypted?.avatar || searchParams.get('avatar');
+  const queryTopic = decrypted?.topic || searchParams.get('topic');
+
+  const { user, wallet, refreshMe, updateWalletBalance, token: contextToken } = useAuth();
+
+  // Privacy Protection: Scrub sensitive URL query parameters from browser address bar immediately after mounting
+  useEffect(() => {
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   // WhatsApp Tab State
   const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'broadcasts' | 'contacts'>('chats');
@@ -683,7 +695,7 @@ export const MessagesPage: React.FC = () => {
     }
 
     try {
-      const token = getAuthToken();
+      const token = contextToken || getAuthToken() || localStorage.getItem('benix_auth_token') || localStorage.getItem('benix_admin_token');
       const res = await axios.post(
         '/api/chat/unlock-contact',
         { contactId: partnerId, price: contactUnlockPrice },
@@ -831,7 +843,7 @@ export const MessagesPage: React.FC = () => {
     if (!groupName.trim()) return;
 
     try {
-      const token = getAuthToken();
+      const token = contextToken || getAuthToken() || localStorage.getItem('benix_auth_token') || localStorage.getItem('benix_admin_token');
       const res = await axios.post(
         '/api/chat/groups/create',
         {
@@ -887,7 +899,7 @@ export const MessagesPage: React.FC = () => {
     }
 
     try {
-      const token = getAuthToken();
+      const token = contextToken || getAuthToken() || localStorage.getItem('benix_auth_token') || localStorage.getItem('benix_admin_token');
       const res = await axios.post(
         '/api/chat/broadcast',
         {

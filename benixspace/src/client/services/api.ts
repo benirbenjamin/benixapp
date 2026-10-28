@@ -2,7 +2,7 @@ import type { Project, Article, Category, CompanySettings, SocialLink, User, Art
 import axios from 'axios';
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem('benix_admin_token') || localStorage.getItem('benix_auth_token');
+  return localStorage.getItem('benix_auth_token') || localStorage.getItem('benix_admin_token');
 }
 
 export function setAuthToken(token: string) {

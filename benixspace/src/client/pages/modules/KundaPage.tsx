@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { buildSecureUrl } from '../../utils/urlSecurity';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
 import { KundaChatModal } from '../../components/modals/KundaChatModal';
 import { KundaSubscriptionModal } from '../../components/modals/KundaSubscriptionModal';
@@ -151,9 +152,13 @@ export const KundaPage: React.FC = () => {
       );
       setTimeout(() => setActionSuccess(''), 4000);
     } else {
-      // Direct navigation to Messages Room with partner params
+      // Direct navigation to Messages Room with encrypted partner params (prevents exposing partner identity in browser URL)
       navigate(
-        `/messages?user=${match.id}&name=${encodeURIComponent(match.name)}&avatar=${encodeURIComponent(match.image)}`
+        buildSecureUrl('/messages', {
+          user: match.id,
+          name: match.name,
+          avatar: match.image
+        })
       );
     }
   };
