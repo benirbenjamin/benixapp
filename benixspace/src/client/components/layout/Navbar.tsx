@@ -221,10 +221,18 @@ export const Navbar: React.FC = () => {
                 <div className="relative" ref={avatarMenuRef}>
                   <button
                     onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
-                    className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 overflow-hidden"
                     title={`Account Menu (${user.name})`}
                   >
-                    {user.name.charAt(0).toUpperCase()}
+                    {user.avatar_url || localStorage.getItem('benix_avatar') ? (
+                      <img
+                        src={user.avatar_url || localStorage.getItem('benix_avatar') || ''}
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      user.name.charAt(0).toUpperCase()
+                    )}
                   </button>
 
                   {/* Avatar Dropdown Menu */}
@@ -233,8 +241,16 @@ export const Navbar: React.FC = () => {
                       {/* User Info Header */}
                       <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800/80 mb-2">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-md shrink-0">
-                            {user.name.charAt(0).toUpperCase()}
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-sm shadow-md shrink-0 overflow-hidden">
+                            {user.avatar_url || localStorage.getItem('benix_avatar') ? (
+                              <img
+                                src={user.avatar_url || localStorage.getItem('benix_avatar') || ''}
+                                alt={user.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              user.name.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-white text-xs truncate">{user.name}</p>
@@ -661,9 +677,22 @@ export const Navbar: React.FC = () => {
             <div className="pt-4 border-t border-slate-800 space-y-2">
               {user ? (
                 <div className="space-y-2">
-                  <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-xs">
-                    <p className="font-bold text-white truncate">{user.name}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                  <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-xs flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xs shrink-0 overflow-hidden">
+                      {user.avatar_url || localStorage.getItem('benix_avatar') ? (
+                        <img
+                          src={user.avatar_url || localStorage.getItem('benix_avatar') || ''}
+                          alt={user.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        user.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-white truncate">{user.name}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                    </div>
                   </div>
                   <button
                     onClick={() => { logout(); setIsDrawerOpen(false); }}

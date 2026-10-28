@@ -157,6 +157,7 @@ export const AdminSettingsPage: React.FC = () => {
     // Marketplace settings
     market_commission_pct: 5,
     market_min_payout: 1000,
+    min_withdrawal_amount: 500,
     market_auto_approve: true,
     // Stories & Creator Studio
     story_lifespan_hours: 24,
@@ -216,6 +217,31 @@ export const AdminSettingsPage: React.FC = () => {
       })
       .catch(() => {});
 
+    fetch('/api/admin/settings/monetization')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.settings) {
+          setModules((m) => ({
+            ...m,
+            creator_watch_hours_goal: data.settings.minWatchHours !== undefined ? Number(data.settings.minWatchHours) : m.creator_watch_hours_goal,
+            creator_subscribers_goal: data.settings.minSubscribers !== undefined ? Number(data.settings.minSubscribers) : m.creator_subscribers_goal
+          }));
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/wallet/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.minWithdrawalAmount) {
+          setModules((m) => ({
+            ...m,
+            min_withdrawal_amount: Number(data.minWithdrawalAmount)
+          }));
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/chat/settings')
       .then((r) => r.json())
       .then((data) => {
@@ -226,6 +252,31 @@ export const AdminSettingsPage: React.FC = () => {
             kunda_creator_rev_share_pct: data.creatorRevSharePct !== undefined ? Number(data.creatorRevSharePct) : m.kunda_creator_rev_share_pct,
             kunda_message_cost: data.messageCost !== undefined ? Number(data.messageCost) : m.kunda_message_cost,
             kunda_free_messages: data.freeMessages !== undefined ? Number(data.freeMessages) : m.kunda_free_messages
+          }));
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/admin/settings/monetization')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.settings) {
+          setModules((m) => ({
+            ...m,
+            creator_watch_hours_goal: data.settings.minWatchHours !== undefined ? Number(data.settings.minWatchHours) : m.creator_watch_hours_goal,
+            creator_subscribers_goal: data.settings.minSubscribers !== undefined ? Number(data.settings.minSubscribers) : m.creator_subscribers_goal
+          }));
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/wallet/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.minWithdrawalAmount) {
+          setModules((m) => ({
+            ...m,
+            min_withdrawal_amount: Number(data.minWithdrawalAmount)
           }));
         }
       })
@@ -353,6 +404,18 @@ export const AdminSettingsPage: React.FC = () => {
             creatorRevSharePct: Number(modules.kunda_creator_rev_share_pct) || 15,
             messageCost: Number(modules.kunda_message_cost) || 50,
             freeMessages: Number(modules.kunda_free_messages) || 3
+          })
+        }).catch(() => {});
+
+        await fetch('/api/admin/settings/monetization', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            minWatchHours: Number(modules.creator_watch_hours_goal) || 300,
+            minSubscribers: Number(modules.creator_subscribers_goal) || 30
           })
         }).catch(() => {});
       }
@@ -2178,6 +2241,16 @@ export const AdminSettingsPage: React.FC = () => {
                         value={modules.market_min_payout}
                         onChange={(e) => setModules({ ...modules, market_min_payout: Number(e.target.value) || 1000 })}
                         className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Min Withdrawal Amount (RWF) — Modal</label>
+                      <input
+                        type="number"
+                        min="100"
+                        value={modules.min_withdrawal_amount}
+                        onChange={(e) => setModules({ ...modules, min_withdrawal_amount: Number(e.target.value) || 500 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-amber-400 font-bold"
                       />
                     </div>
                     <div className="flex items-center justify-between pt-5 col-span-2">

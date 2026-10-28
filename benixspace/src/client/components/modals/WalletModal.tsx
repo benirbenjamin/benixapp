@@ -67,6 +67,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [accountName, setAccountName] = useState<string>(user?.name || '');
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const [minWithdrawal, setMinWithdrawal] = useState<number>(500);
 
   // Multi-Currency Flutterwave Deposit State
   const [depositCurrency, setDepositCurrency] = useState<CurrencyOption>(DEPOSIT_CURRENCIES[0]);
@@ -93,6 +94,14 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         loadTransactions();
       }
       ensureFlutterwaveReady();
+      fetch('/api/wallet/settings')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.minWithdrawalAmount) {
+            setMinWithdrawal(Number(data.minWithdrawalAmount));
+          }
+        })
+        .catch(() => {});
     }
   }, [isOpen, token]);
 
@@ -453,8 +462,8 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
   const handleWithdraw = async () => {
     setStatusMsg(null);
     const num = parseFloat(amount);
-    if (!num || num < 500) {
-      setStatusMsg({ text: 'Minimum withdrawal amount is 500 RWF.', error: true });
+    if (!num || num < minWithdrawal) {
+      setStatusMsg({ text: `Minimum withdrawal amount is ${minWithdrawal.toLocaleString()} RWF.`, error: true });
       return;
     }
 
@@ -723,14 +732,19 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
           {tab === 'withdraw' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Withdrawal Amount (RWF)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Withdrawal Amount (RWF)
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-bold">
+                    Min: {minWithdrawal.toLocaleString()} RWF
+                  </span>
+                </div>
                 <input
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Min 500 RWF"
+                  placeholder={`Min ${minWithdrawal.toLocaleString()} RWF`}
                   className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500 font-bold"
                 />
               </div>

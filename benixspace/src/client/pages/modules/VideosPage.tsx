@@ -85,19 +85,19 @@ export function getSafeYouTubeEmbedUrl(
 
   // If video id is a standard 11-char YouTube ID (e.g. B0xTrgyZGeM)
   if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId)) {
-    return `https://www.youtube.com/embed/${vidId}?autoplay=1&enablejsapi=1&vq=${vq}`;
+    return `https://www.youtube.com/embed/${vidId}?autoplay=1&enablejsapi=1&playsinline=1&rel=0&vq=${vq}`;
   }
 
   // Check in embedUrl or videoUrl
   const urlCandidate = (video.embedUrl || video.videoUrl || '').trim();
   const ytMatch = urlCandidate.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch && ytMatch[1]) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&vq=${vq}`;
+    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&playsinline=1&rel=0&vq=${vq}`;
   }
 
   if (urlCandidate.includes('/embed/')) {
     const separator = urlCandidate.includes('?') ? '&' : '?';
-    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1&vq=${vq}`;
+    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1&playsinline=1&rel=0&vq=${vq}`;
   }
 
   return urlCandidate;
@@ -960,15 +960,44 @@ export const VideosPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, isMuted, isFullscreen, activeVideo, filteredVideos]);
 
-  const handleToggleSubscribe = (channelName: string) => {
+  const isOwnerOfActiveVideo = Boolean(
+    user && activeVideo && (
+      (activeVideo.userId && String(user.id) === String(activeVideo.userId)) ||
+      (user.channel_name && activeVideo.channelName && user.channel_name.toLowerCase() === activeVideo.channelName.toLowerCase()) ||
+      (user.name && activeVideo.creator && user.name.toLowerCase() === activeVideo.creator.toLowerCase())
+    )
+  );
+
+  const handleToggleSubscribe = async (channelName: string) => {
     if (!user) {
       setShowWizardModal(true);
+      return;
+    }
+    if (isOwnerOfActiveVideo) {
       return;
     }
     const isSub = subscribedChannels.includes(channelName);
     const updated = isSub ? subscribedChannels.filter((c) => c !== channelName) : [...subscribedChannels, channelName];
     setSubscribedChannels(updated);
     localStorage.setItem('benix_subscribed_channels', JSON.stringify(updated));
+
+    // Call backend API so subscription is recorded in PostgreSQL creator_subscribers
+    try {
+      const creatorTarget = activeVideo?.userId || channelName;
+      const endpoint = isSub
+        ? `/api/creators/${encodeURIComponent(creatorTarget)}/unsubscribe`
+        : `/api/creators/${encodeURIComponent(creatorTarget)}/subscribe`;
+      const token = getAuthToken();
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+    } catch (e) {
+      console.warn('Subscription sync error:', e);
+    }
   };
 
   const handleCloseVideoAd = useCallback(() => {
@@ -1158,7 +1187,7 @@ export const VideosPage: React.FC = () => {
                     src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
                     title={activeVideo.title}
                     className="w-full h-full border-0 relative z-10 pointer-events-auto"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allow="accelerometer; autoplay *; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
                 ) : (
@@ -1428,7 +1457,7 @@ export const VideosPage: React.FC = () => {
                 {/* Channel Info */}
                 <div className="flex items-center gap-3">
                   <img
-                    src={activeVideo.channelAvatar || '/logo.png'}
+                    src={(isOwnerOfActiveVideo && (user?.avatar_url || localStorage.getItem('benix_avatar'))) || activeVideo.channelAvatar || '/logo.png'}
                     alt={activeVideo.creator}
                     className="w-11 h-11 rounded-full object-cover border border-purple-500/30"
                   />
@@ -1442,22 +1471,31 @@ export const VideosPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleToggleSubscribe(activeVideo.channelName || activeVideo.creator)}
-                    className={`ml-3 px-4 py-2 rounded-full text-xs font-black transition-all ${
-                      subscribedChannels.includes(activeVideo.channelName || activeVideo.creator)
-                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                        : 'bg-white hover:bg-slate-200 text-slate-950 shadow-md'
-                    }`}
-                  >
-                    {subscribedChannels.includes(activeVideo.channelName || activeVideo.creator) ? (
-                      <span className="flex items-center gap-1">
-                        <Bell className="w-3 h-3 fill-current" /> Subscribed
-                      </span>
-                    ) : (
-                      'Subscribe'
-                    )}
-                  </button>
+                  {isOwnerOfActiveVideo ? (
+                    <Link
+                      to="/creator/studio"
+                      className="ml-3 px-3.5 py-1.5 rounded-full text-[11px] font-black bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 transition-all flex items-center gap-1"
+                    >
+                      <span>Your Channel</span>
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => handleToggleSubscribe(activeVideo.channelName || activeVideo.creator)}
+                      className={`ml-3 px-4 py-2 rounded-full text-xs font-black transition-all ${
+                        subscribedChannels.includes(activeVideo.channelName || activeVideo.creator)
+                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                          : 'bg-white hover:bg-slate-200 text-slate-950 shadow-md'
+                      }`}
+                    >
+                      {subscribedChannels.includes(activeVideo.channelName || activeVideo.creator) ? (
+                        <span className="flex items-center gap-1">
+                          <Bell className="w-3 h-3 fill-current" /> Subscribed
+                        </span>
+                      ) : (
+                        'Subscribe'
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 {/* Actions: Like, Share & Earn, Unlock */}

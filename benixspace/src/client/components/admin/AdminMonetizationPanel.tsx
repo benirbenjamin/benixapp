@@ -67,10 +67,20 @@ export const AdminMonetizationPanel: React.FC = () => {
         setCreators(enriched);
       }
 
-      // Load saved settings from local or server
-      const saved = localStorage.getItem('benix_monetization_settings');
-      if (saved) {
-        setThresholds(JSON.parse(saved));
+      // Load saved settings from server (synced with platform settings) or local fallback
+      try {
+        const monRes = await fetch('/api/admin/settings/monetization');
+        const monData = await monRes.json();
+        if (monData?.settings) {
+          setThresholds((prev) => ({ ...prev, ...monData.settings }));
+          localStorage.setItem('benix_monetization_settings', JSON.stringify(monData.settings));
+        } else {
+          const saved = localStorage.getItem('benix_monetization_settings');
+          if (saved) setThresholds(JSON.parse(saved));
+        }
+      } catch {
+        const saved = localStorage.getItem('benix_monetization_settings');
+        if (saved) setThresholds(JSON.parse(saved));
       }
     } catch (err: any) {
       console.error('Failed to load creators monetization data:', err);
@@ -83,11 +93,22 @@ export const AdminMonetizationPanel: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
+      const token = getAuthToken();
       localStorage.setItem('benix_monetization_settings', JSON.stringify(thresholds));
-      setStatusMessage({ type: 'success', text: 'Monetization policies and CPM thresholds saved successfully!' });
+
+      await fetch('/api/admin/settings/monetization', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(thresholds)
+      });
+
+      setStatusMessage({ type: 'success', text: 'Monetization policies and creator goals saved & synchronized across platform!' });
     } catch {
       setStatusMessage({ type: 'error', text: 'Failed to persist settings' });
     } finally {

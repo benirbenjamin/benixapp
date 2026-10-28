@@ -126,6 +126,22 @@ const SOCIAL_MEDIA_KEYWORDS = [
   'appelle moi sur', 'mon numero est'
 ];
 
+// Timezone formatter for Rwanda (CAT, UTC+2)
+export function formatRwandaTime(dateInput?: string | number | Date): string {
+  try {
+    const d = dateInput ? new Date(dateInput) : new Date();
+    return d.toLocaleTimeString('en-US', {
+      timeZone: 'Africa/Kigali',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    const d = dateInput ? new Date(dateInput) : new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+}
+
 // Contact Moderation Rule: Block sending phone numbers in digits or words
 function checkContactModerationText(message: string): { isViolation: boolean; reason?: string } {
   if (!message || typeof message !== 'string') return { isViolation: false };
@@ -731,7 +747,7 @@ export const MessagesPage: React.FC = () => {
       id: localMsgId,
       sender: 'me',
       text,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: formatRwandaTime(),
       status: 'sent',
       isVoice,
       voiceDuration: isVoice ? '0:07' : undefined

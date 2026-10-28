@@ -52061,6 +52061,18 @@ import_dotenv2.default.config();
 var app = (0, import_express.default)();
 var PORT = process.env.PORT || 3001;
 app.use((0, import_cors.default)());
+function formatRwandaTime(d = /* @__PURE__ */ new Date()) {
+  try {
+    return new Date(d).toLocaleTimeString("en-US", {
+      timeZone: "Africa/Kigali",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true
+    });
+  } catch {
+    return new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+}
 app.use((req, res, next) => {
   if (req.query && req.query.__path) {
     const sub = String(req.query.__path);
@@ -52825,26 +52837,40 @@ app.put("/api/auth/profile", authenticateToken, async (req, res) => {
     await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
     });
     const finalAvatar = avatar_url || avatar || null;
-    const upRes = await query(
-      `UPDATE core_users SET
-        name = COALESCE($1, name),
-        phone = COALESCE($2, phone),
-        channel_name = COALESCE($3, channel_name),
-        avatar_url = COALESCE($4, avatar_url),
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5 OR (email IS NOT NULL AND LOWER(email) = LOWER($6))`,
-      [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id, req.user?.email || ""]
-    );
-    if (upRes.rowCount === 0 && req.user?.email) {
+    if (finalAvatar) {
       await query(
-        `INSERT INTO core_users (id, email, name, channel_name, phone, avatar_url)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url`,
-        [req.user.id, req.user.email, name2 || "Member", channel_name || name2 || "Member", phone || null, finalAvatar]
-      ).catch(() => {
+        `UPDATE core_users SET
+          name = COALESCE($1, name),
+          phone = COALESCE($2, phone),
+          channel_name = COALESCE($3, channel_name),
+          avatar_url = $4,
+          app_profiles = jsonb_set(
+            jsonb_set(
+              COALESCE(app_profiles, '{}'::jsonb),
+              '{avatar}',
+              to_jsonb($4::text)
+            ),
+            '{kunda,avatarUrl}',
+            to_jsonb($4::text)
+          ),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5 OR (email IS NOT NULL AND LOWER(email) = LOWER($6))`,
+        [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id, req.user?.email || ""]
+      );
+      await query("UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2", [finalAvatar, req.user?.id]).catch(() => {
       });
+    } else {
+      await query(
+        `UPDATE core_users SET
+          name = COALESCE($1, name),
+          phone = COALESCE($2, phone),
+          channel_name = COALESCE($3, channel_name),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4 OR (email IS NOT NULL AND LOWER(email) = LOWER($5))`,
+        [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, req.user?.id, req.user?.email || ""]
+      );
     }
-    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user?.id, req.user?.email || ""]);
+    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user?.id, req.user?.email || ""]);
     return res.json({ success: true, user: updated.rows[0], message: "Channel profile updated successfully." });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -52857,37 +52883,27 @@ app.post("/api/auth/profile-photo", authenticateToken, async (req, res) => {
     if (!finalPhoto) {
       return res.status(400).json({ error: "Profile photo data or URL is required." });
     }
-    if (typeof finalPhoto === "string" && finalPhoto.startsWith("data:image/")) {
-      try {
-        const matches = finalPhoto.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const ext = matches[1].includes("png") ? "png" : "jpg";
-          const buffer = Buffer.from(matches[2], "base64");
-          const cleanName = `avatar_${req.user.id}_${Date.now()}.${ext}`;
-          const uploadsDir = path4.join(process.cwd(), "public", "uploads");
-          if (!fs6.existsSync(uploadsDir)) fs6.mkdirSync(uploadsDir, { recursive: true });
-          fs6.writeFileSync(path4.join(uploadsDir, cleanName), buffer);
-          finalPhoto = `/uploads/${cleanName}`;
-        }
-      } catch (e) {
-      }
-    }
     await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
     });
-    const upRes = await query(
-      `UPDATE core_users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
+    await query(
+      `UPDATE core_users SET
+        avatar_url = $1,
+        app_profiles = jsonb_set(
+          jsonb_set(
+            COALESCE(app_profiles, '{}'::jsonb),
+            '{avatar}',
+            to_jsonb($1::text)
+          ),
+          '{kunda,avatarUrl}',
+          to_jsonb($1::text)
+        ),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
       [finalPhoto, req.user.id, req.user.email || ""]
     );
-    if (upRes.rowCount === 0 && req.user?.email) {
-      await query(
-        `INSERT INTO core_users (id, email, name, role, avatar_url)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (email) DO UPDATE SET avatar_url = EXCLUDED.avatar_url`,
-        [req.user.id, req.user.email, req.user.name || "Member", req.user.role || "user", finalPhoto]
-      ).catch(() => {
-      });
-    }
-    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user.id, req.user.email || ""]);
+    await query("UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2", [finalPhoto, req.user.id]).catch(() => {
+    });
+    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user.id, req.user.email || ""]);
     return res.json({
       success: true,
       message: "Profile photo updated successfully!",
@@ -53157,12 +53173,23 @@ app.post("/api/wallet/transfer", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message || "Transfer failed." });
   }
 });
+app.get("/api/wallet/settings", async (req, res) => {
+  try {
+    const minWithdrawalStr = await getSystemSetting("min_withdrawal_amount", "500");
+    const minWithdrawalAmount = Math.max(100, Number(minWithdrawalStr) || 500);
+    return res.json({ success: true, minWithdrawalAmount });
+  } catch {
+    return res.json({ success: true, minWithdrawalAmount: 500 });
+  }
+});
 app.post("/api/wallet/withdraw", authenticateToken, async (req, res) => {
   try {
     const { amount, payoutMethod = "MTN_MOMO", accountDetails } = req.body;
     const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount < 500) {
-      return res.status(400).json({ error: "Minimum withdrawal is 500 RWF." });
+    const minWithdrawalStr = await getSystemSetting("min_withdrawal_amount", "500");
+    const minWithdrawal = Math.max(100, Number(minWithdrawalStr) || 500);
+    if (!numAmount || numAmount < minWithdrawal) {
+      return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal.toLocaleString()} RWF.` });
     }
     if (!accountDetails) {
       return res.status(400).json({ error: "Account details / phone number is required." });
@@ -54226,7 +54253,7 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         id: msgId,
         sender: "me",
         text: message || "",
-        time: (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        time: formatRwandaTime(/* @__PURE__ */ new Date()),
         isVoice: !!isVoice,
         voiceDuration: voiceDuration || void 0,
         isPaid,
@@ -54284,9 +54311,10 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
         phone VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, contact_id)
-      );
-      ALTER TABLE chat_unlocked_contacts ADD COLUMN IF NOT EXISTS phone VARCHAR(100);
+      )
     `).catch(() => {
+    });
+    await query("ALTER TABLE chat_unlocked_contacts ADD COLUMN IF NOT EXISTS phone VARCHAR(100);").catch(() => {
     });
     let phone = "+250783987223";
     if (contactId === "k1") phone = "+250788123456";
@@ -54338,9 +54366,10 @@ app.get("/api/chat/unlocked", authenticateToken, async (req, res) => {
         phone VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, contact_id)
-      );
-      ALTER TABLE chat_unlocked_contacts ADD COLUMN IF NOT EXISTS phone VARCHAR(100);
+      )
     `).catch(() => {
+    });
+    await query("ALTER TABLE chat_unlocked_contacts ADD COLUMN IF NOT EXISTS phone VARCHAR(100);").catch(() => {
     });
     const list = await query(
       `SELECT contact_id, phone FROM chat_unlocked_contacts WHERE user_id = $1`,
@@ -54430,14 +54459,18 @@ app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
         CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as partner_id,
         MAX(created_at) as latest_time
       FROM chat_direct_messages
-      WHERE sender_id = $1 OR recipient_id = $1
+      WHERE (sender_id = $1 OR recipient_id = $1)
+        AND sender_id != recipient_id
+        AND sender_id IS NOT NULL
+        AND recipient_id IS NOT NULL
       GROUP BY 1
+      HAVING CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END != $1
       ORDER BY latest_time DESC
     `, [userId]);
-    const partnerIds = partnersRes.rows.map((r) => r.partner_id).filter(Boolean);
+    const partnerIds = partnersRes.rows.map((r) => String(r.partner_id)).filter((pid) => pid && pid !== String(userId) && pid !== "support");
     const conversations = [];
     for (const pid of partnerIds) {
-      if (pid === "support") continue;
+      if (pid === "support" || pid === String(userId)) continue;
       const lastMsgRes = await query(`
         SELECT message, is_voice, created_at, sender_id
         FROM chat_direct_messages
@@ -54470,7 +54503,7 @@ app.get("/api/chat/conversations", authenticateToken, async (req, res) => {
           tag: u.channel_name ? "Subscribed Creator" : "Member",
           unreadCount,
           lastMessage: lastMsg ? lastMsg.is_voice ? "\u{1F3A4} Voice message" : lastMsg.message : "Conversation started",
-          lastMessageTime: lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today",
+          lastMessageTime: lastMsg ? formatRwandaTime(lastMsg.created_at) : "Today",
           verified: true,
           online: Boolean(isOnline),
           privacyMode: u.chat_privacy_mode || "public",
@@ -54556,9 +54589,9 @@ app.get("/api/chat/messages/:partnerId", authenticateToken, async (req, res) => 
     `, [userId, partnerId]);
     const messages = rows.rows.map((r) => ({
       id: r.id,
-      sender: r.sender_id === userId ? "me" : "them",
+      sender: String(r.sender_id) === String(userId) ? "me" : "them",
       text: r.message,
-      time: new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      time: formatRwandaTime(r.created_at),
       isVoice: Boolean(r.is_voice),
       voiceDuration: r.voice_duration || void 0,
       isPaid: Boolean(r.is_paid),
@@ -55648,16 +55681,33 @@ app.post("/api/creators/:creatorId/subscribe", authenticateToken, async (req, re
   try {
     const { creatorId } = req.params;
     const subscriberId = req.user.id;
-    if (creatorId === subscriberId) {
+    let effCreatorId = creatorId;
+    const uFind = await query(
+      "SELECT id, channel_name, name FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1",
+      [creatorId]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    if (uFind.rowCount > 0 && uFind.rows[0]?.id) {
+      effCreatorId = uFind.rows[0].id;
+    }
+    if (String(effCreatorId) === String(subscriberId)) {
       return res.status(400).json({ error: "You cannot subscribe to your own channel." });
     }
+    await query(`
+      CREATE TABLE IF NOT EXISTS creator_subscribers (
+        creator_id VARCHAR(255) NOT NULL,
+        subscriber_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(creator_id, subscriber_id)
+      )
+    `).catch(() => {
+    });
     await query(
       `INSERT INTO creator_subscribers (creator_id, subscriber_id)
        VALUES ($1, $2)
        ON CONFLICT (creator_id, subscriber_id) DO NOTHING`,
-      [creatorId, subscriberId]
+      [effCreatorId, subscriberId]
     );
-    const countRes = await query("SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1", [creatorId]);
+    const countRes = await query("SELECT COUNT(DISTINCT subscriber_id) as count FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2", [effCreatorId, creatorId]);
     return res.json({ success: true, isSubscribed: true, subscribersCount: Number(countRes.rows[0]?.count || 0) });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -55667,11 +55717,20 @@ app.post("/api/creators/:creatorId/unsubscribe", authenticateToken, async (req, 
   try {
     const { creatorId } = req.params;
     const subscriberId = req.user.id;
-    await query("DELETE FROM creator_subscribers WHERE creator_id = $1 AND subscriber_id = $2", [
+    let effCreatorId = creatorId;
+    const uFind = await query(
+      "SELECT id, channel_name, name FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1",
+      [creatorId]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    if (uFind.rowCount > 0 && uFind.rows[0]?.id) {
+      effCreatorId = uFind.rows[0].id;
+    }
+    await query("DELETE FROM creator_subscribers WHERE (creator_id = $1 OR creator_id = $2) AND subscriber_id = $3", [
+      effCreatorId,
       creatorId,
       subscriberId
     ]);
-    const countRes = await query("SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1", [creatorId]);
+    const countRes = await query("SELECT COUNT(DISTINCT subscriber_id) as count FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2", [effCreatorId, creatorId]);
     return res.json({ success: true, isSubscribed: false, subscribersCount: Number(countRes.rows[0]?.count || 0) });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -55841,14 +55900,25 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
     const watchRes = await query(
       `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds
        FROM video_watch_time
-       WHERE creator_id = $1`,
-      [userId]
+       WHERE creator_id = $1 OR creator_id = $2`,
+      [userId, channelName]
     ).catch(() => ({ rows: [{ total_seconds: 0 }] }));
-    const totalSeconds = Number(watchRes.rows[0]?.total_seconds || 0);
-    const totalWatchHours = Math.round(totalSeconds / 3600 * 10) / 10;
+    let totalSeconds = Number(watchRes.rows[0]?.total_seconds || 0);
+    const uvWatchRes = await query(
+      `SELECT COALESCE(SUM(COALESCE(watch_seconds, views * 10, 0)), 0) as uv_seconds
+       FROM user_videos
+       WHERE user_id = $1 OR (channel_name IS NOT NULL AND channel_name = $2)`,
+      [userId, channelName]
+    ).catch(() => ({ rows: [{ uv_seconds: 0 }] }));
+    const uvSeconds = Number(uvWatchRes.rows[0]?.uv_seconds || 0);
+    totalSeconds = Math.max(totalSeconds, uvSeconds);
+    const rawHours = totalSeconds / 3600;
+    const totalWatchHours = rawHours > 0 ? rawHours < 0.1 ? Number(rawHours.toFixed(4)) : Number(rawHours.toFixed(2)) : 0;
     const subRes = await query(
-      `SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1`,
-      [userId]
+      `SELECT COUNT(DISTINCT subscriber_id) as count
+       FROM creator_subscribers
+       WHERE creator_id = $1 OR creator_id = $2`,
+      [userId, channelName]
     ).catch(() => ({ rows: [{ count: 0 }] }));
     const totalSubscribers = Number(subRes.rows[0]?.count || 0);
     const totalViews = videosRes.rows.reduce((acc, v2) => acc + (Number(v2.views) || 0), 0);
@@ -59281,11 +59351,87 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
       if (m.kunda_free_messages !== void 0) {
         await setSystemSetting("kunda_free_messages", String(Math.max(0, Number(m.kunda_free_messages) || 3)));
       }
+      if (m.creator_watch_hours_goal !== void 0 || m.min_watch_hours !== void 0) {
+        const wh = String(Math.max(0, Number(m.creator_watch_hours_goal ?? m.min_watch_hours) || 300));
+        await setSystemSetting("monetization_required_watch_hours", wh);
+        await setSystemSetting("creator_watch_hours_goal", wh);
+      }
+      if (m.creator_subscribers_goal !== void 0 || m.min_subscribers !== void 0) {
+        const sb = String(Math.max(0, Number(m.creator_subscribers_goal ?? m.min_subscribers) || 30));
+        await setSystemSetting("monetization_required_subscribers", sb);
+        await setSystemSetting("creator_subscribers_goal", sb);
+      }
+      if (m.min_withdrawal_amount !== void 0) {
+        await setSystemSetting("min_withdrawal_amount", String(Math.max(100, Number(m.min_withdrawal_amount) || 500)));
+      }
+      if (m.creator_revenue_share_pct !== void 0 || m.creatorSharePercent !== void 0) {
+        await setSystemSetting("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m.creator_revenue_share_pct ?? m.creatorSharePercent) || 70))));
+      }
+      if (m.default_cpm_rwf !== void 0 || m.defaultCpmRwf !== void 0) {
+        await setSystemSetting("default_cpm_rwf", String(Math.max(100, Number(m.default_cpm_rwf ?? m.defaultCpmRwf) || 1200)));
+      }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });
   } catch (err) {
     console.error("All-apps save error:", err);
     return res.status(500).json({ error: err.message || "Failed to save settings to database." });
+  }
+});
+app.get("/api/admin/settings/monetization", async (req, res) => {
+  try {
+    const minWatchHours = Number(await getSystemSetting("monetization_required_watch_hours", "300")) || 300;
+    const minSubscribers = Number(await getSystemSetting("monetization_required_subscribers", "30")) || 30;
+    const creatorSharePercent = Number(await getSystemSetting("creator_revenue_share_pct", "70")) || 70;
+    const defaultCpmRwf = Number(await getSystemSetting("default_cpm_rwf", "1200")) || 1200;
+    return res.json({
+      success: true,
+      settings: {
+        minWatchHours,
+        minSubscribers,
+        creatorSharePercent,
+        defaultCpmRwf
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/settings/monetization", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { minWatchHours, minSubscribers, creatorSharePercent, defaultCpmRwf } = req.body;
+    if (minWatchHours !== void 0) {
+      const wh = String(Math.max(0, Number(minWatchHours)));
+      await setSystemSetting("monetization_required_watch_hours", wh);
+      await setSystemSetting("creator_watch_hours_goal", wh);
+    }
+    if (minSubscribers !== void 0) {
+      const sb = String(Math.max(0, Number(minSubscribers)));
+      await setSystemSetting("monetization_required_subscribers", sb);
+      await setSystemSetting("creator_subscribers_goal", sb);
+    }
+    if (creatorSharePercent !== void 0) {
+      await setSystemSetting("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
+    }
+    if (defaultCpmRwf !== void 0) {
+      await setSystemSetting("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
+    }
+    const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
+    let currentSettings = {};
+    try {
+      currentSettings = typeof row.rows[0]?.value === "string" ? JSON.parse(row.rows[0].value) : row.rows[0]?.value || {};
+    } catch {
+    }
+    currentSettings.modules = currentSettings.modules || {};
+    if (minWatchHours !== void 0) currentSettings.modules.creator_watch_hours_goal = Number(minWatchHours);
+    if (minSubscribers !== void 0) currentSettings.modules.creator_subscribers_goal = Number(minSubscribers);
+    await query(`
+      INSERT INTO core_system_settings (key, value, description, updated_at)
+      VALUES ('platform_all_apps', $1, 'All-Apps control and platform settings', CURRENT_TIMESTAMP)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+    `, [JSON.stringify(currentSettings)]);
+    return res.json({ success: true, message: "Monetization policies updated successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 app.get("/api/projects", async (req, res) => {

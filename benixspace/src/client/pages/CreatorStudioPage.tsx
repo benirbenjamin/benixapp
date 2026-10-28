@@ -336,6 +336,14 @@ export const CreatorStudioPage: React.FC = () => {
   const reqSubs = analytics?.requiredSubscribers || 30;
   const isMonetized = Boolean(analytics?.isMonetized);
 
+  const formatWatchHours = (hours: number): string => {
+    if (!hours || hours <= 0) return '0.0 hrs';
+    if (hours < 0.1) {
+      return `${parseFloat(hours.toFixed(4))} hrs`;
+    }
+    return `${hours.toFixed(1)} hrs`;
+  };
+
   const watchPercent = Math.min(100, Math.round((watchHours / reqHours) * 100));
   const subsPercent = Math.min(100, Math.round((subs / reqSubs) * 100));
 
@@ -466,7 +474,7 @@ export const CreatorStudioPage: React.FC = () => {
               <span>Watch Time</span>
               <Clock className="w-4 h-4 text-emerald-400" />
             </div>
-            <div className="text-2xl font-black text-emerald-400">{watchHours.toFixed(1)} hrs</div>
+            <div className="text-2xl font-black text-emerald-400">{formatWatchHours(watchHours)}</div>
             <p className="text-[11px] text-slate-500 mt-1">Accumulated watch hours</p>
           </div>
 
@@ -499,7 +507,7 @@ export const CreatorStudioPage: React.FC = () => {
                   <span>Creator Partner Program (Ad Revenue Criteria)</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Reach 300 watch hours and 30 subscribers to unlock automatic broadcast ad revenue paid to your central wallet.
+                  Reach {reqHours.toLocaleString()} watch hours and {reqSubs.toLocaleString()} subscribers to unlock automatic broadcast ad revenue paid to your central wallet.
                 </p>
               </div>
               <div className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-slate-300">
@@ -515,7 +523,7 @@ export const CreatorStudioPage: React.FC = () => {
                     <Clock className="w-4 h-4 text-blue-400" /> Public Watch Hours
                   </span>
                   <span className="text-white font-mono">
-                    <strong className="text-blue-400">{watchHours.toFixed(1)}</strong> / {reqHours} hrs
+                    <strong className="text-blue-400">{formatWatchHours(watchHours)}</strong> / {reqHours} hrs
                   </span>
                 </div>
                 <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">

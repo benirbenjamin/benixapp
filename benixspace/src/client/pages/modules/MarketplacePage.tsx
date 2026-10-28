@@ -25,7 +25,11 @@ import {
   Copy,
   Check,
   X,
-  Award
+  Award,
+  Upload,
+  Plus,
+  Trash2,
+  Image as ImageIcon
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -99,6 +103,47 @@ export const MarketplacePage: React.FC = () => {
   const [servicePriceRange, setServicePriceRange] = useState('50,000 - 150,000 RWF');
   const [isNegotiable, setIsNegotiable] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  interface GalleryItem {
+    id: string;
+    url: string;
+    caption: string;
+  }
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+
+  const handleMainImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setNewImageUrl(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        setGalleryItems((prev) => [
+          ...prev,
+          { id: 'gal_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6), url, caption: '' }
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const updateGalleryCaption = (id: string, caption: string) => {
+    setGalleryItems((prev) => prev.map((item) => (item.id === id ? { ...item, caption } : item)));
+  };
+
+  const removeGalleryItem = (id: string) => {
+    setGalleryItems((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const fetchItems = () => {
     setLoading(true);
@@ -181,10 +226,13 @@ export const MarketplacePage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const token = getAuthToken();
-      const galleryList = newGalleryUrls
-        .split(',')
-        .map((u) => u.trim())
-        .filter((u) => u.startsWith('http'));
+      const galleryList = galleryItems.length > 0
+        ? galleryItems.map((g) => ({ url: g.url, caption: g.caption }))
+        : newGalleryUrls
+            .split(',')
+            .map((u) => u.trim())
+            .filter((u) => u.startsWith('http'))
+            .map((u) => ({ url: u, caption: '' }));
 
       const res = await axios.post(
         '/api/modules/marketplace/publish',
@@ -193,13 +241,20 @@ export const MarketplacePage: React.FC = () => {
           title: newTitle.trim(),
           description: newDescription.trim(),
           price: listingType === 'service' ? (isNegotiable ? 0 : Number(newPrice) || 0) : Number(newPrice) || 0,
-          oldPrice: listingType === 'product' && Number(newOldPrice) > Number(newPrice) ? Number(newOldPrice) : undefined,
+          old_price: listingType === 'product' && Number(newOldPrice) > 0 ? Number(newOldPrice) : undefined,
+          oldPrice: listingType === 'product' && Number(newOldPrice) > 0 ? Number(newOldPrice) : undefined,
           category: newCategory,
+          featured_image: newImageUrl.trim() || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
           featuredImage: newImageUrl.trim() || 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80',
+          gallery_images: galleryList,
           galleryImages: galleryList,
+          new_arrival: listingType === 'product' ? isNewArrival : false,
           isNewArrival: listingType === 'product' ? isNewArrival : false,
+          affiliate_commission_pct: Number(affiliateCommissionPct) || 10,
           affiliateCommissionPct: Number(affiliateCommissionPct) || 10,
+          price_range: listingType === 'service' ? (isNegotiable ? 'Negotiable' : servicePriceRange) : undefined,
           priceRange: listingType === 'service' ? (isNegotiable ? 'Negotiable' : servicePriceRange) : undefined,
+          is_negotiable: isNegotiable,
           isNegotiable
         },
         { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
@@ -211,6 +266,8 @@ export const MarketplacePage: React.FC = () => {
         setNewTitle('');
         setNewDescription('');
         setNewImageUrl('');
+        setGalleryItems([]);
+        setActionSuccess('🎉 Your product has been listed on Benix Marketplace!');
         setActionSuccess('🎉 Your product has been listed on Benix Marketplace!');
         setTimeout(() => setActionSuccess(''), 5000);
       }
@@ -572,42 +629,125 @@ export const MarketplacePage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Price (RWF) *</label>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Sale Price (RWF) *</label>
                   <input
                     type="number"
                     min="0"
                     required
                     value={newPrice}
                     onChange={(e) => setNewPrice(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    placeholder="e.g. 15000"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-emerald-400 font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Category</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="Software & Code">Software & Code</option>
-                    <option value="Design & Graphics">Design & UI Kits</option>
-                    <option value="Services & Freelance">Tech Services</option>
-                    <option value="Creative & Audio">Creative & Audio</option>
-                    <option value="Business & Finance">Business Tools</option>
-                  </select>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Regular Price (RWF)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newOldPrice}
+                    onChange={(e) => setNewOldPrice(e.target.value)}
+                    placeholder="e.g. 20000 (strike-through)"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-300 font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Preview Image URL (Optional)</label>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Category</label>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="Software & Code">Software & Code</option>
+                  <option value="Design & Graphics">Design & UI Kits</option>
+                  <option value="Services & Freelance">Tech Services</option>
+                  <option value="Creative & Audio">Creative & Audio</option>
+                  <option value="Business & Finance">Business Tools</option>
+                </select>
+              </div>
+
+              {/* Main Featured Image from Computer or URL */}
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Featured Cover Image *</label>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition">
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Choose from Computer</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleMainImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-[10px] text-slate-500">or enter image URL below</span>
+                </div>
+                {newImageUrl && (
+                  <div className="mt-2 relative w-20 h-20 rounded-xl overflow-hidden border border-slate-700">
+                    <img src={newImageUrl} alt="Cover Preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setNewImageUrl('')}
+                      className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white hover:text-rose-400"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
                 <input
                   type="url"
                   placeholder="https://... cover image link"
-                  value={newImageUrl}
+                  value={newImageUrl.startsWith('data:') ? '' : newImageUrl}
                   onChange={(e) => setNewImageUrl(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  className="w-full mt-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 />
+              </div>
+
+              {/* Additional Gallery Images with Captions */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-300">
+                    Additional Gallery Images & Captions
+                  </label>
+                  <label className="cursor-pointer text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add from Computer</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleGalleryUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {galleryItems.length > 0 && (
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                    {galleryItems.map((item, idx) => (
+                      <div key={item.id} className="p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2">
+                        <img src={item.url} alt={`Gallery ${idx + 1}`} className="w-10 h-10 rounded-lg object-cover border border-slate-700 shrink-0" />
+                        <input
+                          type="text"
+                          placeholder={`Caption for image #${idx + 1}...`}
+                          value={item.caption}
+                          onChange={(e) => updateGalleryCaption(item.id, e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeGalleryItem(item.id)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-400 shrink-0"
+                          title="Remove image"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">
