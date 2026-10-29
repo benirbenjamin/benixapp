@@ -6,6 +6,7 @@ import { WalletModal } from '../../components/modals/WalletModal';
 import { SeoHead } from '../../components/common/SeoHead';
 import { getAuthToken } from '../../services/api';
 import { buildSecureUrl } from '../../utils/urlSecurity';
+import { uploadFileInChunks } from '../../utils/chunkedUpload';
 import {
   Music,
   Play,
@@ -36,7 +37,8 @@ import {
   Disc,
   Check,
   RefreshCw,
-  Wallet
+  Wallet,
+  Copy
 } from 'lucide-react';
 
 interface ChoirMember {
@@ -69,6 +71,7 @@ interface Choir {
   description?: string;
   role: string;
   voice_part: string;
+  choir_code?: string;
   members?: ChoirMember[];
   tracks?: ChoirTrack[];
   subscription_status?: string;
@@ -89,6 +92,7 @@ interface SongListing {
   preview_lyrics?: string;
   full_lyrics?: string;
   sheet_music_url?: string;
+  preview_start_time?: number;
   is_unlocked?: boolean;
 }
 
@@ -129,6 +133,13 @@ export const VoxifyPage: React.FC = () => {
   const [newChoirName, setNewChoirName] = useState<string>('');
   const [newChoirDenom, setNewChoirDenom] = useState<string>('Adventist Choral');
   const [newChoirDesc, setNewChoirDesc] = useState<string>('');
+  const [copiedChoirCode, setCopiedChoirCode] = useState<string | null>(null);
+
+  // Join Choir with Code Modal
+  const [showJoinCodeModal, setShowJoinCodeModal] = useState<boolean>(false);
+  const [joinCodeInput, setJoinCodeInput] = useState<string>('');
+  const [joinVoicePart, setJoinVoicePart] = useState<string>('soprano');
+  const [joiningCodeLoading, setJoiningCodeLoading] = useState<boolean>(false);
 
   // Director Upload Track Modal
   const [showUploadTrackModal, setShowUploadTrackModal] = useState<boolean>(false);
@@ -143,19 +154,23 @@ export const VoxifyPage: React.FC = () => {
   const [trackSundayDate, setTrackSundayDate] = useState('');
   const [submittingTrack, setSubmittingTrack] = useState(false);
 
-  // Marketplace Songs State
+  // Marketplace Songs State & Selling Upload State
   const [songs, setSongs] = useState<SongListing[]>([]);
   const [myPurchases, setMyPurchases] = useState<SongListing[]>([]);
   const [showPostSongModal, setShowPostSongModal] = useState<boolean>(false);
   const [songTitle, setSongTitle] = useState('');
   const [songComposer, setSongComposer] = useState('');
   const [songPrice, setSongPrice] = useState(15000);
-  const [songSaleType, setSongSaleType] = useState<'exclusive_ownership' | 'digital_copies'>('digital_copies');
-  const [songAudioUrl, setSongAudioUrl] = useState('');
+  const [songSaleType, setSongSaleType] = useState<'exclusive_ownership' | 'digital_copies'>('exclusive_ownership');
+  const [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [audioPreviewBlobUrl, setAudioPreviewBlobUrl] = useState<string>('');
+  const [selectedSheetFile, setSelectedSheetFile] = useState<File | null>(null);
+  const [previewStartTime, setPreviewStartTime] = useState<number>(0); // 35-second slider start second
   const [songSheetUrl, setSongSheetUrl] = useState('');
-  const [songPreviewLyrics, setSongPreviewLyrics] = useState('');
   const [songFullLyrics, setSongFullLyrics] = useState('');
   const [submittingSong, setSubmittingSong] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [buyingSongId, setBuyingSongId] = useState<string | null>(null);
 
   // Fetch Choir data
@@ -402,6 +417,94 @@ export const VoxifyPage: React.FC = () => {
     }
   };
 
+  const handleCopyChoirCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedChoirCode(code);
+    setTimeout(() => setCopiedChoirCode(null), 2500);
+  };
+
+  const handleJoinChoirByCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      setWizardTarget('voxify');
+      return;
+    }
+    const clean = joinCodeInput.trim().toUpperCase();
+    if (clean.length !== 5) {
+      alert('Choir code must be exactly 5 alphanumeric characters.');
+      return;
+    }
+    setJoiningCodeLoading(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/modules/voxify/choirs/join-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ choir_code: clean, voice_part: joinVoicePart })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowJoinCodeModal(false);
+        setJoinCodeInput('');
+        setStatusMessage({ type: 'success', text: data.message || `Joined choir "${data.choir?.name}"!` });
+        await fetchChoirs();
+        if (data.choir?.id) setActiveChoirId(data.choir.id);
+      } else {
+        alert(data.error || 'Failed to join choir with that code.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error joining choir.');
+    } finally {
+      setJoiningCodeLoading(false);
+    }
+  };
+
+  const handleAudioFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedAudioFile(file);
+    const objUrl = URL.createObjectURL(file);
+    setAudioPreviewBlobUrl(objUrl);
+
+    const tempAudio = document.createElement('audio');
+    tempAudio.src = objUrl;
+    tempAudio.onloadedmetadata = () => {
+      const dur = Math.round(tempAudio.duration || 0);
+      setAudioDuration(dur);
+      setPreviewStartTime(0);
+    };
+  };
+
+  const handleDownloadMasterAudio = async (song: SongListing) => {
+    if (!user) {
+      setWizardTarget('voxify');
+      return;
+    }
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/modules/voxify/songs/${song.id}/master-download`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.downloadUrl) {
+        const link = document.createElement('a');
+        link.href = data.downloadUrl;
+        link.download = `${(data.title || 'Master_Track').replace(/\s+/g, '_')}.mp3`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setStatusMessage({ type: 'success', text: `Master audio downloaded for "${data.title}"!` });
+      } else {
+        handleBuySong(song);
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Error downloading master track' });
+    }
+  };
+
   // Artist publishes song to marketplace
   const handlePostSongToMarketplace = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,8 +512,36 @@ export const VoxifyPage: React.FC = () => {
       setWizardTarget('voxify');
       return;
     }
+    if (!selectedAudioFile) {
+      alert('Please upload an audio file (MP3, WAV, AAC, M4A) for your track.');
+      return;
+    }
     setSubmittingSong(true);
+    setUploadProgress(10);
     try {
+      // 1. Upload audio file in resilient chunks
+      setUploadProgress(15);
+      const uploadedAudioUrl = await uploadFileInChunks(selectedAudioFile, {
+        folder: 'audio',
+        onProgress: (pct) => setUploadProgress(Math.round(15 + pct * 0.7))
+      });
+
+      // 2. Upload sheet music if selected
+      let uploadedSheetUrl = songSheetUrl;
+      if (selectedSheetFile) {
+        setUploadProgress(88);
+        uploadedSheetUrl = await uploadFileInChunks(selectedSheetFile, {
+          folder: 'sheets'
+        });
+      }
+
+      setUploadProgress(95);
+
+      // Auto-extract first 3-4 lines as preview teaser from full lyrics
+      const autoPreview = songFullLyrics
+        ? songFullLyrics.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 4).join('\n')
+        : '';
+
       const token = getAuthToken();
       const res = await fetch('/api/modules/voxify/songs', {
         method: 'POST',
@@ -419,28 +550,33 @@ export const VoxifyPage: React.FC = () => {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          title: songTitle,
-          composer: songComposer || user.name,
+          title: songTitle.trim(),
+          artist_name: songComposer.trim() || user.name || 'Composer',
           price: songPrice,
-          sale_type: songSaleType,
-          audio_url: songAudioUrl,
-          sheet_music_url: songSheetUrl,
-          preview_lyrics: songPreviewLyrics,
-          full_lyrics: songFullLyrics
+          license_type: songSaleType === 'exclusive_ownership' ? 'exclusive' : 'digital_copies',
+          full_audio_url: uploadedAudioUrl,
+          sheet_music_url: uploadedSheetUrl || '',
+          preview_lyrics: autoPreview,
+          full_lyrics: songFullLyrics.trim(),
+          preview_start_time: previewStartTime
         })
       });
+
       const data = await res.json();
       if (res.ok) {
         setShowPostSongModal(false);
         setSongTitle('');
         setSongComposer('');
-        setSongAudioUrl('');
+        setSelectedAudioFile(null);
+        setAudioPreviewBlobUrl('');
+        setAudioDuration(0);
+        setSelectedSheetFile(null);
         setSongSheetUrl('');
-        setSongPreviewLyrics('');
         setSongFullLyrics('');
+        setPreviewStartTime(0);
         setStatusMessage({
           type: 'success',
-          text: `Song "${songTitle}" published to marketplace with locked lyrics preview!`
+          text: `🎉 Song "${songTitle}" published to marketplace with automated lyrics teaser and 35s preview cut!`
         });
         fetchSongs();
       } else {
@@ -450,6 +586,7 @@ export const VoxifyPage: React.FC = () => {
       alert(err.message || 'Error publishing song');
     } finally {
       setSubmittingSong(false);
+      setUploadProgress(0);
     }
   };
 
@@ -612,35 +749,73 @@ export const VoxifyPage: React.FC = () => {
                 <Music className="w-10 h-10 text-indigo-400 mx-auto" />
                 <h3 className="text-base font-bold text-white">No Choir Memberships Yet</h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  Register your choir as a director or get invited by your choir leader to access private SATB vocal parts.
+                  Register your choir as a director, or enter a 5-character Choir Code from your maestro to access private SATB vocal parts.
                 </p>
-                <button
-                  onClick={() => setShowCreateChoirModal(true)}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold"
-                >
-                  Register New Choir
-                </button>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setShowCreateChoirModal(true)}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold"
+                  >
+                    Register New Choir
+                  </button>
+                  <button
+                    onClick={() => setShowJoinCodeModal(true)}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Music className="w-4 h-4" />
+                    <span>Join with Choir Code</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* Choir Selector Bar */}
                 <div className="flex items-center justify-between flex-wrap gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400">Current Choir:</span>
-                    <select
-                      value={activeChoirId || ''}
-                      onChange={(e) => setActiveChoirId(e.target.value)}
-                      className="px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white outline-none focus:border-indigo-500"
-                    >
-                      {myChoirs.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.church_denomination || 'Choir'})
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-400">Current Choir:</span>
+                      <select
+                        value={activeChoirId || ''}
+                        onChange={(e) => setActiveChoirId(e.target.value)}
+                        className="px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white outline-none focus:border-indigo-500"
+                      >
+                        {myChoirs.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.church_denomination || 'Choir'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Choir Code Display with Copy Button */}
+                    {activeChoir?.choir_code && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-950/60 border border-emerald-500/30 rounded-xl">
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Choir Code:</span>
+                        <span className="font-mono text-xs font-black text-white tracking-widest">{activeChoir.choir_code}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyChoirCode(activeChoir.choir_code!)}
+                          className="p-1 text-emerald-400 hover:text-white transition flex items-center gap-1"
+                          title="Copy Choir Code to Invite Singers"
+                        >
+                          {copiedChoirCode === activeChoir.choir_code ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-300" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowJoinCodeModal(true)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Join Another Choir</span>
+                    </button>
                     <button
                       onClick={() => setShowUploadTrackModal(true)}
                       className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
@@ -839,8 +1014,9 @@ export const VoxifyPage: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {songs.map((song) => {
-                  const isExclusive = song.sale_type === 'exclusive_ownership';
-                  const isPlayingThis = playingUrl === song.audio_url && isPlaying;
+                  const isExclusive = song.sale_type === 'exclusive_ownership' || (song as any).license_type === 'exclusive';
+                  const isPlayingThis = playingUrl === (song.preview_audio_url || song.audio_url) && isPlaying;
+                  const isPurchased = myPurchases.some((p) => p.id === song.id) || song.owner_id === user?.id || (song as any).artist_id === user?.id;
 
                   return (
                     <div
@@ -861,7 +1037,7 @@ export const VoxifyPage: React.FC = () => {
                               {isExclusive ? 'Exclusive Ownership' : 'Digital License Copy'}
                             </span>
                             <h4 className="text-base font-bold text-white mt-1.5">{song.title}</h4>
-                            <p className="text-xs text-slate-400">By {song.composer || song.composer_name || 'Artist'}</p>
+                            <p className="text-xs text-slate-400">By {song.composer || song.composer_name || (song as any).artist_name || 'Artist'}</p>
                           </div>
 
                           <div className="text-right">
@@ -882,49 +1058,62 @@ export const VoxifyPage: React.FC = () => {
                               {isPlayingThis ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                             </button>
                             <span className="text-xs font-semibold text-slate-300">
-                              {isPlayingThis ? 'Playing Preview' : 'Listen Sample'}
+                              {isPlayingThis ? (isExclusive ? 'Playing 35s Preview' : 'Playing Sample') : (isExclusive ? 'Listen 35s Preview' : 'Listen Sample')}
                             </span>
                           </div>
                           <Headphones className="w-4 h-4 text-slate-500" />
                         </div>
 
-                        {/* Locked Lyrics with Blur */}
+                        {/* Locked Lyrics Preview (No dummy text) */}
                         <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 relative overflow-hidden">
                           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1">
                             <span>Lyrics Preview</span>
                             <span className="text-amber-400 flex items-center gap-1">
-                              <Lock className="w-3 h-3" /> Locked
+                              {isPurchased ? <Check className="w-3 h-3 text-emerald-400" /> : <Lock className="w-3 h-3" />}
+                              {isPurchased ? 'Unlocked' : 'Locked'}
                             </span>
                           </div>
 
                           <p className="text-xs text-slate-300 italic whitespace-pre-line">
-                            {song.preview_lyrics || 'Verse 1: Umutima wanjye uririmbire Nyagasani...\nInzira zose zirangaza ubwiza bwawe...'}
+                            {song.preview_lyrics || 'Lyrics preview not provided.'}
                           </p>
 
-                          <div className="relative mt-2">
-                            <p className="text-xs text-slate-500 blur-sm select-none">
-                              Refrain: Shimwa mwami w'amahoro, ikuzo ni iryawe buri munsi na buri joro.
-                              Verse 2: Mu bihe bikomeye n'ibyago, intsinzi yacu iboneka muri wowe...
-                            </p>
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent flex items-center justify-center">
-                              <span className="text-[10px] font-bold text-amber-300 px-2 py-1 bg-amber-950/80 rounded border border-amber-500/30">
-                                Unlock Song to View Full Lyrics
-                              </span>
+                          {!isPurchased && (
+                            <div className="relative mt-2">
+                              <p className="text-xs text-slate-600 blur-sm select-none">
+                                ••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+                                ••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+                              </p>
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent flex items-center justify-center">
+                                <span className="text-[10px] font-bold text-amber-300 px-2 py-1 bg-amber-950/80 rounded border border-amber-500/30">
+                                  Unlock Song to View Full Lyrics
+                                </span>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Buy Action */}
+                      {/* Buy / Download Master Audio Actions */}
                       <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                        <button
-                          onClick={() => handleBuySong(song)}
-                          disabled={buyingSongId === song.id}
-                          className="flex-1 py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
-                        >
-                          <Unlock className="w-3.5 h-3.5" />
-                          <span>{buyingSongId === song.id ? 'Unlocking...' : `Unlock for ${Number(song.price).toLocaleString()} RWF`}</span>
-                        </button>
+                        {isPurchased ? (
+                          <button
+                            onClick={() => handleDownloadMasterAudio(song)}
+                            className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download Master Audio</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleBuySong(song)}
+                            disabled={buyingSongId === song.id}
+                            className="flex-1 py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>{buyingSongId === song.id ? 'Unlocking...' : `Unlock to Download (${Number(song.price).toLocaleString()} RWF)`}</span>
+                          </button>
+                        )}
 
                         <button
                           onClick={() => {
@@ -1325,54 +1514,176 @@ export const VoxifyPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Full Master Audio URL *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="https://... master audio URL"
-                  value={songAudioUrl}
-                  onChange={(e) => setSongAudioUrl(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono"
-                />
+              {/* Audio Track File Picker (No external links) */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-300 font-semibold">Master Audio Track *</label>
+                <div className="border border-dashed border-slate-700 rounded-2xl p-4 text-center bg-slate-950/60 hover:border-amber-500 transition">
+                  {selectedAudioFile ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-left">
+                        <div className="flex items-center gap-2">
+                          <Music className="w-5 h-5 text-amber-400 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-white truncate max-w-xs">{selectedAudioFile.name}</p>
+                            <span className="text-[10px] text-slate-400">
+                              {(selectedAudioFile.size / (1024 * 1024)).toFixed(1)} MB {audioDuration > 0 ? `• ${Math.floor(audioDuration / 60)}:${audioDuration % 60 < 10 ? '0' : ''}${audioDuration % 60}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAudioFile(null);
+                            setAudioPreviewBlobUrl('');
+                            setAudioDuration(0);
+                            setPreviewStartTime(0);
+                          }}
+                          className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {audioPreviewBlobUrl && (
+                        <audio src={audioPreviewBlobUrl} controls className="w-full h-8 mt-1" />
+                      )}
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block py-3">
+                      <Upload className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
+                      <span className="text-xs font-bold text-white block">Click to upload audio track from device</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">MP3, WAV, AAC, M4A, OGG</span>
+                      <input
+                        type="file"
+                        accept="audio/*,.mp3,.wav,.aac,.m4a,.ogg"
+                        onChange={handleAudioFileSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Sheet Music PDF URL (optional)</label>
-                <input
-                  type="text"
-                  placeholder="https://... sheet music URL"
-                  value={songSheetUrl}
-                  onChange={(e) => setSongSheetUrl(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono"
-                />
+              {/* 35-Second Preview Timeline Slider for Exclusive Full Ownership */}
+              {songSaleType === 'exclusive_ownership' && audioDuration > 0 && (
+                <div className="p-3.5 bg-amber-950/20 border border-amber-500/30 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <Crown className="w-3.5 h-3.5" />
+                      <span>35-Second Public Preview Segment (Slider)</span>
+                    </span>
+                    <span className="font-mono text-[11px] text-amber-400 font-bold">
+                      {Math.floor(previewStartTime / 60)}:{(previewStartTime % 60) < 10 ? '0' : ''}{previewStartTime % 60} - {Math.floor((previewStartTime + 35) / 60)}:{((previewStartTime + 35) % 60) < 10 ? '0' : ''}{(previewStartTime + 35) % 60} (35s)
+                    </span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="0"
+                    max={Math.max(0, Math.floor(audioDuration - 35))}
+                    step="1"
+                    value={previewStartTime}
+                    onChange={(e) => setPreviewStartTime(Number(e.target.value))}
+                    className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Start: 0:00</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (audioPreviewBlobUrl) {
+                          const testAudio = new Audio(audioPreviewBlobUrl);
+                          testAudio.currentTime = previewStartTime;
+                          testAudio.play();
+                          setTimeout(() => testAudio.pause(), 35000);
+                        }
+                      }}
+                      className="text-amber-400 hover:text-amber-300 font-bold underline"
+                    >
+                      Listen to Selected 35s ▶
+                    </button>
+                    <span>End: {Math.floor(audioDuration / 60)}:{(audioDuration % 60) < 10 ? '0' : ''}{audioDuration % 60}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic">
+                    Slide through the song to choose the 35s excerpt listeners can hear. Full audio is locked and protected against DevTools inspection.
+                  </p>
+                </div>
+              )}
+
+              {/* Sheet Music Upload (PDF / Image) */}
+              <div className="space-y-1.5">
+                <label className="block text-slate-300 font-semibold">Sheet Music PDF / Image (optional)</label>
+                <div className="border border-dashed border-slate-700 rounded-xl p-2.5 text-center bg-slate-950/60">
+                  {selectedSheetFile ? (
+                    <div className="flex items-center justify-between text-left text-xs">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-indigo-400" />
+                        <span className="font-semibold text-white truncate max-w-xs">{selectedSheetFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSheetFile(null)}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block py-1.5">
+                      <span className="text-xs text-indigo-400 font-bold block">+ Select Sheet Music File (.pdf, .jpg, .png)</span>
+                      <input
+                        type="file"
+                        accept=".pdf,image/*"
+                        onChange={(e) => e.target.files?.[0] && setSelectedSheetFile(e.target.files[0])}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
+              {/* Full Lyrics (Auto-extracts opening lines as preview teaser) */}
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
-                  Preview Lyrics (First 2-4 lines visible to everyone)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Umutima wanjye uririmbire Nyagasani..."
-                  value={songPreviewLyrics}
-                  onChange={(e) => setSongPreviewLyrics(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Full Lyrics (Locked; only visible after purchase)
+                  Full Lyrics (Locked; only visible after purchase) *
                 </label>
                 <textarea
                   rows={4}
-                  placeholder="Enter all verses, choruses, and bridge..."
+                  required
+                  placeholder="Enter complete song lyrics (verses, choruses, bridge)..."
                   value={songFullLyrics}
                   onChange={(e) => setSongFullLyrics(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-xs"
                 />
               </div>
+
+              {/* Automated Lyrics Preview Teaser Notice */}
+              {songFullLyrics.trim() && (
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                  <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+                    Automated Public Preview Teaser (First 3-4 lines):
+                  </span>
+                  <p className="text-xs text-slate-300 italic whitespace-pre-line">
+                    {songFullLyrics.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 4).join('\n')}
+                  </p>
+                </div>
+              )}
+
+              {uploadProgress > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>Uploading Audio Track...</span>
+                    <span className="font-bold text-amber-400">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-200"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
@@ -1384,10 +1695,78 @@ export const VoxifyPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingSong}
+                  disabled={submittingSong || !selectedAudioFile}
                   className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold disabled:opacity-50"
                 >
-                  {submittingSong ? 'Publishing...' : 'Publish to Store'}
+                  {submittingSong ? 'Uploading Track...' : 'Publish to Store'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Join Choir by Code Modal */}
+      {showJoinCodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Music className="w-5 h-5 text-emerald-400" />
+                <span>Join Choir with 5-Digit Code</span>
+              </h3>
+              <button onClick={() => setShowJoinCodeModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleJoinChoirByCode} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Choir Code *</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={5}
+                  value={joinCodeInput}
+                  onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  placeholder="e.g. 7X9KQ"
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-center text-sm font-mono tracking-widest text-white uppercase font-black focus:outline-none focus:border-emerald-500"
+                />
+                <p className="text-[10px] text-slate-400 text-center mt-1">
+                  Ask your choir director or maestro for the 5-character choir code.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Your Voice Part *</label>
+                <select
+                  value={joinVoicePart}
+                  onChange={(e) => setJoinVoicePart(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-emerald-500"
+                >
+                  <option value="soprano">Soprano (Voice 1)</option>
+                  <option value="alto">Alto (Voice 2)</option>
+                  <option value="tenor">Tenor (Voice 3)</option>
+                  <option value="bass">Bass (Voice 4)</option>
+                  <option value="director">Choir Master / Director</option>
+                  <option value="pianist">Pianist / Accompanist</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowJoinCodeModal(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={joiningCodeLoading || joinCodeInput.length !== 5}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold disabled:opacity-50"
+                >
+                  {joiningCodeLoading ? 'Verifying...' : 'Join Choir'}
                 </button>
               </div>
             </form>

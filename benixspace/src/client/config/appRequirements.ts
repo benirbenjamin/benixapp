@@ -89,9 +89,9 @@ export const APP_REQUIREMENTS: Record<string, AppRequirementConfig> = {
       },
       {
         name: 'choir_name',
-        label: 'Choir / Church / Band Name',
+        label: 'Choir Membership / Code',
         type: 'text',
-        placeholder: 'e.g. Choeur International de Kigali, Regina Pacis, St. Famille...',
+        placeholder: 'e.g. 5-character choir code or join as independent',
         required: false
       },
       {

@@ -89,6 +89,13 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
   const [wizardLoading, setWizardLoading] = useState(false);
   const [wizardSuccess, setWizardSuccess] = useState(false);
 
+  // Voxify Choir Code / Independent Mode State
+  const [choirCodeMode, setChoirCodeMode] = useState<'code' | 'none'>('code');
+  const [choirCodeInput, setChoirCodeInput] = useState<string>('');
+  const [verifiedChoir, setVerifiedChoir] = useState<any>(null);
+  const [choirLookupLoading, setChoirLookupLoading] = useState<boolean>(false);
+  const [choirLookupError, setChoirLookupError] = useState<string>('');
+
   // Sync initialTab when modal opens or initialTab changes
   useEffect(() => {
     if (initialTab) {
@@ -321,9 +328,70 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
     }
   };
 
+  const handleVerifyChoirCode = async (code: string) => {
+    const clean = code.trim().toUpperCase();
+    if (clean.length !== 5) {
+      setVerifiedChoir(null);
+      setChoirLookupError('');
+      return;
+    }
+    setChoirLookupLoading(true);
+    setChoirLookupError('');
+    try {
+      const res = await fetch(`/api/modules/voxify/choirs/code/${clean}`);
+      const data = await res.json();
+      if (res.ok && data.choir) {
+        setVerifiedChoir(data.choir);
+        setWizardData(prev => ({
+          ...prev,
+          choir_name: data.choir.name,
+          choir_code: data.choir.choir_code,
+          choir_id: data.choir.id
+        }));
+      } else {
+        setVerifiedChoir(null);
+        setChoirLookupError(data.error || 'Choir code not found.');
+      }
+    } catch {
+      setVerifiedChoir(null);
+      setChoirLookupError('Network error verifying choir code.');
+    } finally {
+      setChoirLookupLoading(false);
+    }
+  };
+
   const handleWizardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appConfig) return;
+
+    // Apply Voxify specific choir selections
+    if (normalizedKey === 'voxify') {
+      if (choirCodeMode === 'none') {
+        wizardData.choir_name = 'Independent';
+        wizardData.choir_code = '';
+        wizardData.choir_id = null;
+      } else if (verifiedChoir?.choir_code) {
+        // Automatically join choir using verified choir code
+        try {
+          const token = localStorage.getItem('benix_token');
+          if (token) {
+            await fetch('/api/modules/voxify/choirs/join-code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                choir_code: verifiedChoir.choir_code,
+                voice_part: wizardData.voice_part || 'soprano'
+              })
+            });
+          }
+        } catch (err) {
+          console.warn('Auto-join choir notice:', err);
+        }
+      }
+    }
 
     // Validate required fields
     for (const f of appConfig.fields) {
@@ -984,14 +1052,113 @@ export const AppAccessWizardModal: React.FC<AppAccessWizardModalProps> = ({
                     )}
 
                     {f.type === 'text' && (
-                      <input
-                        type="text"
-                        value={wizardData[f.name] || ''}
-                        onChange={(e) => setWizardData({ ...wizardData, [f.name]: e.target.value })}
-                        placeholder={f.placeholder}
-                        required={f.required}
-                        className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                      />
+                      normalizedKey === 'voxify' && f.name === 'choir_name' ? (
+                        <div className="space-y-2 mt-1">
+                          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChoirCodeMode('code');
+                                setWizardData({ ...wizardData, choir_name: verifiedChoir ? verifiedChoir.name : '' });
+                              }}
+                              className={`py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                                choirCodeMode === 'code'
+                                  ? 'bg-emerald-600 text-white shadow'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Music className="w-3.5 h-3.5" />
+                              <span>Join with Choir Code</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChoirCodeMode('none');
+                                setChoirCodeInput('');
+                                setVerifiedChoir(null);
+                                setChoirLookupError('');
+                                setWizardData({ ...wizardData, choir_name: 'Independent', choir_code: '' });
+                              }}
+                              className={`py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                                choirCodeMode === 'none'
+                                  ? 'bg-slate-700 text-white shadow'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <User className="w-3.5 h-3.5" />
+                              <span>Continue without Choir</span>
+                            </button>
+                          </div>
+
+                          {choirCodeMode === 'code' ? (
+                            <div className="space-y-2 pt-1">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  maxLength={5}
+                                  value={choirCodeInput}
+                                  onChange={(e) => {
+                                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                                    setChoirCodeInput(val);
+                                    if (val.length === 5) {
+                                      handleVerifyChoirCode(val);
+                                    } else {
+                                      setVerifiedChoir(null);
+                                      setChoirLookupError('');
+                                    }
+                                  }}
+                                  placeholder="ENTER 5-DIGIT CODE (e.g. 7X9KQ)"
+                                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono tracking-widest text-center text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 uppercase font-black"
+                                />
+                                {choirLookupLoading && (
+                                  <div className="absolute right-3 top-2.5 text-[10px] text-emerald-400 animate-pulse font-bold">
+                                    Checking...
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 text-center">
+                                Enter the 5-character code from your Choir Director or Maestro to join rehearsal rooms.
+                              </p>
+
+                              {verifiedChoir && (
+                                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between">
+                                  <div>
+                                    <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Choir Verified ✓</span>
+                                    <h4 className="text-xs font-bold text-white mt-0.5">{verifiedChoir.name}</h4>
+                                    <p className="text-[10px] text-slate-400">
+                                      {verifiedChoir.church_denomination || 'Sacred Choral'} • Director: {verifiedChoir.director_name || 'Choir Master'} ({verifiedChoir.member_count || 1} members)
+                                    </p>
+                                  </div>
+                                  <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                                </div>
+                              )}
+
+                              {choirLookupError && (
+                                <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] rounded-xl flex items-center gap-1.5">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>{choirLookupError}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-slate-900/90 border border-slate-700/80 rounded-xl text-slate-300 text-xs flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>
+                                Continuing as an <strong>Independent Musician / Listener</strong> (no choir code required). You can join or create a choir anytime in Voxify!
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={wizardData[f.name] || ''}
+                          onChange={(e) => setWizardData({ ...wizardData, [f.name]: e.target.value })}
+                          placeholder={f.placeholder}
+                          required={f.required}
+                          className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        />
+                      )
                     )}
 
                     {f.type === 'number' && (

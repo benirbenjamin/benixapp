@@ -94,13 +94,17 @@ self.addEventListener('notificationclick', (event) => {
 // Message listener from frontend to easily display system tray notifications
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_TRAY_NOTIFICATION') {
-    const { title, body, url } = event.data;
-    self.registration.showNotification(title || 'Benix.Space', {
-      body: body || 'Update from Benix.Space Super-App',
-      icon: '/logo.png',
-      badge: '/logo.png',
-      vibrate: [100, 50, 100],
-      data: { url: url || '/' }
-    });
+    const { title, body, url, tag } = event.data;
+    event.waitUntil(
+      self.registration.showNotification(title || 'Benix.Space', {
+        body: body || 'Update from Benix.Space Super-App',
+        icon: '/logo.png',
+        badge: '/logo.png',
+        vibrate: [200, 100, 200],
+        tag: tag || 'benix-' + Date.now(),
+        renotify: true,
+        data: { url: url || '/' }
+      })
+    );
   }
 });

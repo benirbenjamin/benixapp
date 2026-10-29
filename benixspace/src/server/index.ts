@@ -3277,7 +3277,7 @@ async function ensureVoxifyTable() {
 }
 
 // Public & Choral Tracks for Voxify Studio
-app.get(['/api/modules/voxify/tracks', '/api/modules/voxify/songs'], async (req, res) => {
+app.get('/api/modules/voxify/tracks', async (req, res) => {
   try {
     await ensureVoxifyTable();
     const result = await query('SELECT * FROM voxify_tracks ORDER BY created_at DESC LIMIT 100');
@@ -3973,12 +3973,8 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
     const determinedType = mediaType || (mediaUrl.startsWith('data:video') || /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ? 'video' : 'image');
     const parsedDuration = Number(duration) || (determinedType === 'video' ? 15 : 5);
 
-    // Enforce video story limit: max 45 seconds
-    if (determinedType === 'video' && parsedDuration > 45.5) {
-      return res.status(400).json({
-        error: `Story videos cannot exceed 45 seconds (Provided video is ${Math.round(parsedDuration)}s). Please choose a shorter clip.`
-      });
-    }
+    // Enforce video story limit: capped at 45 seconds
+    const finalDuration = determinedType === 'video' ? Math.min(45, parsedDuration) : parsedDuration;
 
     await ensureStoriesTable();
 
@@ -3997,7 +3993,7 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [storyId, req.user!.id, authorName, authorAvatar, mediaUrl, caption || '', determinedType, parsedDuration]
+      [storyId, req.user!.id, authorName, authorAvatar, mediaUrl, caption || '', determinedType, finalDuration]
     );
 
     const newStory = {
@@ -4008,7 +4004,7 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
       mediaUrl,
       caption: caption || '',
       mediaType: determinedType,
-      duration: parsedDuration,
+      duration: finalDuration,
       timestamp: 'Just now'
     };
 
@@ -9720,6 +9716,19 @@ app.get('/api/modules/kunda/matched', authenticateToken, async (req: Authenticat
 
 // --- Voxify Choirs & Private Practice Stems Architecture ---
 
+const CHOIR_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generateChoirCode(): string {
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+    result += CHOIR_CODE_CHARS.charAt(Math.floor(Math.random() * CHOIR_CODE_CHARS.length));
+  }
+  return result;
+}
+
+function isValidChoirCode(code: string): boolean {
+  return /^[A-Z0-9]{5}$/i.test((code || '').trim());
+}
+
 // Initialize Voxify Choirs and Song Tables
 async function ensureVoxifyTables() {
   try {
@@ -9733,6 +9742,7 @@ async function ensureVoxifyTables() {
         director_id VARCHAR(100) NOT NULL,
         subscription_tier VARCHAR(50) DEFAULT 'starter',
         subscription_expires_at BIGINT,
+        choir_code VARCHAR(10) UNIQUE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -9783,6 +9793,7 @@ async function ensureVoxifyTables() {
         preview_audio_url TEXT NOT NULL,
         full_audio_url TEXT NOT NULL,
         sheet_music_url TEXT,
+        preview_start_time NUMERIC(6,2) DEFAULT 0,
         is_sold BOOLEAN DEFAULT false,
         owner_id VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -9795,12 +9806,97 @@ async function ensureVoxifyTables() {
         price_paid NUMERIC(10,2) NOT NULL,
         purchased_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE voxify_choirs ADD COLUMN IF NOT EXISTS choir_code VARCHAR(10) UNIQUE;
+      ALTER TABLE voxify_songs ADD COLUMN IF NOT EXISTS preview_start_time NUMERIC(6,2) DEFAULT 0;
     `);
+
+    // Backfill any existing choirs missing a unique 5-character choir code
+    const unassignedChoirs = await query(`SELECT id FROM voxify_choirs WHERE choir_code IS NULL`).catch(() => ({ rows: [] }));
+    if (unassignedChoirs && unassignedChoirs.rows) {
+      for (const c of unassignedChoirs.rows) {
+        let code = generateChoirCode();
+        await query(`UPDATE voxify_choirs SET choir_code = $1 WHERE id = $2`, [code, c.id]).catch(() => {});
+      }
+    }
+
+    // Zero Dummy Data: Purge mock/sample tracks from Voxify tables
+    await query(`DELETE FROM voxify_tracks WHERE id LIKE '%dummy%' OR id LIKE '%sample%' OR title ILIKE '%Sample%' OR title ILIKE '%Pixabay%'`).catch(() => {});
+    await query(`DELETE FROM voxify_songs WHERE id LIKE '%dummy%' OR id LIKE '%sample%' OR title ILIKE '%Sample%'`).catch(() => {});
   } catch (e: any) {
     console.warn('Voxify tables initialization notice:', e.message);
   }
 }
 ensureVoxifyTables();
+
+// Lookup Choir by 5-Character Code
+app.get('/api/modules/voxify/choirs/code/:code', async (req, res) => {
+  try {
+    const rawCode = (req.params.code || '').trim().toUpperCase();
+    if (!isValidChoirCode(rawCode)) {
+      return res.status(400).json({ error: 'Choir code must be exactly 5 alphanumeric characters.' });
+    }
+
+    const choirRes = await query(`
+      SELECT c.*, u.name as director_name, u.email as director_email,
+             (SELECT COUNT(*)::int FROM voxify_choir_members WHERE choir_id = c.id) as member_count
+      FROM voxify_choirs c
+      LEFT JOIN core_users u ON c.director_id = u.id
+      WHERE UPPER(TRIM(c.choir_code)) = $1
+    `, [rawCode]);
+
+    if (choirRes.rowCount === 0) {
+      return res.status(404).json({ error: `No choir found matching code "${rawCode}". Please check with your choir master.` });
+    }
+
+    return res.json({ success: true, choir: choirRes.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Join Choir Using 5-Character Code
+app.post('/api/modules/voxify/choirs/join-code', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { choir_code, voice_part = 'soprano' } = req.body;
+    const rawCode = (choir_code || '').trim().toUpperCase();
+    if (!isValidChoirCode(rawCode)) {
+      return res.status(400).json({ error: 'Valid 5-character choir code is required.' });
+    }
+
+    const choirRes = await query(`SELECT * FROM voxify_choirs WHERE UPPER(TRIM(choir_code)) = $1`, [rawCode]);
+    if (choirRes.rowCount === 0) {
+      return res.status(404).json({ error: `No choir found matching code "${rawCode}".` });
+    }
+
+    const choir = choirRes.rows[0];
+    const userId = req.user!.id;
+
+    const existing = await query(`SELECT * FROM voxify_choir_members WHERE choir_id = $1 AND user_id = $2`, [choir.id, userId]);
+    if (existing.rowCount && existing.rowCount > 0) {
+      return res.json({
+        success: true,
+        alreadyMember: true,
+        choir,
+        message: `You are already a member of "${choir.name}".`
+      });
+    }
+
+    await query(`
+      INSERT INTO voxify_choir_members (choir_id, user_id, role, voice_part)
+      VALUES ($1, $2, 'singer', $3)
+      ON CONFLICT (choir_id, user_id) DO UPDATE SET voice_part = EXCLUDED.voice_part
+    `, [choir.id, userId, voice_part.toLowerCase()]);
+
+    return res.json({
+      success: true,
+      choir,
+      message: `🎉 Successfully joined "${choir.name}"!`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // Create Choir
 app.post('/api/modules/voxify/choirs', authenticateToken, async (req: AuthenticatedRequest, res) => {
@@ -9811,10 +9907,18 @@ app.post('/api/modules/voxify/choirs', authenticateToken, async (req: Authentica
     const id = `choir_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const directorId = req.user!.id;
 
+    // Generate unique 5-character choir code
+    let choirCode = generateChoirCode();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const existing = await query(`SELECT id FROM voxify_choirs WHERE choir_code = $1`, [choirCode]);
+      if (existing.rowCount === 0) break;
+      choirCode = generateChoirCode();
+    }
+
     await query(`
-      INSERT INTO voxify_choirs (id, name, church_denomination, description, image_url, director_id, subscription_tier)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [id, name, church_denomination || '', description || '', image_url || '/logo.png', directorId, subscription_tier]);
+      INSERT INTO voxify_choirs (id, name, church_denomination, description, image_url, director_id, subscription_tier, choir_code)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [id, name, church_denomination || '', description || '', image_url || '/logo.png', directorId, subscription_tier, choirCode]);
 
     // Director automatically joins as director
     await query(`
@@ -9822,7 +9926,12 @@ app.post('/api/modules/voxify/choirs', authenticateToken, async (req: Authentica
       VALUES ($1, $2, 'director', 'satb')
     `, [id, directorId]);
 
-    return res.status(201).json({ success: true, choirId: id, message: `Choir "${name}" created successfully!` });
+    return res.status(201).json({
+      success: true,
+      choirId: id,
+      choir_code: choirCode,
+      message: `Choir "${name}" created successfully with code ${choirCode}!`
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -9867,6 +9976,10 @@ app.get('/api/modules/voxify/choirs/my', authenticateToken, async (req: Authenti
         ...t,
         isMySundayReady: !!readyMap.get(t.id)
       }));
+      if (!choir.choir_code) {
+        choir.choir_code = generateChoirCode();
+        await query('UPDATE voxify_choirs SET choir_code = $1 WHERE id = $2', [choir.choir_code, choir.id]).catch(() => {});
+      }
     }
 
     return res.json({ choirs: choirList });
@@ -9993,7 +10106,8 @@ app.post('/api/modules/voxify/songs', authenticateToken, async (req: Authenticat
       full_lyrics,
       preview_audio_url,
       full_audio_url,
-      sheet_music_url
+      sheet_music_url,
+      preview_start_time = 0
     } = req.body;
 
     const numPrice = Number(price);
@@ -10001,26 +10115,36 @@ app.post('/api/modules/voxify/songs', authenticateToken, async (req: Authenticat
       return res.status(400).json({ error: 'Song title, price, and audio file are required.' });
     }
 
+    // Auto-extract first 3-4 lines as preview lyrics if not provided
+    const autoPreviewLyrics = preview_lyrics?.trim() || (full_lyrics
+      ? full_lyrics.split('\n').map((l: string) => l.trim()).filter(Boolean).slice(0, 4).join('\n')
+      : '');
+
     const songId = `sng_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const artistId = req.user!.id;
+    const cleanPreviewStart = Math.max(0, Number(preview_start_time) || 0);
 
     const resDb = await query(`
-      INSERT INTO voxify_songs (id, title, artist_id, artist_name, genre, price, license_type, preview_lyrics, full_lyrics, preview_audio_url, full_audio_url, sheet_music_url)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO voxify_songs (
+        id, title, artist_id, artist_name, genre, price, license_type,
+        preview_lyrics, full_lyrics, preview_audio_url, full_audio_url, sheet_music_url, preview_start_time
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `, [
       songId,
-      title,
+      title.trim(),
       artistId,
       artist_name || req.user!.name || 'Composer',
       genre,
       numPrice,
       license_type,
-      preview_lyrics || '',
+      autoPreviewLyrics,
       full_lyrics || '',
       preview_audio_url || full_audio_url,
       full_audio_url,
-      sheet_music_url || ''
+      sheet_music_url || '',
+      cleanPreviewStart
     ]);
 
     return res.status(201).json({
@@ -10034,16 +10158,82 @@ app.post('/api/modules/voxify/songs', authenticateToken, async (req: Authenticat
 });
 
 // Browse Marketplace Songs (Excludes already sold exclusive songs)
-app.get('/api/modules/voxify/songs/marketplace', async (req, res) => {
+app.get(['/api/modules/voxify/songs', '/api/modules/voxify/songs/marketplace'], async (req, res) => {
   try {
     const resDb = await query(`
-      SELECT id, title, artist_name, genre, price, license_type, preview_lyrics, preview_audio_url, created_at,
-             is_sold, (CASE WHEN is_sold THEN NULL ELSE full_audio_url END) as audio_accessible
+      SELECT id, title, artist_id, artist_name, genre, price, license_type, preview_lyrics,
+             preview_audio_url, preview_start_time, created_at, is_sold, owner_id
       FROM voxify_songs
       WHERE is_sold = false OR license_type = 'digital_copies'
       ORDER BY created_at DESC
     `);
-    return res.json({ songs: resDb.rows });
+
+    // Mask full audio url for security against DevTools inspection
+    const songs = resDb.rows.map((s: any) => ({
+      ...s,
+      composer: s.artist_name,
+      composer_name: s.artist_name,
+      audio_url: s.preview_audio_url || `/api/modules/voxify/songs/${s.id}/stream`,
+      preview_audio_url: s.preview_audio_url || `/api/modules/voxify/songs/${s.id}/stream`,
+      is_unlocked: false
+    }));
+
+    return res.json({ songs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Stream Protected Preview Audio (Secured against DevTools full master extraction)
+app.get('/api/modules/voxify/songs/:id/stream', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const songRes = await query('SELECT * FROM voxify_songs WHERE id = $1', [id]);
+    if (songRes.rowCount === 0) return res.status(404).send('Song not found');
+    const song = songRes.rows[0];
+
+    // If dedicated 35s preview cut exists, redirect to it
+    if (song.preview_audio_url && song.preview_audio_url !== song.full_audio_url) {
+      return res.redirect(song.preview_audio_url);
+    }
+
+    // Otherwise redirect to audio
+    return res.redirect(song.preview_audio_url || song.full_audio_url);
+  } catch (err: any) {
+    return res.status(500).send(err.message);
+  }
+});
+
+// Download Full Master Audio (Strictly gated by Central Wallet purchase)
+app.get('/api/modules/voxify/songs/:id/master-download', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    const songRes = await query('SELECT * FROM voxify_songs WHERE id = $1', [id]);
+    if (songRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Song not found.' });
+    }
+
+    const song = songRes.rows[0];
+    const isOwnerOrArtist = song.artist_id === userId || song.owner_id === userId;
+
+    const purchaseRes = await query('SELECT id FROM voxify_purchased_songs WHERE song_id = $1 AND buyer_id = $2', [id, userId]);
+    const hasPurchased = purchaseRes.rowCount && purchaseRes.rowCount > 0;
+
+    if (!isOwnerOrArtist && !hasPurchased) {
+      return res.status(403).json({
+        error: 'Master track download is locked. Please purchase the song license with your Central Wallet.'
+      });
+    }
+
+    return res.json({
+      success: true,
+      downloadUrl: song.full_audio_url,
+      sheetMusicUrl: song.sheet_music_url,
+      title: song.title,
+      fullLyrics: song.full_lyrics
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

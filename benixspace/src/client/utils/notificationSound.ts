@@ -125,6 +125,28 @@ class SoundService {
 
     if (permission === 'granted') {
       this.playNotificationChime();
+
+      // Modern browsers & PWAs: Use ServiceWorker registration to guarantee display in OS tray
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && 'showNotification' in reg) {
+            await reg.showNotification(title, {
+              body: options?.body || 'New update on Benix.Space Unified Platform',
+              icon: options?.icon || '/logo.png',
+              badge: '/logo.png',
+              vibrate: [200, 100, 200],
+              tag: 'benix-' + Date.now(),
+              renotify: true,
+              data: { url: options?.url || '/' }
+            });
+            return true;
+          }
+        } catch {
+          // fallback to new Notification
+        }
+      }
+
       try {
         const notif = new Notification(title, {
           body: options?.body || 'New update on Benix.Space Unified Platform',

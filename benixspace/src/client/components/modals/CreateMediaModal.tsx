@@ -159,6 +159,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const [storyCaption, setStoryCaption] = useState('');
   const [storyPreview, setStoryPreview] = useState<string | null>(null);
   const [storyDuration, setStoryDuration] = useState<number>(15);
+  const [storyTotalDuration, setStoryTotalDuration] = useState<number>(0);
+  const [storyClipStart, setStoryClipStart] = useState<number>(0);
+  const [isCompressingStory, setIsCompressingStory] = useState<boolean>(false);
 
   // Video Form State
   const [channelNameInput, setChannelNameInput] = useState(user?.channel_name || user?.name || '');
@@ -202,6 +205,121 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
   if (!isOpen) return null;
 
+  const formatSecs = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  // Client-Side Video Trimmer and Compressor for 45s Stories
+  const trimAndCompressVideo = async (
+    file: File,
+    startTime: number,
+    clipDuration = 45,
+    onProgress?: (pct: number) => void
+  ): Promise<File> => {
+    return new Promise((resolve) => {
+      try {
+        const video = document.createElement('video');
+        video.preload = 'auto';
+        video.muted = true;
+        video.playsInline = true;
+        const objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+
+        video.onloadedmetadata = () => {
+          try {
+            const width = Math.min(video.videoWidth || 720, 720);
+            const height = Math.round((width * (video.videoHeight || 1280)) / (video.videoWidth || 720));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              URL.revokeObjectURL(objectUrl);
+              resolve(file);
+              return;
+            }
+
+            const stream = canvas.captureStream ? canvas.captureStream(25) : null;
+            if (!stream || typeof MediaRecorder === 'undefined') {
+              URL.revokeObjectURL(objectUrl);
+              resolve(file);
+              return;
+            }
+
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+              ? 'video/webm;codecs=vp8'
+              : MediaRecorder.isTypeSupported('video/webm')
+              ? 'video/webm'
+              : 'video/mp4';
+
+            let recorder: MediaRecorder;
+            try {
+              recorder = new MediaRecorder(stream, {
+                mimeType,
+                videoBitsPerSecond: 1200000 // Compressed mobile 1.2 Mbps
+              });
+            } catch {
+              URL.revokeObjectURL(objectUrl);
+              resolve(file);
+              return;
+            }
+
+            const chunks: Blob[] = [];
+            recorder.ondataavailable = (e) => {
+              if (e.data && e.data.size > 0) chunks.push(e.data);
+            };
+
+            const targetEnd = Math.min(video.duration, startTime + clipDuration);
+            const totalClipTime = Math.max(1, targetEnd - startTime);
+
+            recorder.onstop = () => {
+              URL.revokeObjectURL(objectUrl);
+              const blob = new Blob(chunks, { type: mimeType });
+              const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+              const trimmedFile = new File([blob], `story_${Date.now()}.${ext}`, { type: mimeType });
+              resolve(trimmedFile);
+            };
+
+            video.currentTime = startTime;
+            video.onseeked = () => {
+              recorder.start(100);
+              video.play().catch(() => {});
+
+              const renderLoop = () => {
+                if (video.currentTime >= targetEnd || video.paused || video.ended) {
+                  video.pause();
+                  if (recorder.state === 'recording') recorder.stop();
+                  return;
+                }
+                ctx.drawImage(video, 0, 0, width, height);
+                if (onProgress) {
+                  const elapsed = video.currentTime - startTime;
+                  const pct = Math.min(100, Math.max(0, Math.round((elapsed / totalClipTime) * 100)));
+                  onProgress(pct);
+                }
+                requestAnimationFrame(renderLoop);
+              };
+              renderLoop();
+            };
+          } catch {
+            URL.revokeObjectURL(objectUrl);
+            resolve(file);
+          }
+        };
+
+        video.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(file);
+        };
+      } catch {
+        resolve(file);
+      }
+    });
+  };
+
   // Handle Story File Upload with Fast Preview, Chunk Preparation & 45s Duration Limit
   const handleStoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -216,26 +334,24 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       tempVideo.onloadedmetadata = () => {
         URL.revokeObjectURL(objUrl);
         const dur = Math.round(tempVideo.duration || 0);
-        if (tempVideo.duration > 45.5) {
-          setStatusMsg({
-            text: `⚠️ Story video exceeds 45 seconds limit (${dur}s). Videos posted on stories cannot exceed 45 seconds. Please choose a shorter video under 45s.`,
-            error: true
-          });
-          setSelectedStoryFile(null);
-          setStoryPreview(null);
-          setStoryMediaUrl('');
-          e.target.value = '';
-          return;
-        }
+        setStoryTotalDuration(dur);
+        setStoryClipStart(0);
+        setStoryDuration(Math.min(45, dur || 15));
 
-        setStoryDuration(dur || 15);
         setSelectedStoryFile(file);
         const objectUrl = URL.createObjectURL(file);
         setStoryPreview(objectUrl);
         setStoryMediaUrl(objectUrl);
-        setStatusMsg({
-          text: `Video clip ready: "${file.name}" (${dur}s, ${(file.size / (1024 * 1024)).toFixed(1)} MB)`
-        });
+
+        if (dur > 45) {
+          setStatusMsg({
+            text: `Selected video is ${dur}s. Pick your 45-second story cut using the slider or part buttons below. It will be compressed automatically on upload.`
+          });
+        } else {
+          setStatusMsg({
+            text: `Video clip ready: "${file.name}" (${dur}s, ${(file.size / (1024 * 1024)).toFixed(1)} MB)`
+          });
+        }
       };
       tempVideo.onerror = () => {
         URL.revokeObjectURL(objUrl);
@@ -248,6 +364,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     }
 
     setSelectedStoryFile(file);
+    setStoryTotalDuration(0);
+    setStoryClipStart(0);
     const objectUrl = URL.createObjectURL(file);
     setStoryPreview(objectUrl);
     setStoryMediaUrl(objectUrl);
@@ -274,13 +392,30 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     startUpload(title, 'story', async (updateProgress) => {
       let finalMediaUrl = fallbackUrl;
 
-      // If local file selected, upload in resilient chunks (avoids Vercel 413 error completely!)
+      // If local file selected, cut/compress if video > 45s, then upload in resilient chunks
       if (fileToUpload) {
-        updateProgress(10);
+        let processedFile = fileToUpload;
+        const isVidStory = fileToUpload.type.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(fileToUpload.name);
+
+        if (isVidStory && storyTotalDuration > 45) {
+          setIsCompressingStory(true);
+          updateProgress(5);
+          try {
+            processedFile = await trimAndCompressVideo(fileToUpload, storyClipStart, 45, (pct) => {
+              updateProgress(Math.round(5 + pct * 0.2));
+            });
+          } catch (e) {
+            console.warn('Story video trim note:', e);
+          } finally {
+            setIsCompressingStory(false);
+          }
+        }
+
+        updateProgress(25);
         try {
-          finalMediaUrl = await uploadFileInChunks(fileToUpload, {
+          finalMediaUrl = await uploadFileInChunks(processedFile, {
             folder: 'stories',
-            onProgress: (pct) => updateProgress(Math.round(10 + pct * 0.75))
+            onProgress: (pct) => updateProgress(Math.round(25 + pct * 0.65))
           });
         } catch (uploadErr) {
           console.warn('Chunk upload failed, falling back to data URL:', uploadErr);
@@ -288,7 +423,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           finalMediaUrl = await new Promise<string>((resolve, reject) => {
             reader.onload = () => resolve(reader.result as string);
             reader.onerror = reject;
-            reader.readAsDataURL(fileToUpload);
+            reader.readAsDataURL(processedFile);
           });
         }
       }
@@ -627,13 +762,34 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                         (selectedStoryFile && /\.(mp4|webm|mov|ogg)$/i.test(selectedStoryFile.name)) ||
                         storyPreview.startsWith('data:video') ||
                         /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(storyPreview)) ? (
-                        <video src={storyPreview} autoPlay muted playsInline loop controls className="w-full h-full object-contain" />
+                        <video
+                          id="story-preview-video"
+                          src={storyPreview}
+                          autoPlay
+                          muted
+                          playsInline
+                          loop
+                          controls
+                          onTimeUpdate={(e) => {
+                            const vid = e.currentTarget;
+                            if (storyTotalDuration > 45 && vid.currentTime >= storyClipStart + 45) {
+                              vid.currentTime = storyClipStart;
+                            }
+                          }}
+                          className="w-full h-full object-contain"
+                        />
                       ) : (
                         <img src={storyPreview} alt="Story Preview" className="w-full h-full object-contain" />
                       )}
                       <button
                         type="button"
-                        onClick={() => { setStoryPreview(null); setStoryMediaUrl(''); }}
+                        onClick={() => {
+                          setStoryPreview(null);
+                          setStoryMediaUrl('');
+                          setSelectedStoryFile(null);
+                          setStoryTotalDuration(0);
+                          setStoryClipStart(0);
+                        }}
                         className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors z-10"
                       >
                         <X className="w-4 h-4" />
@@ -655,6 +811,70 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                     </label>
                   )}
                 </div>
+
+                {/* 45-Second Video Part Selection Slider */}
+                {selectedStoryFile && storyTotalDuration > 45 && (
+                  <div className="mt-3 p-3.5 bg-slate-900 border border-pink-500/30 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-pink-300 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Select 45-Second Story Segment</span>
+                      </span>
+                      <span className="font-mono text-[11px] text-pink-400 font-bold">
+                        {formatSecs(storyClipStart)} - {formatSecs(Math.min(storyTotalDuration, storyClipStart + 45))} (45s max)
+                      </span>
+                    </div>
+
+                    {/* Quick Part Buttons */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      <span className="text-[10px] text-slate-400 font-semibold shrink-0">Parts:</span>
+                      {Array.from({ length: Math.ceil(storyTotalDuration / 45) }).map((_, idx) => {
+                        const start = idx * 45;
+                        const end = Math.min(storyTotalDuration, start + 45);
+                        const isActive = Math.abs(storyClipStart - start) < 5;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              const newStart = Math.min(start, Math.max(0, storyTotalDuration - 45));
+                              setStoryClipStart(newStart);
+                              const vid = document.getElementById('story-preview-video') as HTMLVideoElement;
+                              if (vid) vid.currentTime = newStart;
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition ${
+                              isActive
+                                ? 'bg-pink-600 text-white shadow'
+                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                            }`}
+                          >
+                            Part {idx + 1} ({formatSecs(start)} - {formatSecs(end)})
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Timeline Scrub Slider */}
+                    <input
+                      type="range"
+                      min="0"
+                      max={Math.max(0, storyTotalDuration - 45)}
+                      step="1"
+                      value={storyClipStart}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setStoryClipStart(val);
+                        const vid = document.getElementById('story-preview-video') as HTMLVideoElement;
+                        if (vid) vid.currentTime = val;
+                      }}
+                      className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                    />
+
+                    <p className="text-[10px] text-slate-400 italic">
+                      Drag the slider to adjust your 45-second cut. Upon upload, the video will be cut and compressed automatically.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -40,7 +40,7 @@ const ActionNotificationContext = createContext<ActionNotificationContextType>({
 
 export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, wallet, hasAppProfile } = useAuth();
-  const { setBadgeCount } = usePwa();
+  const { setBadgeCount, showTrayNotification } = usePwa();
 
   // Read dismissed actions/read notifications from localStorage
   const [readIds, setReadIds] = useState<string[]>(() => {
@@ -175,7 +175,19 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
         .get('/api/chat/unread-count', { headers: { Authorization: `Bearer ${token}` } })
         .then((res) => {
           if (res.data?.success && typeof res.data.count === 'number') {
-            setUnreadChatCount(res.data.count);
+            const count = res.data.count;
+            setUnreadChatCount((prev) => {
+              if (count > prev && prev >= 0 && typeof window !== 'undefined') {
+                const isMessagesRoute = window.location.pathname.startsWith('/messages');
+                if (document.hidden || !isMessagesRoute) {
+                  showTrayNotification('💬 New Message on Benix.Space', {
+                    body: `You have ${count} unread chat message(s). Click to reply.`,
+                    url: '/messages'
+                  });
+                }
+              }
+              return count;
+            });
           }
         })
         .catch(() => {});
@@ -264,10 +276,9 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
       return next;
     });
 
-    // Play chime sound and trigger push notification
-    notificationSound.playNotificationChime();
-    notificationSound.requestPushPermissionAndSend(notif.title, { body: notif.body, url: notif.route });
-  }, []);
+    // Trigger OS System Tray push notification via Service Worker & chime sound
+    showTrayNotification(notif.title, { body: notif.body, url: notif.route });
+  }, [showTrayNotification]);
 
   const clearItem = useCallback((id: string) => {
     markAsRead(id);

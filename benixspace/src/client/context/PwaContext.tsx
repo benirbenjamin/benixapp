@@ -110,32 +110,26 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Promise<boolean> => {
     notificationSound.playNotificationChime();
 
-    // 1. If Service Worker is ready, use registration to deliver notification to OS system tray
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    // 1. If Service Worker is available, use registration to deliver notification to OS system tray
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       try {
-        const reg = await navigator.serviceWorker.ready;
-        if (reg && 'showNotification' in reg) {
-          if (Notification.permission === 'granted') {
+        let perm = Notification.permission;
+        if (perm !== 'granted' && perm !== 'denied') {
+          perm = await Notification.requestPermission();
+        }
+        if (perm === 'granted') {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && 'showNotification' in reg) {
             await reg.showNotification(title, {
               body: options?.body || 'Update from Benix.Space',
               icon: '/logo.png',
               badge: '/logo.png',
-              vibrate: [100, 50, 100],
+              vibrate: [200, 100, 200],
+              tag: 'benix-' + Date.now(),
+              renotify: true,
               data: { url: options?.url || '/' }
             });
             return true;
-          } else if (Notification.permission !== 'denied') {
-            const perm = await Notification.requestPermission();
-            if (perm === 'granted') {
-              await reg.showNotification(title, {
-                body: options?.body || 'Update from Benix.Space',
-                icon: '/logo.png',
-                badge: '/logo.png',
-                vibrate: [100, 50, 100],
-                data: { url: options?.url || '/' }
-              });
-              return true;
-            }
           }
         }
       } catch (e) {
