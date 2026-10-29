@@ -312,30 +312,6 @@ export const VideosPage: React.FC = () => {
     return `${m}:${r < 10 ? '0' : ''}${r}`;
   };
 
-  const handleMouseMovePlayer = () => {
-    setIsControlsVisible(true);
-    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    if (isPlaying) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        setIsControlsVisible(false);
-      }, 2500);
-    }
-  };
-
-  const handlePlayerTap = (e: React.MouseEvent) => {
-    // Only toggle if not clicking interactive controls
-    setIsControlsVisible((prev) => {
-      const next = !prev;
-      if (next && isPlaying) {
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-        controlsTimeoutRef.current = setTimeout(() => {
-          setIsControlsVisible(false);
-        }, 2500);
-      }
-      return next;
-    });
-  };
-
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (!videoRef.current) return;
@@ -809,6 +785,51 @@ export const VideosPage: React.FC = () => {
     }
   };
 
+  const showControls = useCallback(() => {
+    setIsControlsVisible(true);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3000);
+    }
+  }, [isPlaying]);
+
+  const handleMouseMovePlayer = () => {
+    showControls();
+  };
+
+  const handleMouseLeavePlayer = () => {
+    if (isPlaying) {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 800);
+    }
+  };
+
+  const handlePlayerTap = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) e.stopPropagation();
+    if (!isControlsVisible) {
+      showControls();
+    } else {
+      togglePlayPause();
+      showControls();
+    }
+  };
+
+  // Auto-hide controls effect when playing begins or active video changes
+  useEffect(() => {
+    if (isPlaying) {
+      showControls();
+    } else {
+      setIsControlsVisible(true);
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    }
+  }, [isPlaying, activeVideo?.id, showControls]);
+
   const toggleMute = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
@@ -1071,7 +1092,7 @@ export const VideosPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-purple-600 selection:text-white">
+    <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-purple-600 selection:text-white overflow-x-hidden">
       <SeoHead
         title={
           activeVideo
@@ -1165,31 +1186,42 @@ export const VideosPage: React.FC = () => {
         {/* 1. YOUTUBE-STYLE WATCH VIEW (When Active Video is Selected)    */}
         {/* ============================================================== */}
         {activeVideo ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start max-w-full">
             
             {/* Left Column: Player, Title, Channel, Meta, Description & Comments */}
-            <div className="lg:col-span-8 space-y-4">
+            <div className="lg:col-span-8 space-y-4 max-w-full overflow-hidden">
               
-              {/* 16:9 Cinema Player Screen (YouTube-like larger mobile view) */}
+              {/* 16:9 Cinema Player Screen (YouTube-like mobile responsive view) */}
               <div
                 ref={playerContainerRef}
                 onMouseMove={handleMouseMovePlayer}
-                onMouseEnter={() => setIsControlsVisible(true)}
-                onClick={handlePlayerTap}
-                className={`relative aspect-video w-full -mx-4 sm:mx-0 rounded-none sm:rounded-3xl bg-black border-y sm:border border-slate-800 overflow-hidden shadow-2xl select-none min-h-[220px] sm:min-h-[380px] lg:min-h-[440px] ${
+                onMouseEnter={showControls}
+                onMouseLeave={handleMouseLeavePlayer}
+                onTouchStart={showControls}
+                className={`relative aspect-video w-full rounded-2xl sm:rounded-3xl bg-black border border-slate-800 overflow-hidden shadow-2xl select-none sm:min-h-[360px] lg:min-h-[420px] max-w-full ${
                   !isControlsVisible && isPlaying ? 'cursor-none' : 'cursor-default'
                 }`}
               >
                 {/* Media Screen (YouTube / Direct Video Stream via /api/media/stream) */}
                 {isYouTubeVideo(activeVideo) ? (
-                  <iframe
-                    ref={iframeRef}
-                    src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
-                    title={activeVideo.title}
-                    className="w-full h-full border-0 relative z-10 pointer-events-auto"
-                    allow="accelerometer; autoplay *; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
+                  <div className="relative w-full h-full">
+                    <iframe
+                      ref={iframeRef}
+                      src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
+                      title={activeVideo.title}
+                      className="w-full h-full border-0 relative z-10 pointer-events-auto"
+                      allow="accelerometer; autoplay *; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                    {/* Transparent Click/Hover Overlay on top of iframe (excluding bottom controls area) */}
+                    <div
+                      className="absolute inset-0 bottom-16 z-20 cursor-pointer"
+                      onClick={handlePlayerTap}
+                      onMouseMove={showControls}
+                      onTouchStart={showControls}
+                      title={isPlaying ? "Click to Pause" : "Click to Play"}
+                    />
+                  </div>
                 ) : (
                   <video
                     ref={videoRef}
@@ -1201,7 +1233,9 @@ export const VideosPage: React.FC = () => {
                     preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
                     className="w-full h-full object-contain bg-black relative z-10 cursor-pointer"
                     poster={activeVideo.thumbnail}
-                    onClick={togglePlayPause}
+                    onClick={handlePlayerTap}
+                    onMouseMove={showControls}
+                    onTouchStart={showControls}
                     onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
                     onDurationChange={(e) => setVideoDuration(e.currentTarget.duration || 0)}
                     onPlay={() => setIsPlaying(true)}
@@ -1294,12 +1328,14 @@ export const VideosPage: React.FC = () => {
 
                 {/* On-Screen Bottom Custom Control Strip */}
                 <div
-                  className={`absolute bottom-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-t from-black/95 via-black/75 to-transparent flex flex-col gap-2.5 transition-opacity duration-300 ${
+                  className={`absolute bottom-0 inset-x-0 z-30 p-2 sm:p-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col gap-1.5 sm:gap-2.5 transition-opacity duration-300 ${
                     !isPlaying || isControlsVisible
                       ? 'opacity-100 pointer-events-auto'
                       : 'opacity-0 pointer-events-none'
                   }`}
                   onClick={(e) => e.stopPropagation()}
+                  onMouseMove={showControls}
+                  onTouchStart={showControls}
                 >
                   {/* Custom Seek Scrubber Bar */}
                   <div
@@ -1328,36 +1364,55 @@ export const VideosPage: React.FC = () => {
                   </div>
 
                   {/* Player Buttons Row */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-center justify-between gap-1 sm:gap-2 w-full max-w-full overflow-hidden">
+                    <div className="flex items-center gap-1 sm:gap-2 shrink min-w-0 overflow-hidden">
                       <button
                         onClick={togglePlayPause}
-                        className="p-2 sm:p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                        className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 shrink-0"
                         title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
                       >
-                        {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                        {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5" />}
                       </button>
 
                       <button
                         onClick={playPreviousVideo}
-                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
                         title="Previous Video (P)"
                       >
-                        <SkipBack className="w-4 h-4" />
+                        <SkipBack className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
 
                       <button
                         onClick={playNextVideo}
-                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
                         title="Next Video (N)"
                       >
-                        <SkipForward className="w-4 h-4" />
+                        <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
 
+                      <button
+                        onClick={toggleMute}
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
+                        title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+                      >
+                        {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                      </button>
+
+                      {/* Video Timestamp Display */}
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 font-mono font-bold pl-0.5 sm:pl-1 select-none shrink-0 whitespace-nowrap">
+                        {formatTimestamp(videoCurrentTime)} / {formatTimestamp(videoDuration || parseSeconds(activeVideo.duration) || 0)}
+                      </span>
+
+                      <span className="hidden xl:inline-block text-[11px] text-slate-500 font-mono pl-2 truncate">
+                        Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                       {/* Autoplay Toggle Button */}
                       <button
                         onClick={toggleAutoplay}
-                        className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition flex items-center gap-1.5 ${
+                        className={`px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-[11px] font-bold transition flex items-center gap-1 sm:gap-1.5 shrink-0 ${
                           autoplayEnabled
                             ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
                             : 'bg-slate-900/80 text-slate-400 border-slate-700/80 hover:text-slate-200'
@@ -1365,55 +1420,36 @@ export const VideosPage: React.FC = () => {
                         title={autoplayEnabled ? 'Autoplay is ON: Next video plays automatically' : 'Autoplay is OFF'}
                       >
                         <span className="hidden sm:inline">Autoplay</span>
-                        <span className={`w-2 h-2 rounded-full ${autoplayEnabled ? 'bg-purple-400 animate-pulse' : 'bg-slate-500'}`} />
+                        <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${autoplayEnabled ? 'bg-purple-400 animate-pulse' : 'bg-slate-500'}`} />
                       </button>
 
-                      <button
-                        onClick={toggleMute}
-                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                        title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
-                      >
-                        {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-                      </button>
-
-                      {/* Video Timestamp Display */}
-                      <span className="text-[11px] text-slate-300 font-mono font-bold pl-1 select-none">
-                        {formatTimestamp(videoCurrentTime)} / {formatTimestamp(videoDuration || parseSeconds(activeVideo.duration) || 0)}
-                      </span>
-
-                      <span className="hidden lg:inline-block text-[11px] text-slate-500 font-mono pl-2">
-                        Space: Pause • N: Next • P: Prev • M: Mute • F: Fullscreen
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
                       {/* Adaptive Stream Quality Dropdown */}
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         <button
                           onClick={() => setShowQualityMenu((prev) => !prev)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
+                          className="px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-lg transition flex items-center gap-1 text-[10px] sm:text-xs font-semibold backdrop-blur-md"
                           title="Video Stream Quality (Adaptive)"
                         >
-                          <Wifi className="w-3.5 h-3.5 text-purple-400" />
-                          <span className="font-mono text-[11px]">
-                            {qualityMode === 'auto' ? `Auto (${activeQuality})` : activeQuality}
+                          <Wifi className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-400" />
+                          <span className="font-mono text-[10px] sm:text-[11px]">
+                            {qualityMode === 'auto' ? (activeQuality || 'Auto') : activeQuality}
                           </span>
                         </button>
 
                         {showQualityMenu && (
-                          <div className="absolute bottom-11 right-0 z-50 w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
+                          <div className="absolute bottom-11 right-0 z-50 w-52 sm:w-56 bg-slate-950/95 border border-slate-700 backdrop-blur-xl rounded-2xl shadow-2xl p-2 space-y-1 text-xs">
                             <div className="px-2.5 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800 flex items-center justify-between">
                               <span>Adaptive Quality</span>
-                              <span className="text-[10px] text-purple-400 font-mono truncate max-w-[110px]" title={connectionSpeedLabel}>
+                              <span className="text-[10px] text-purple-400 font-mono truncate max-w-[100px]" title={connectionSpeedLabel}>
                                 {connectionSpeedLabel}
                               </span>
                             </div>
                             {[
-                              { id: 'auto', label: `Auto (Adaptive - ${networkQuality})` },
+                              { id: 'auto', label: `Auto (${networkQuality})` },
                               { id: '1080p', label: '1080p Full HD' },
                               { id: '720p', label: '720p HD' },
-                              { id: '480p', label: '480p Medium (Data Saver)' },
-                              { id: '360p', label: '360p Low (Ultra Saver)' }
+                              { id: '480p', label: '480p Medium' },
+                              { id: '360p', label: '360p Low' }
                             ].map((opt) => (
                               <button
                                 key={opt.id}
@@ -1437,10 +1473,10 @@ export const VideosPage: React.FC = () => {
 
                       <button
                         onClick={toggleFullscreen}
-                        className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
                         title="Toggle Landscape Fullscreen (F)"
                       >
-                        {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                        {isFullscreen ? <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                       </button>
                     </div>
                   </div>
