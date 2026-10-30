@@ -1102,10 +1102,10 @@ export const VideosPage: React.FC = () => {
         description="Stream Rwandan concert streams, exclusive comedy shows, choir harmonies, and documentaries. Monetize with 15% instant affiliate commissions."
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 pt-3 sm:pt-6 space-y-3 sm:space-y-6">
         
         {/* Top Navigation Bar & Action Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
             {activeVideo ? (
               <button
@@ -1328,7 +1328,7 @@ export const VideosPage: React.FC = () => {
 
                 {/* On-Screen Bottom Custom Control Strip */}
                 <div
-                  className={`absolute bottom-0 inset-x-0 z-30 p-2 sm:p-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col gap-1.5 sm:gap-2.5 transition-opacity duration-300 ${
+                  className={`absolute bottom-0 inset-x-0 z-30 px-2 py-1.5 sm:p-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col gap-1 sm:gap-2.5 transition-opacity duration-300 ${
                     !isPlaying || isControlsVisible
                       ? 'opacity-100 pointer-events-auto'
                       : 'opacity-0 pointer-events-none'
@@ -1376,7 +1376,7 @@ export const VideosPage: React.FC = () => {
 
                       <button
                         onClick={playPreviousVideo}
-                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
+                        className="hidden sm:inline-flex p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
                         title="Previous Video (P)"
                       >
                         <SkipBack className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1384,7 +1384,7 @@ export const VideosPage: React.FC = () => {
 
                       <button
                         onClick={playNextVideo}
-                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
+                        className="hidden sm:inline-flex p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
                         title="Next Video (N)"
                       >
                         <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
