@@ -956,14 +956,14 @@ export const AdminSettingsPage: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        step="1"
+                        step="0.0001"
                         value={adsense.google_ad_view_payout}
-                        onChange={(e) => setAdsense({ ...adsense, google_ad_view_payout: Number(e.target.value) || 0 })}
+                        onChange={(e) => setAdsense({ ...adsense, google_ad_view_payout: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
                         className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-emerald-400 font-black text-sm"
                       />
                       <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 2 RWF per full view</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Supports decimals: e.g. 0.01 or 0.001 RWF</span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
@@ -972,14 +972,14 @@ export const AdminSettingsPage: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        step="1"
+                        step="0.0001"
                         value={adsense.google_ad_click_payout}
-                        onChange={(e) => setAdsense({ ...adsense, google_ad_click_payout: Number(e.target.value) || 0 })}
+                        onChange={(e) => setAdsense({ ...adsense, google_ad_click_payout: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
                         className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-emerald-400 font-black text-sm"
                       />
                       <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 4 RWF per click</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Supports decimals: e.g. 0.05 or 0.002 RWF</span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
@@ -988,14 +988,14 @@ export const AdminSettingsPage: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        step="1"
+                        step="0.0001"
                         value={adsense.custom_ad_view_payout}
-                        onChange={(e) => setAdsense({ ...adsense, custom_ad_view_payout: Number(e.target.value) || 0 })}
+                        onChange={(e) => setAdsense({ ...adsense, custom_ad_view_payout: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
                         className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-amber-400 font-black text-sm"
                       />
                       <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 10 RWF per full view</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Supports decimals: e.g. 0.10 or 0.01 RWF</span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
@@ -1004,14 +1004,14 @@ export const AdminSettingsPage: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        step="1"
+                        step="0.0001"
                         value={adsense.custom_ad_click_payout}
-                        onChange={(e) => setAdsense({ ...adsense, custom_ad_click_payout: Number(e.target.value) || 0 })}
+                        onChange={(e) => setAdsense({ ...adsense, custom_ad_click_payout: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
                         className="w-full px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-700 text-amber-400 font-black text-sm"
                       />
                       <span className="absolute right-3 top-2 text-xs text-slate-500 font-bold">RWF</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Default: 18 RWF per click</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Supports decimals: e.g. 0.20 or 0.02 RWF</span>
                   </div>
                 </div>
               </div>

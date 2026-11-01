@@ -17,6 +17,8 @@ import { WalletModal } from '../components/modals/WalletModal';
 import { ReferralModal } from '../components/modals/ReferralModal';
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
+import { ShortsFeed } from '../components/home/ShortsFeed';
 import realVideosData from '../config/realVideos.json';
 import {
   Tv,
@@ -354,9 +356,9 @@ export const HomePage: React.FC = () => {
       body: JSON.stringify({
         storyId: currentStory.id,
         creatorId: authorId,
-        action: 'impression',
-        mediaType: 'story',
-        adSource: currentCustomAd ? 'custom' : 'adsense'
+        type: 'view',
+        adType: currentCustomAd ? 'custom' : 'google',
+        mediaType: 'story'
       })
     }).catch(() => {});
   }, [activeStoryIndex, stories, customAds]);
@@ -382,9 +384,9 @@ export const HomePage: React.FC = () => {
       body: JSON.stringify({
         storyId: currentStory.id,
         creatorId: authorId,
-        action: 'click',
-        mediaType: 'story',
-        adSource: currentCustomAd ? 'custom' : 'adsense'
+        type: 'click',
+        adType: currentCustomAd ? 'custom' : 'google',
+        mediaType: 'story'
       })
     }).catch(() => {});
 
@@ -614,6 +616,13 @@ export const HomePage: React.FC = () => {
               </div>
             )}
           </div>
+        </section>
+
+        {/* ========================================================
+            TIKTOK-STYLE SHORTS & VERTICAL REELS FEED
+           ======================================================== */}
+        <section className="space-y-4">
+          <ShortsFeed />
         </section>
 
         {/* ========================================================
@@ -1792,31 +1801,51 @@ export const HomePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Small Story Ad Banner (Loads on all stories; monetized owner earns impression & click revenue) */}
+              {/* Story Ad Banner (Google AdSense or Custom Ad; monetized owner earns impression & click revenue) */}
               <div
                 className="w-full bg-[#121824]/95 border-t border-slate-800 p-2.5 flex items-center justify-between gap-2 z-40 backdrop-blur-md cursor-pointer select-none"
                 onClick={handleStoryAdClick}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">Sponsored Ad</span>
-                      <span className="text-xs font-bold text-white truncate">Benix Super App • Kigali</span>
+                {currentCustomAd ? (
+                  <>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <img
+                        src={currentCustomAd.mediaUrl || '/logo.png'}
+                        alt={currentCustomAd.title}
+                        className="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">Sponsored Ad</span>
+                          <span className="text-xs font-bold text-white truncate">{currentCustomAd.title}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {currentCustomAd.description || 'Promoted product • Creator earns ad revenue'}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      Creator earns ad revenue per view & click
-                    </p>
+                    <button
+                      onClick={handleStoryAdClick}
+                      className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"
+                    >
+                      {currentCustomAd.ctaText || 'Learn More'}
+                    </button>
+                  </>
+                ) : (
+                  <div className="w-full flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-blue-500 text-white rounded">Google Ad</span>
+                      <span className="text-xs font-bold text-white truncate">Supporting @{currentStory.authorName || 'Creator'}</span>
+                    </div>
+                    <AdSenseUnit slot="7034214536" className="my-0 min-h-[30px] hidden" />
+                    <button
+                      onClick={handleStoryAdClick}
+                      className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"
+                    >
+                      Visit Sponsor
+                    </button>
                   </div>
-                </div>
-                <button
-                  onClick={handleStoryAdClick}
-                  className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"
-                >
-                  Learn More
-                </button>
+                )}
               </div>
 
               {/* Desktop Navigation Arrows */}

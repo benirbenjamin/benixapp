@@ -320,15 +320,15 @@ export const AdminMonetizationPanel: React.FC = () => {
             <div className="flex items-center gap-1">
               <input
                 type="number"
-                min="100"
-                step="50"
+                min="0"
+                step="any"
                 value={thresholds.defaultCpmRwf}
-                onChange={(e) => setThresholds({ ...thresholds, defaultCpmRwf: Number(e.target.value) })}
+                onChange={(e) => setThresholds({ ...thresholds, defaultCpmRwf: e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0) })}
                 className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-sm"
               />
               <span className="text-xs text-slate-400 font-bold">RWF</span>
             </div>
-            <span className="text-[10px] text-slate-500">Applied to video ad impressions</span>
+            <span className="text-[10px] text-slate-500">Supports decimals (e.g. 0.01 RWF per view = 10 RWF CPM)</span>
           </div>
         </div>
       </div>

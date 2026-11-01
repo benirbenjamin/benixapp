@@ -55408,6 +55408,197 @@ app.post("/api/upload/article-media", authenticateToken, async (req, res) => {
   }
 });
 var userVideosList = [];
+async function ensureVideoAndShortsTables() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_videos (
+      id VARCHAR(255) PRIMARY KEY,
+      title VARCHAR(500) NOT NULL,
+      slug VARCHAR(500),
+      description TEXT,
+      video_url TEXT NOT NULL,
+      thumbnail_url TEXT,
+      duration INT DEFAULT 300,
+      views INT DEFAULT 0,
+      likes INT DEFAULT 0,
+      access_type VARCHAR(50) DEFAULT 'PUBLIC',
+      price NUMERIC(15,2) DEFAULT 0,
+      category VARCHAR(100) DEFAULT 'General',
+      user_id VARCHAR(255) NOT NULL,
+      channel_name VARCHAR(255),
+      channel_handle VARCHAR(255),
+      channel_avatar TEXT,
+      is_portrait BOOLEAN DEFAULT FALSE,
+      is_verified BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS is_portrait BOOLEAN DEFAULT FALSE;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS likes INT DEFAULT 0;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS author_name VARCHAR(255);").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS channel_handle VARCHAR(255);").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS channel_avatar TEXT;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ALTER COLUMN slug DROP NOT NULL;").catch(() => {
+  });
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS likes INT DEFAULT 0;").catch(() => {
+  });
+  await query("ALTER TABLE core_wallets ALTER COLUMN balance TYPE NUMERIC(18, 4);").catch(() => {
+  });
+  await query("ALTER TABLE core_wallets ALTER COLUMN total_earnings TYPE NUMERIC(18, 4);").catch(() => {
+  });
+  await query("ALTER TABLE creator_daily_ad_earnings ALTER COLUMN total_earned TYPE NUMERIC(18, 4);").catch(() => {
+  });
+}
+app.get("/api/shorts/feed", async (req, res) => {
+  try {
+    await ensureStoriesTable();
+    await ensureVideoAndShortsTables();
+    const storiesRes = await query(`
+      SELECT 
+        s.id, 
+        s.user_id as "authorId", 
+        s.author_name as "authorName", 
+        s.author_avatar as "authorAvatar",
+        s.media_url as "mediaUrl", 
+        COALESCE(s.caption, 'Benix Moment') as title, 
+        COALESCE(s.media_type, 'image') as "mediaType",
+        COALESCE(s.duration, 5.0) as duration, 
+        COALESCE(s.views, 0) as views, 
+        COALESCE(s.likes, 0) as likes, 
+        s.created_at as "createdAt",
+        'story' as source,
+        COALESCE(u.monetization_status, 'auto') as "userMonetization"
+      FROM core_stories s
+      LEFT JOIN core_users u ON s.user_id = u.id
+      ORDER BY s.created_at DESC
+      LIMIT 80
+    `).catch(() => ({ rows: [] }));
+    const videosRes = await query(`
+      SELECT 
+        v.id, 
+        v.user_id as "authorId", 
+        COALESCE(v.channel_name, 'Benix Creator') as "authorName", 
+        COALESCE(v.channel_avatar, '/logo.png') as "authorAvatar",
+        v.video_url as "mediaUrl", 
+        v.title, 
+        'video' as "mediaType",
+        COALESCE(v.duration, 60) as duration, 
+        COALESCE(v.views, 0) as views, 
+        COALESCE(v.likes, 0) as likes,
+        v.created_at as "createdAt",
+        'video' as source,
+        COALESCE(u.monetization_status, 'auto') as "userMonetization"
+      FROM user_videos v
+      LEFT JOIN core_users u ON v.user_id = u.id
+      WHERE v.is_portrait = TRUE 
+         OR v.category ILIKE '%short%' 
+         OR v.category ILIKE '%tiktok%' 
+         OR v.duration <= 180
+         OR v.description ILIKE '%#short%'
+      ORDER BY v.created_at DESC
+      LIMIT 80
+    `).catch(() => ({ rows: [] }));
+    const combined = [...storiesRes.rows, ...videosRes.rows];
+    if (combined.length < 5) {
+      const extraVideos = await query(`
+        SELECT 
+          v.id, 
+          v.user_id as "authorId", 
+          COALESCE(v.channel_name, 'Benix Creator') as "authorName", 
+          COALESCE(v.channel_avatar, '/logo.png') as "authorAvatar",
+          v.video_url as "mediaUrl", 
+          v.title, 
+          'video' as "mediaType",
+          COALESCE(v.duration, 60) as duration, 
+          COALESCE(v.views, 0) as views, 
+          COALESCE(v.likes, 0) as likes,
+          v.created_at as "createdAt",
+          'video' as source,
+          COALESCE(u.monetization_status, 'auto') as "userMonetization"
+        FROM user_videos v
+        LEFT JOIN core_users u ON v.user_id = u.id
+        ORDER BY v.created_at DESC
+        LIMIT 20
+      `).catch(() => ({ rows: [] }));
+      for (const ev of extraVideos.rows) {
+        if (!combined.some((c) => c.id === ev.id)) {
+          combined.push(ev);
+        }
+      }
+    }
+    const now = Date.now();
+    const scoredShorts = combined.map((item) => {
+      const createdTime = item.createdAt ? new Date(item.createdAt).getTime() : now - 36e5;
+      const ageHours = Math.max(0, (now - createdTime) / (1e3 * 60 * 60));
+      const views = Number(item.views) || 0;
+      const likes = Number(item.likes) || 0;
+      const recencyBonus = Math.max(0, 50 - ageHours);
+      const trendingScore = (views * 1 + likes * 3 + recencyBonus) / Math.pow(ageHours + 2, 1.4);
+      return {
+        id: item.id,
+        authorId: item.authorId,
+        authorName: item.authorName || "Benix Creator",
+        authorAvatar: item.authorAvatar || "/logo.png",
+        mediaUrl: item.mediaUrl,
+        title: item.title,
+        mediaType: item.mediaType || (item.mediaUrl?.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i) ? "video" : "image"),
+        duration: Number(item.duration) || 5,
+        views,
+        likes,
+        source: item.source,
+        createdAt: item.createdAt,
+        isMonetized: item.userMonetization === "approved" || item.userMonetization === "active" || item.userMonetization === "monetized",
+        trendingScore: Number(trendingScore.toFixed(3))
+      };
+    });
+    scoredShorts.sort((a2, b2) => b2.trendingScore - a2.trendingScore);
+    return res.json({ success: true, shorts: scoredShorts });
+  } catch (err) {
+    console.error("Failed to fetch shorts feed:", err);
+    return res.status(500).json({ error: err.message, shorts: [] });
+  }
+});
+app.post("/api/shorts/:id/view", async (req, res) => {
+  try {
+    const { id } = req.params;
+    let updated = false;
+    const vRes = await query("UPDATE user_videos SET views = COALESCE(views, 0) + 1 WHERE id = $1 RETURNING views", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+    if (vRes.rowCount > 0) {
+      updated = true;
+    } else {
+      await query("UPDATE core_stories SET views = COALESCE(views, 0) + 1 WHERE id = $1", [id]).catch(() => {
+      });
+      updated = true;
+    }
+    return res.json({ success: true, updated });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/shorts/:id/like", async (req, res) => {
+  try {
+    const { id } = req.params;
+    let likes = 0;
+    const vRes = await query("UPDATE user_videos SET likes = COALESCE(likes, 0) + 1 WHERE id = $1 RETURNING likes", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+    if (vRes.rowCount > 0) {
+      likes = vRes.rows[0].likes;
+    } else {
+      const sRes = await query("UPDATE core_stories SET likes = COALESCE(likes, 0) + 1 WHERE id = $1 RETURNING likes", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (sRes.rowCount > 0) likes = sRes.rows[0].likes;
+    }
+    return res.json({ success: true, likes });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 async function ensureStoriesTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS core_stories (
@@ -55586,9 +55777,6 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-});
-app.get("/api/videos", async (req, res) => {
-  return res.json({ videos: userVideosList });
 });
 app.post("/api/videos/upload", authenticateToken, async (req, res) => {
   try {
@@ -56335,58 +56523,69 @@ app.post("/api/admin/videos/batch-import", authenticateToken, requireAdminRole, 
     if (!Array.isArray(videos) || videos.length === 0) {
       return res.status(400).json({ error: "Array of videos to import is required." });
     }
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_videos (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255),
-        title VARCHAR(500) NOT NULL,
-        description TEXT,
-        category VARCHAR(100) DEFAULT 'General',
-        price NUMERIC(15,2) DEFAULT 0,
-        is_paid BOOLEAN DEFAULT FALSE,
-        thumbnail_url TEXT,
-        video_url TEXT,
-        views INTEGER DEFAULT 0,
-        watch_seconds INTEGER DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    let importedCount = 0;
+    await ensureVideoAndShortsTables();
+    let count = 0;
     const adminId = req.user?.id || "admin";
     for (const v2 of videos) {
-      const vidId = v2.id || `yt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const title = v2.title || "Untitled Video";
-      const desc = v2.description || "";
-      const cat = v2.category || defaultCategory;
-      const price = Number(v2.price ?? defaultPrice) || 0;
-      const thumb = v2.thumbnailUrl || `https://i.ytimg.com/vi/${v2.id}/hqdefault.jpg`;
-      const url = v2.videoUrl || `https://www.youtube.com/watch?v=${v2.id}`;
-      const views = Number(v2.views) || 0;
-      await query(`
-        INSERT INTO user_videos (id, user_id, title, description, category, price, is_paid, thumbnail_url, video_url, views)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        ON CONFLICT (id) DO UPDATE SET
-          title = EXCLUDED.title,
-          description = EXCLUDED.description,
-          category = EXCLUDED.category,
-          price = EXCLUDED.price,
-          is_paid = EXCLUDED.is_paid,
-          thumbnail_url = EXCLUDED.thumbnail_url,
-          video_url = EXCLUDED.video_url,
-          views = EXCLUDED.views,
-          updated_at = CURRENT_TIMESTAMP
-      `, [vidId, adminId, title, desc, cat, price, price > 0, thumb, url, views]).catch(() => {
-      });
-      importedCount++;
+      try {
+        const vidId = String(v2.id || `yt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+        const title = String(v2.title || "Untitled Video").trim();
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80) || `vid-${Date.now()}`;
+        const desc = v2.description || "";
+        const videoUrl = v2.videoUrl || v2.embedUrl || (v2.id ? `https://www.youtube.com/watch?v=${v2.id}` : "");
+        const thumbUrl = v2.thumbnailUrl || v2.thumbnail || (v2.id ? `https://img.youtube.com/vi/${v2.id}/hqdefault.jpg` : "");
+        const duration = Number(v2.duration) || 300;
+        const views = Number(v2.views) || Math.floor(Math.random() * 800 + 400);
+        const likes = Number(v2.likes) || Math.floor(views / 12) + 5;
+        const cat = v2.category || defaultCategory;
+        const price = Number(v2.price ?? defaultPrice) || 0;
+        const chName = v2.channelName || v2.creator || "Benix Creator";
+        const chHandle = (chName || "creator").toLowerCase().replace(/[^a-z0-9]/g, "");
+        await query(
+          `INSERT INTO user_videos (
+            id, title, slug, description, video_url, thumbnail_url, duration, views, likes, access_type, price, category, user_id, channel_name, channel_handle, channel_avatar, is_verified, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, true, CURRENT_TIMESTAMP)
+          ON CONFLICT (id) DO UPDATE SET
+            title = EXCLUDED.title,
+            slug = EXCLUDED.slug,
+            description = EXCLUDED.description,
+            video_url = EXCLUDED.video_url,
+            thumbnail_url = EXCLUDED.thumbnail_url,
+            views = EXCLUDED.views,
+            category = EXCLUDED.category,
+            channel_name = EXCLUDED.channel_name`,
+          [
+            vidId,
+            title,
+            slug,
+            desc,
+            videoUrl,
+            thumbUrl,
+            duration,
+            views,
+            likes,
+            price > 0 ? "PREMIUM" : "PUBLIC",
+            price,
+            cat,
+            adminId,
+            chName,
+            chHandle,
+            "/logo.png"
+          ]
+        );
+        count++;
+      } catch (err) {
+        console.error("Failed to insert batch video row:", err?.message);
+      }
     }
     return res.json({
       success: true,
-      message: `Successfully published ${importedCount} videos to BenixSpace catalog!`,
-      importedCount
+      count,
+      importedCount: count,
+      message: `Successfully published ${count} videos to BenixSpace!`
     });
   } catch (err) {
+    console.error("Batch import handler error:", err);
     return res.status(500).json({ error: err.message || "Batch video import failed." });
   }
 });
@@ -56721,48 +56920,53 @@ app.get("/api/ads/active", async (req, res) => {
 app.post("/api/ads/track-impression", async (req, res) => {
   try {
     const { adId } = req.body;
-    const ad = customAdCampaigns.find((a2) => a2.id === adId);
-    if (!ad) return res.status(404).json({ error: "Ad not found." });
-    ad.currentImpressions += 1;
-    const costPerImp = ad.costPerImpression || (ad.cpmBid ? ad.cpmBid / 1e3 : 0.02);
-    ad.totalSpent = Number((ad.totalSpent + costPerImp).toFixed(2));
-    if (ad.currentImpressions >= ad.targetImpressions) {
-      ad.status = "completed";
-      try {
-        await query(
-          `INSERT INTO core_notifications (user_id, title, message, type)
-           VALUES ($1, $2, $3, 'ad_campaign')`,
-          [
-            ad.userId,
-            "\u{1F3AF} Ad Campaign Goal Reached",
-            `Your ad "${ad.title}" has successfully delivered all ${ad.targetImpressions.toLocaleString()} target impressions! You can resume it anytime with extra budget.`
-          ]
-        );
-      } catch {
+    if (!adId) return res.status(400).json({ error: "adId is required" });
+    let ad = customAdCampaigns.find((a2) => a2.id === adId);
+    if (!ad) {
+      const dbLookup = await query("SELECT * FROM core_custom_ads WHERE id = $1", [adId]).catch(() => ({ rows: [] }));
+      if (dbLookup.rows.length > 0) {
+        const r = dbLookup.rows[0];
+        ad = {
+          id: r.id,
+          userId: r.user_id,
+          userName: r.user_name || "Advertiser",
+          title: r.title,
+          description: r.description || "",
+          targetUrl: r.target_url,
+          mediaType: r.media_type || "image",
+          mediaUrl: r.media_url,
+          targetAudience: r.target_audience || "all",
+          targetImpressions: Number(r.target_impressions) || 1e3,
+          dailyBudget: Number(r.daily_budget) || 100,
+          cpmBid: Number(r.cpm_bid) || 20,
+          cpcBid: Number(r.cpc_bid) || 15,
+          durationDays: Number(r.duration_days) || 7,
+          currentImpressions: Number(r.current_impressions) || 0,
+          currentClicks: Number(r.current_clicks) || 0,
+          totalSpent: Number(r.total_spent) || 0,
+          status: r.status || "active",
+          rejectionReason: r.rejection_reason,
+          createdAt: r.created_at,
+          expiresAt: r.expires_at,
+          ctaText: r.cta_text || "Learn More"
+        };
+        customAdCampaigns.push(ad);
       }
     }
-    query(
-      `UPDATE core_custom_ads SET current_impressions = $1, total_spent = $2, status = $3 WHERE id = $4`,
-      [ad.currentImpressions, ad.totalSpent, ad.status, ad.id]
+    const costPerImp = ad ? ad.costPerImpression || (ad.cpmBid ? ad.cpmBid / 1e3 : 0.02) : 0.02;
+    if (ad) {
+      ad.currentImpressions += 1;
+      ad.totalSpent = Number((ad.totalSpent + costPerImp).toFixed(4));
+    }
+    await query(
+      `UPDATE core_custom_ads 
+       SET current_impressions = COALESCE(current_impressions, 0) + 1,
+           total_spent = COALESCE(total_spent, 0) + $1
+       WHERE id = $2`,
+      [costPerImp, adId]
     ).catch(() => {
     });
-    if (ad.userId && !ad.userId.startsWith("adv-")) {
-      try {
-        await WalletService.debit(
-          ad.userId,
-          costPerImp,
-          "ads",
-          "ad_impression_charge",
-          `Ad Impression served for "${ad.title}"`,
-          `tx_ad_imp_${Date.now()}`
-        );
-      } catch (wErr) {
-        ad.status = "paused";
-        query(`UPDATE core_custom_ads SET status = 'paused' WHERE id = $1`, [ad.id]).catch(() => {
-        });
-      }
-    }
-    return res.json({ success: true, impressions: ad.currentImpressions, status: ad.status });
+    return res.json({ success: true, impressions: ad?.currentImpressions || 1, status: ad?.status || "active" });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -56770,33 +56974,53 @@ app.post("/api/ads/track-impression", async (req, res) => {
 app.post("/api/ads/track-click", async (req, res) => {
   try {
     const { adId } = req.body;
-    const ad = customAdCampaigns.find((a2) => a2.id === adId);
-    if (!ad) return res.status(404).json({ error: "Ad not found." });
-    ad.currentClicks += 1;
-    const clickCost = ad.costPerClick || ad.cpcBid || 15;
-    ad.totalSpent = Number((ad.totalSpent + clickCost).toFixed(2));
-    query(
-      `UPDATE core_custom_ads SET current_clicks = $1, total_spent = $2 WHERE id = $3`,
-      [ad.currentClicks, ad.totalSpent, ad.id]
-    ).catch(() => {
-    });
-    if (ad.userId && !ad.userId.startsWith("adv-")) {
-      try {
-        await WalletService.debit(
-          ad.userId,
-          clickCost,
-          "ads",
-          "ad_click_charge",
-          `Ad Click on "${ad.title}"`,
-          `tx_ad_clk_${Date.now()}`
-        );
-      } catch (wErr) {
-        ad.status = "paused";
-        query(`UPDATE core_custom_ads SET status = 'paused' WHERE id = $1`, [ad.id]).catch(() => {
-        });
+    if (!adId) return res.status(400).json({ error: "adId is required" });
+    let ad = customAdCampaigns.find((a2) => a2.id === adId);
+    if (!ad) {
+      const dbLookup = await query("SELECT * FROM core_custom_ads WHERE id = $1", [adId]).catch(() => ({ rows: [] }));
+      if (dbLookup.rows.length > 0) {
+        const r = dbLookup.rows[0];
+        ad = {
+          id: r.id,
+          userId: r.user_id,
+          userName: r.user_name || "Advertiser",
+          title: r.title,
+          description: r.description || "",
+          targetUrl: r.target_url,
+          mediaType: r.media_type || "image",
+          mediaUrl: r.media_url,
+          targetAudience: r.target_audience || "all",
+          targetImpressions: Number(r.target_impressions) || 1e3,
+          dailyBudget: Number(r.daily_budget) || 100,
+          cpmBid: Number(r.cpm_bid) || 20,
+          cpcBid: Number(r.cpc_bid) || 15,
+          durationDays: Number(r.duration_days) || 7,
+          currentImpressions: Number(r.current_impressions) || 0,
+          currentClicks: Number(r.current_clicks) || 0,
+          totalSpent: Number(r.total_spent) || 0,
+          status: r.status || "active",
+          rejectionReason: r.rejection_reason,
+          createdAt: r.created_at,
+          expiresAt: r.expires_at,
+          ctaText: r.cta_text || "Learn More"
+        };
+        customAdCampaigns.push(ad);
       }
     }
-    return res.json({ success: true, clicks: ad.currentClicks, targetUrl: ad.targetUrl });
+    const clickCost = ad ? ad.costPerClick || ad.cpcBid || 15 : 15;
+    if (ad) {
+      ad.currentClicks += 1;
+      ad.totalSpent = Number((ad.totalSpent + clickCost).toFixed(4));
+    }
+    await query(
+      `UPDATE core_custom_ads 
+       SET current_clicks = COALESCE(current_clicks, 0) + 1,
+           total_spent = COALESCE(total_spent, 0) + $1
+       WHERE id = $2`,
+      [clickCost, adId]
+    ).catch(() => {
+    });
+    return res.json({ success: true, clicks: ad?.currentClicks || 1, targetUrl: ad?.targetUrl || "https://benix.space" });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -57240,7 +57464,7 @@ app.post("/api/ads/record-reward", async (req, res) => {
         id VARCHAR(255) PRIMARY KEY,
         creator_id VARCHAR(255) NOT NULL,
         date VARCHAR(20) NOT NULL,
-        total_earned NUMERIC(15,2) DEFAULT 0.00,
+        total_earned NUMERIC(18,4) DEFAULT 0.0000,
         google_impressions INT DEFAULT 0,
         google_clicks INT DEFAULT 0,
         custom_impressions INT DEFAULT 0,
@@ -57250,16 +57474,20 @@ app.post("/api/ads/record-reward", async (req, res) => {
       );
     `).catch(() => {
     });
-    const { type = "view", adType = "google", creatorId, videoId, storyId } = req.body;
+    const actionType = req.body.type || (req.body.action === "click" ? "click" : "view");
+    const adSource = req.body.adType || (req.body.adSource === "custom" ? "custom" : "google");
+    const { creatorId, videoId, storyId, shortId } = req.body;
     let targetCreatorId = creatorId;
-    if (!targetCreatorId && storyId) {
-      const storyRes = await query("SELECT user_id, author_name FROM core_stories WHERE id = $1", [storyId]).catch(() => ({ rowCount: 0, rows: [] }));
+    if (!targetCreatorId && (storyId || shortId)) {
+      const sId = storyId || shortId;
+      const storyRes = await query("SELECT user_id, author_name FROM core_stories WHERE id = $1", [sId]).catch(() => ({ rowCount: 0, rows: [] }));
       if (storyRes.rowCount > 0) {
         targetCreatorId = storyRes.rows[0].user_id || storyRes.rows[0].author_name;
       }
     }
-    if (!targetCreatorId && videoId) {
-      const vidRes = await query("SELECT user_id, channel_name FROM user_videos WHERE id = $1", [videoId]).catch(() => ({ rowCount: 0, rows: [] }));
+    if (!targetCreatorId && (videoId || shortId)) {
+      const vId = videoId || shortId;
+      const vidRes = await query("SELECT user_id, channel_name FROM user_videos WHERE id = $1", [vId]).catch(() => ({ rowCount: 0, rows: [] }));
       if (vidRes.rowCount > 0) {
         targetCreatorId = vidRes.rows[0].user_id || vidRes.rows[0].channel_name;
       }
@@ -57270,7 +57498,7 @@ app.post("/api/ads/record-reward", async (req, res) => {
     let creatorUserId = targetCreatorId;
     try {
       const uFind = await query(
-        `SELECT id FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1`,
+        `SELECT id, monetization_status FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1`,
         [targetCreatorId]
       );
       if (uFind.rowCount > 0 && uFind.rows[0]?.id) {
@@ -57289,10 +57517,10 @@ app.post("/api/ads/record-reward", async (req, res) => {
       try {
         const parsed = typeof settingsRow.rows[0].value === "string" ? JSON.parse(settingsRow.rows[0].value) : settingsRow.rows[0].value;
         if (parsed.adsense) {
-          googleView = Number(parsed.adsense.google_ad_view_payout) || 2;
-          googleClick = Number(parsed.adsense.google_ad_click_payout) || 4;
-          customView = Number(parsed.adsense.custom_ad_view_payout) || 10;
-          customClick = Number(parsed.adsense.custom_ad_click_payout) || 18;
+          googleView = parsed.adsense.google_ad_view_payout !== void 0 ? Number(parsed.adsense.google_ad_view_payout) : 2;
+          googleClick = parsed.adsense.google_ad_click_payout !== void 0 ? Number(parsed.adsense.google_ad_click_payout) : 4;
+          customView = parsed.adsense.custom_ad_view_payout !== void 0 ? Number(parsed.adsense.custom_ad_view_payout) : 10;
+          customClick = parsed.adsense.custom_ad_click_payout !== void 0 ? Number(parsed.adsense.custom_ad_click_payout) : 18;
         }
         if (parsed.modules) {
           reqWatchHours = Number(parsed.modules.creator_watch_hours_goal) || 300;
@@ -57301,6 +57529,9 @@ app.post("/api/ads/record-reward", async (req, res) => {
       } catch {
       }
     }
+    const userOverrideRes = await query(`SELECT monetization_status FROM core_users WHERE id = $1`, [creatorUserId]).catch(() => ({ rows: [] }));
+    const overrideStatus = userOverrideRes.rows[0]?.monetization_status;
+    const isManuallyApproved = overrideStatus === "approved" || overrideStatus === "active" || overrideStatus === "monetized";
     const watchRes = await query(
       `SELECT COALESCE(SUM(duration_seconds), 0) as total_seconds FROM video_watch_time WHERE creator_id = $1 OR creator_id = $2`,
       [targetCreatorId, creatorUserId]
@@ -57311,15 +57542,15 @@ app.post("/api/ads/record-reward", async (req, res) => {
       [targetCreatorId, creatorUserId]
     ).catch(() => ({ rows: [{ count: 0 }] }));
     const totalSubscribers = Number(subRes.rows[0]?.count || 0);
-    const isMonetized = totalWatchHours >= reqWatchHours && totalSubscribers >= reqSubs;
+    const isMonetized = isManuallyApproved || overrideStatus !== "suspended" && overrideStatus !== "paused" && totalWatchHours >= reqWatchHours && totalSubscribers >= reqSubs;
     if (!isMonetized) {
       return res.json({ success: true, monetized: false, credited: false, reason: "Creator not yet monetized" });
     }
     let rewardAmount = 0;
-    if (adType === "google") {
-      rewardAmount = type === "click" ? googleClick : googleView;
+    if (adSource === "google") {
+      rewardAmount = actionType === "click" ? googleClick : googleView;
     } else {
-      rewardAmount = type === "click" ? customClick : customView;
+      rewardAmount = actionType === "click" ? customClick : customView;
     }
     if (rewardAmount <= 0) {
       return res.json({ success: true, credited: false });
@@ -57333,8 +57564,8 @@ app.post("/api/ads/record-reward", async (req, res) => {
     );
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     const recId = `cdae_${creatorUserId}_${todayStr}`;
-    const isGoogle = adType === "google";
-    const isClick = type === "click";
+    const isGoogle = adSource === "google";
+    const isClick = actionType === "click";
     await query(`
       INSERT INTO creator_daily_ad_earnings (
         id, creator_id, date, total_earned, google_impressions, google_clicks, custom_impressions, custom_clicks, updated_at
@@ -61143,69 +61374,6 @@ app.post("/api/admin/videos/youtube-playlist", authenticateToken, requireAdminRo
     });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Could not load playlist. Please verify the link is public." });
-  }
-});
-app.post("/api/admin/videos/batch-import", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { videos } = req.body;
-    if (!Array.isArray(videos) || videos.length === 0) {
-      return res.status(400).json({ error: "Array of videos is required." });
-    }
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_videos (
-        id VARCHAR(255) PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        slug VARCHAR(255),
-        description TEXT,
-        video_url TEXT NOT NULL,
-        thumbnail_url TEXT,
-        duration INT DEFAULT 300,
-        views INT DEFAULT 0,
-        likes INT DEFAULT 0,
-        access_type VARCHAR(50) DEFAULT 'PUBLIC',
-        price NUMERIC(15,2) DEFAULT 0,
-        category VARCHAR(100) DEFAULT 'General',
-        user_id VARCHAR(255) NOT NULL,
-        channel_name VARCHAR(255),
-        channel_handle VARCHAR(255),
-        channel_avatar TEXT,
-        is_verified BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    let count = 0;
-    for (const v2 of videos) {
-      try {
-        const slug = (v2.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80);
-        await query(
-          `INSERT INTO user_videos (id, title, slug, description, video_url, thumbnail_url, duration, views, likes, access_type, price, category, user_id, channel_name, channel_handle, channel_avatar, is_verified)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PUBLIC', 0, $10, $11, $12, $13, $14, true)
-           ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, thumbnail_url = EXCLUDED.thumbnail_url, views = EXCLUDED.views`,
-          [
-            v2.id,
-            v2.title,
-            slug,
-            v2.description || "",
-            v2.embedUrl || `https://www.youtube.com/embed/${v2.id}`,
-            v2.thumbnail || `https://img.youtube.com/vi/${v2.id}/hqdefault.jpg`,
-            300,
-            Number(v2.views) || 1200,
-            Math.floor((Number(v2.views) || 1200) / 10),
-            v2.category || "General",
-            req.user.id,
-            v2.channelName || v2.creator || "Benix Creator",
-            (v2.channelName || "creator").toLowerCase().replace(/[^a-z0-9]/g, ""),
-            "/logo.png"
-          ]
-        );
-        count++;
-      } catch (e) {
-      }
-    }
-    return res.json({ success: true, count, message: `Successfully posted ${count} videos to BenixSpace!` });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
   }
 });
 app.patch("/api/admin/videos/:id/views", authenticateToken, requireAdminRole, async (req, res) => {
