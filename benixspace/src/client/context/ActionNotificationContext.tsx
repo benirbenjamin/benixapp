@@ -194,7 +194,7 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
     };
 
     checkUnread();
-    const interval = setInterval(checkUnread, 3000);
+    const interval = setInterval(checkUnread, 15000);
     return () => clearInterval(interval);
   }, [user]);
 

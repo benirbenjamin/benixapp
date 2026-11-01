@@ -160,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     window.addEventListener('focus', handleFocus);
 
-    // Continuous dynamic auto-poll every 6 seconds to eliminate any delay
+    // Background wallet & profile synchronization
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         apiClient.get('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
@@ -192,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })
           .catch(() => {});
       }
-    }, 6000);
+    }, 25000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);

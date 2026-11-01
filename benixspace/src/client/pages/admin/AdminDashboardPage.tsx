@@ -560,12 +560,13 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Lazy-load sub-panel data only when that tab is actually activated by the admin
   useEffect(() => {
-    loadAdminAds();
-    loadMonetizationData();
-    loadAdminVideos();
-    loadAdminStories();
-  }, []);
+    if (activeAppTab === 'ads') loadAdminAds();
+    else if (activeAppTab === 'monetization') loadMonetizationData();
+    else if (activeAppTab === 'videos') loadAdminVideos();
+    else if (activeAppTab === 'stories') loadAdminStories();
+  }, [activeAppTab]);
 
   const loadAppsControl = async () => {
     const token = getAuthToken();
@@ -584,35 +585,45 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
     async function loadDashboard() {
       const token = getAuthToken();
       try {
+        // High-priority Admin Overview: fetch immediately without blocking
+        if (token) {
+          fetch('/api/admin/overview', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (isMounted && data?.stats) setAdminOverview(data);
+            })
+            .catch(() => {});
+
+          loadAppsControl();
+        }
+
         const [statsData, projData, artData] = await Promise.all([
           fetchAnalyticsStats('30d').catch(() => null),
           fetchProjects({ status: 'published' }).catch(() => []),
           fetchArticles({ status: 'published' }).catch(() => [])
         ]);
-        setAnalytics(statsData);
-        setProjects(projData);
-        setArticles(artData);
 
-        if (token) {
-          const res = await fetch('/api/admin/overview', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setAdminOverview(data);
-          }
-          await loadAppsControl();
+        if (isMounted) {
+          setAnalytics(statsData);
+          setProjects(projData);
+          setArticles(artData);
         }
       } catch (err) {
         console.error('Failed to load dashboard:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
     loadDashboard();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Video Management Handlers
