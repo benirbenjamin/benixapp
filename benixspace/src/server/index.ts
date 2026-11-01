@@ -1619,7 +1619,8 @@ app.post('/api/wallet/flutterwave/initialize', authenticateToken, async (req: Au
 
     // Determine redirect origin
     const rawOrigin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer as string).origin : '') || 'https://benix.space';
-    const redirectUrl = `${rawOrigin}/dashboard?payment=flw_success&tx_ref=${txRef}#wallet`;
+    // Clean redirect without hash so query parameters are easily parsed on return
+    const redirectUrl = `${rawOrigin}/dashboard?flw_deposit=true&tx_ref=${txRef}`;
 
     let paymentLink: string | null = null;
     if (effectiveSecret) {
@@ -1682,14 +1683,142 @@ app.post('/api/wallet/flutterwave/initialize', authenticateToken, async (req: Au
 });
 
 /**
+ * Handle user payment cancellation (Marks deposit as cancelled to prevent lingering or crediting)
+ */
+app.post('/api/wallet/flutterwave/cancel', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { txRef } = req.body;
+    if (txRef) {
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+        [txRef]
+      ).catch(() => {});
+    }
+    return res.json({ success: true, message: 'Deposit recorded as cancelled.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Flutterwave Webhook Listener: Instant, Automated Direct Wallet Crediting
+ */
+app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
+  try {
+    const payload = req.body;
+    const event = payload?.event;
+    const data = payload?.data;
+
+    if (event === 'charge.completed' && data?.status === 'successful') {
+      const txRef = data.tx_ref;
+      const flwId = data.id;
+
+      if (!txRef) {
+        return res.status(200).json({ status: 'ignored_missing_ref' });
+      }
+
+      // 1. Idempotency check: Already credited?
+      const existingTx = await query(
+        "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
+        [txRef]
+      ).catch(() => ({ rowCount: 0, rows: [] }));
+
+      if (existingTx.rowCount && existingTx.rowCount > 0) {
+        return res.status(200).json({ status: 'already_credited' });
+      }
+
+      // 2. Load pending deposit record
+      const pendingRow = await query(
+        "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
+        [txRef]
+      ).catch(() => ({ rowCount: 0, rows: [] }));
+
+      if (!pendingRow.rowCount || pendingRow.rowCount === 0) {
+        return res.status(200).json({ status: 'no_pending_deposit_found' });
+      }
+
+      const p = pendingRow.rows[0];
+      if (p.status === 'completed') {
+        return res.status(200).json({ status: 'already_completed' });
+      }
+
+      // 3. Server-side verification with Flutterwave API
+      const flwConfig = await getFlutterwaveConfig();
+      const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
+      if (effectiveSecret && flwId) {
+        try {
+          const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
+            headers: {
+              Authorization: `Bearer ${effectiveSecret}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (verifyRes.ok) {
+            const vData: any = await verifyRes.json();
+            if (vData?.status !== 'success' || vData?.data?.status !== 'successful') {
+              console.warn('Webhook verification check failed with Flutterwave API:', vData);
+              return res.status(200).json({ status: 'verification_failed' });
+            }
+          }
+        } catch (vErr: any) {
+          console.warn('Webhook direct verify check error:', vErr.message);
+        }
+      }
+
+      const convertedRwf = Number(p.converted_rwf);
+      const originalAmount = Number(p.original_amount);
+      const currency = p.currency || 'RWF';
+
+      // 4. Atomically credit the wallet
+      await WalletService.credit(
+        p.user_id,
+        convertedRwf,
+        'wallet',
+        'flutterwave_deposit',
+        `Flutterwave Deposit (${originalAmount} ${currency} → ${convertedRwf.toLocaleString()} RWF)`,
+        txRef,
+        { flwRef: flwId, originalAmount, currency, source: 'webhook' }
+      );
+
+      // 5. Update pending deposit to completed
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
+        [String(flwId || 'flw_webhook'), txRef]
+      ).catch(() => {});
+
+      // 6. Trigger referral reward if applicable
+      try {
+        await ReferralService.triggerQualifyingEvent(p.user_id, 'first_deposit', 'wallet');
+      } catch {}
+
+      return res.status(200).json({ status: 'success', credited: true, txRef });
+    }
+
+    return res.status(200).json({ status: 'ignored_unhandled_event' });
+  } catch (err: any) {
+    console.error('Flutterwave webhook processing error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Flutterwave Deposit Verification & Instant Wallet Credit
  */
 app.post('/api/wallet/flutterwave/verify', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { txRef, convertedRwf, currency = 'RWF', originalAmount, flwRef, transactionId } = req.body;
+    const { txRef, convertedRwf, currency = 'RWF', originalAmount, flwRef, transactionId, status } = req.body;
 
     if (!txRef) {
       return res.status(400).json({ error: 'Valid transaction reference (txRef) is required.' });
+    }
+
+    // Immediately reject and cancel if status from client indicates cancellation
+    if (status === 'cancelled' || status === 'failed') {
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+        [txRef]
+      ).catch(() => {});
+      return res.status(400).json({ error: 'Payment was cancelled. Wallet was not credited.' });
     }
 
     // Prevent duplicate credits using existing transaction record
@@ -1719,6 +1848,17 @@ app.post('/api/wallet/flutterwave/verify', authenticateToken, async (req: Authen
 
     if (pendingRow.rowCount && pendingRow.rowCount > 0) {
       const p = pendingRow.rows[0];
+      if (p.status === 'completed') {
+        const wallet = await WalletService.getOrCreateWallet(req.user!.id);
+        return res.json({
+          success: true,
+          newBalance: Number(wallet.balance || 0),
+          message: `Transaction ${txRef} has already been credited to your wallet.`
+        });
+      }
+      if (p.status === 'cancelled' || p.status === 'rejected') {
+        return res.status(400).json({ error: `This deposit was marked as ${p.status}. It cannot be credited.` });
+      }
       if (!finalConvertedRwf || isNaN(finalConvertedRwf)) finalConvertedRwf = Number(p.converted_rwf);
       if (!finalOriginalAmount || isNaN(finalOriginalAmount)) finalOriginalAmount = Number(p.original_amount);
       if (!finalCurrency) finalCurrency = p.currency;
@@ -1732,37 +1872,69 @@ app.post('/api/wallet/flutterwave/verify', authenticateToken, async (req: Authen
     const flwConfig = await getFlutterwaveConfig();
     const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X';
 
-    // Verify against Flutterwave server-side API if secret key is present
-    if (effectiveSecret) {
+    // Strict verification against Flutterwave server-side API
+    let verifyUrl = '';
+    if (effectiveFlwRef && !effectiveFlwRef.toString().startsWith('fake_')) {
+      verifyUrl = `https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`;
+    } else if (txRef) {
+      verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`;
+    }
+
+    if (verifyUrl && effectiveSecret) {
       try {
-        let verifyUrl = '';
-        if (effectiveFlwRef && !effectiveFlwRef.toString().startsWith('fake_')) {
-          verifyUrl = `https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`;
-        } else if (txRef) {
-          verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`;
+        const verifyRes = await fetch(verifyUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${effectiveSecret}`
+          }
+        });
+
+        if (!verifyRes.ok) {
+          const errBody = await verifyRes.text().catch(() => '');
+          console.warn(`Flutterwave direct API verification returned HTTP ${verifyRes.status}:`, errBody);
+          await query(
+            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+            [txRef]
+          ).catch(() => {});
+          return res.status(400).json({
+            error: 'Flutterwave verification failed. The transaction was cancelled or not completed on the payment gateway.'
+          });
         }
 
-        if (verifyUrl) {
-          const verifyRes = await fetch(verifyUrl, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${effectiveSecret}`
-            }
-          });
+        const verifyData: any = await verifyRes.json();
+        const flwStatus = (verifyData?.data?.status || '').toLowerCase();
 
-          if (verifyRes.ok) {
-            const verifyData: any = await verifyRes.json();
-            if (verifyData?.status !== 'success' || verifyData?.data?.status !== 'successful') {
-              return res.status(400).json({
-                error: `Flutterwave payment status is '${verifyData?.data?.status || verifyData?.status || 'unsuccessful'}'. Not credited.`
-              });
-            }
+        if (verifyData?.status !== 'success' || flwStatus !== 'successful') {
+          if (flwStatus === 'pending') {
+            return res.status(202).json({
+              pending: true,
+              status: 'pending',
+              message: 'Payment is currently being processed by your Mobile Money provider. Your wallet will update automatically once confirmed.'
+            });
           }
+          await query(
+            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+            [txRef]
+          ).catch(() => {});
+          return res.status(400).json({
+            error: `Flutterwave payment status is '${flwStatus || verifyData?.status || 'unsuccessful'}'. Not credited.`
+          });
+        }
+
+        // Validate transaction reference returned by gateway
+        const gatewayTxRef = verifyData?.data?.tx_ref;
+        if (gatewayTxRef && gatewayTxRef !== txRef) {
+          return res.status(400).json({ error: 'Transaction reference mismatch.' });
         }
       } catch (flwErr: any) {
-        console.warn('Flutterwave direct API verification warning:', flwErr.message);
+        console.warn('Flutterwave direct API verification exception:', flwErr.message);
+        return res.status(400).json({
+          error: 'Unable to reach Flutterwave gateway for verification. Please retry.'
+        });
       }
+    } else {
+      return res.status(400).json({ error: 'Missing Flutterwave verification parameters or gateway secret.' });
     }
 
     const result = await WalletService.credit(
@@ -9351,14 +9523,15 @@ app.post('/api/admin/stations/test-stream', authenticateToken, async (req, res) 
 
 // --- Admin User Detailed View, Balance Adjust, Suspend, and Clean Delete ---
 
-// Get single user full details: wallet balance, monetization settings, uploaded videos
+// Get single user full details: wallet balance, audit transactions, deposits, monetization settings, uploaded videos
 app.get('/api/admin/users/:id/details', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { id } = req.params;
 
     const userRes = await query(`
       SELECT u.id, u.email, u.name, u.role, u.phone, u.preferred_language, u.is_verified, u.created_at,
-             w.balance as wallet_balance, w.bonus_balance
+             w.balance as wallet_balance, w.bonus_balance, w.pending_balance, w.currency,
+             w.total_earnings, w.total_withdrawn, w.total_bonus_received
       FROM core_users u
       LEFT JOIN core_wallets w ON u.id = w.user_id
       WHERE u.id = $1
@@ -9369,6 +9542,24 @@ app.get('/api/admin/users/:id/details', authenticateToken, requireAdminRole, asy
     }
 
     const userData = userRes.rows[0];
+
+    // Get user wallet transactions for source-of-money audit history
+    const txRes = await query(`
+      SELECT id, module, type, amount, fee, currency, status, reference, description, metadata, created_at
+      FROM core_wallet_transactions
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [id]).catch(() => ({ rows: [] }));
+
+    // Get user Flutterwave deposits history
+    const depRes = await query(`
+      SELECT tx_ref, currency, original_amount, converted_rwf, status, flw_ref, admin_note, created_at
+      FROM pending_flutterwave_deposits
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [id]).catch(() => ({ rows: [] }));
 
     // Get user monetization record
     const monRes = await query(`
@@ -9389,10 +9580,22 @@ app.get('/api/admin/users/:id/details', authenticateToken, requireAdminRole, asy
       FROM user_videos
       WHERE user_id = $1
       ORDER BY created_at DESC
+      LIMIT 100
     `, [id]).catch(() => ({ rows: [] }));
 
     return res.json({
       user: userData,
+      wallet: {
+        balance: Number(userData.wallet_balance || 0),
+        bonus_balance: Number(userData.bonus_balance || 0),
+        pending_balance: Number(userData.pending_balance || 0),
+        currency: userData.currency || 'RWF',
+        total_earnings: Number(userData.total_earnings || 0),
+        total_withdrawn: Number(userData.total_withdrawn || 0),
+        total_bonus_received: Number(userData.total_bonus_received || 0)
+      },
+      transactions: txRes.rows,
+      deposits: depRes.rows,
       monetization,
       videos: videosRes.rows
     });
@@ -9516,7 +9719,9 @@ app.get('/api/admin/deposits', authenticateToken, requireAdminRole, async (req, 
     `).catch(() => {});
 
     const resDb = await query(`
-      SELECT d.*, u.email as user_email, u.name as user_name, u.phone as user_phone
+      SELECT d.*, 
+             COALESCE(d.converted_rwf, d.original_amount, 0)::numeric as amount,
+             u.email as user_email, u.name as user_name, u.phone as user_phone
       FROM pending_flutterwave_deposits d
       LEFT JOIN core_users u ON d.user_id = u.id
       ORDER BY d.created_at DESC
@@ -10468,11 +10673,52 @@ app.post('/api/admin/videos/youtube-playlist', authenticateToken, requireAdminRo
 
     let playlistId = String(playlistUrl).trim();
     const listMatch = playlistUrl.match(/[?&]list=([a-zA-Z0-9_-]+)/);
-    if (listMatch) playlistId = listMatch[1];
+    if (listMatch) {
+      playlistId = listMatch[1];
+    } else {
+      // Check if user provided a single video URL: https://www.youtube.com/watch?v=ID or youtu.be/ID
+      const vidMatch = playlistUrl.match(/(?:watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      if (vidMatch) {
+        const singleVidId = vidMatch[1];
+        // Fetch video oembed info
+        const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${singleVidId}&format=json`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+        if (oembedRes.ok) {
+          const oData: any = await oembedRes.json();
+          return res.json({
+            success: true,
+            playlistId: singleVidId,
+            count: 1,
+            videos: [{
+              id: singleVidId,
+              title: oData.title || `Video ${singleVidId}`,
+              description: `Uploaded by ${oData.author_name || 'YouTube Creator'}`,
+              thumbnail: oData.thumbnail_url || `https://img.youtube.com/vi/${singleVidId}/hqdefault.jpg`,
+              creator: oData.author_name || 'YouTube Creator',
+              channelName: oData.author_name || 'YouTube Creator',
+              category: 'General',
+              price: 0,
+              views: Math.floor(Math.random() * 4500) + 1200,
+              embedUrl: `https://www.youtube.com/embed/${singleVidId}`
+            }]
+          });
+        }
+      }
+    }
 
     const feedUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`;
-    const feedRes = await axios.get(feedUrl, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
-    const xml = String(feedRes.data || '');
+    const feedRes = await fetch(feedUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+
+    if (!feedRes.ok) {
+      return res.status(400).json({
+        error: `YouTube feed responded with HTTP ${feedRes.status}. Please make sure the playlist is public and contains a valid playlist ID (e.g. list=PL...).`
+      });
+    }
+
+    const xml = await feedRes.text();
 
     const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
     const parsedVideos: any[] = [];

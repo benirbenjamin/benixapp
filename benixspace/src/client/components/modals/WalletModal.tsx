@@ -108,23 +108,55 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
   // Handle return redirect from Flutterwave hosted payment gateway
   useEffect(() => {
     if (!token) return;
+    const fullUrl = window.location.href;
     const search = window.location.search;
-    if (!search) return;
+    const hash = window.location.hash;
+    if (!search && !hash) return;
 
     const params = new URLSearchParams(search);
-    const hasFlw = params.get('payment') === 'flw_success' || params.has('tx_ref') || params.has('transaction_id');
-    const flwStatus = params.get('status');
+    let hashParams: URLSearchParams | null = null;
+    if (hash.includes('?')) {
+      hashParams = new URLSearchParams(hash.split('?')[1]);
+    } else if (hash.includes('&')) {
+      hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+    }
+
+    const hasFlw = params.get('flw_deposit') === 'true' || 
+                   params.get('payment') === 'flw_success' || 
+                   params.has('tx_ref') || 
+                   hashParams?.has('tx_ref') || 
+                   params.has('transaction_id') || 
+                   hashParams?.has('transaction_id');
+
+    const flwStatus = (params.get('status') || hashParams?.get('status') || '').toLowerCase();
+    const isCancelled = flwStatus === 'cancelled' || 
+                        flwStatus === 'failed' || 
+                        params.get('cancelled') === 'true' || 
+                        hashParams?.get('cancelled') === 'true' ||
+                        fullUrl.toLowerCase().includes('status=cancelled');
 
     if (hasFlw) {
       setTab('deposit');
-      if (flwStatus === 'cancelled') {
-        setStatusMsg({ text: 'Deposit session was cancelled. No funds were debited.', error: true });
-        window.history.replaceState({}, document.title, window.location.pathname + (window.location.hash || '#wallet'));
+      const txRef = params.get('tx_ref') || hashParams?.get('tx_ref');
+
+      if (isCancelled) {
+        setStatusMsg({ text: 'Deposit was cancelled. No funds were debited.', error: true });
+        if (txRef) {
+          fetch('/api/wallet/flutterwave/cancel', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ txRef })
+          }).catch(() => {});
+        }
+        sessionStorage.removeItem('benix_pending_deposit');
+        window.history.replaceState({}, document.title, window.location.pathname + '#wallet');
         return;
       }
 
-      const txRef = params.get('tx_ref');
-      const transactionId = params.get('transaction_id') || params.get('flw_ref');
+      const transactionId = params.get('transaction_id') || hashParams?.get('transaction_id') || params.get('flw_ref') || hashParams?.get('flw_ref');
 
       let pending: any = null;
       try {
@@ -137,21 +169,24 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         setLoading(true);
         setStatusMsg({ text: 'Verifying payment with Flutterwave secure gateway...' });
 
-        fetch('/api/wallet/flutterwave/verify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            txRef: effectiveTxRef,
-            transactionId: transactionId || undefined,
-            convertedRwf: pending?.convertedRwf,
-            currency: pending?.currency,
-            originalAmount: pending?.originalAmount
-          })
-        })
-          .then(async (res) => {
+        const verifyPayment = async (attempt = 1) => {
+          try {
+            const res = await fetch('/api/wallet/flutterwave/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                txRef: effectiveTxRef,
+                transactionId: transactionId || undefined,
+                convertedRwf: pending?.convertedRwf,
+                currency: pending?.currency,
+                originalAmount: pending?.originalAmount,
+                status: flwStatus
+              })
+            });
+
             const data = await res.json();
             if (res.ok && data.success) {
               notificationSound.playNotificationChime();
@@ -163,17 +198,32 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
               }
               sessionStorage.removeItem('benix_pending_deposit');
               loadTransactions();
+              window.history.replaceState({}, document.title, window.location.pathname + '#wallet');
+            } else if (res.status === 202 || data.pending) {
+              if (attempt < 5) {
+                setStatusMsg({ text: `Processing with Mobile Money provider (checking confirmation, attempt ${attempt}/5)...` });
+                setTimeout(() => verifyPayment(attempt + 1), 4000);
+                return;
+              }
+              setStatusMsg({
+                text: 'Payment is currently being processed by your provider. Your wallet will update automatically once confirmed.',
+                error: false
+              });
+              sessionStorage.removeItem('benix_pending_deposit');
+              window.history.replaceState({}, document.title, window.location.pathname + '#wallet');
             } else {
               setStatusMsg({ text: data.error || 'Payment verification failed.', error: true });
+              sessionStorage.removeItem('benix_pending_deposit');
+              window.history.replaceState({}, document.title, window.location.pathname + '#wallet');
             }
-          })
-          .catch((err) => {
+          } catch (err: any) {
             setStatusMsg({ text: err.message || 'Payment verification error.', error: true });
-          })
-          .finally(() => {
+          } finally {
             setLoading(false);
-            window.history.replaceState({}, document.title, window.location.pathname + (window.location.hash || '#wallet'));
-          });
+          }
+        };
+
+        verifyPayment();
       }
     }
   }, [token, isOpen]);

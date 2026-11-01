@@ -24,6 +24,7 @@ export const AdminDepositsPanel: React.FC = () => {
   const [search, setSearch] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<{ txRef: string; userName: string; amount: number } | null>(null);
+  const [detailsDeposit, setDetailsDeposit] = useState<any | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -123,7 +124,7 @@ export const AdminDepositsPanel: React.FC = () => {
   const completedCount = deposits.filter((d) => d.status?.toLowerCase() === 'completed').length;
   const totalVolume = deposits
     .filter((d) => d.status?.toLowerCase() === 'completed')
-    .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    .reduce((acc, curr) => acc + (Number(curr.converted_rwf || curr.amount || curr.original_amount) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -254,16 +255,22 @@ export const AdminDepositsPanel: React.FC = () => {
                   const isPending = dep.status?.toLowerCase() === 'pending';
                   const isCompleted = dep.status?.toLowerCase() === 'completed';
                   const isRejected = dep.status?.toLowerCase() === 'rejected';
+                  const displayAmt = Number(dep.converted_rwf || dep.amount || dep.original_amount || 0);
+                  const origAmt = Number(dep.original_amount || dep.amount || dep.converted_rwf || 0);
 
                   return (
-                    <tr key={dep.id || dep.tx_ref} className="hover:bg-slate-800/30 transition">
+                    <tr
+                      key={dep.id || dep.tx_ref}
+                      onClick={() => setDetailsDeposit(dep)}
+                      className="hover:bg-slate-800/40 cursor-pointer transition group"
+                    >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-semibold">
+                          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-semibold group-hover:border-amber-500/50 transition">
                             {(dep.user_name || dep.user_email || 'U')[0].toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-semibold text-white">{dep.user_name || 'Anonymous User'}</div>
+                            <div className="font-semibold text-white group-hover:text-amber-300 transition">{dep.user_name || 'Anonymous User'}</div>
                             <div className="text-[11px] text-slate-400">{dep.user_email || 'No email provided'}</div>
                             {dep.phone && (
                               <div className="text-[10px] text-amber-400/90 flex items-center gap-1 mt-0.5">
@@ -281,9 +288,14 @@ export const AdminDepositsPanel: React.FC = () => {
 
                       <td className="py-3 px-4">
                         <span className="font-bold text-emerald-400 text-sm">
-                          {Number(dep.amount).toLocaleString()}
+                          {displayAmt.toLocaleString()}
                         </span>{' '}
-                        <span className="text-[10px] text-slate-400">{dep.currency || 'RWF'}</span>
+                        <span className="text-[10px] text-slate-400">RWF</span>
+                        {dep.currency && dep.currency !== 'RWF' && (
+                          <div className="text-[10px] text-slate-500">
+                            Orig: {origAmt.toLocaleString()} {dep.currency}
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-slate-400 text-[11px]">
@@ -308,7 +320,7 @@ export const AdminDepositsPanel: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         {isPending ? (
                           <div className="inline-flex items-center gap-1.5">
                             <button
@@ -320,7 +332,7 @@ export const AdminDepositsPanel: React.FC = () => {
                               <Check className="w-3 h-3" /> Approve
                             </button>
                             <button
-                              onClick={() => setRejectModal({ txRef: dep.tx_ref, userName: dep.user_name || dep.user_email || 'User', amount: dep.amount })}
+                              onClick={() => setRejectModal({ txRef: dep.tx_ref, userName: dep.user_name || dep.user_email || 'User', amount: displayAmt })}
                               disabled={actionLoading === dep.tx_ref}
                               className="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-lg text-[11px] font-medium transition inline-flex items-center gap-1 disabled:opacity-50"
                               title="Reject deposit"
@@ -329,7 +341,12 @@ export const AdminDepositsPanel: React.FC = () => {
                             </button>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-slate-500">Processed</span>
+                          <button
+                            onClick={() => setDetailsDeposit(dep)}
+                            className="text-[11px] text-slate-400 hover:text-amber-400 underline transition"
+                          >
+                            Details →
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -340,6 +357,154 @@ export const AdminDepositsPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Transaction Details Modal */}
+      {detailsDeposit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-[#101622] border border-slate-800 rounded-3xl w-full max-w-lg p-6 sm:p-7 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Deposit Transaction Details</h3>
+                  <p className="text-[11px] text-slate-400 font-mono">{detailsDeposit.tx_ref}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailsDeposit(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Customer Profile Card */}
+            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Customer Profile</span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm">
+                  {(detailsDeposit.user_name || detailsDeposit.user_email || 'U')[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-white text-sm truncate">{detailsDeposit.user_name || 'Anonymous User'}</div>
+                  <div className="text-xs text-slate-400 flex items-center gap-1.5 truncate">
+                    <User className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span>{detailsDeposit.user_email || 'No email provided'}</span>
+                  </div>
+                  {detailsDeposit.phone && (
+                    <div className="text-xs text-amber-400 flex items-center gap-1.5 mt-0.5">
+                      <Phone className="w-3 h-3 shrink-0" />
+                      <span>{detailsDeposit.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Details Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Wallet Credit (RWF)</span>
+                <span className="text-xl font-black text-emerald-400">
+                  {Number(detailsDeposit.converted_rwf || detailsDeposit.amount || detailsDeposit.original_amount || 0).toLocaleString()} <span className="text-xs font-normal">RWF</span>
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Original Deposit</span>
+                <span className="text-lg font-black text-slate-200">
+                  {Number(detailsDeposit.original_amount || detailsDeposit.amount || detailsDeposit.converted_rwf || 0).toLocaleString()} <span className="text-xs font-normal text-slate-400">{detailsDeposit.currency || 'RWF'}</span>
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Payment Method</span>
+                <span className="text-xs font-bold text-slate-300">
+                  {detailsDeposit.provider || 'MTN / Airtel MoMo / Card'}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Current Status</span>
+                <div>
+                  {detailsDeposit.status?.toLowerCase() === 'completed' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <CheckCircle2 className="w-3 h-3" /> Approved & Credited
+                    </span>
+                  ) : detailsDeposit.status?.toLowerCase() === 'pending' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <Clock className="w-3 h-3" /> Pending Review
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                      <XCircle className="w-3 h-3" /> {detailsDeposit.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Metadata */}
+            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-[11px] space-y-1.5 text-slate-400">
+              <div className="flex justify-between">
+                <span>Date & Time:</span>
+                <span className="text-slate-200 font-medium">{new Date(detailsDeposit.created_at).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Flutterwave Ref:</span>
+                <span className="text-slate-200 font-mono">{detailsDeposit.flw_ref || 'N/A'}</span>
+              </div>
+              {detailsDeposit.admin_note && (
+                <div className="flex justify-between pt-1 border-t border-slate-800">
+                  <span>Admin Note:</span>
+                  <span className="text-amber-400 font-medium">{detailsDeposit.admin_note}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2">
+              <button
+                onClick={() => setDetailsDeposit(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                Close
+              </button>
+
+              {detailsDeposit.status?.toLowerCase() === 'pending' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const d = detailsDeposit;
+                      setDetailsDeposit(null);
+                      setRejectModal({
+                        txRef: d.tx_ref,
+                        userName: d.user_name || d.user_email || 'User',
+                        amount: Number(d.converted_rwf || d.amount || d.original_amount || 0)
+                      });
+                    }}
+                    className="px-3.5 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <X className="w-3.5 h-3.5" /> Reject
+                  </button>
+                  <button
+                    onClick={() => {
+                      const ref = detailsDeposit.tx_ref;
+                      setDetailsDeposit(null);
+                      handleApprove(ref);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/30"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Approve & Credit
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectModal && (

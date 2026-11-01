@@ -56,6 +56,16 @@ export const AdminUsersPanel: React.FC = () => {
     );
   });
 
+  if (selectedUserId) {
+    return (
+      <AdminUserDetailModal
+        userId={selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+        onUserUpdated={fetchUsers}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       
@@ -204,16 +214,6 @@ export const AdminUsersPanel: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* User Details & Balance Adjustment Modal */}
-      {selectedUserId && (
-        <AdminUserDetailModal
-          userId={selectedUserId}
-          onClose={() => setSelectedUserId(null)}
-          onUserUpdated={fetchUsers}
-        />
-      )}
-
     </div>
   );
 };
