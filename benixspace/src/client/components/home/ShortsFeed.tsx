@@ -23,7 +23,8 @@ import {
   Maximize2,
   Music,
   UserPlus,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
