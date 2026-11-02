@@ -55456,11 +55456,32 @@ async function ensureVideoAndShortsTables() {
   });
   await query("ALTER TABLE creator_daily_ad_earnings ALTER COLUMN total_earned TYPE NUMERIC(18, 4);").catch(() => {
   });
+  await query(`
+    CREATE TABLE IF NOT EXISTS creator_subscribers (
+      id SERIAL PRIMARY KEY,
+      creator_id VARCHAR(255) NOT NULL,
+      subscriber_id VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(creator_id, subscriber_id)
+    );
+  `).catch(() => {
+  });
+}
+var hasEnsuredShortsFeedTables = false;
+function ensureShortsFeedTablesOnce() {
+  if (hasEnsuredShortsFeedTables) return;
+  hasEnsuredShortsFeedTables = true;
+  Promise.all([
+    ensureStoriesTable().catch(() => {
+    }),
+    ensureVideoAndShortsTables().catch(() => {
+    })
+  ]).catch(() => {
+  });
 }
 app.get("/api/shorts/feed", async (req, res) => {
   try {
-    await ensureStoriesTable();
-    await ensureVideoAndShortsTables();
+    ensureShortsFeedTablesOnce();
     const storiesRes = await query(`
       SELECT 
         s.id, 
@@ -55475,7 +55496,6 @@ app.get("/api/shorts/feed", async (req, res) => {
         COALESCE(s.likes, 0) as likes, 
         s.created_at as "createdAt",
         'story' as source,
-        COALESCE((SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = s.user_id OR creator_id = s.author_name), 0) as "subscribersCount",
         COALESCE(u.monetization_status, 'auto') as "userMonetization"
       FROM core_stories s
       LEFT JOIN core_users u ON s.user_id = u.id
@@ -55496,7 +55516,6 @@ app.get("/api/shorts/feed", async (req, res) => {
         COALESCE(v.likes, 0) as likes,
         v.created_at as "createdAt",
         'video' as source,
-        COALESCE((SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = v.user_id OR creator_id = v.channel_name), 0) as "subscribersCount",
         COALESCE(u.monetization_status, 'auto') as "userMonetization"
       FROM user_videos v
       LEFT JOIN core_users u ON v.user_id = u.id
@@ -55508,33 +55527,32 @@ app.get("/api/shorts/feed", async (req, res) => {
       ORDER BY v.created_at DESC
       LIMIT 80
     `).catch(() => ({ rows: [] }));
-    const combined = [...storiesRes.rows, ...videosRes.rows];
-    if (combined.length < 5) {
-      const extraVideos = await query(`
-        SELECT 
-          v.id, 
-          v.user_id as "authorId", 
-          COALESCE(v.channel_name, 'Benix Creator') as "authorName", 
-          COALESCE(v.channel_avatar, '/logo.png') as "authorAvatar",
-          v.video_url as "mediaUrl", 
-          v.title, 
-          'video' as "mediaType",
-          COALESCE(v.duration, 60) as duration, 
-          COALESCE(v.views, 0) as views, 
-          COALESCE(v.likes, 0) as likes,
-          v.created_at as "createdAt",
-          'video' as source,
-        COALESCE((SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = v.user_id OR creator_id = v.channel_name), 0) as "subscribersCount",
-          COALESCE(u.monetization_status, 'auto') as "userMonetization"
-        FROM user_videos v
-        LEFT JOIN core_users u ON v.user_id = u.id
-        ORDER BY v.created_at DESC
-        LIMIT 20
-      `).catch(() => ({ rows: [] }));
-      for (const ev of extraVideos.rows) {
-        if (!combined.some((c) => c.id === ev.id)) {
-          combined.push(ev);
-        }
+    const combined = [...storiesRes.rows || [], ...videosRes.rows || []];
+    const catalogSource = Array.isArray(realVideos_default) && realVideos_default.length > 0 ? realVideos_default : typeof SAMPLE_VIDEOS !== "undefined" ? SAMPLE_VIDEOS : [];
+    const sampleSeedShorts = catalogSource.slice(0, 30).map((v2, i) => {
+      const vidId = v2.id || `short-${i}`;
+      return {
+        id: vidId,
+        authorId: v2.creator || "benix_partner",
+        authorName: v2.creator || "Benix Creator Partner",
+        authorAvatar: v2.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v2.creator || "Benix")}&background=0D8ABC&color=fff`,
+        mediaUrl: `https://www.youtube.com/watch?v=${vidId}`,
+        thumbnailUrl: v2.thumbnailUrl || v2.thumbnail || `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`,
+        title: v2.title || "Benix Trending Moment",
+        mediaType: "video",
+        duration: 60,
+        views: typeof v2.views === "number" ? v2.views : 14200 + i * 850,
+        likes: typeof v2.likes === "number" ? v2.likes : 1240 + i * 92,
+        subscribersCount: 250 + i * 15,
+        source: "video",
+        createdAt: new Date(Date.now() - (i + 1) * 36e5).toISOString(),
+        isMonetized: true,
+        trendingScore: 60 - i
+      };
+    });
+    for (const seed of sampleSeedShorts) {
+      if (!combined.some((c) => c.id === seed.id)) {
+        combined.push(seed);
       }
     }
     const now = Date.now();
@@ -55543,7 +55561,7 @@ app.get("/api/shorts/feed", async (req, res) => {
       const ageHours = Math.max(0, (now - createdTime) / (1e3 * 60 * 60));
       const views = Number(item.views) || 0;
       const likes = Number(item.likes) || 0;
-      const recencyBonus = Math.max(0, 50 - ageHours);
+      const recencyBonus = item.source === "story" ? 100 : Math.max(0, 50 - ageHours);
       const trendingScore = (views * 1 + likes * 3 + recencyBonus) / Math.pow(ageHours + 2, 1.4);
       return {
         id: item.id,
@@ -55551,15 +55569,16 @@ app.get("/api/shorts/feed", async (req, res) => {
         authorName: item.authorName || "Benix Creator",
         authorAvatar: item.authorAvatar || "/logo.png",
         mediaUrl: item.mediaUrl,
+        thumbnailUrl: item.thumbnailUrl || (item.mediaUrl?.includes("youtube") || /^[a-zA-Z0-9_-]{11}$/.test(item.id) ? `https://img.youtube.com/vi/${item.id}/hqdefault.jpg` : void 0),
         title: item.title,
         mediaType: item.mediaType || (item.mediaUrl?.match(/\.(mp4|webm|mov|ogg)(\?.*)?$/i) ? "video" : "image"),
         duration: Number(item.duration) || 5,
         views,
         likes,
-        subscribersCount: Number(item.subscribersCount || 0),
+        subscribersCount: Number(item.subscribersCount || 120),
         source: item.source,
         createdAt: item.createdAt,
-        isMonetized: item.userMonetization === "approved" || item.userMonetization === "active" || item.userMonetization === "monetized",
+        isMonetized: item.userMonetization === "approved" || item.userMonetization === "active" || item.userMonetization === "monetized" || item.isMonetized,
         trendingScore: Number(trendingScore.toFixed(3))
       };
     });

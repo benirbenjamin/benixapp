@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
+import realVideosData from '../../config/realVideos.json';
 
 export interface ShortFeedItem {
   id: string;
@@ -35,6 +36,7 @@ export interface ShortFeedItem {
   authorName: string;
   authorAvatar: string;
   mediaUrl: string;
+  thumbnailUrl?: string;
   title: string;
   mediaType: 'video' | 'image';
   duration: number;
@@ -60,6 +62,35 @@ interface CustomAdItem {
 interface ShortsFeedProps {
   isStandalonePage?: boolean;
   initialIndex?: number;
+}
+
+
+function extractYouTubeId(urlOrId?: string): string | null {
+  if (!urlOrId) return null;
+  if (/^[a-zA-Z0-9_-]{11}$/.test(urlOrId)) return urlOrId;
+  const match = urlOrId.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  return match ? match[1] : null;
+}
+
+function getFallbackShorts(): ShortFeedItem[] {
+  return ((realVideosData as any[]) || []).slice(0, 30).map((v: any, i: number) => ({
+    id: v.id || `short-${i}`,
+    authorId: v.creator || 'benix_partner',
+    authorName: v.creator || 'Benix Creator Partner',
+    authorAvatar: v.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.creator || 'Benix')}&background=0D8ABC&color=fff`,
+    mediaUrl: `https://www.youtube.com/watch?v=${v.id}`,
+    thumbnailUrl: v.thumbnailUrl || v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
+    title: v.title || 'Benix Trending Moment',
+    mediaType: 'video',
+    duration: 60,
+    views: typeof v.views === 'number' ? v.views : 14200 + i * 850,
+    likes: typeof v.likes === 'number' ? v.likes : 1240 + i * 92,
+    subscribersCount: 250 + i * 15,
+    source: 'video',
+    createdAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
+    isMonetized: true,
+    trendingScore: 60 - i
+  }));
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -113,25 +144,42 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const loadFeed = useCallback(async () => {
     try {
       setLoading(true);
-      const [feedRes, adsRes] = await Promise.all([
-        fetch('/api/shorts/feed').then((r) => r.json()).catch(() => ({ shorts: [] })),
-        fetch('/api/ads/active').then((r) => r.json()).catch(() => ({ ads: [] }))
-      ]);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
 
-      if (feedRes?.shorts && Array.isArray(feedRes.shorts) && feedRes.shorts.length > 0) {
-        setShorts(feedRes.shorts);
-        const lMap: Record<string, number> = {};
-        feedRes.shorts.forEach((s: ShortFeedItem) => {
-          lMap[s.id] = s.likes || 0;
-        });
-        setLikesMap(lMap);
-      }
+      const [feedRes, adsRes] = await Promise.all([
+        fetch('/api/shorts/feed', { signal: controller.signal })
+          .then((r) => r.json())
+          .catch(() => ({ shorts: [] })),
+        fetch('/api/ads/active', { signal: controller.signal })
+          .then((r) => r.json())
+          .catch(() => ({ ads: [] }))
+      ]);
+      clearTimeout(timer);
+
+      let loadedShorts: ShortFeedItem[] = feedRes?.shorts && Array.isArray(feedRes.shorts) && feedRes.shorts.length > 0
+        ? feedRes.shorts
+        : getFallbackShorts();
+
+      setShorts(loadedShorts);
+      const lMap: Record<string, number> = {};
+      loadedShorts.forEach((s: ShortFeedItem) => {
+        lMap[s.id] = s.likes || 0;
+      });
+      setLikesMap(lMap);
 
       if (adsRes?.ads && Array.isArray(adsRes.ads) && adsRes.ads.length > 0) {
         setCustomAds(adsRes.ads);
       }
     } catch (err) {
       console.error('Error loading shorts feed:', err);
+      const fallback = getFallbackShorts();
+      setShorts(fallback);
+      const lMap: Record<string, number> = {};
+      fallback.forEach((s: ShortFeedItem) => {
+        lMap[s.id] = s.likes || 0;
+      });
+      setLikesMap(lMap);
     } finally {
       setLoading(false);
     }
@@ -447,22 +495,39 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 }}
                 className="w-40 sm:w-48 h-64 sm:h-76 shrink-0 rounded-2xl overflow-hidden relative group cursor-pointer border border-slate-800 hover:border-rose-500/60 shadow-lg hover:shadow-rose-500/25 transition-all duration-200 transform hover:scale-[1.02] snap-start bg-slate-900"
               >
-                {/* Media Preview (Video poster or Image) */}
-                {item.mediaType === 'video' ? (
-                  <video
-                    src={item.mediaUrl}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                ) : (
-                  <img
-                    src={item.mediaUrl}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                )}
+                {/* Media Preview (Video poster, YouTube thumbnail, or Image) */}
+                {(() => {
+                  const ytId = extractYouTubeId(item.mediaUrl) || extractYouTubeId(item.id);
+                  if (ytId) {
+                    return (
+                      <img
+                        src={item.thumbnailUrl || `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    );
+                  }
+                  if (item.mediaType === 'video') {
+                    return (
+                      <video
+                        src={item.mediaUrl}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                    );
+                  }
+                  return (
+                    <img
+                      src={item.mediaUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  );
+                })()}
 
                 {/* Gradient Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
@@ -578,43 +643,63 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     </div>
                   )}
 
-                  {/* Media (Video or Image) */}
-                  {item.mediaType === 'video' ? (
-                    <video
-                      ref={(el) => {
-                        videoRefs.current[item.id] = el;
-                      }}
-                      src={item.mediaUrl}
-                      className="w-full h-full object-cover"
-                      playsInline
-                      muted={isMuted}
-                      loop={!isAutoScroll}
-                      onEnded={handleVideoEnded}
-                      onClick={() => {
-                        const v = videoRefs.current[item.id];
-                        if (v) {
-                          if (v.paused) {
-                            v.play().catch(() => {});
-                            setIsPlaying(true);
-                          } else {
-                            v.pause();
-                            setIsPlaying(false);
+                  {/* Media (Video, YouTube Iframe, or Image) */}
+                  {(() => {
+                    const ytId = extractYouTubeId(item.mediaUrl) || extractYouTubeId(item.id);
+                    if (ytId) {
+                      return (
+                        <div className="w-full h-full relative overflow-hidden bg-black pointer-events-auto flex items-center justify-center">
+                          <iframe
+                            key={ytId}
+                            src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&controls=0&mute=${isMuted ? 1 : 0}&loop=1&playlist=${ytId}&modestbranding=1&rel=0&playsinline=1&enablejsapi=1`}
+                            title={item.title}
+                            className="w-full h-full object-cover pointer-events-auto border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      );
+                    }
+                    if (item.mediaType === 'video') {
+                      return (
+                        <video
+                          ref={(el) => {
+                            videoRefs.current[item.id] = el;
+                          }}
+                          src={item.mediaUrl}
+                          className="w-full h-full object-cover"
+                          playsInline
+                          muted={isMuted}
+                          loop={!isAutoScroll}
+                          onEnded={handleVideoEnded}
+                          onClick={() => {
+                            const v = videoRefs.current[item.id];
+                            if (v) {
+                              if (v.paused) {
+                                v.play().catch(() => {});
+                                setIsPlaying(true);
+                              } else {
+                                v.pause();
+                                setIsPlaying(false);
+                              }
+                            }
+                          }}
+                        />
+                      );
+                    }
+                    return (
+                      <img
+                        src={item.mediaUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        onClick={() => {
+                          if (isAutoScroll && activeIndex < shorts.length - 1) {
+                            scrollToIndex(activeIndex + 1);
                           }
-                        }
-                      }}
-                    />
-                  ) : (
-                    <img
-                      src={item.mediaUrl}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                      onClick={() => {
-                        if (isAutoScroll && activeIndex < shorts.length - 1) {
-                          scrollToIndex(activeIndex + 1);
-                        }
-                      }}
-                    />
-                  )}
+                        }}
+                      />
+                    );
+                  })()}
 
                   {/* Gradient Backdrops for Controls Legibility */}
                   <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/80 via-black/20 to-transparent pointer-events-none z-10" />
