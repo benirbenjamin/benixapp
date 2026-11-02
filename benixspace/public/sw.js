@@ -91,8 +91,12 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Message listener from frontend to easily display system tray notifications
+// Message listener from frontend to easily display system tray notifications or trigger immediate updates
 self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
   if (event.data && event.data.type === 'SHOW_TRAY_NOTIFICATION') {
     const { title, body, url, tag } = event.data;
     event.waitUntil(

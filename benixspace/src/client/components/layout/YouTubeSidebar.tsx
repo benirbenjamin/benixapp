@@ -31,7 +31,8 @@ import {
   ShieldCheck,
   Compass,
   Flame,
-  RadioTower
+  RadioTower,
+  Zap
 } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
@@ -81,6 +82,14 @@ export const YouTubeSidebar: React.FC = () => {
       route: '/',
       badge: null,
       color: 'text-blue-400 group-hover:text-blue-300'
+    },
+    {
+      id: 'shorts',
+      name: 'Shorts',
+      icon: Zap,
+      route: '/shorts',
+      badge: 'HOT',
+      color: 'text-rose-400 group-hover:text-rose-300'
     },
     {
       id: 'tv',

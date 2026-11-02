@@ -4043,6 +4043,7 @@ app.get('/api/shorts/feed', async (req, res) => {
         COALESCE(s.likes, 0) as likes, 
         s.created_at as "createdAt",
         'story' as source,
+        COALESCE((SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = s.user_id OR creator_id = s.author_name), 0) as "subscribersCount",
         COALESCE(u.monetization_status, 'auto') as "userMonetization"
       FROM core_stories s
       LEFT JOIN core_users u ON s.user_id = u.id
@@ -4065,6 +4066,7 @@ app.get('/api/shorts/feed', async (req, res) => {
         COALESCE(v.likes, 0) as likes,
         v.created_at as "createdAt",
         'video' as source,
+        COALESCE((SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = v.user_id OR creator_id = v.channel_name), 0) as "subscribersCount",
         COALESCE(u.monetization_status, 'auto') as "userMonetization"
       FROM user_videos v
       LEFT JOIN core_users u ON v.user_id = u.id
@@ -4094,6 +4096,7 @@ app.get('/api/shorts/feed', async (req, res) => {
           COALESCE(v.likes, 0) as likes,
           v.created_at as "createdAt",
           'video' as source,
+        COALESCE((SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = v.user_id OR creator_id = v.channel_name), 0) as "subscribersCount",
           COALESCE(u.monetization_status, 'auto') as "userMonetization"
         FROM user_videos v
         LEFT JOIN core_users u ON v.user_id = u.id
@@ -4127,6 +4130,7 @@ app.get('/api/shorts/feed', async (req, res) => {
         duration: Number(item.duration) || 5.0,
         views,
         likes,
+        subscribersCount: Number(item.subscribersCount || 0),
         source: item.source,
         createdAt: item.createdAt,
         isMonetized: item.userMonetization === 'approved' || item.userMonetization === 'active' || item.userMonetization === 'monetized',
@@ -4732,7 +4736,13 @@ app.get('/api/creators/:creatorId/sub-status', async (req, res) => {
       isSubscribed = chk.rowCount > 0;
     }
 
-    const countRes = await query('SELECT COUNT(*) as count FROM creator_subscribers WHERE creator_id = $1', [creatorId]);
+    const countRes = await query(`
+      SELECT COUNT(DISTINCT subscriber_id) as count 
+      FROM creator_subscribers 
+      WHERE creator_id = $1 
+         OR creator_id = (SELECT channel_name FROM core_users WHERE id = $1 LIMIT 1) 
+         OR creator_id = (SELECT id FROM core_users WHERE channel_name = $1 LIMIT 1)
+    `, [creatorId]);
     return res.json({
       isSubscribed,
       subscribersCount: Number(countRes.rows[0]?.count || 0)
@@ -11052,41 +11062,284 @@ app.delete('/api/admin/videos/:id', authenticateToken, requireAdminRole, async (
   }
 });
 
+// ==================== ROBOTS.TXT & SITEMAP.XML (SEARCH ENGINE INDEXING) ==================== //
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /api/
+
+Sitemap: https://benix.space/sitemap.xml
+`);
+});
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    let videoUrlsXml = '';
+    let productUrlsXml = '';
+    let trackUrlsXml = '';
+
+    // 1. Fetch User Videos & Sample Videos for Google Video Schema
+    try {
+      const dbVideosRes = await query('SELECT id, title, description, thumbnail_url, media_url, created_at FROM user_videos ORDER BY created_at DESC LIMIT 200');
+      const dbVideos = dbVideosRes.rows || [];
+      const allVideos = [...dbVideos, ...SAMPLE_VIDEOS];
+
+      for (const v of allVideos) {
+        const vidId = v.id || v.slug;
+        const vTitle = (v.title || 'BenixSpace Video').replace(/[<>&'"]/g, '');
+        const vDesc = (v.description || vTitle || 'Watch Rwandan HD videos and shorts on BenixSpace').replace(/[<>&'"]/g, '');
+        const vThumb = v.thumbnail_url || v.thumbnail || v.thumbnailUrl || 'https://benix.space/og-main.png';
+        const vMedia = v.media_url || v.video_url || `https://benix.space/videos/${vidId}`;
+        const vDate = v.created_at ? new Date(v.created_at).toISOString() : new Date().toISOString();
+
+        videoUrlsXml += `
+  <url>
+    <loc>https://benix.space/videos/${vidId}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <video:video>
+      <video:thumbnail_loc>${vThumb}</video:thumbnail_loc>
+      <video:title>${vTitle}</video:title>
+      <video:description>${vDesc}</video:description>
+      <video:content_loc>${vMedia}</video:content_loc>
+      <video:publication_date>${vDate}</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+    </video:video>
+  </url>`;
+      }
+    } catch {
+      for (const v of SAMPLE_VIDEOS) {
+        const vTitle = (v.title || 'BenixSpace Video').replace(/[<>&'"]/g, '');
+        const vDesc = (v.description || vTitle).replace(/[<>&'"]/g, '');
+        const vThumb = v.thumbnailUrl || v.thumbnail || 'https://benix.space/og-main.png';
+        videoUrlsXml += `
+  <url>
+    <loc>https://benix.space/videos/${v.id}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <video:video>
+      <video:thumbnail_loc>${vThumb}</video:thumbnail_loc>
+      <video:title>${vTitle}</video:title>
+      <video:description>${vDesc}</video:description>
+      <video:player_loc>https://benix.space/videos/${v.id}</video:player_loc>
+      <video:family_friendly>yes</video:family_friendly>
+    </video:video>
+  </url>`;
+      }
+    }
+
+    // 2. Marketplace Products
+    try {
+      const prodRes = await query('SELECT id, title, description, updated_at FROM marketplace_products ORDER BY updated_at DESC LIMIT 100');
+      for (const p of (prodRes.rows || [])) {
+        productUrlsXml += `
+  <url>
+    <loc>https://benix.space/marketplace/${p.id}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+      }
+    } catch {}
+
+    // 3. Voxify Music Tracks
+    try {
+      const trackRes = await query('SELECT id, title, artist, updated_at FROM voxify_tracks ORDER BY updated_at DESC LIMIT 100');
+      for (const t of (trackRes.rows || [])) {
+        trackUrlsXml += `
+  <url>
+    <loc>https://benix.space/music/${t.id}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+      }
+    } catch {}
+
+    const staticRoutes = [
+      '',
+      '/videos',
+      '/shorts',
+      '/tv',
+      '/radio',
+      '/music',
+      '/marketplace',
+      '/dating',
+      '/games',
+      '/blog',
+      '/services',
+      '/projects',
+      '/about'
+    ];
+
+    const staticXml = staticRoutes.map(route => `
+  <url>
+    <loc>https://benix.space${route}</loc>
+    <changefreq>daily</changefreq>
+    <priority>${route === '' ? '1.0' : '0.8'}</priority>
+  </url>`).join('');
+
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  ${staticXml}
+  ${videoUrlsXml}
+  ${trackUrlsXml}
+  ${productUrlsXml}
+</urlset>`;
+
+    res.header('Content-Type', 'application/xml');
+    return res.status(200).send(sitemap);
+  } catch (err) {
+    return res.status(500).send('Error generating sitemap');
+  }
+});
+
 // ==================== SOCIAL BOT OPENGRAPH / TWITTER CARD CRAWLER ==================== //
 app.use(async (req, res, next) => {
   const ua = (req.headers['user-agent'] || '').toLowerCase();
-  const isBot = /whatsapp|facebookexternalhit|facebot|twitterbot|telegrambot|linkedinbot|slackbot|googlebot|bingbot/i.test(ua);
+  const isBot = /whatsapp|facebookexternalhit|facebot|twitterbot|telegrambot|linkedinbot|slackbot|discordbot|googlebot|bingbot|yandex/i.test(ua);
   if (!isBot || req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
     return next();
   }
 
   try {
     let title = 'BenixSpace — Rwanda Unified Digital Ecosystem & Super-App';
-    let description = 'Discover Live TV & Radio, Kunda Dating, Voxify Choirs & Songs, Digital Marketplace, 3D Games, and Instant MoMo Central Wallet.';
-    let imageUrl = 'https://benix.space/nebelurw.png';
+    let description = 'Discover Live TV & Radio, Trending Shorts, HD Videos, Kunda Dating, Voxify Choirs & Songs, and Rwandan MoMo Central Wallet.';
+    let imageUrl = 'https://benix.space/og-main.png';
+    let ogType = 'website';
+    let videoUrl = '';
+    let jsonLd = null;
     const canonicalUrl = `https://benix.space${req.path}`;
+    const keywords = 'amashusho, indirimbo, videwo nyarwanda, rwanda trending, rwanda entertainment, benixspace, rwanda videos, online tv rwanda, ibyamamare, amakuru, kigali, voxify, filime nyarwanda, shorts, gospel rwanda';
 
-    if (req.path.startsWith('/videos/') || req.path.startsWith('/video/')) {
+    // Route matching
+    if (req.path.startsWith('/videos/') || req.path.startsWith('/video/') || req.path.startsWith('/watch/') || req.path.startsWith('/shorts/')) {
       const vidId = req.path.split('/')[2];
-      const vid = SAMPLE_VIDEOS.find(v => v.id === vidId || v.slug === vidId);
-      if (vid) {
-        title = `${vid.title} — Watch on BenixSpace TV`;
-        description = vid.description || `Watch ${vid.title} by ${vid.creator || 'BenixSpace'} in HD.`;
-        imageUrl = vid.thumbnailUrl || vid.thumbnail || `https://img.youtube.com/vi/${vid.id}/hqdefault.jpg`;
+      ogType = 'video.other';
+
+      let foundVid = null;
+      try {
+        const vidRes = await query('SELECT * FROM user_videos WHERE id = $1', [vidId]);
+        if (vidRes.rows && vidRes.rows.length > 0) {
+          foundVid = vidRes.rows[0];
+        }
+      } catch {}
+
+      if (!foundVid) {
+        foundVid = SAMPLE_VIDEOS.find(v => v.id === vidId || v.slug === vidId);
+      }
+
+      if (foundVid) {
+        title = `${foundVid.title} — Watch on BenixSpace`;
+        description = foundVid.description || `Watch ${foundVid.title} by ${foundVid.creator || foundVid.author_name || 'BenixSpace'} in HD.`;
+        imageUrl = foundVid.thumbnail_url || foundVid.thumbnail || foundVid.thumbnailUrl || 'https://benix.space/og-main.png';
+        videoUrl = foundVid.media_url || foundVid.video_url || (foundVid.id && !foundVid.id.includes('-') ? `https://www.youtube.com/embed/${foundVid.id}` : '');
+
+        jsonLd = {
+          "@context": "https://schema.org",
+          "@type": "VideoObject",
+          "name": foundVid.title,
+          "description": description,
+          "thumbnailUrl": imageUrl,
+          "uploadDate": foundVid.created_at || new Date().toISOString(),
+          "contentUrl": videoUrl,
+          "embedUrl": `https://benix.space${req.path}`
+        };
+      }
+    } else if (req.path === '/shorts' || req.path.startsWith('/shorts')) {
+      title = 'Trending Shorts — BenixSpace Rwanda Quick Clips';
+      description = 'Watch viral trending Rwanda shorts, creative moments, comedy, dance, and music clips with instant creator tipping.';
+      imageUrl = 'https://benix.space/og-shorts.png';
+    } else if (req.path === '/tv' || req.path.startsWith('/tv')) {
+      title = 'Live TV & Radio Broadcasts — BenixSpace Rwanda';
+      description = 'Stream official Rwandan television stations including RTV, KC2, and live radio stations in high definition.';
+      imageUrl = 'https://benix.space/og-tv.png';
+    } else if (req.path.startsWith('/music') || req.path.startsWith('/voxify')) {
+      const trackId = req.path.split('/')[2];
+      title = 'Voxify Choirs & Songs — Choral SATB Stems & Songs Marketplace';
+      description = 'Buy original song master ownership, practice private SATB choral stems, and prepare for performance.';
+      imageUrl = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&auto=format&fit=crop&q=80';
+
+      if (trackId) {
+        try {
+          const tRes = await query('SELECT * FROM voxify_tracks WHERE id = $1', [trackId]);
+          if (tRes.rows && tRes.rows.length > 0) {
+            const t = tRes.rows[0];
+            title = `${t.title} by ${t.artist || 'Choir'} — Voxify Choral Music`;
+            description = `Stream and download choral score, lyrics, and rehearsal stems for ${t.title} on BenixSpace.`;
+            if (t.cover_art_url) imageUrl = t.cover_art_url;
+            jsonLd = {
+              "@context": "https://schema.org",
+              "@type": "MusicRecording",
+              "name": t.title,
+              "byArtist": { "@type": "MusicGroup", "name": t.artist || "Choir" },
+              "image": imageUrl
+            };
+          }
+        } catch {}
       }
     } else if (req.path.startsWith('/marketplace') || req.path.startsWith('/shop')) {
+      const prodId = req.path.split('/')[2];
       title = 'Benix Marketplace — Digital Products, Gadgets & Freelance Services';
       description = 'Browse verified products and freelance services with instant Rwandan MoMo payments and affiliate commission.';
-      imageUrl = 'https://benix.space/nebelurw.png';
+      imageUrl = 'https://benix.space/og-main.png';
+
+      if (prodId) {
+        try {
+          const pRes = await query('SELECT * FROM marketplace_products WHERE id = $1', [prodId]);
+          if (pRes.rows && pRes.rows.length > 0) {
+            const p = pRes.rows[0];
+            title = `${p.title} — Benix Marketplace`;
+            description = p.description ? p.description.slice(0, 160) : `Buy ${p.title} securely on BenixSpace with instant MoMo delivery.`;
+            if (p.image_url) imageUrl = p.image_url;
+            jsonLd = {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": p.title,
+              "image": imageUrl,
+              "description": description,
+              "offers": {
+                "@type": "Offer",
+                "priceCurrency": "RWF",
+                "price": p.price || 0,
+                "availability": "https://schema.org/InStock"
+              }
+            };
+          }
+        } catch {}
+      }
     } else if (req.path.startsWith('/dating') || req.path.startsWith('/kunda')) {
       title = 'Kunda Space — Rwanda Verified Matchmaking & Dating';
-      description = 'Connect with verified Rwandan singles, explore smart compatibility matches, and unlock direct WhatsApp contacts.';
+      description = 'Connect with verified Rwandan singles, explore smart compatibility matches, and unlock direct contacts.';
       imageUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1200&auto=format&fit=crop&q=80';
-    } else if (req.path.startsWith('/music') || req.path.startsWith('/voxify')) {
-      title = 'Voxify Choirs & Songs — Choral SATB Stems & Songs Marketplace';
-      description = 'Buy original song master ownership, practice private SATB choral stems, and prepare for Sunday performance.';
-      imageUrl = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&auto=format&fit=crop&q=80';
     }
+
+    if (!jsonLd) {
+      jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "BenixSpace",
+        "url": "https://benix.space",
+        "description": description,
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://benix.space/videos?search={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      };
+    }
+
+    const videoMetaTags = videoUrl ? `
+  <meta property="og:video" content="${videoUrl}" />
+  <meta property="og:video:secure_url" content="${videoUrl}" />
+  <meta property="og:video:type" content="video/mp4" />
+  <meta property="og:video:width" content="1280" />
+  <meta property="og:video:height" content="720" />
+  <meta name="twitter:player" content="${canonicalUrl}" />
+  <meta name="twitter:player:width" content="1280" />
+  <meta name="twitter:player:height" content="720" />` : '';
 
     const html = `<!doctype html>
 <html lang="en">
@@ -11094,7 +11347,11 @@ app.use(async (req, res, next) => {
   <meta charset="UTF-8" />
   <title>${title}</title>
   <meta name="description" content="${description}" />
-  <meta property="og:type" content="website" />
+  <meta name="keywords" content="${keywords}" />
+  <link rel="canonical" href="${canonicalUrl}" />
+
+  <!-- OpenGraph Metadata -->
+  <meta property="og:type" content="${ogType}" />
   <meta property="og:site_name" content="BenixSpace" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
@@ -11102,19 +11359,27 @@ app.use(async (req, res, next) => {
   <meta property="og:image:secure_url" content="${imageUrl}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:url" content="${canonicalUrl}" />
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="og:url" content="${canonicalUrl}" />${videoMetaTags}
+
+  <!-- Twitter Card Metadata -->
+  <meta name="twitter:card" content="${videoUrl ? 'player' : 'summary_large_image'}" />
   <meta name="twitter:site" content="@BenixSpace" />
   <meta name="twitter:title" content="${title}" />
   <meta name="twitter:description" content="${description}" />
   <meta name="twitter:image" content="${imageUrl}" />
+
+  <!-- Schema.org JSON-LD for Google Crawler -->
+  <script type="application/ld+json">
+    ${JSON.stringify(jsonLd)}
+  </script>
 </head>
-<body>
+<body style="background:#090d14;color:#f8fafc;font-family:sans-serif;padding:2rem;">
   <h1>${title}</h1>
   <p>${description}</p>
-  <img src="${imageUrl}" alt="${title}" />
+  <img src="${imageUrl}" alt="${title}" style="max-width:100%;border-radius:12px;" />
 </body>
 </html>`;
+
     return res.status(200).send(html);
   } catch (e) {
     next();

@@ -68,7 +68,7 @@ export const Navbar: React.FC = () => {
   }, []);
 
   const { user, wallet, logout, hasAppProfile } = useAuth();
-  const { isInstalled, installApp } = usePwa();
+  const { isInstalled, installApp, hasUpdate, applyUpdate } = usePwa();
   const { totalBadgeCount, inboxBadgeCount } = useInAppActions();
   const { toggleExpanded, openMobile } = useSidebar();
   const { t } = useLanguage();
@@ -98,6 +98,20 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
+      {hasUpdate && (
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 px-4 py-2 text-white text-xs font-bold flex items-center justify-between shadow-xl sticky top-0 z-50 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>New version of BenixSpace is available! Tap update to refresh.</span>
+          </div>
+          <button
+            onClick={applyUpdate}
+            className="px-3 py-1 rounded-xl bg-white text-blue-900 font-extrabold hover:bg-slate-100 transition shadow active:scale-95"
+          >
+            Update Now
+          </button>
+        </div>
+      )}
       <header className="sticky top-0 z-40 bg-[#0B0E14]/95 backdrop-blur-xl border-b border-slate-800/80 text-white shadow-lg transition-all">
         <div className="w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-10 py-3 space-y-3">
           
@@ -345,6 +359,19 @@ export const Navbar: React.FC = () => {
                           <UserIcon className="w-4 h-4 text-slate-400" />
                           <span>System & Profile Settings</span>
                         </Link>
+
+                        {!isInstalled && (
+                          <button
+                            onClick={() => {
+                              setIsAvatarMenuOpen(false);
+                              installApp();
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors text-left"
+                          >
+                            <Download className="w-4 h-4 text-blue-400" />
+                            <span>Install BenixSpace App</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Divider & Log Out */}
@@ -385,6 +412,16 @@ export const Navbar: React.FC = () => {
                     <UserPlus className="w-3.5 h-3.5 text-white" />
                     <span>Join</span>
                   </button>
+                  {!isInstalled && (
+                    <button
+                      onClick={installApp}
+                      className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-bold transition-all"
+                      title="Install BenixSpace App"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Install App</span>
+                    </button>
+                  )}
                 </div>
               )}
 

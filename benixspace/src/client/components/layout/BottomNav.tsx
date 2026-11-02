@@ -1,50 +1,50 @@
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Home, Search, Plus, MessageSquare, User, ShieldCheck, LogIn, UserPlus } from 'lucide-react';
-import { SearchModal } from '../modals/SearchModal';
+import { Home, Zap, Plus, Video, Tv } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
 
 export const BottomNav: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
-  const [showSearch, setShowSearch] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [wizardTab, setWizardTab] = useState<'register' | 'login'>('login');
-  const [showInboxNotice, setShowInboxNotice] = useState(false);
   const [showCreateMedia, setShowCreateMedia] = useState(false);
 
-  const isActive = (path: string) => location.pathname === path;
-  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B0E14]/95 backdrop-blur-xl border-t border-slate-800/80 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] px-4 py-2 flex items-center justify-around transition-all text-slate-400">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B0E14]/95 backdrop-blur-xl border-t border-slate-800/80 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] px-3 py-2 flex items-center justify-around transition-all text-slate-400">
         
         {/* 1. Home */}
         <Link
           to="/"
           className={`flex flex-col items-center justify-center py-1 transition-all ${
-            isActive('/') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
+            isActive('/') ? 'text-blue-500 font-black' : 'text-slate-400 hover:text-white'
           }`}
+          title="Home"
         >
           <Home className="w-5 h-5" />
           <span className="text-[10px] font-bold mt-1 tracking-tight">Home</span>
         </Link>
 
-        {/* 2. Search */}
-        <button
-          onClick={() => setShowSearch(true)}
+        {/* 2. Shorts */}
+        <Link
+          to="/shorts"
           className={`flex flex-col items-center justify-center py-1 transition-all ${
-            showSearch ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
+            isActive('/shorts') ? 'text-rose-500 font-black' : 'text-slate-400 hover:text-white'
           }`}
+          title="Shorts"
         >
-          <Search className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1 tracking-tight">Search</span>
-        </button>
+          <Zap className="w-5 h-5 text-rose-400" />
+          <span className="text-[10px] font-bold mt-1 tracking-tight">Shorts</span>
+        </Link>
 
         {/* 3. Elevated Center Action Button (+) - Post Story or Video */}
         <div className="relative -top-4 flex items-center justify-center">
@@ -57,71 +57,38 @@ export const BottomNav: React.FC = () => {
                 setShowCreateMedia(true);
               }
             }}
-            className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 hover:from-blue-500 hover:to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/40 border-4 border-[#0B0E14] active:scale-95 transition-all"
+            className="w-12 h-12 rounded-full bg-gradient-to-tr from-rose-500 via-indigo-600 to-blue-600 hover:from-rose-400 hover:to-blue-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/40 border-4 border-[#0B0E14] active:scale-95 transition-all"
             title="Post Story or Video"
           >
             <Plus className="w-6 h-6 stroke-[2.5]" />
           </button>
         </div>
 
-        {/* 4. Inbox Message Room */}
+        {/* 4. Videos */}
         <Link
-          to={user ? "/messages" : "/dating"}
-          onClick={(e) => {
-            if (!user) {
-              e.preventDefault();
-              setWizardTab('login');
-              setShowWizard(true);
-            }
-          }}
-          className={`relative flex flex-col items-center justify-center py-1 transition-all ${
-            isActive('/messages') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
+          to="/videos"
+          className={`flex flex-col items-center justify-center py-1 transition-all ${
+            isActive('/videos') ? 'text-purple-400 font-black' : 'text-slate-400 hover:text-white'
           }`}
+          title="Videos"
         >
-          <div className="relative">
-            <MessageSquare className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] font-bold mt-1 tracking-tight">Inbox</span>
+          <Video className="w-5 h-5 text-purple-400" />
+          <span className="text-[10px] font-bold mt-1 tracking-tight">Videos</span>
         </Link>
 
-        {/* 5. Profile / Admin / Sign In */}
-        {user ? (
-          <Link
-            to={isAdmin ? '/admin' : '/dashboard'}
-            className={`flex flex-col items-center justify-center py-1 transition-all ${
-              isActive('/dashboard') || isActive('/admin') ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {isAdmin ? (
-              <div className="relative">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              </div>
-            ) : (
-              <User className="w-5 h-5" />
-            )}
-            <span className="text-[10px] font-bold mt-1 tracking-tight">
-              {isAdmin ? 'Admin' : 'Profile'}
-            </span>
-          </Link>
-        ) : (
-          <button
-            onClick={() => {
-              setWizardTab('login');
-              setShowWizard(true);
-            }}
-            className="flex flex-col items-center justify-center py-1 transition-all text-slate-400 hover:text-blue-400"
-            title="Sign In to Account"
-          >
-            <LogIn className="w-5 h-5 text-blue-400" />
-            <span className="text-[10px] font-bold mt-1 tracking-tight text-blue-400">Sign In</span>
-          </button>
-        )}
+        {/* 5. Live TV */}
+        <Link
+          to="/tv"
+          className={`flex flex-col items-center justify-center py-1 transition-all ${
+            isActive('/tv') ? 'text-emerald-400 font-black' : 'text-slate-400 hover:text-white'
+          }`}
+          title="Live TV"
+        >
+          <Tv className="w-5 h-5 text-emerald-400" />
+          <span className="text-[10px] font-bold mt-1 tracking-tight">Live TV</span>
+        </Link>
 
       </nav>
-
-      {/* Search Modal */}
-      {showSearch && <SearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />}
 
       {/* Auth / Onboarding Wizard Modal */}
       {showWizard && (

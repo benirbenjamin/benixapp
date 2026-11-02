@@ -39,12 +39,16 @@ import {
   Plus,
   X,
   Wifi,
-  Settings
+  Settings,
+  Zap,
+  Video as VideoIcon
 } from 'lucide-react';
 import axios from 'axios';
 import { GoogleAdSense } from '../../components/ads/GoogleAdSense';
 import { CreateMediaModal } from '../../components/modals/CreateMediaModal';
 import { UniversalMediaAdOverlay } from '../../components/ads/UniversalMediaAdOverlay';
+import { ShortsFeed } from '../../components/home/ShortsFeed';
+import { usePlayer } from '../../context/PlayerContext';
 import { ADS_CONFIG } from '../../config/ads';
 import realVideosData from '../../config/realVideos.json';
 
@@ -153,11 +157,21 @@ const CATEGORIES = [
   'Premium'
 ];
 
-export const VideosPage: React.FC = () => {
+export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ initialTab = 'videos' }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { id: routeVideoId } = useParams();
   const { user, wallet, refreshMe, updateWalletBalance } = useAuth();
+  const { setActivePipMedia } = usePlayer();
+
+  const [currentMediaTab, setCurrentMediaTab] = useState<'videos' | 'shorts'>(initialTab);
+  const [activeCreatorSubscribers, setActiveCreatorSubscribers] = useState<number>(0);
+
+  useEffect(() => {
+    if (initialTab) {
+      setCurrentMediaTab(initialTab);
+    }
+  }, [initialTab]);
 
   const [videos, setVideos] = useState<VideoItem[]>(FALLBACK_VIDEOS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -336,7 +350,21 @@ export const VideosPage: React.FC = () => {
     setVideoCurrentTime(0);
     setVideoDuration(0);
     setIsPreviewEnded(false);
-  }, [activeVideo?.id]);
+
+    if (activeVideo) {
+      const target = activeVideo.userId || activeVideo.channelName || activeVideo.creator;
+      if (target) {
+        fetch(`/api/creators/${encodeURIComponent(target)}/status`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (typeof data?.subscribersCount === 'number') {
+              setActiveCreatorSubscribers(data.subscribersCount);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [activeVideo?.id, activeVideo?.userId, activeVideo?.channelName, activeVideo?.creator]);
 
   // Adaptive Video Quality State (Low -> Medium -> HD automatically based on connection)
   const [networkQuality, setNetworkQuality] = useState<'360p' | '480p' | '720p' | '1080p'>('720p');
@@ -617,7 +645,7 @@ export const VideosPage: React.FC = () => {
         } else if (/^[a-zA-Z0-9_-]{11}$/.test(targetId)) {
           setActiveVideo({
             id: targetId,
-            title: 'YouTube Video Broadcast',
+            title: 'Benix Partner Broadcast',
             creator: 'Benix Space Channel',
             channelName: 'Benix Space Channel',
             channelAvatar: '/logo.png',
@@ -981,6 +1009,36 @@ export const VideosPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, isMuted, isFullscreen, activeVideo, filteredVideos]);
 
+  const handleTriggerPiP = async () => {
+    if (videoRef.current) {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          return;
+        }
+        if (videoRef.current.requestPictureInPicture) {
+          await videoRef.current.requestPictureInPicture();
+          return;
+        }
+      } catch (e) {
+        console.warn('Native PiP error, using movable in-app PiP:', e);
+      }
+    }
+
+    if (activeVideo) {
+      setActivePipMedia({
+        type: 'video',
+        id: activeVideo.id,
+        title: activeVideo.title,
+        creator: activeVideo.creator,
+        videoUrl: (activeVideo as any).videoUrl || activeVideo.embedUrl,
+        thumbnailUrl: activeVideo.thumbnail,
+        currentTime: videoCurrentTime,
+        isMuted: isMuted
+      });
+    }
+  };
+
   const isOwnerOfActiveVideo = Boolean(
     user && activeVideo && (
       (activeVideo.userId && String(user.id) === String(activeVideo.userId)) ||
@@ -1000,6 +1058,7 @@ export const VideosPage: React.FC = () => {
     const isSub = subscribedChannels.includes(channelName);
     const updated = isSub ? subscribedChannels.filter((c) => c !== channelName) : [...subscribedChannels, channelName];
     setSubscribedChannels(updated);
+    setActiveCreatorSubscribers((prev) => isSub ? Math.max(0, prev - 1) : prev + 1);
     localStorage.setItem('benix_subscribed_channels', JSON.stringify(updated));
 
     // Call backend API so subscription is recorded in PostgreSQL creator_subscribers
@@ -1182,10 +1241,47 @@ export const VideosPage: React.FC = () => {
           </div>
         )}
 
-        {/* ============================================================== */}
-        {/* 1. YOUTUBE-STYLE WATCH VIEW (When Active Video is Selected)    */}
-        {/* ============================================================== */}
-        {activeVideo ? (
+        {/* Media Mode Tabs: Switch between Long-Form Videos and Trending Shorts */}
+        <div className="flex items-center gap-3 border-b border-slate-800 pb-3 pt-1">
+          <button
+            onClick={() => {
+              setCurrentMediaTab('videos');
+              if (location.pathname === '/shorts') navigate('/videos');
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              currentMediaTab === 'videos'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                : 'bg-[#121824] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <VideoIcon className="w-4 h-4" />
+            <span>Long-Form Videos ({videos.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setCurrentMediaTab('shorts');
+              if (location.pathname === '/videos') navigate('/shorts');
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              currentMediaTab === 'shorts'
+                ? 'bg-gradient-to-r from-rose-600 to-indigo-600 text-white shadow-lg shadow-rose-600/30'
+                : 'bg-[#121824] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Zap className="w-4 h-4 text-rose-400 fill-current" />
+            <span>Trending Shorts</span>
+          </button>
+        </div>
+
+        {currentMediaTab === 'shorts' ? (
+          <div className="w-full py-2">
+            <ShortsFeed isStandalonePage={true} />
+          </div>
+        ) : (
+          <>
+            {/* 1. WATCH VIEW (When Active Video is Selected) */}
+            {activeVideo ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start max-w-full">
             
             {/* Left Column: Player, Title, Channel, Meta, Description & Comments */}
@@ -1472,6 +1568,14 @@ export const VideosPage: React.FC = () => {
                       </div>
 
                       <button
+                        onClick={handleTriggerPiP}
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
+                        title="Picture-in-Picture (Float over screen)"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </button>
+
+                      <button
                         onClick={toggleFullscreen}
                         className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
                         title="Toggle Landscape Fullscreen (F)"
@@ -1503,7 +1607,7 @@ export const VideosPage: React.FC = () => {
                       <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 fill-purple-400/20" />
                     </div>
                     <span className="text-[11px] text-slate-400">
-                      Official Benix Partner Channel
+                      {activeCreatorSubscribers > 0 ? `${activeCreatorSubscribers.toLocaleString()} subscribers • ` : ''}Official Creator Partner
                     </span>
                   </div>
 
@@ -1692,7 +1796,7 @@ export const VideosPage: React.FC = () => {
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Cross-platform tracking & WhatsApp share</span>
+                      <span>Cross-platform tracking & Direct share</span>
                     </li>
                   </ul>
                 </div>
@@ -1845,6 +1949,8 @@ export const VideosPage: React.FC = () => {
             </div>
           </>
         )}
+          </>
+        )}
 
       </div>
 
@@ -1917,7 +2023,7 @@ export const VideosPage: React.FC = () => {
               className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all"
             >
               <ExternalLink className="w-4 h-4" />
-              <span>Share to WhatsApp Contacts & Groups</span>
+              <span>Share to Contacts & Social Groups</span>
             </a>
           </div>
         </div>

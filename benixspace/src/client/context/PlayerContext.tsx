@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { Station } from '../services/mediaService';
 
+export interface ActivePipMedia {
+  type: 'tv' | 'video' | 'short';
+  id: string;
+  title: string;
+  creator?: string;
+  videoUrl?: string;
+  streamUrl?: string;
+  thumbnailUrl?: string;
+  currentTime?: number;
+  isMuted?: boolean;
+}
+
 interface PlayerContextType {
   // Radio State & Methods
   currentStation: Station | null;
@@ -31,6 +43,8 @@ interface PlayerContextType {
   isTvPlaying: boolean;
   isTvMuted: boolean;
   isTvPipDismissed: boolean;
+  isTvPipActive: boolean;
+  setIsTvPipActive: (active: boolean) => void;
   hasTvStarted: boolean;
   playTv: (station: Station) => void;
   playTvChannel: (station: Station) => void;
@@ -44,6 +58,11 @@ interface PlayerContextType {
   // TV Ad State
   showTvAd: boolean;
   dismissTvAd: () => void;
+
+  // Universal Video / Short / TV PiP Media State
+  activePipMedia: ActivePipMedia | null;
+  setActivePipMedia: (media: ActivePipMedia | null) => void;
+  closePipMedia: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -69,8 +88,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isTvPlaying, setIsTvPlaying] = useState<boolean>(false);
   const [isTvMuted, setIsTvMuted] = useState<boolean>(false);
   const [isTvPipDismissed, setIsTvPipDismissed] = useState<boolean>(false);
+  const [isTvPipActive, setIsTvPipActive] = useState<boolean>(false);
   const [hasTvStarted, setHasTvStarted] = useState<boolean>(false);
   const [showTvAd, setShowTvAd] = useState<boolean>(false);
+
+  // Universal Video / Short / TV PiP Media State
+  const [activePipMedia, setActivePipMedia] = useState<ActivePipMedia | null>(null);
+  const closePipMedia = () => setActivePipMedia(null);
 
   // Dynamic Ad Timing Settings from DB / Admin Settings
   const [adSettings, setAdSettings] = useState({
@@ -394,6 +418,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isTvPlaying,
         isTvMuted,
         isTvPipDismissed,
+        isTvPipActive,
+        setIsTvPipActive,
         hasTvStarted,
         playTv,
         playTvChannel: playTv,
@@ -405,7 +431,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setActiveTvStation,
 
         showTvAd,
-        dismissTvAd
+        dismissTvAd,
+
+        activePipMedia,
+        setActivePipMedia,
+        closePipMedia
       }}
     >
       {children}

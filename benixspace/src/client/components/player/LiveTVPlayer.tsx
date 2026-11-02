@@ -34,6 +34,7 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
   const {
     isTvPlaying,
     isTvMuted,
+    isTvPipActive,
     toggleTvPlay,
     toggleTvMute,
     playTv,
@@ -97,6 +98,21 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
 
   const streamUrl = station.stream_url || station.streamUrl || '';
 
+  // Synchronize audio when floating PiP is active to prevent double audio echo
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isTvPipActive) {
+      video.muted = true;
+      video.pause();
+    } else {
+      video.muted = isTvMuted;
+      if (isTvPlaying) {
+        video.play().catch(() => {});
+      }
+    }
+  }, [isTvPipActive, isTvMuted, isTvPlaying]);
+
   useEffect(() => {
     if (!streamUrl) {
       setError('Live stream URL not found for this channel.');
@@ -109,6 +125,11 @@ export const LiveTVPlayer: React.FC<LiveTVPlayerProps> = ({
 
     const video = videoRef.current;
     if (!video) return;
+
+    // Enable native OS auto picture-in-picture
+    try {
+      (video as any).autoPictureInPicture = true;
+    } catch {}
 
     if (Hls.isSupported()) {
       if (hlsRef.current) {

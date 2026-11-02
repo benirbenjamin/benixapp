@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, X, Maximize2, Tv, Move } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, X, Maximize2, Tv, Move, Zap, Video as VideoIcon, ExternalLink } from 'lucide-react';
 import { usePlayer } from '../../context/PlayerContext';
 
 export const FloatingPipTV: React.FC = () => {
@@ -14,7 +14,10 @@ export const FloatingPipTV: React.FC = () => {
     currentStation,
     toggleTvPlay,
     toggleTvMute,
-    closeTvPip
+    closeTvPip,
+    setIsTvPipActive,
+    activePipMedia,
+    closePipMedia
   } = usePlayer();
 
   const location = useLocation();
@@ -30,6 +33,10 @@ export const FloatingPipTV: React.FC = () => {
   // Track if user scrolled past the TV player when on `/tv`
   const [hasScrolledPastTv, setHasScrolledPastTv] = useState(false);
 
+  // Media playback state for generic video/short pip
+  const [isMediaPlaying, setIsMediaPlaying] = useState(true);
+  const [isMediaMuted, setIsMediaMuted] = useState(false);
+
   useEffect(() => {
     const handleScroll = () => {
       if (location.pathname === '/tv') {
@@ -44,31 +51,51 @@ export const FloatingPipTV: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [location.pathname]);
 
-  // Determine whether to display PiP:
-  // 1) Navigated away from `/tv` while TV has started, OR
-  // 2) On `/tv` and scrolled down past the main player
-  const shouldShowPip =
+  // Determine whether TV PiP should show
+  const shouldShowTvPip =
     !isTvPipDismissed &&
     activeTvStation !== null &&
     hasTvStarted &&
     (location.pathname !== '/tv' || hasScrolledPastTv);
 
+  // Show PiP if either TV PiP or active video/short PiP is active
+  const isShortsPage = location.pathname === '/shorts';
+  const isVideosPage = location.pathname.startsWith('/videos');
+  
+  const shouldShowMediaPip =
+    activePipMedia !== null &&
+    ((activePipMedia.type === 'short' && !isShortsPage) ||
+     (activePipMedia.type === 'video' && !isVideosPage) ||
+     location.pathname === '/');
+
+  const isVisible = shouldShowTvPip || shouldShowMediaPip;
+
+  // Sync active PiP state with PlayerContext so main TV player mutes/pauses
+  useEffect(() => {
+    setIsTvPipActive(Boolean(shouldShowTvPip));
+    return () => {
+      setIsTvPipActive(false);
+    };
+  }, [shouldShowTvPip, setIsTvPipActive]);
+
+  const isShortType = activePipMedia?.type === 'short';
+
   // Initialize initial bottom-right position once mounted
   useEffect(() => {
-    if (shouldShowPip && pos === null && typeof window !== 'undefined') {
-      const defaultWidth = window.innerWidth < 640 ? 260 : 320;
-      const defaultHeight = window.innerWidth < 640 ? 180 : 220;
+    if (isVisible && pos === null && typeof window !== 'undefined') {
+      const defaultWidth = isShortType ? (window.innerWidth < 640 ? 190 : 220) : (window.innerWidth < 640 ? 260 : 320);
+      const defaultHeight = isShortType ? (window.innerWidth < 640 ? 300 : 360) : (window.innerWidth < 640 ? 180 : 220);
       const bottomOffset = currentStation ? 110 : 80;
       setPos({
         x: Math.max(16, window.innerWidth - defaultWidth - 24),
         y: Math.max(16, window.innerHeight - defaultHeight - bottomOffset)
       });
     }
-  }, [shouldShowPip, currentStation, pos]);
+  }, [isVisible, currentStation, pos, isShortType]);
 
-  // HLS stream attach
+  // Video stream attach
   useEffect(() => {
-    if (!shouldShowPip || !activeTvStation) {
+    if (!isVisible) {
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -79,41 +106,62 @@ export const FloatingPipTV: React.FC = () => {
     const video = videoRef.current;
     if (!video) return;
 
-    const streamUrl = activeTvStation.stream_url || activeTvStation.streamUrl || '';
-    if (!streamUrl) return;
+    // Enable native OS auto Picture-in-Picture
+    try {
+      (video as any).autoPictureInPicture = true;
+    } catch {}
 
-    if (Hls.isSupported()) {
-      const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
-      const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
-      const slow = conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g' || conn?.effectiveType === '3g' || (conn?.downlink && conn.downlink < 1.8);
+    // 1. If TV Station is playing
+    if (shouldShowTvPip && activeTvStation) {
+      const streamUrl = activeTvStation.stream_url || activeTvStation.streamUrl || '';
+      if (!streamUrl) return;
 
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: slow ? 0 : 20,
-        maxBufferLength: slow ? 10 : 25,
-        maxMaxBufferLength: slow ? 20 : 50,
-        fragLoadingMaxRetry: 8,
-        manifestLoadingMaxRetry: 6,
-        capLevelToPlayerSize: true,
-        startLevel: slow ? 0 : -1,
-      });
+      if (Hls.isSupported()) {
+        const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
+        const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+        const slow = conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g' || conn?.effectiveType === '3g' || (conn?.downlink && conn.downlink < 1.8);
 
-      hlsRef.current = hls;
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: slow ? 0 : 20,
+          maxBufferLength: slow ? 10 : 25,
+          maxMaxBufferLength: slow ? 20 : 50,
+          fragLoadingMaxRetry: 8,
+          manifestLoadingMaxRetry: 6,
+          capLevelToPlayerSize: true,
+          startLevel: slow ? 0 : -1,
+        });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        hlsRef.current = hls;
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.muted = isTvMuted;
+          if (isTvPlaying) {
+            video.play().catch(() => {});
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
         video.muted = isTvMuted;
         if (isTvPlaying) {
           video.play().catch(() => {});
         }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl;
-      video.muted = isTvMuted;
-      if (isTvPlaying) {
+      }
+    } 
+    // 2. If Generic Video or Short is playing
+    else if (shouldShowMediaPip && activePipMedia) {
+      const mediaSrc = activePipMedia.videoUrl || activePipMedia.streamUrl || '';
+      if (mediaSrc) {
+        video.src = mediaSrc;
+        video.muted = isMediaMuted;
+        if (activePipMedia.currentTime) {
+          video.currentTime = activePipMedia.currentTime;
+        }
         video.play().catch(() => {});
+        setIsMediaPlaying(true);
       }
     }
 
@@ -123,24 +171,24 @@ export const FloatingPipTV: React.FC = () => {
         hlsRef.current = null;
       }
     };
-  }, [shouldShowPip, activeTvStation?.stream_url, activeTvStation?.streamUrl]);
+  }, [isVisible, shouldShowTvPip, shouldShowMediaPip, activeTvStation?.stream_url, activeTvStation?.streamUrl, activePipMedia?.videoUrl, activePipMedia?.streamUrl]);
 
-  // Sync mute
+  // Sync mute for TV
   useEffect(() => {
-    if (videoRef.current) {
+    if (videoRef.current && shouldShowTvPip) {
       videoRef.current.muted = isTvMuted;
     }
-  }, [isTvMuted]);
+  }, [isTvMuted, shouldShowTvPip]);
 
-  // Sync play/pause
+  // Sync play/pause for TV
   useEffect(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !shouldShowTvPip) return;
     if (isTvPlaying && videoRef.current.paused) {
       videoRef.current.play().catch(() => {});
     } else if (!isTvPlaying && !videoRef.current.paused) {
       videoRef.current.pause();
     }
-  }, [isTvPlaying]);
+  }, [isTvPlaying, shouldShowTvPip]);
 
   // Drag Handlers (Mouse & Touch)
   const handleDragStart = (clientX: number, clientY: number) => {
@@ -158,8 +206,8 @@ export const FloatingPipTV: React.FC = () => {
     if (!isDragging || !dragStartRef.current) return;
     const deltaX = clientX - dragStartRef.current.mouseX;
     const deltaY = clientY - dragStartRef.current.mouseY;
-    const pipWidth = window.innerWidth < 640 ? 260 : 320;
-    const pipHeight = window.innerWidth < 640 ? 180 : 220;
+    const pipWidth = isShortType ? (window.innerWidth < 640 ? 190 : 220) : (window.innerWidth < 640 ? 260 : 320);
+    const pipHeight = isShortType ? (window.innerWidth < 640 ? 300 : 360) : (window.innerWidth < 640 ? 180 : 220);
 
     const newX = Math.max(10, Math.min(window.innerWidth - pipWidth - 10, dragStartRef.current.startX + deltaX));
     const newY = Math.max(10, Math.min(window.innerHeight - pipHeight - 10, dragStartRef.current.startY + deltaY));
@@ -194,7 +242,80 @@ export const FloatingPipTV: React.FC = () => {
     };
   }, [isDragging]);
 
-  if (!shouldShowPip || !activeTvStation || !pos) return null;
+  // Request Native OS Picture-in-Picture
+  const triggerNativePip = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (video.requestPictureInPicture) {
+        await video.requestPictureInPicture();
+      }
+    } catch (err) {
+      console.warn('Native PiP error:', err);
+    }
+  };
+
+  if (!isVisible || !pos) return null;
+
+  const title = shouldShowTvPip
+    ? activeTvStation?.name || 'Live TV'
+    : activePipMedia?.title || 'Video Player';
+
+  const isPlayingNow = shouldShowTvPip ? isTvPlaying : isMediaPlaying;
+  const isMutedNow = shouldShowTvPip ? isTvMuted : isMediaMuted;
+
+  const handleTogglePlay = () => {
+    if (shouldShowTvPip) {
+      toggleTvPlay();
+    } else {
+      const v = videoRef.current;
+      if (v) {
+        if (v.paused) {
+          v.play().catch(() => {});
+          setIsMediaPlaying(true);
+        } else {
+          v.pause();
+          setIsMediaPlaying(false);
+        }
+      }
+    }
+  };
+
+  const handleToggleMute = () => {
+    if (shouldShowTvPip) {
+      toggleTvMute();
+    } else {
+      const v = videoRef.current;
+      if (v) {
+        v.muted = !isMediaMuted;
+        setIsMediaMuted(!isMediaMuted);
+      }
+    }
+  };
+
+  const handleClose = () => {
+    if (shouldShowTvPip) {
+      closeTvPip();
+    } else {
+      closePipMedia();
+    }
+  };
+
+  const handleMaximize = () => {
+    if (shouldShowTvPip) {
+      navigate('/tv');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (activePipMedia) {
+      if (activePipMedia.type === 'short') {
+        navigate('/shorts');
+      } else {
+        navigate(activePipMedia.id ? `/videos/${activePipMedia.id}` : '/videos');
+      }
+      closePipMedia();
+    }
+  };
 
   return (
     <div
@@ -205,7 +326,9 @@ export const FloatingPipTV: React.FC = () => {
         zIndex: 55,
         touchAction: 'none'
       }}
-      className="w-64 sm:w-80 bg-[#0B0E14] rounded-2xl overflow-hidden shadow-2xl border-2 border-blue-500/50 text-white select-none transition-shadow group"
+      className={`${
+        isShortType ? 'w-48 sm:w-56' : 'w-64 sm:w-80'
+      } bg-[#0B0E14] rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/50 text-white select-none transition-shadow group animate-in fade-in`}
     >
       {/* Draggable Header Bar */}
       <div
@@ -213,70 +336,82 @@ export const FloatingPipTV: React.FC = () => {
         onTouchStart={(e) => {
           if (e.touches[0]) handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
         }}
-        className="p-2.5 bg-slate-900/95 flex items-center justify-between border-b border-white/10 cursor-move"
+        className="p-2 bg-slate-900/95 flex items-center justify-between border-b border-white/10 cursor-move"
         title="Drag to reposition Picture-in-Picture window"
       >
-        <div className="flex items-center gap-2 min-w-0 pointer-events-none">
-          <Move className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-400" />
+        <div className="flex items-center gap-1.5 min-w-0 pointer-events-none">
+          <Move className="w-3 h-3 text-slate-400 group-hover:text-indigo-400 shrink-0" />
           <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              isTvPlaying ? 'bg-red-500 animate-ping' : 'bg-amber-400'
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              isPlayingNow ? 'bg-red-500 animate-ping' : 'bg-amber-400'
             }`}
           />
-          <span className="font-bold text-xs text-white truncate flex items-center gap-1">
-            <Tv className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            {activeTvStation.name}
+          <span className="font-bold text-[11px] text-white truncate flex items-center gap-1">
+            {shouldShowTvPip ? (
+              <Tv className="w-3 h-3 text-blue-400 shrink-0" />
+            ) : isShortType ? (
+              <Zap className="w-3 h-3 text-rose-400 shrink-0" />
+            ) : (
+              <VideoIcon className="w-3 h-3 text-purple-400 shrink-0" />
+            )}
+            <span className="truncate">{title}</span>
           </span>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+          {/* Native OS Picture-in-Picture Trigger Button */}
           <button
-            onClick={toggleTvMute}
+            onClick={triggerNativePip}
+            className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-indigo-300 transition-colors"
+            title="Pop out over desktop / other apps (Native OS PiP)"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </button>
+
+          <button
+            onClick={handleToggleMute}
             className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-            title={isTvMuted ? 'Unmute' : 'Mute'}
+            title={isMutedNow ? 'Unmute' : 'Mute'}
           >
-            {isTvMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+            {isMutedNow ? <VolumeX className="w-3 h-3 text-red-400" /> : <Volume2 className="w-3 h-3" />}
           </button>
 
           <button
-            onClick={() => {
-              navigate('/tv');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onClick={handleMaximize}
             className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-blue-400 transition-colors"
-            title="Maximize TV"
+            title="Maximize Player"
           >
-            <Maximize2 className="w-3.5 h-3.5" />
+            <Maximize2 className="w-3 h-3" />
           </button>
 
           <button
-            onClick={closeTvPip}
+            onClick={handleClose}
             className="p-1 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
-            title="Close TV"
+            title="Close PiP"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3 h-3" />
           </button>
         </div>
       </div>
 
       {/* Video Viewport */}
-      <div className="relative aspect-video bg-black flex items-center justify-center">
+      <div className={`relative ${isShortType ? 'aspect-[9/16]' : 'aspect-video'} bg-black flex items-center justify-center`}>
         <video
           ref={videoRef}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-cover"
           playsInline
           autoPlay
-          muted={isTvMuted}
+          muted={isMutedNow}
         />
 
         {/* Hover Center Play/Pause Overlay */}
         <div
-          onClick={toggleTvPlay}
+          onClick={handleTogglePlay}
           className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity"
         >
-          <div className="p-2.5 rounded-full bg-blue-600/90 text-white shadow-lg hover:scale-110 transition-transform">
-            {isTvPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+          <div className="p-2 rounded-full bg-indigo-600/90 text-white shadow-lg hover:scale-110 transition-transform">
+            {isPlayingNow ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
           </div>
         </div>
       </div>

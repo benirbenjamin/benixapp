@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { notificationSound } from '../utils/notificationSound';
 
 interface PwaContextType {
   isInstalled: boolean;
   canInstall: boolean;
+  hasUpdate: boolean;
+  applyUpdate: () => void;
   installApp: () => Promise<boolean>;
   showTrayNotification: (title: string, options?: { body?: string; url?: string }) => Promise<boolean>;
   setBadgeCount: (count: number) => void;
@@ -13,6 +15,8 @@ interface PwaContextType {
 const PwaContext = createContext<PwaContextType>({
   isInstalled: false,
   canInstall: false,
+  hasUpdate: false,
+  applyUpdate: () => {},
   installApp: async () => false,
   showTrayNotification: async () => false,
   setBadgeCount: () => {},
@@ -23,47 +27,44 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [canInstall, setCanInstall] = useState<boolean>(false);
+  const [hasUpdate, setHasUpdate] = useState<boolean>(false);
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
 
+  // 1. Detect if current browsing context is running in standalone PWA window
   useEffect(() => {
-    // 1. Detect if app is already running in standalone mode (installed PWA)
     const checkIsInstalled = () => {
       const isStandalone =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.matchMedia('(display-mode: fullscreen)').matches ||
-        window.matchMedia('(display-mode: minimal-ui)').matches ||
-        (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://') ||
-        localStorage.getItem('benix_pwa_installed') === 'true';
-      setIsInstalled(isStandalone);
+        typeof window !== 'undefined' &&
+        (window.matchMedia('(display-mode: standalone)').matches ||
+          window.matchMedia('(display-mode: fullscreen)').matches ||
+          window.matchMedia('(display-mode: minimal-ui)').matches ||
+          (window.navigator as any).standalone === true ||
+          document.referrer.includes('android-app://'));
+
+      setIsInstalled(Boolean(isStandalone));
     };
 
     checkIsInstalled();
 
-    // 2. Listen to media query changes (e.g. if opened in standalone)
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
     const handleMediaChange = (e: MediaQueryListEvent) => {
-      setIsInstalled(e.matches || localStorage.getItem('benix_pwa_installed') === 'true');
+      setIsInstalled(Boolean(e.matches || (window.navigator as any).standalone === true));
     };
     mediaQuery.addEventListener('change', handleMediaChange);
 
-    // 3. Listen to beforeinstallprompt event
+    // 2. Capture beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      // If already installed or dismissed, do not offer install
-      if (localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true') {
-        return;
-      }
       e.preventDefault();
       setDeferredPrompt(e);
       setCanInstall(true);
     };
 
-    // 4. Listen to appinstalled event
+    // 3. Capture appinstalled event
     const handleAppInstalled = () => {
       setIsInstalled(true);
-      localStorage.setItem('benix_pwa_installed', 'true');
       setCanInstall(false);
       setDeferredPrompt(null);
-      console.log('🎉 BenixSpace PWA successfully installed!');
+      console.log('🎉 BenixSpace PWA successfully installed on device!');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -76,32 +77,96 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const installApp = async (): Promise<boolean> => {
-    if (!deferredPrompt) {
-      // If iOS Safari or browser without beforeinstallprompt support
-      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-        alert('To install Benix.Space on iOS: tap the Share button in Safari, then tap "Add to Home Screen" 📲');
-      } else {
-        alert('To install Benix.Space on your device: open your browser menu (⋮) and tap "Install app" or "Add to Home Screen".');
+  // 4. Service Worker Registration & Live Update Detection
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
       }
-      return false;
+    });
+
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      // Check if there is already a waiting service worker
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        setWaitingWorker(registration.waiting);
+        setHasUpdate(true);
+      }
+
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            setWaitingWorker(newWorker);
+            setHasUpdate(true);
+          }
+        });
+      });
+
+      // Periodically check for updates (e.g. every 15 minutes)
+      const interval = setInterval(() => {
+        registration.update().catch(() => {});
+      }, 15 * 60 * 1000);
+
+      // Check on window refocus
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          registration.update().catch(() => {});
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }).catch((err) => {
+      console.warn('BenixSpace ServiceWorker registration error:', err);
+    });
+  }, []);
+
+  // Apply service worker update immediately
+  const applyUpdate = useCallback(() => {
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+      window.location.reload();
+    }
+  }, [waitingWorker]);
+
+  // Install app handler
+  const installApp = async (): Promise<boolean> => {
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          setIsInstalled(true);
+          setCanInstall(false);
+          setDeferredPrompt(null);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      }
     }
 
-    try {
-      deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setIsInstalled(true);
-        localStorage.setItem('benix_pwa_installed', 'true');
-        setCanInstall(false);
-        setDeferredPrompt(null);
-        return true;
+    // Guide the user if beforeinstallprompt is not directly available (e.g. iOS Safari or desktop Chrome)
+    if (typeof window !== 'undefined') {
+      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        alert('To install Benix.Space on iOS:\n1. Tap the Share button (⎋) at the bottom of Safari.\n2. Scroll down and tap "Add to Home Screen" (⊞).');
+      } else {
+        alert('To install Benix.Space on your device:\n1. Tap the menu (⋮) in your browser address bar.\n2. Tap "Install App" or "Add to Home Screen".');
       }
-      return false;
-    } catch (err) {
-      console.warn('Install prompt error:', err);
-      return false;
     }
+    return false;
   };
 
   const showTrayNotification = async (
@@ -110,7 +175,6 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Promise<boolean> => {
     notificationSound.playNotificationChime();
 
-    // 1. If Service Worker is available, use registration to deliver notification to OS system tray
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       try {
         let perm = Notification.permission;
@@ -137,7 +201,6 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 2. Fallback to standard Notification API
     return notificationSound.requestPushPermissionAndSend(title, options);
   };
 
@@ -145,19 +208,32 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
       try {
         if (count > 0) {
-          (navigator as any).setAppBadge(count);
+          (navigator as any).setAppBadge(count).catch(() => {});
         } else {
-          (navigator as any).clearAppBadge();
+          (navigator as any).clearAppBadge().catch(() => {});
         }
       } catch {}
+    }
+
+    // Update document title with unread count
+    if (typeof document !== 'undefined') {
+      const cleanTitle = document.title.replace(/^\(\d+\)\s*/, '');
+      if (count > 0) {
+        document.title = `(${count}) ${cleanTitle}`;
+      } else {
+        document.title = cleanTitle;
+      }
     }
   };
 
   const clearBadge = () => {
     if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
       try {
-        (navigator as any).clearAppBadge();
+        (navigator as any).clearAppBadge().catch(() => {});
       } catch {}
+    }
+    if (typeof document !== 'undefined') {
+      document.title = document.title.replace(/^\(\d+\)\s*/, '');
     }
   };
 
@@ -166,6 +242,8 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         isInstalled,
         canInstall,
+        hasUpdate,
+        applyUpdate,
         installApp,
         showTrayNotification,
         setBadgeCount,

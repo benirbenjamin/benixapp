@@ -17,7 +17,6 @@ import { WalletModal } from '../components/modals/WalletModal';
 import { ReferralModal } from '../components/modals/ReferralModal';
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { SeoHead } from '../components/common/SeoHead';
-import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { ShortsFeed } from '../components/home/ShortsFeed';
 import realVideosData from '../config/realVideos.json';
 import {
@@ -1833,11 +1832,10 @@ export const HomePage: React.FC = () => {
                   </>
                 ) : (
                   <div className="w-full flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-blue-500 text-white rounded">Google Ad</span>
-                      <span className="text-xs font-bold text-white truncate">Supporting @{currentStory.authorName || 'Creator'}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-blue-500 text-white rounded font-mono shrink-0">Google Ad</span>
+                      <span className="text-xs font-bold text-white truncate">Supporting @{currentStory.authorName || 'Creator'} • Monetized Partner</span>
                     </div>
-                    <AdSenseUnit slot="7034214536" className="my-0 min-h-[30px] hidden" />
                     <button
                       onClick={handleStoryAdClick}
                       className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"

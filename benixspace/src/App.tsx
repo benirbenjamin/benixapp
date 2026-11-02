@@ -220,8 +220,9 @@ export const App: React.FC = () => {
                           <Route path="/messages" element={<MessagesPage />} />
 
                           {/* Integrated Module Pages */}
-                          <Route path="/videos" element={<VideosPage />} />
-                          <Route path="/videos/:id" element={<VideosPage />} />
+                          <Route path="/shorts" element={<VideosPage initialTab="shorts" />} />
+                          <Route path="/videos" element={<VideosPage initialTab="videos" />} />
+                          <Route path="/videos/:id" element={<VideosPage initialTab="videos" />} />
                           <Route path="/studio" element={<CreatorStudioPage />} />
                           <Route path="/advertise" element={<AdvertisePage />} />
                           <Route path="/ads/create" element={<AdvertisePage />} />

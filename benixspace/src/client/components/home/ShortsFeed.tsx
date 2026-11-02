@@ -12,14 +12,21 @@ import {
   VolumeX,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   X,
   Flame,
   Radio,
   Clock,
-  DollarSign
+  DollarSign,
+  Maximize2,
+  Music,
+  UserPlus,
+  Check
 } from 'lucide-react';
-import { AdSenseUnit } from '../common/AdSenseUnit';
+import { useAuth } from '../../context/AuthContext';
+import { usePlayer } from '../../context/PlayerContext';
 
 export interface ShortFeedItem {
   id: string;
@@ -36,6 +43,7 @@ export interface ShortFeedItem {
   createdAt?: string;
   isMonetized?: boolean;
   trendingScore?: number;
+  subscribersCount?: number;
 }
 
 interface CustomAdItem {
@@ -48,18 +56,38 @@ interface CustomAdItem {
   ctaText?: string;
 }
 
-export const ShortsFeed: React.FC = () => {
+interface ShortsFeedProps {
+  isStandalonePage?: boolean;
+  initialIndex?: number;
+}
+
+export const ShortsFeed: React.FC<ShortsFeedProps> = ({
+  isStandalonePage = false,
+  initialIndex = 0
+}) => {
+  const { user } = useAuth();
+  const { setActivePipMedia } = usePlayer();
+
   const [shorts, setShorts] = useState<ShortFeedItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [customAds, setCustomAds] = useState<CustomAdItem[]>([]);
 
-  // Vertical TikTok Player State
-  const [activeIndex, setActiveIndex] = useState<number>(0);
+  // Vertical Player State
+  const [activeIndex, setActiveIndex] = useState<number>(initialIndex);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isAutoScroll, setIsAutoScroll] = useState<boolean>(true);
   const [photoProgress, setPhotoProgress] = useState<number>(0);
-  const [isVerticalModalOpen, setIsVerticalModalOpen] = useState<boolean>(false);
+  const [isVerticalModalOpen, setIsVerticalModalOpen] = useState<boolean>(isStandalonePage);
+
+  // Subscribed Creators State
+  const [subscribedCreators, setSubscribedCreators] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('benix_subscribed_creators') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   // Likes & Social State
   const [likesMap, setLikesMap] = useState<Record<string, number>>({});
@@ -68,17 +96,15 @@ export const ShortsFeed: React.FC = () => {
   // 6-Second Non-Skippable Interstitial Ad Sequencer State
   const [scrolledVideosCount, setScrolledVideosCount] = useState<number>(0);
   const [nextInterstitialThreshold, setNextInterstitialThreshold] = useState<number>(() => Math.floor(Math.random() * 6) + 5); // 5 to 10
-  const [interstitialAdIndex, setInterstitialAdIndex] = useState<number>(0); // 0,1,2 = Google; 3 = Custom; 4,5,6 = Google; 7 = Custom
+  const [interstitialAdIndex, setInterstitialAdIndex] = useState<number>(0);
   const [showInterstitialAd, setShowInterstitialAd] = useState<boolean>(false);
   const [interstitialCountdown, setInterstitialCountdown] = useState<number>(6);
   const [currentInterstitialType, setCurrentInterstitialType] = useState<'google' | 'custom'>('google');
   const [activeInterstitialCustomAd, setActiveInterstitialCustomAd] = useState<CustomAdItem | null>(null);
 
-  // Bottom Banner Ad alternation
-  const [activeBottomAdType, setActiveBottomAdType] = useState<'google' | 'custom'>('custom');
-
   // DOM Refs
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const horizontalReelRef = useRef<HTMLDivElement | null>(null);
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const recordedViewsRef = useRef<Set<string>>(new Set());
 
@@ -133,63 +159,50 @@ export const ShortsFeed: React.FC = () => {
         shortId: short.id,
         creatorId: short.authorId,
         type: 'view',
-        adType: activeBottomAdType,
+        adType: 'short_impression',
         source: short.source
       })
     }).catch(() => {});
+  }, []);
 
-    // If custom ad banner is shown, track impression on the custom ad
-    if (activeBottomAdType === 'custom' && customAds.length > 0) {
-      const ad = customAds[activeIndex % customAds.length];
-      if (ad) {
-        fetch('/api/ads/track-impression', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ adId: ad.id })
-        }).catch(() => {});
-      }
-    }
-  }, [activeBottomAdType, customAds, activeIndex]);
-
-  // 2. Manage Active Video Playback and Photo Progress
+  // 2. Manage Active Video Playback: Strict Audio/Video Isolation (Prevents Audio Overlap)
   useEffect(() => {
     if (!currentShort) return;
 
     trackViewAndMonetization(currentShort);
 
-    // Pause all other videos, play current video
+    // Pause and mute all off-screen videos immediately, play only current video
     Object.keys(videoRefs.current).forEach((key) => {
       const v = videoRefs.current[key];
       if (v) {
-        if (key === currentShort.id && !showInterstitialAd) {
+        if (key === currentShort.id && !showInterstitialAd && (isStandalonePage || isVerticalModalOpen)) {
           v.currentTime = 0;
+          v.muted = isMuted;
           v.play().catch(() => {});
         } else {
           v.pause();
+          v.currentTime = 0;
         }
       }
     });
+  }, [activeIndex, currentShort, showInterstitialAd, trackViewAndMonetization, isMuted, isStandalonePage, isVerticalModalOpen]);
 
-    // Alternate bottom ad between Custom and Google AdSense
-    if (customAds.length > 0) {
-      setActiveBottomAdType(activeIndex % 2 === 0 ? 'custom' : 'google');
-    } else {
-      setActiveBottomAdType('google');
-    }
-  }, [activeIndex, currentShort, showInterstitialAd, trackViewAndMonetization, customAds]);
-
-  // Scroll to index handler
+  // 3. Scroll to Index Handler with Interstitial Ad Sequencer
   const scrollToIndex = useCallback((index: number) => {
     if (index < 0 || index >= shorts.length) return;
+
+    // Immediately stop currently playing video to ensure zero audio overlap
+    if (currentShort && videoRefs.current[currentShort.id]) {
+      videoRefs.current[currentShort.id]?.pause();
+    }
+
     setActiveIndex(index);
     setPhotoProgress(0);
 
-    // Increment scrolled count for 6-second interstitial ad scheduler
+    // Interstitial ad count
     setScrolledVideosCount((prev) => {
       const nextCount = prev + 1;
       if (nextCount >= nextInterstitialThreshold) {
-        // Trigger 6-second non-skippable ad!
-        // Rotation: index 0,1,2 = Google, index 3 = Custom (every 4th is Custom)
         const isCustom = interstitialAdIndex % 4 === 3;
         setCurrentInterstitialType(isCustom && customAds.length > 0 ? 'custom' : 'google');
         if (isCustom && customAds.length > 0) {
@@ -197,7 +210,7 @@ export const ShortsFeed: React.FC = () => {
         }
         setShowInterstitialAd(true);
         setInterstitialCountdown(6);
-        setNextInterstitialThreshold(Math.floor(Math.random() * 6) + 5); // New random interval: 5 to 10
+        setNextInterstitialThreshold(Math.floor(Math.random() * 6) + 5);
         setInterstitialAdIndex((i) => i + 1);
         return 0;
       }
@@ -208,9 +221,34 @@ export const ShortsFeed: React.FC = () => {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [shorts.length, nextInterstitialThreshold, interstitialAdIndex, customAds]);
+  }, [shorts.length, nextInterstitialThreshold, interstitialAdIndex, customAds, currentShort]);
 
-  // 3. Photo Story Auto-Advance Timer (6 seconds)
+  // 4. Scroll Listener / Intersection Observer for container scroll (Touch swipe / Wheel)
+  const handleContainerScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const children = container.children;
+    const containerTop = container.scrollTop;
+    const containerHeight = container.clientHeight;
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i] as HTMLElement;
+      const childTop = child.offsetTop - containerTop;
+      if (childTop >= -containerHeight / 2 && childTop < containerHeight / 2) {
+        if (i !== activeIndex) {
+          // Pause previous
+          if (currentShort && videoRefs.current[currentShort.id]) {
+            videoRefs.current[currentShort.id]?.pause();
+          }
+          setActiveIndex(i);
+        }
+        break;
+      }
+    }
+  }, [activeIndex, currentShort]);
+
+  // 5. Photo Story Auto-Advance Timer (6 seconds)
   useEffect(() => {
     if (!currentShort || currentShort.mediaType === 'video' || showInterstitialAd) return;
 
@@ -230,209 +268,298 @@ export const ShortsFeed: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeIndex, currentShort, isAutoScroll, shorts.length, scrollToIndex, showInterstitialAd]);
 
-  // 4. Interstitial Ad 6-second non-skippable countdown
+  // 6. Interstitial Ad 6-second non-skippable countdown
   useEffect(() => {
     if (!showInterstitialAd) return;
-
-    // Track reward for current video owner when interstitial ad is served
-    if (currentShort) {
-      fetch('/api/ads/record-reward', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shortId: currentShort.id,
-          creatorId: currentShort.authorId,
-          type: 'view',
-          adType: currentInterstitialType
-        })
-      }).catch(() => {});
-    }
-
-    if (currentInterstitialType === 'custom' && activeInterstitialCustomAd) {
-      fetch('/api/ads/track-impression', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adId: activeInterstitialCustomAd.id })
-      }).catch(() => {});
-    }
 
     const timer = setInterval(() => {
       setInterstitialCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
           setShowInterstitialAd(false);
-          // Resume video playback
-          if (currentShort && videoRefs.current[currentShort.id]) {
-            videoRefs.current[currentShort.id]?.play().catch(() => {});
-          }
-          return 0;
+          return 6;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showInterstitialAd, currentShort, currentInterstitialType, activeInterstitialCustomAd]);
+  }, [showInterstitialAd]);
 
-  // Like Toggle
-  const handleLike = async (e: React.MouseEvent, shortId: string) => {
-    e.stopPropagation();
-    const isCurrentlyLiked = likedStatus[shortId];
-    setLikedStatus({ ...likedStatus, [shortId]: !isCurrentlyLiked });
-    setLikesMap({
-      ...likesMap,
-      [shortId]: (likesMap[shortId] || 0) + (isCurrentlyLiked ? -1 : 1)
-    });
-
-    try {
-      await fetch(`/api/shorts/${shortId}/like`, { method: 'POST' });
-    } catch {}
-  };
-
-  // Video Completed -> Auto-scroll to next
+  // Video Ended Handler
   const handleVideoEnded = () => {
     if (isAutoScroll && activeIndex < shorts.length - 1) {
       scrollToIndex(activeIndex + 1);
     }
   };
 
-  // Bottom ad click handler
-  const handleBottomAdClick = (e: React.MouseEvent) => {
+  // Like Toggle Handler
+  const handleLike = (e: React.MouseEvent, shortId: string) => {
     e.stopPropagation();
-    if (!currentShort) return;
+    const isCurrentlyLiked = !!likedStatus[shortId];
+    setLikedStatus((prev) => ({ ...prev, [shortId]: !isCurrentlyLiked }));
+    setLikesMap((prev) => ({
+      ...prev,
+      [shortId]: (prev[shortId] || 0) + (isCurrentlyLiked ? -1 : 1)
+    }));
 
-    if (activeBottomAdType === 'custom' && customAds.length > 0) {
-      const ad = customAds[activeIndex % customAds.length];
-      if (ad) {
-        fetch('/api/ads/track-click', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ adId: ad.id })
-        }).catch(() => {});
-
-        fetch('/api/ads/record-reward', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            shortId: currentShort.id,
-            creatorId: currentShort.authorId,
-            type: 'click',
-            adType: 'custom'
-          })
-        }).catch(() => {});
-
-        window.open(ad.targetUrl || 'https://benix.space', '_blank');
-      }
-    } else {
-      fetch('/api/ads/record-reward', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shortId: currentShort.id,
-          creatorId: currentShort.authorId,
-          type: 'click',
-          adType: 'google'
-        })
-      }).catch(() => {});
-    }
+    fetch(`/api/shorts/${shortId}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: isCurrentlyLiked ? 'unlike' : 'like' })
+    }).catch(() => {});
   };
 
-  // Keyboard navigation (Arrow keys)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (showInterstitialAd) return;
-      if (e.key === 'ArrowDown' || e.key === 'j') {
-        scrollToIndex(Math.min(shorts.length - 1, activeIndex + 1));
-      } else if (e.key === 'ArrowUp' || e.key === 'k') {
-        scrollToIndex(Math.max(0, activeIndex - 1));
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        setIsPlaying((p) => !p);
-        if (currentShort && videoRefs.current[currentShort.id]) {
-          const v = videoRefs.current[currentShort.id];
-          if (v) {
-            if (v.paused) v.play().catch(() => {});
-            else v.pause();
-          }
+  // Subscribe Creator Handler
+  const handleToggleSubscribe = (e: React.MouseEvent, creatorTarget: string) => {
+    e.stopPropagation();
+    const isSub = subscribedCreators.includes(creatorTarget);
+    const next = isSub
+      ? subscribedCreators.filter((c) => c !== creatorTarget)
+      : [...subscribedCreators, creatorTarget];
+    setSubscribedCreators(next);
+    localStorage.setItem('benix_subscribed_creators', JSON.stringify(next));
+
+    // Backend sync
+    const endpoint = isSub
+      ? `/api/creators/${encodeURIComponent(creatorTarget)}/unsubscribe`
+      : `/api/creators/${encodeURIComponent(creatorTarget)}/subscribe`;
+    fetch(endpoint, { method: 'POST' }).catch(() => {});
+  };
+
+  // Native Picture-in-Picture & Draggable In-App PiP Trigger
+  const handleTriggerPiP = async (short: ShortFeedItem) => {
+    const video = videoRefs.current[short.id];
+    if (video) {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else if (video.requestPictureInPicture) {
+          await video.requestPictureInPicture();
+          return;
         }
+      } catch (e) {
+        console.warn('Native PiP not available, using in-app floating player:', e);
       }
-    };
+    }
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeIndex, shorts.length, scrollToIndex, currentShort, showInterstitialAd]);
+    // In-app movable PiP fallback
+    setActivePipMedia({
+      type: 'short',
+      id: short.id,
+      title: short.title,
+      creator: short.authorName,
+      videoUrl: short.mediaUrl,
+      thumbnailUrl: short.authorAvatar,
+      isMuted: isMuted
+    });
+    setIsVerticalModalOpen(false);
+  };
 
-  return (
-    <div className="space-y-4">
-      {/* Feed Section Header with Launch Player & Auto-Scroll status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 p-4 rounded-3xl border border-slate-800 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-500/25">
-            <Flame className="w-5 h-5 fill-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-black text-white tracking-tight">
-                Trending TikTok Shorts & Stories Feed
-              </h3>
-              <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-wider border border-rose-500/30">
-                Algorithm Ranked
-              </span>
+  // Horizontal Reel Scroll Handlers
+  const scrollHorizontal = (direction: 'left' | 'right') => {
+    if (!horizontalReelRef.current) return;
+    const distance = 300;
+    horizontalReelRef.current.scrollBy({
+      left: direction === 'left' ? -distance : distance,
+      behavior: 'smooth'
+    });
+  };
+
+  // Format compact numbers e.g. 163K
+  const formatNumber = (num: number = 0): string => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return num.toString();
+  };
+
+  // --- RENDER 1: HORIZONTAL SHELF ON HOME PAGE ---
+  if (!isStandalonePage && !isVerticalModalOpen) {
+    return (
+      <section className="relative w-full py-6 select-none">
+        {/* Section Header */}
+        <div className="flex items-center justify-between gap-4 mb-4 px-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+              <Zap className="w-4 h-4 fill-current" />
             </div>
-            <p className="text-xs text-slate-400">
-              Curated vertical portrait reels, active & archived stories, with auto-scroll & creator monetization
-            </p>
+            <div>
+              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>Trending Shorts</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                  {shorts.length} Clips
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">Portrait videos & stories from verified creators</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => scrollHorizontal('left')}
+              className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-700/60"
+              title="Previous Shorts"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scrollHorizontal('right')}
+              className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-700/60"
+              title="Next Shorts"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setActiveIndex(0);
+                setIsVerticalModalOpen(true);
+              }}
+              className="ml-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition active:scale-95 flex items-center gap-1.5"
+            >
+              <Play className="w-3.5 h-3.5 fill-white" />
+              <span>Watch All</span>
+            </button>
           </div>
         </div>
 
-        {/* Controls: Auto-Scroll Toggle & Full Player Button */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setIsAutoScroll((prev) => !prev)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition ${
-              isAutoScroll
-                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-sm'
-                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'
-            }`}
-            title="When active, videos auto-scroll to next reel upon finishing"
-          >
-            <span className={`w-2 h-2 rounded-full ${isAutoScroll ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
-            Auto-Scroll: {isAutoScroll ? 'ON' : 'OFF'}
-          </button>
+        {/* Horizontal Carousel Track */}
+        <div
+          ref={horizontalReelRef}
+          className="flex items-center gap-3.5 overflow-x-auto scrollbar-none py-2 px-1 snap-x snap-mandatory"
+        >
+          {loading ? (
+            <div className="flex items-center gap-3 w-full py-10 justify-center text-slate-400">
+              <Sparkles className="w-6 h-6 text-rose-500 animate-spin" />
+              <span className="text-xs font-bold">Loading trending shorts...</span>
+            </div>
+          ) : shorts.length === 0 ? (
+            <div className="w-full text-center py-10 text-slate-500 text-xs">
+              No shorts uploaded yet. Upload a vertical clip to be featured here!
+            </div>
+          ) : (
+            shorts.map((item, idx) => (
+              <div
+                key={item.id}
+                onClick={() => {
+                  setActiveIndex(idx);
+                  setIsVerticalModalOpen(true);
+                }}
+                className="w-40 sm:w-48 h-64 sm:h-76 shrink-0 rounded-2xl overflow-hidden relative group cursor-pointer border border-slate-800 hover:border-rose-500/60 shadow-lg hover:shadow-rose-500/25 transition-all duration-200 transform hover:scale-[1.02] snap-start bg-slate-900"
+              >
+                {/* Media Preview (Video poster or Image) */}
+                {item.mediaType === 'video' ? (
+                  <video
+                    src={item.mediaUrl}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                ) : (
+                  <img
+                    src={item.mediaUrl}
+                    alt={item.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                )}
 
-          <button
-            onClick={() => setIsVerticalModalOpen(true)}
-            className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-rose-600/25 flex items-center gap-1.5 transition transform active:scale-95"
-          >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            Watch as TikTok
-          </button>
+                {/* Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
+
+                {/* Top Source Badge */}
+                <div className="absolute top-2.5 left-2.5 z-10">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-md text-rose-400 border border-white/10">
+                    {item.source === 'story' ? 'Moment' : 'Short'}
+                  </span>
+                </div>
+
+                {/* Center Hover Play Icon */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                  <div className="w-11 h-11 rounded-full bg-rose-600/90 text-white flex items-center justify-center shadow-xl shadow-rose-600/50">
+                    <Play className="w-5 h-5 fill-white ml-0.5" />
+                  </div>
+                </div>
+
+                {/* Bottom Card Metadata */}
+                <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 space-y-1 pointer-events-none">
+                  <p className="text-xs font-bold text-white line-clamp-2 drop-shadow-md leading-tight">
+                    {item.title}
+                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-slate-300 pt-1">
+                    <span className="truncate max-w-[85px] font-semibold flex items-center gap-1">
+                      <img
+                        src={item.authorAvatar}
+                        alt={item.authorName}
+                        className="w-3.5 h-3.5 rounded-full object-cover border border-white/30"
+                      />
+                      <span>{item.authorName}</span>
+                    </span>
+                    <span className="flex items-center gap-1 font-bold text-amber-300 shrink-0">
+                      <Flame className="w-3 h-3 fill-amber-400" />
+                      <span>{formatNumber(item.views)}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      </div>
+      </section>
+    );
+  }
 
-      {/* Main TikTok-Style Vertical Shorts Player */}
-      <div className="relative w-full max-w-md mx-auto h-[640px] sm:h-[720px] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 select-none flex flex-col">
-        {/* Scroll Container */}
+  // --- RENDER 2: FULL VERTICAL PLAYER (Matching Reference Design Exactly) ---
+  return (
+    <div
+      className={
+        isStandalonePage
+          ? 'relative w-full max-w-lg mx-auto py-4 select-none min-h-[85vh] flex flex-col items-center justify-center'
+          : 'fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-200'
+      }
+    >
+      {/* Close button if in modal overlay */}
+      {!isStandalonePage && (
+        <button
+          onClick={() => {
+            setIsVerticalModalOpen(false);
+            if (currentShort && videoRefs.current[currentShort.id]) {
+              videoRefs.current[currentShort.id]?.pause();
+            }
+          }}
+          className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-black/80 hover:bg-slate-800 text-white border border-white/20 transition-all hover:scale-110"
+          title="Close Shorts Player"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Main 9:16 Video Player Container (Strictly Clean, No Skyscraper Ads Inside) */}
+      <div className="relative w-full max-w-[420px] h-[82vh] max-h-[780px] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col">
+        {/* Scrollable Container with Snap */}
         <div
           ref={containerRef}
+          onScroll={handleContainerScroll}
           className="relative w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-none"
         >
           {loading ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-3">
               <Sparkles className="w-8 h-8 text-rose-500 animate-spin" />
-              <p className="text-sm font-bold">Curating Trending Shorts & Stories...</p>
+              <p className="text-sm font-bold">Curating Shorts...</p>
             </div>
           ) : shorts.length === 0 ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
               <Tv className="w-12 h-12 text-slate-600 mb-2" />
-              <p className="text-sm font-bold text-white">No Shorts Available Yet</p>
-              <p className="text-xs text-slate-500 mt-1">Post a story or vertical video to appear here!</p>
+              <p className="text-sm font-bold text-white">No Shorts Available</p>
+              <p className="text-xs text-slate-500 mt-1">Upload a vertical clip or post a story to appear here!</p>
             </div>
           ) : (
             shorts.map((item, idx) => {
               const isCurrent = idx === activeIndex;
               const isLiked = !!likedStatus[item.id];
               const likesCount = likesMap[item.id] ?? item.likes;
+              const authorKey = item.authorId || item.authorName;
+              const isSubscribed = subscribedCreators.includes(authorKey);
+              const subsCount = item.subscribersCount || 0;
 
               return (
                 <div
@@ -453,7 +580,9 @@ export const ShortsFeed: React.FC = () => {
                   {/* Media (Video or Image) */}
                   {item.mediaType === 'video' ? (
                     <video
-                      ref={(el) => { videoRefs.current[item.id] = el; }}
+                      ref={(el) => {
+                        videoRefs.current[item.id] = el;
+                      }}
                       src={item.mediaUrl}
                       className="w-full h-full object-cover"
                       playsInline
@@ -486,7 +615,11 @@ export const ShortsFeed: React.FC = () => {
                     />
                   )}
 
-                  {/* Pause Indicator overlay */}
+                  {/* Gradient Backdrops for Controls Legibility */}
+                  <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/80 via-black/20 to-transparent pointer-events-none z-10" />
+                  <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10" />
+
+                  {/* Center Pause Indicator */}
                   {!isPlaying && item.mediaType === 'video' && isCurrent && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none z-20">
                       <div className="p-4 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20">
@@ -495,11 +628,11 @@ export const ShortsFeed: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Top Bar Indicators */}
-                  <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between text-white pointer-events-none">
+                  {/* Top Bar Controls */}
+                  <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between text-white">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-rose-400">
-                        {item.source === 'story' ? 'Story Moment' : 'Short Reel'}
+                        {item.source === 'story' ? 'Moment' : 'Short'}
                       </span>
                       {item.isMonetized && (
                         <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-black border border-emerald-500/30 flex items-center gap-0.5">
@@ -509,58 +642,133 @@ export const ShortsFeed: React.FC = () => {
                       )}
                     </div>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsMuted(!isMuted);
-                      }}
-                      className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white pointer-events-auto hover:bg-black/80 transition"
-                      title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
-                    >
-                      {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* PiP Popout Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTriggerPiP(item);
+                        }}
+                        className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition"
+                        title="Picture-in-Picture (Float over screen)"
+                      >
+                        <Maximize2 className="w-4 h-4" />
+                      </button>
+
+                      {/* Audio Mute/Unmute */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsMuted(!isMuted);
+                        }}
+                        className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition"
+                        title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+                      >
+                        {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Right Action Sidebar (TikTok Style) */}
-                  <div className="absolute right-3 bottom-24 z-20 flex flex-col items-center gap-4 text-white">
-                    {/* Creator Avatar */}
-                    <div className="relative group">
+                  {/* --- BOTTOM-LEFT INFO AREA (Matches Reference Mockup) --- */}
+                  <div className="absolute left-3.5 bottom-6 right-16 z-20 space-y-2 text-white">
+                    {/* Creator Row: Avatar + @Handle + Subscribe Pill */}
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <img
                         src={item.authorAvatar}
                         alt={item.authorName}
-                        className="w-11 h-11 rounded-full object-cover border-2 border-rose-500 shadow-xl"
+                        className="w-9 h-9 rounded-full object-cover border border-white/40 shadow-lg"
                       />
-                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-bold shadow">
-                        +
+                      <div className="flex flex-col">
+                        <span className="font-extrabold text-xs text-white drop-shadow">
+                          @{item.authorName.replace(/\s+/g, '').toLowerCase()}
+                        </span>
+                        {subsCount > 0 && (
+                          <span className="text-[10px] text-slate-300 font-medium">
+                            {formatNumber(subsCount)} subscribers
+                          </span>
+                        )}
                       </div>
+
+                      {/* Clean Reference "Subscribe" Pill Button */}
+                      <button
+                        onClick={(e) => handleToggleSubscribe(e, authorKey)}
+                        className={`px-3 py-1 rounded-full text-xs font-black shadow-md transition-all active:scale-95 ${
+                          isSubscribed
+                            ? 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/20'
+                            : 'bg-white hover:bg-slate-200 text-slate-950 shadow-white/20'
+                        }`}
+                      >
+                        {isSubscribed ? (
+                          <span className="flex items-center gap-1">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            Subscribed
+                          </span>
+                        ) : (
+                          'Subscribe'
+                        )}
+                      </button>
                     </div>
 
-                    {/* Like Button */}
+                    {/* Video Title */}
+                    <p className="text-sm font-semibold text-white drop-shadow-md line-clamp-2 leading-snug">
+                      {item.title}
+                    </p>
+
+                    {/* Music Track Info Ticker */}
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-300/90 drop-shadow">
+                      <Music className="w-3.5 h-3.5 text-rose-400 animate-pulse shrink-0" />
+                      <span className="truncate">Original Audio • {item.authorName}</span>
+                    </div>
+
+                    {/* Non-intrusive Sponsor Pill (Clean 30px banner, strictly NO auto-expanding ads) */}
+                    {customAds.length > 0 && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const ad = customAds[idx % customAds.length];
+                          if (ad?.targetUrl) window.open(ad.targetUrl, '_blank');
+                        }}
+                        className="mt-1 h-7 px-2.5 rounded-lg bg-black/60 backdrop-blur-md border border-amber-500/30 flex items-center justify-between gap-2 max-w-[260px] cursor-pointer hover:bg-black/80 transition"
+                      >
+                        <span className="text-[9px] font-black uppercase text-amber-400 shrink-0">
+                          Sponsored
+                        </span>
+                        <span className="text-[10px] text-slate-200 truncate">
+                          {customAds[idx % customAds.length]?.title || 'Featured Partner'}
+                        </span>
+                        <ExternalLink className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* --- RIGHT ACTION SIDEBAR (Matches Reference Mockup) --- */}
+                  <div className="absolute right-2.5 bottom-6 z-20 flex flex-col items-center gap-3.5 text-white">
+                    {/* 1. Like Button */}
                     <button
                       onClick={(e) => handleLike(e, item.id)}
-                      className="flex flex-col items-center gap-1 focus:outline-none group"
+                      className="flex flex-col items-center gap-0.5 focus:outline-none group"
                     >
-                      <div className={`p-3 rounded-full backdrop-blur-md transition-transform group-hover:scale-110 ${
-                        isLiked ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/40' : 'bg-black/50 text-white hover:bg-black/70'
+                      <div className={`p-2.5 rounded-full backdrop-blur-md transition-transform group-hover:scale-110 ${
+                        isLiked ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/40' : 'bg-black/50 text-white hover:bg-black/70'
                       }`}>
-                        <Heart className={`w-5 h-5 ${isLiked ? 'fill-current animate-bounce' : ''}`} />
+                        <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
                       </div>
-                      <span className="text-[11px] font-bold drop-shadow">
-                        {likesCount.toLocaleString()}
+                      <span className="text-[10px] font-bold drop-shadow">
+                        {formatNumber(likesCount)}
                       </span>
                     </button>
 
-                    {/* Views Indicator */}
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="p-3 rounded-full bg-black/50 backdrop-blur-md text-white">
-                        <Flame className="w-5 h-5 text-amber-400" />
+                    {/* 2. Comments Button */}
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="p-2.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition">
+                        <MessageCircle className="w-5 h-5" />
                       </div>
-                      <span className="text-[11px] font-bold drop-shadow">
-                        {item.views.toLocaleString()}
+                      <span className="text-[10px] font-bold drop-shadow">
+                        {formatNumber(Math.floor(item.views * 0.05))}
                       </span>
                     </div>
 
-                    {/* Share Button */}
+                    {/* 3. Share Button */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -571,86 +779,38 @@ export const ShortsFeed: React.FC = () => {
                           }).catch(() => {});
                         } else {
                           navigator.clipboard?.writeText(window.location.href);
-                          alert('Short link copied to clipboard!');
+                          alert('Clip link copied to clipboard!');
                         }
                       }}
-                      className="flex flex-col items-center gap-1 focus:outline-none"
+                      className="flex flex-col items-center gap-0.5 focus:outline-none group"
+                      title="Share Video"
                     >
-                      <div className="p-3 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition">
+                      <div className="p-2.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition group-hover:scale-110">
                         <Share2 className="w-5 h-5" />
                       </div>
-                      <span className="text-[11px] font-bold drop-shadow">Share</span>
+                      <span className="text-[10px] font-bold drop-shadow">Share</span>
                     </button>
-                  </div>
 
-                  {/* Bottom Video Meta Information */}
-                  <div className="absolute left-4 right-16 bottom-16 z-20 text-white pointer-events-none">
-                    <div className="flex items-center gap-2 mb-1 pointer-events-auto">
-                      <span className="text-xs font-black drop-shadow">
-                        @{item.authorName}
-                      </span>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 fill-sky-400/20" />
-                    </div>
-                    <p className="text-xs font-medium line-clamp-2 drop-shadow leading-snug">
-                      {item.title}
-                    </p>
-                  </div>
-
-                  {/* Attached Bottom Ad Banner (Google AdSense or Custom Ad) */}
-                  <div
-                    onClick={handleBottomAdClick}
-                    className="absolute bottom-0 left-0 right-0 z-30 bg-[#0B0F19]/95 border-t border-slate-800 p-2.5 flex items-center justify-between gap-2.5 backdrop-blur-md cursor-pointer transition hover:bg-slate-900"
-                  >
-                    {activeBottomAdType === 'custom' && customAds.length > 0 ? (
-                      (() => {
-                        const ad = customAds[idx % customAds.length];
-                        return (
-                          <>
-                            <div className="flex items-center gap-2 min-w-0">
-                              <img
-                                src={ad.mediaUrl || '/logo.png'}
-                                alt={ad.title}
-                                className="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[8px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">
-                                    Sponsored
-                                  </span>
-                                  <span className="text-xs font-bold text-white truncate">{ad.title}</span>
-                                </div>
-                                <p className="text-[10px] text-slate-400 truncate">{ad.description || 'Promoted product on Benix.Space'}</p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={handleBottomAdClick}
-                              className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black shrink-0 shadow flex items-center gap-1"
-                            >
-                              <span>{ad.ctaText || 'Learn More'}</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </button>
-                          </>
-                        );
-                      })()
-                    ) : (
-                      <div className="w-full flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[8px] font-black uppercase px-1.5 py-0.2 bg-blue-500 text-white rounded">
-                            Google Ad
-                          </span>
-                          <span className="text-[11px] font-bold text-white truncate">
-                            Support @{item.authorName} • Monetized Partner
-                          </span>
-                        </div>
-                        <AdSenseUnit slot="7034214536" className="my-0 min-h-[30px] hidden" />
-                        <button
-                          onClick={handleBottomAdClick}
-                          className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black shrink-0 shadow"
-                        >
-                          Visit Sponsor
-                        </button>
+                    {/* 4. Views / Flame Counter */}
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="p-2.5 rounded-full bg-black/50 backdrop-blur-md text-amber-400">
+                        <Flame className="w-5 h-5 fill-amber-400" />
                       </div>
-                    )}
+                      <span className="text-[10px] font-bold drop-shadow">
+                        {formatNumber(item.views)}
+                      </span>
+                    </div>
+
+                    {/* 5. Spinning Audio Disc (Matches Reference Mockup) */}
+                    <div className="relative pt-1">
+                      <div className="w-8 h-8 rounded-full border-2 border-slate-700 bg-slate-900 p-0.5 animate-spin duration-3000 shadow-lg">
+                        <img
+                          src={item.authorAvatar}
+                          alt={item.authorName}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -658,12 +818,12 @@ export const ShortsFeed: React.FC = () => {
           )}
         </div>
 
-        {/* Up / Down Navigation Controls */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 pointer-events-auto">
+        {/* --- UP / DOWN NAVIGATION CONTROLS (MOVED TO LEFT SIDE TO PREVENT BUTTON COLLISION) --- */}
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 pointer-events-auto">
           <button
             onClick={() => scrollToIndex(Math.max(0, activeIndex - 1))}
             disabled={activeIndex === 0}
-            className="p-2 rounded-full bg-black/60 hover:bg-black/90 text-white disabled:opacity-30 border border-white/10 transition"
+            className="p-2 rounded-full bg-black/70 hover:bg-black/95 text-white disabled:opacity-20 border border-white/20 transition shadow-lg hover:scale-105 active:scale-95"
             title="Previous Short"
           >
             <ChevronUp className="w-4 h-4" />
@@ -671,7 +831,7 @@ export const ShortsFeed: React.FC = () => {
           <button
             onClick={() => scrollToIndex(Math.min(shorts.length - 1, activeIndex + 1))}
             disabled={activeIndex === shorts.length - 1}
-            className="p-2 rounded-full bg-black/60 hover:bg-black/90 text-white disabled:opacity-30 border border-white/10 transition"
+            className="p-2 rounded-full bg-black/70 hover:bg-black/95 text-white disabled:opacity-20 border border-white/20 transition shadow-lg hover:scale-105 active:scale-95"
             title="Next Short"
           >
             <ChevronDown className="w-4 h-4" />
@@ -679,62 +839,66 @@ export const ShortsFeed: React.FC = () => {
         </div>
       </div>
 
-      {/* 6-SECOND NON-SKIPPABLE INTERSTITIAL AD MODAL */}
+      {/* 6-SECOND NON-SKIPPABLE INTERSTITIAL AD MODAL (Rotation: 3 Google : 1 Custom) */}
       {showInterstitialAd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-xl animate-in fade-in duration-200 select-none">
           <div className="relative w-full max-w-md bg-[#0F141F] border border-amber-500/40 rounded-3xl p-6 shadow-2xl space-y-4 text-center">
             {/* Header with Non-skippable countdown */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-wider border border-amber-500/30">
-                  {currentInterstitialType === 'google' ? 'Google AdSense' : 'Featured Custom Sponsor'}
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-wider border border-amber-500/30">
+                  {currentInterstitialType === 'google' ? 'Sponsored Partner' : 'Featured Sponsor'}
                 </span>
               </div>
               <div className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow flex items-center gap-1.5 animate-pulse">
                 <Clock className="w-3.5 h-3.5" />
-                Ad ends in: {interstitialCountdown}s
+                Next video in: {interstitialCountdown}s
               </div>
             </div>
 
-            {/* Ad Content */}
+            {/* Ad Content Container */}
             {currentInterstitialType === 'custom' && activeInterstitialCustomAd ? (
               <div className="space-y-3">
-                <div className="h-56 w-full rounded-2xl overflow-hidden bg-black border border-slate-800">
-                  <img
-                    src={activeInterstitialCustomAd.mediaUrl}
-                    alt={activeInterstitialCustomAd.title}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="relative aspect-video rounded-2xl overflow-hidden border border-slate-700 bg-black">
+                  {activeInterstitialCustomAd.mediaType === 'video' ? (
+                    <video
+                      src={activeInterstitialCustomAd.mediaUrl}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={activeInterstitialCustomAd.mediaUrl}
+                      alt={activeInterstitialCustomAd.title}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </div>
-                <div>
-                  <h4 className="text-base font-black text-white">{activeInterstitialCustomAd.title}</h4>
-                  <p className="text-xs text-slate-400 mt-1">{activeInterstitialCustomAd.description}</p>
-                </div>
+                <h4 className="font-extrabold text-base text-white">{activeInterstitialCustomAd.title}</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">{activeInterstitialCustomAd.description}</p>
                 <a
-                  href={activeInterstitialCustomAd.targetUrl || 'https://benix.space'}
+                  href={activeInterstitialCustomAd.targetUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 text-white font-extrabold text-xs block text-center shadow-lg transition hover:brightness-110"
+                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-lg hover:scale-105 active:scale-95 transition"
                 >
-                  {activeInterstitialCustomAd.ctaText || 'Learn More Now'}
+                  <span>{activeInterstitialCustomAd.ctaText || 'Learn More'}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
             ) : (
-              <div className="space-y-4 py-4">
-                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-                  <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block">Google Verified Ad</span>
-                  <p className="text-sm font-black text-white">Supporting Benix Creators with Monetization</p>
-                  <p className="text-xs text-slate-400">
-                    Watching non-skippable ads helps creators earn direct revenue for their content.
-                  </p>
+              <div className="space-y-3 py-6">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-xl">
+                  <Sparkles className="w-8 h-8 animate-spin" />
                 </div>
-                <AdSenseUnit slot="7034214536" className="my-2 min-h-[90px]" />
+                <h4 className="font-black text-base text-white">Sponsored Partner Moment</h4>
+                <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                  Supporting verified creators on BenixSpace through automated broadcast revenue sharing.
+                </p>
               </div>
             )}
-
-            <p className="text-[10px] text-slate-500">
-              Shorts playback will resume automatically when countdown completes.
-            </p>
           </div>
         </div>
       )}
