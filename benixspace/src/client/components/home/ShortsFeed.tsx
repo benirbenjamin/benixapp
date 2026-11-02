@@ -73,24 +73,8 @@ function extractYouTubeId(urlOrId?: string): string | null {
 }
 
 function getFallbackShorts(): ShortFeedItem[] {
-  return ((realVideosData as any[]) || []).slice(0, 30).map((v: any, i: number) => ({
-    id: v.id || `short-${i}`,
-    authorId: v.creator || 'benix_partner',
-    authorName: v.creator || 'Benix Creator Partner',
-    authorAvatar: v.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.creator || 'Benix')}&background=0D8ABC&color=fff`,
-    mediaUrl: `https://www.youtube.com/watch?v=${v.id}`,
-    thumbnailUrl: v.thumbnailUrl || v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
-    title: v.title || 'Benix Trending Moment',
-    mediaType: 'video',
-    duration: 60,
-    views: typeof v.views === 'number' ? v.views : 14200 + i * 850,
-    likes: typeof v.likes === 'number' ? v.likes : 1240 + i * 92,
-    subscribersCount: 250 + i * 15,
-    source: 'video',
-    createdAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
-    isMonetized: true,
-    trendingScore: 60 - i
-  }));
+  // Only vertical / portrait clips are eligible for the shorts feed
+  return [];
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -145,7 +129,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     try {
       setLoading(true);
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2500);
+      const timer = setTimeout(() => controller.abort(), 12000);
 
       const [feedRes, adsRes] = await Promise.all([
         fetch('/api/shorts/feed', { signal: controller.signal })
@@ -159,7 +143,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       let loadedShorts: ShortFeedItem[] = feedRes?.shorts && Array.isArray(feedRes.shorts) && feedRes.shorts.length > 0
         ? feedRes.shorts
-        : getFallbackShorts();
+        : [];
 
       setShorts(loadedShorts);
       const lMap: Record<string, number> = {};
@@ -173,13 +157,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       }
     } catch (err) {
       console.error('Error loading shorts feed:', err);
-      const fallback = getFallbackShorts();
-      setShorts(fallback);
-      const lMap: Record<string, number> = {};
-      fallback.forEach((s: ShortFeedItem) => {
-        lMap[s.id] = s.likes || 0;
-      });
-      setLikesMap(lMap);
+      setShorts([]);
+      setLikesMap({});
     } finally {
       setLoading(false);
     }
@@ -768,11 +747,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                         <span className="font-extrabold text-xs text-white drop-shadow">
                           @{item.authorName.replace(/\s+/g, '').toLowerCase()}
                         </span>
-                        {subsCount > 0 && (
-                          <span className="text-[10px] text-slate-300 font-medium">
-                            {formatNumber(subsCount)} subscribers
-                          </span>
-                        )}
+                        <span className="text-[10px] text-slate-300 font-medium">
+                          {formatNumber(subsCount)} {subsCount === 1 ? 'subscriber' : 'subscribers'}
+                        </span>
                       </div>
 
                       {/* Clean Reference "Subscribe" Pill Button */}

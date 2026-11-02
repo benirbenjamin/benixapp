@@ -329,22 +329,61 @@ export class StorageService {
       }
     }
 
-    // Final Fallback: Local Server Storage
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    // Fallback 1: Local Server Storage (if filesystem is writable, e.g. local dev)
+    try {
+      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, '_')}`;
+      const targetPath = path.join(uploadsDir, safeName);
+      fs.writeFileSync(targetPath, fileBuffer);
+
+      return {
+        fileUrl: `/uploads/${safeName}`,
+        fileId: safeName,
+        provider: 'local',
+        driveAccountName: 'Local Storage Fallback'
+      };
+    } catch (fsErr: any) {
+      console.warn('Local disk storage unavailable (e.g. read-only serverless environment):', fsErr?.message);
     }
 
+    // Final Bulletproof Fallback: PostgreSQL Binary Storage (ByteA)
+    // Flawless on Vercel Serverless where local filesystem is read-only
+    await this.ensureStoredMediaFilesTable();
+    const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, '_')}`;
-    const targetPath = path.join(uploadsDir, safeName);
-    fs.writeFileSync(targetPath, fileBuffer);
+    await query(
+      `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE 
+       SET file_data = $4, file_size = $5, mime_type = $3`,
+      [mediaId, safeName, mimeType, fileBuffer, fileBuffer.length]
+    );
 
     return {
-      fileUrl: `/uploads/${safeName}`,
-      fileId: safeName,
+      fileUrl: `/api/media/stream/${mediaId}`,
+      fileId: mediaId,
       provider: 'local',
-      driveAccountName: 'Local Storage Fallback'
+      driveAccountName: 'Postgres Cloud Media Storage'
     };
+  }
+
+  static async ensureStoredMediaFilesTable(): Promise<void> {
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS stored_media_files (
+          id VARCHAR(255) PRIMARY KEY,
+          file_name VARCHAR(255) NOT NULL,
+          mime_type VARCHAR(100) NOT NULL,
+          file_data BYTEA NOT NULL,
+          file_size BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+    } catch {}
   }
 
   private static uploadToDrive(
@@ -506,9 +545,52 @@ export class StorageService {
   }
 
   /**
-   * Stream a file from Google Drive directly to the client with HTTP Range / 206 support
+   * Stream a file from Google Drive or PostgreSQL Database directly to the client with HTTP Range / 206 support
    */
   static async streamFromDrive(fileId: string, rangeHeader: string | undefined, res: any): Promise<void> {
+    // 1. Check if file is stored in PostgreSQL stored_media_files
+    try {
+      const dbFile = await query(
+        'SELECT file_name, mime_type, file_data, file_size FROM stored_media_files WHERE id = $1 OR file_name = $1 LIMIT 1',
+        [fileId]
+      );
+      if (dbFile.rowCount > 0) {
+        const row = dbFile.rows[0];
+        const buffer = Buffer.isBuffer(row.file_data) ? row.file_data : Buffer.from(row.file_data);
+        const totalSize = Number(row.file_size) || buffer.length;
+        const mimeType = row.mime_type || 'video/mp4';
+
+        if (rangeHeader) {
+          const parts = rangeHeader.replace(/bytes=/, '').split('-');
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+          const chunksize = end - start + 1;
+          const chunk = buffer.subarray(start, end + 1);
+
+          res.writeHead(206, {
+            'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': mimeType,
+            'Cache-Control': 'public, max-age=86400'
+          });
+          res.end(chunk);
+          return;
+        } else {
+          res.writeHead(200, {
+            'Content-Length': totalSize,
+            'Content-Type': mimeType,
+            'Accept-Ranges': 'bytes',
+            'Cache-Control': 'public, max-age=86400'
+          });
+          res.end(buffer);
+          return;
+        }
+      }
+    } catch (e: any) {
+      console.warn('Check stored_media_files warning:', e?.message);
+    }
+
     const accounts = await this.getAccounts();
     let streamRes: any = null;
 

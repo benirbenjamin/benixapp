@@ -176,6 +176,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const [videoThumbnailUrl, setVideoThumbnailUrl] = useState('');
   const [isFetchingYouTube, setIsFetchingYouTube] = useState(false);
   const [selectedVideoFileName, setSelectedVideoFileName] = useState('');
+  const [isVideoPortrait, setIsVideoPortrait] = useState(false);
+  const [detectedVideoDuration, setDetectedVideoDuration] = useState(60);
 
   // Creator Monetization Criteria (defaults to 0 until loaded live from database)
   const [monetization, setMonetization] = useState<{
@@ -541,7 +543,27 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     setVideoUrl(objectUrl);
     setStatusMsg({ text: `Generating snapshot thumbnail from "${file.name}"...` });
 
-    // Automatically generate snapshot thumbnail from video frame
+    // Automatically generate snapshot thumbnail and detect portrait aspect ratio & duration from video frame
+    try {
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      const objUrl = URL.createObjectURL(file);
+      tempVideo.src = objUrl;
+      tempVideo.onloadedmetadata = () => {
+        URL.revokeObjectURL(objUrl);
+        const w = tempVideo.videoWidth || 0;
+        const h = tempVideo.videoHeight || 0;
+        const isPortrait = h > w;
+        const dur = Math.round(tempVideo.duration || 60);
+        setIsVideoPortrait(isPortrait);
+        setDetectedVideoDuration(dur);
+        if (isPortrait) {
+          setVideoCategory((prev) => (prev === 'Entertainment & Movies' ? 'Trending Shorts' : prev));
+        }
+      };
+      tempVideo.onerror = () => URL.revokeObjectURL(objUrl);
+    } catch {}
+
     generateThumbnailFromVideo(file).then((snapshot) => {
       if (snapshot) {
         setVideoThumbnailUrl(snapshot);
@@ -650,7 +672,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           category: categoryToUpload,
           price: priceToUpload,
           channelName: channelNameToUpdate || user?.channel_name || user?.name,
-          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png'
+          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png',
+          isPortrait: isVideoPortrait,
+          duration: detectedVideoDuration
         })
       }).catch(() => {});
 
@@ -670,7 +694,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           category: categoryToUpload,
           price: priceToUpload,
           channelName: channelNameToUpdate || user?.channel_name || user?.name,
-          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png'
+          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png',
+          isPortrait: isVideoPortrait,
+          duration: detectedVideoDuration
         })
       });
 

@@ -4047,7 +4047,7 @@ app.get('/api/shorts/feed', async (req, res) => {
     // Non-blocking schema assurance in background
     ensureShortsFeedTablesOnce();
 
-    // 1. Fetch stories (both active and past/old stories)
+    // 1. Fetch stories (portrait / vertical by nature) with real subscriber counts
     const storiesRes = await query(`
       SELECT 
         s.id, 
@@ -4062,21 +4062,30 @@ app.get('/api/shorts/feed', async (req, res) => {
         COALESCE(s.likes, 0) as likes, 
         s.created_at as "createdAt",
         'story' as source,
-        COALESCE(u.monetization_status, 'auto') as "userMonetization"
+        COALESCE(u.monetization_status, 'auto') as "userMonetization",
+        COALESCE(
+          (SELECT COUNT(DISTINCT subscriber_id) 
+           FROM creator_subscribers 
+           WHERE creator_id = s.user_id 
+              OR creator_id = s.author_name 
+              OR creator_id = (SELECT channel_name FROM core_users WHERE id = s.user_id LIMIT 1)),
+          0
+        ) as "subscribersCount"
       FROM core_stories s
       LEFT JOIN core_users u ON s.user_id = u.id
       ORDER BY s.created_at DESC
       LIMIT 80
     `).catch(() => ({ rows: [] }));
 
-    // 2. Fetch portrait and short videos from user_videos
+    // 2. Fetch strictly portrait and short-form vertical videos from user_videos with real subscriber counts
     const videosRes = await query(`
       SELECT 
         v.id, 
         v.user_id as "authorId", 
-        COALESCE(v.channel_name, 'Benix Creator') as "authorName", 
+        COALESCE(v.channel_name, v.author_name, 'Benix Creator') as "authorName", 
         COALESCE(v.channel_avatar, '/logo.png') as "authorAvatar",
         v.video_url as "mediaUrl", 
+        v.thumbnail_url as "thumbnailUrl",
         v.title, 
         'video' as "mediaType",
         COALESCE(v.duration, 60) as duration, 
@@ -4084,49 +4093,29 @@ app.get('/api/shorts/feed', async (req, res) => {
         COALESCE(v.likes, 0) as likes,
         v.created_at as "createdAt",
         'video' as source,
-        COALESCE(u.monetization_status, 'auto') as "userMonetization"
+        COALESCE(u.monetization_status, 'auto') as "userMonetization",
+        COALESCE(
+          (SELECT COUNT(DISTINCT subscriber_id) 
+           FROM creator_subscribers 
+           WHERE creator_id = v.user_id 
+              OR creator_id = v.channel_name 
+              OR creator_id = (SELECT channel_name FROM core_users WHERE id = v.user_id LIMIT 1)),
+          0
+        ) as "subscribersCount"
       FROM user_videos v
       LEFT JOIN core_users u ON v.user_id = u.id
       WHERE v.is_portrait = TRUE 
          OR v.category ILIKE '%short%' 
          OR v.category ILIKE '%tiktok%' 
-         OR v.duration <= 180
+         OR v.category ILIKE '%story%'
          OR v.description ILIKE '%#short%'
+         OR v.title ILIKE '%#short%'
       ORDER BY v.created_at DESC
       LIMIT 80
     `).catch(() => ({ rows: [] }));
 
+    // Only strictly vertical stories & portrait clips are included in Shorts feed
     const combined = [...(storiesRes.rows || []), ...(videosRes.rows || [])];
-
-    // 3. Fallback / Seed from verified Rwandan library so feed is NEVER empty
-    const catalogSource = Array.isArray(realVideosData) && realVideosData.length > 0 ? realVideosData : (typeof SAMPLE_VIDEOS !== 'undefined' ? SAMPLE_VIDEOS : []);
-    const sampleSeedShorts = catalogSource.slice(0, 30).map((v, i) => {
-      const vidId = v.id || `short-${i}`;
-      return {
-        id: vidId,
-        authorId: v.creator || 'benix_partner',
-        authorName: v.creator || 'Benix Creator Partner',
-        authorAvatar: v.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.creator || 'Benix')}&background=0D8ABC&color=fff`,
-        mediaUrl: `https://www.youtube.com/watch?v=${vidId}`,
-        thumbnailUrl: v.thumbnailUrl || v.thumbnail || `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`,
-        title: v.title || 'Benix Trending Moment',
-        mediaType: 'video',
-        duration: 60,
-        views: typeof v.views === 'number' ? v.views : 14200 + i * 850,
-        likes: typeof v.likes === 'number' ? v.likes : 1240 + i * 92,
-        subscribersCount: 250 + i * 15,
-        source: 'video',
-        createdAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
-        isMonetized: true,
-        trendingScore: 60 - i
-      };
-    });
-
-    for (const seed of sampleSeedShorts) {
-      if (!combined.some(c => c.id === seed.id)) {
-        combined.push(seed);
-      }
-    }
 
     const now = Date.now();
     const scoredShorts = combined.map((item) => {
@@ -4149,7 +4138,7 @@ app.get('/api/shorts/feed', async (req, res) => {
         duration: Number(item.duration) || 5.0,
         views,
         likes,
-        subscribersCount: Number(item.subscribersCount || 120),
+        subscribersCount: Number(item.subscribersCount) || 0,
         source: item.source,
         createdAt: item.createdAt,
         isMonetized: item.userMonetization === 'approved' || item.userMonetization === 'active' || item.userMonetization === 'monetized' || item.isMonetized,
@@ -4237,9 +4226,8 @@ app.get('/api/stories', async (req, res) => {
               COALESCE(duration, 5.0) as duration, COALESCE(views, 0) as views, created_at,
               to_char(created_at, 'HH12:MI AM') as timestamp
        FROM core_stories
-       WHERE expires_at > CURRENT_TIMESTAMP OR expires_at IS NULL
        ORDER BY created_at DESC
-       LIMIT 30`
+       LIMIT 50`
     );
 
     return res.json({ stories: result.rows || [] });
@@ -4382,10 +4370,36 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
     } catch {}
 
     const storyId = 'story-' + Date.now();
+    let finalUrl = mediaUrl;
+
+    // If mediaUrl is base64, save to PostgreSQL stored_media_files to prevent giant payloads
+    if (typeof mediaUrl === 'string' && mediaUrl.startsWith('data:')) {
+      try {
+        const commaIdx = mediaUrl.indexOf(',');
+        const header = mediaUrl.substring(0, commaIdx);
+        const b64 = mediaUrl.substring(commaIdx + 1);
+        const mime = header.replace(/^data:/, '').replace(/;base64$/, '') || (determinedType === 'video' ? 'video/mp4' : 'image/jpeg');
+        const buf = Buffer.from(b64, 'base64');
+        const ext = mime.split('/')[1]?.split(';')[0] || (determinedType === 'video' ? 'mp4' : 'jpg');
+        const fileId = `story_${storyId}`;
+        const fileName = `${fileId}.${ext}`;
+        await StorageService.ensureStoredMediaFilesTable();
+        await query(
+          `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (id) DO UPDATE SET file_data = $4, file_size = $5, mime_type = $3`,
+          [fileId, fileName, mime, buf, buf.length]
+        );
+        finalUrl = `/api/media/stream/${fileId}`;
+      } catch (err: any) {
+        console.warn('Story base64 storage notice:', err?.message);
+      }
+    }
+
     await query(
-      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [storyId, req.user!.id, authorName, authorAvatar, mediaUrl, caption || '', determinedType, finalDuration]
+      `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + INTERVAL '365 days')`,
+      [storyId, req.user!.id, authorName, authorAvatar, finalUrl, caption || '', determinedType, finalDuration]
     );
 
     const newStory = {
@@ -4410,10 +4424,19 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
 
 app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { title, description, videoUrl, category = 'General', price = 0, driveFolder = 'primary' } = req.body;
+    const { title, description, videoUrl, category = 'General', price = 0, driveFolder = 'primary', isPortrait, duration } = req.body;
     if (!title || !videoUrl) {
       return res.status(400).json({ error: 'Video title and video URL / file are required.' });
     }
+
+    const isPortraitVideo = Boolean(isPortrait) ||
+      category.toLowerCase().includes('short') ||
+      category.toLowerCase().includes('tiktok') ||
+      category.toLowerCase().includes('story') ||
+      title.toLowerCase().includes('#short') ||
+      (Number(duration) > 0 && Number(duration) <= 60);
+
+    const videoDuration = Number(duration) || (isPortraitVideo ? 45 : 300);
 
     const newVideo = {
       id: 'vid-' + Date.now(),
@@ -4425,6 +4448,8 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
       category,
       price: Number(price) || 0,
       isPaid: Number(price) > 0,
+      isPortrait: isPortraitVideo,
+      duration: videoDuration,
       driveFolder,
       views: 0,
       createdAt: new Date().toISOString()
@@ -4433,8 +4458,8 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
     userVideosList.unshift(newVideo);
 
     await query(
-      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, category, price, is_paid)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, category, price, is_paid, is_portrait, duration)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         newVideo.id,
         newVideo.userId,
@@ -4444,7 +4469,9 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
         newVideo.videoUrl,
         newVideo.category,
         newVideo.price,
-        newVideo.isPaid
+        newVideo.isPaid,
+        isPortraitVideo,
+        videoDuration
       ]
     ).catch(() => {});
     return res.json({ success: true, video: newVideo, message: 'Video uploaded and ready for broadcast!' });
@@ -4736,7 +4763,7 @@ app.post('/api/creators/:creatorId/unsubscribe', authenticateToken, async (req: 
 });
 
 // Check subscription status
-app.get('/api/creators/:creatorId/sub-status', async (req, res) => {
+app.get(['/api/creators/:creatorId/sub-status', '/api/creators/:creatorId/status'], async (req, res) => {
   try {
     const { creatorId } = req.params;
     const authHeader = req.headers.authorization;
@@ -7697,10 +7724,17 @@ app.post('/api/modules/videos/:id/unlock', authenticateToken, async (req: Authen
 // Creator Post & Upload Video
 app.post('/api/modules/videos', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { title, description, videoUrl, thumbnailUrl, category = 'General', price = 0, duration = 300, channelName, channelAvatar } = req.body;
+    const { title, description, videoUrl, thumbnailUrl, category = 'General', price = 0, duration = 300, channelName, channelAvatar, isPortrait } = req.body;
     if (!title || !videoUrl) {
       return res.status(400).json({ error: 'Title and videoUrl are required.' });
     }
+
+    const isPortraitVideo = Boolean(isPortrait) ||
+      category.toLowerCase().includes('short') ||
+      category.toLowerCase().includes('tiktok') ||
+      category.toLowerCase().includes('story') ||
+      title.toLowerCase().includes('#short') ||
+      (Number(duration) > 0 && Number(duration) <= 60);
 
     // Fetch creator profile from core_users
     const userRow = await query('SELECT name, email, channel_name, app_profiles FROM core_users WHERE id = $1', [req.user!.id]).catch(() => ({ rows: [] }));
@@ -7718,12 +7752,13 @@ app.post('/api/modules/videos', authenticateToken, async (req: AuthenticatedRequ
       description: description?.trim() || '',
       videoUrl: videoUrl.trim(),
       thumbnailUrl: thumbnailUrl?.trim() || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80',
-      duration: Number(duration) || 300,
+      duration: Number(duration) || (isPortraitVideo ? 45 : 300),
       views: 0,
       likes: 0,
       accessType: Number(price) > 0 ? 'PREMIUM' : 'PUBLIC',
       price: Number(price) || 0,
       category,
+      isPortrait: isPortraitVideo,
       userId: req.user!.id,
       user_id: req.user!.id,
       channelName: effectiveChannelName,
@@ -7755,15 +7790,16 @@ app.post('/api/modules/videos', authenticateToken, async (req: AuthenticatedRequ
           channel_name VARCHAR(255),
           channel_handle VARCHAR(255),
           channel_avatar TEXT,
+          is_portrait BOOLEAN DEFAULT FALSE,
           is_verified BOOLEAN DEFAULT true,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
       `).catch(() => {});
 
       await query(
-        `INSERT INTO user_videos (id, title, slug, description, video_url, thumbnail_url, duration, views, likes, access_type, price, category, user_id, channel_name, channel_handle, channel_avatar, is_verified, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0, $8, $9, $10, $11, $12, $13, $14, true, NOW())`,
-        [newId, newVideo.title, slug, newVideo.description, newVideo.videoUrl, newVideo.thumbnailUrl, newVideo.duration, newVideo.accessType, newVideo.price, newVideo.category, req.user!.id, effectiveChannelName, effectiveHandle, effectiveAvatar]
+        `INSERT INTO user_videos (id, title, slug, description, video_url, thumbnail_url, duration, views, likes, access_type, price, category, user_id, channel_name, channel_handle, channel_avatar, is_portrait, is_verified, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0, $8, $9, $10, $11, $12, $13, $14, $15, true, NOW())`,
+        [newId, newVideo.title, slug, newVideo.description, newVideo.videoUrl, newVideo.thumbnailUrl, newVideo.duration, newVideo.accessType, newVideo.price, newVideo.category, req.user!.id, effectiveChannelName, effectiveHandle, effectiveAvatar, isPortraitVideo]
       );
 
       await query(

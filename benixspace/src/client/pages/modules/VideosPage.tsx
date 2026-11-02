@@ -354,7 +354,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
     if (activeVideo) {
       const target = activeVideo.userId || activeVideo.channelName || activeVideo.creator;
       if (target) {
-        fetch(`/api/creators/${encodeURIComponent(target)}/status`)
+        fetch(`/api/creators/${encodeURIComponent(target)}/sub-status`)
           .then((r) => r.json())
           .then((data) => {
             if (typeof data?.subscribersCount === 'number') {
