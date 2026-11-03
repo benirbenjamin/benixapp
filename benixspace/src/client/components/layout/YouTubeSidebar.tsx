@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
 import { usePlayer } from '../../context/PlayerContext';
+import { usePwa } from '../../context/PwaContext';
 import {
   Home,
   Tv,
@@ -32,7 +33,8 @@ import {
   Compass,
   Flame,
   RadioTower,
-  Zap
+  Zap,
+  Download
 } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
@@ -41,6 +43,7 @@ import { formatCurrencyCompact } from '../../utils/formatCurrency';
 export const YouTubeSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isMoreExpanded, closeMobile, toggleMore, toggleExpanded } = useSidebar();
   const { user, wallet, hasAppProfile } = useAuth();
+  const { isInstalled, installApp } = usePwa();
   const { playTvChannel, playStation } = usePlayer();
   const navigate = useNavigate();
   const location = useLocation();
@@ -489,6 +492,22 @@ export const YouTubeSidebar: React.FC = () => {
               className="w-full py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold border border-emerald-500/20 transition-all text-center"
             >
               Deposit / Withdraw
+            </button>
+          </div>
+        )}
+
+        {/* PWA Install Button */}
+        {!isInstalled && (
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                if (isDrawer) closeMobile();
+                installApp();
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600/20 to-indigo-600/20 hover:from-blue-600/30 hover:to-indigo-600/30 border border-blue-500/40 text-blue-300 font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-400" />
+              <span>Install BenixSpace App</span>
             </button>
           </div>
         )}

@@ -18,6 +18,7 @@ import { ReferralModal } from '../components/modals/ReferralModal';
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { SeoHead } from '../components/common/SeoHead';
 import { ShortsFeed } from '../components/home/ShortsFeed';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import realVideosData from '../config/realVideos.json';
 import {
   Tv,
@@ -124,6 +125,15 @@ export const HomePage: React.FC = () => {
   const storyVideoRef = useRef<HTMLVideoElement | null>(null);
   const [customAds, setCustomAds] = useState<any[]>([]);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
+
+  // 6-Second Non-Skippable Story Interstitial Ad Sequencer (3 Google : 1 Custom)
+  const [viewedStoriesCount, setViewedStoriesCount] = useState<number>(0);
+  const [nextStoryAdThreshold, setNextStoryAdThreshold] = useState<number>(() => Math.floor(Math.random() * 6) + 5);
+  const [storyAdIndex, setStoryAdIndex] = useState<number>(0);
+  const [showStoryInterstitialAd, setShowStoryInterstitialAd] = useState<boolean>(false);
+  const [storyInterstitialCountdown, setStoryInterstitialCountdown] = useState<number>(6);
+  const [storyInterstitialType, setStoryInterstitialType] = useState<'google' | 'custom'>('google');
+  const [activeStoryCustomAd, setActiveStoryCustomAd] = useState<any | null>(null);
 
   // Active Category Chip
   const [activeChip, setActiveChip] = useState<string>('All');
@@ -281,14 +291,63 @@ export const HomePage: React.FC = () => {
     }
   };
 
+  // 6-Second Non-Skippable Story Interstitial Ad Countdown
+  useEffect(() => {
+    if (!showStoryInterstitialAd) return;
+
+    const timer = setInterval(() => {
+      setStoryInterstitialCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setShowStoryInterstitialAd(false);
+          setIsStoryPaused(false);
+          return 6;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [showStoryInterstitialAd]);
+
+  const triggerStoryAdCheck = useCallback(() => {
+    setViewedStoriesCount((prev) => {
+      const nextCount = prev + 1;
+      if (nextCount >= nextStoryAdThreshold) {
+        const isCustom = storyAdIndex % 4 === 3;
+        if (isCustom && customAds.length > 0) {
+          const chosen = customAds[Math.floor(Math.random() * customAds.length)];
+          setStoryInterstitialType('custom');
+          setActiveStoryCustomAd(chosen);
+          fetch('/api/ads/track-impression', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adId: chosen.id })
+          }).catch(() => {});
+        } else {
+          setStoryInterstitialType('google');
+          setActiveStoryCustomAd(null);
+        }
+        setShowStoryInterstitialAd(true);
+        setIsStoryPaused(true);
+        setStoryInterstitialCountdown(6);
+        setNextStoryAdThreshold(Math.floor(Math.random() * 6) + 5);
+        setStoryAdIndex((i) => i + 1);
+        return 0;
+      }
+      return nextCount;
+    });
+  }, [nextStoryAdThreshold, storyAdIndex, customAds]);
+
   const handleNextStory = useCallback(() => {
     setStoryProgress(0);
+    triggerStoryAdCheck();
     setActiveStoryIndex((prev) => {
       if (prev === null) return null;
       if (prev < stories.length - 1) return prev + 1;
       return null;
     });
-  }, [stories.length]);
+  }, [stories.length, triggerStoryAdCheck]);
 
   const handlePrevStory = useCallback(() => {
     setStoryProgress(0);
@@ -300,7 +359,7 @@ export const HomePage: React.FC = () => {
 
   // Photo story auto-advance (5 seconds smooth progress)
   useEffect(() => {
-    if (activeStoryIndex === null || stories.length === 0 || isStoryPaused) return;
+    if (activeStoryIndex === null || stories.length === 0 || isStoryPaused || showStoryInterstitialAd) return;
     const currentStory = stories[activeStoryIndex];
     const mediaUrl = currentStory?.mediaUrl || '';
     const isVideo =
@@ -321,7 +380,7 @@ export const HomePage: React.FC = () => {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [activeStoryIndex, stories, isStoryPaused, handleNextStory]);
+  }, [activeStoryIndex, stories, isStoryPaused, showStoryInterstitialAd, handleNextStory]);
 
   // Reset progress and pause state when activeStoryIndex changes
   useEffect(() => {
@@ -1672,6 +1731,84 @@ export const HomePage: React.FC = () => {
         return (
           <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none overflow-hidden">
             <div className="relative max-w-md w-full h-[94dvh] sm:h-[88vh] max-h-[96dvh] rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex flex-col justify-between">
+              
+              {/* 6-SECOND NON-SKIPPABLE INTERSTITIAL AD MODAL FOR STORIES (Rotation: 3 Google : 1 Custom) */}
+              {showStoryInterstitialAd && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-xl animate-in fade-in duration-200 select-none">
+                  <div className="relative w-full max-w-sm bg-[#0F141F] border border-amber-500/40 rounded-3xl p-5 shadow-2xl space-y-3.5 text-center">
+                    {/* Header with Non-skippable countdown */}
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-wider border border-amber-500/30">
+                        {storyInterstitialType === 'google' ? 'Sponsored Partner' : 'Featured Sponsor'}
+                      </span>
+                      <div className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 text-xs font-black shadow flex items-center gap-1.5 animate-pulse">
+                        <Clock className="w-3.5 h-3.5" />
+                        Next story in: {storyInterstitialCountdown}s
+                      </div>
+                    </div>
+
+                    {/* Ad Content */}
+                    {storyInterstitialType === 'custom' && activeStoryCustomAd ? (
+                      <div className="space-y-2.5">
+                        <div className="relative aspect-video rounded-2xl overflow-hidden border border-slate-700 bg-black">
+                          {activeStoryCustomAd.mediaType === 'video' ? (
+                            <video
+                              src={activeStoryCustomAd.mediaUrl}
+                              className="w-full h-full object-cover"
+                              autoPlay
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              src={activeStoryCustomAd.mediaUrl}
+                              alt={activeStoryCustomAd.title}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                        <h4 className="font-extrabold text-sm text-white line-clamp-1">{activeStoryCustomAd.title}</h4>
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{activeStoryCustomAd.description}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fetch('/api/ads/track-click', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ adId: activeStoryCustomAd.id })
+                            }).catch(() => {});
+                            if (activeStoryCustomAd.targetUrl) {
+                              window.open(activeStoryCustomAd.targetUrl, '_blank');
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+                        >
+                          <span>{activeStoryCustomAd.ctaText || 'Learn More'}</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 py-1">
+                        <div className="w-full min-h-[140px] max-h-[240px] bg-[#0A0E17] rounded-2xl p-2 border border-blue-500/30 flex flex-col items-center justify-center overflow-hidden">
+                          <AdSenseUnit
+                            slot="7034214536"
+                            clientId="ca-pub-4078466828008985"
+                            format="rectangle"
+                            responsive={true}
+                            className="my-0 max-h-[220px]"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
+                          <span className="flex items-center gap-1 font-semibold text-blue-400">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Official Google AdSense Partner
+                          </span>
+                          <span className="text-slate-500">Google Ads Network</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               
               {/* Top Segmented Progress Bar & Creator Header */}
               <div className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-b from-black/95 via-black/60 to-transparent space-y-2.5 pointer-events-none">

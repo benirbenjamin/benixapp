@@ -55581,6 +55581,7 @@ app.get("/api/shorts/feed", async (req, res) => {
         ) as "subscribersCount"
       FROM core_stories s
       LEFT JOIN core_users u ON s.user_id = u.id
+      WHERE (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)
       ORDER BY s.created_at DESC
       LIMIT 80
     `).catch(() => ({ rows: [] }));
@@ -55715,6 +55716,8 @@ async function ensureStoriesTable() {
   });
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {
   });
+  await query("UPDATE core_stories SET expires_at = created_at + INTERVAL '24 hours' WHERE expires_at > created_at + INTERVAL '48 hours';").catch(() => {
+  });
 }
 app.get("/api/stories", async (req, res) => {
   try {
@@ -55725,6 +55728,7 @@ app.get("/api/stories", async (req, res) => {
               COALESCE(duration, 5.0) as duration, COALESCE(views, 0) as views, created_at,
               to_char(created_at, 'HH12:MI AM') as timestamp
        FROM core_stories
+       WHERE (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
        ORDER BY created_at DESC
        LIMIT 50`
     );
@@ -55805,12 +55809,13 @@ app.post("/api/stories/:id/repost", authenticateToken, async (req, res) => {
     }
     const old = storyRes.rows[0];
     const newId = "story-" + Date.now();
+    const lifespanHours = Number(await getSystemSetting("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours')`,
-      [newId, userId, old.author_name, old.author_avatar, old.media_url, old.caption, old.media_type || "image", old.duration || 5]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
+      [newId, userId, old.author_name, old.author_avatar, old.media_url, old.caption, old.media_type || "image", old.duration || 5, String(lifespanHours)]
     );
-    return res.json({ success: true, message: "Story reposted successfully for 24 hours!", newStoryId: newId });
+    return res.json({ success: true, message: `Story reposted successfully for ${lifespanHours} hours!`, newStoryId: newId });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -55867,10 +55872,11 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
         console.warn("Story base64 storage notice:", err?.message);
       }
     }
+    const lifespanHours = Number(await getSystemSetting("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + INTERVAL '365 days')`,
-      [storyId, req.user.id, authorName, authorAvatar, finalUrl, caption || "", determinedType, finalDuration]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
+      [storyId, req.user.id, authorName, authorAvatar, finalUrl, caption || "", determinedType, finalDuration, String(lifespanHours)]
     );
     const newStory = {
       id: storyId,
@@ -56150,8 +56156,18 @@ app.post("/api/creators/:creatorId/subscribe", authenticateToken, async (req, re
        ON CONFLICT (creator_id, subscriber_id) DO NOTHING`,
       [effCreatorId, subscriberId]
     );
+    await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS subscribers_count INT DEFAULT 0;`).catch(() => {
+    });
+    await query(
+      `UPDATE core_users 
+       SET subscribers_count = (SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2)
+       WHERE id = $1`,
+      [effCreatorId, creatorId]
+    ).catch(() => {
+    });
     const countRes = await query("SELECT COUNT(DISTINCT subscriber_id) as count FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2", [effCreatorId, creatorId]);
-    return res.json({ success: true, isSubscribed: true, subscribersCount: Number(countRes.rows[0]?.count || 0) });
+    const updatedCount = Number(countRes.rows[0]?.count || 0);
+    return res.json({ success: true, isSubscribed: true, subscribersCount: updatedCount });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -56173,8 +56189,16 @@ app.post("/api/creators/:creatorId/unsubscribe", authenticateToken, async (req, 
       creatorId,
       subscriberId
     ]);
+    await query(
+      `UPDATE core_users 
+       SET subscribers_count = (SELECT COUNT(DISTINCT subscriber_id) FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2)
+       WHERE id = $1`,
+      [effCreatorId, creatorId]
+    ).catch(() => {
+    });
     const countRes = await query("SELECT COUNT(DISTINCT subscriber_id) as count FROM creator_subscribers WHERE creator_id = $1 OR creator_id = $2", [effCreatorId, creatorId]);
-    return res.json({ success: true, isSubscribed: false, subscribersCount: Number(countRes.rows[0]?.count || 0) });
+    const updatedCount = Number(countRes.rows[0]?.count || 0);
+    return res.json({ success: true, isSubscribed: false, subscribersCount: updatedCount });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -57463,9 +57487,27 @@ app.get("/api/admin/ads/all", authenticateToken, requireAdminRole, async (req, r
       ORDER BY a.created_at DESC
     `).catch(() => ({ rows: [] }));
     if (dbRes.rows && dbRes.rows.length > 0) {
-      return res.json({ success: true, ads: dbRes.rows });
+      const mapped = dbRes.rows.map((r) => ({
+        ...r,
+        impressions_count: Number(r.current_impressions || 0),
+        clicks_count: Number(r.current_clicks || 0),
+        current_impressions: Number(r.current_impressions || 0),
+        current_clicks: Number(r.current_clicks || 0),
+        currentImpressions: Number(r.current_impressions || 0),
+        currentClicks: Number(r.current_clicks || 0)
+      }));
+      return res.json({ success: true, ads: mapped });
     }
-    return res.json({ success: true, ads: customAdCampaigns });
+    const fallbackMapped = customAdCampaigns.map((a2) => ({
+      ...a2,
+      impressions_count: Number(a2.currentImpressions || 0),
+      clicks_count: Number(a2.currentClicks || 0),
+      current_impressions: Number(a2.currentImpressions || 0),
+      current_clicks: Number(a2.currentClicks || 0),
+      currentImpressions: Number(a2.currentImpressions || 0),
+      currentClicks: Number(a2.currentClicks || 0)
+    }));
+    return res.json({ success: true, ads: fallbackMapped });
   } catch (err) {
     return res.json({ success: true, ads: customAdCampaigns });
   }
@@ -59929,6 +59971,9 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
       }
       if (m.default_cpm_rwf !== void 0 || m.defaultCpmRwf !== void 0) {
         await setSystemSetting("default_cpm_rwf", String(Math.max(100, Number(m.default_cpm_rwf ?? m.defaultCpmRwf) || 1200)));
+      }
+      if (m.story_lifespan_hours !== void 0) {
+        await setSystemSetting("story_lifespan_hours", String(Math.max(1, Number(m.story_lifespan_hours) || 24)));
       }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });

@@ -172,6 +172,19 @@ export const Navbar: React.FC = () => {
                 <span className="sm:hidden">Ad</span>
               </button>
 
+              {/* Install App Button (Visible on mobile & desktop whenever not installed as PWA) */}
+              {!isInstalled && (
+                <button
+                  onClick={installApp}
+                  className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold shadow-md shadow-blue-500/10 transition-all hover:scale-105 shrink-0"
+                  title="Install BenixSpace App (Native PWA)"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="hidden sm:inline">Install App</span>
+                  <span className="sm:hidden text-[11px]">Install</span>
+                </button>
+              )}
+
               {/* ADMIN DASHBOARD BUTTON - ONLY VISIBLE TO VERIFIED ADMINS (Hidden on mobile to keep header clean) */}
               {isAdmin && (
                 <Link

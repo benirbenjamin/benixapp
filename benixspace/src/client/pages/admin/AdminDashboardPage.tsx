@@ -1726,9 +1726,9 @@ export const AdminDashboardPage: React.FC = () => {
                 const totalAds = adminAds.length;
                 const activeAds = adminAds.filter(a => a.status === 'active').length;
                 const pendingAds = adminAds.filter(a => a.status === 'pending').length;
-                const totalImpressions = adminAds.reduce((sum, a) => sum + Number(a.impressions_count || 0), 0);
-                const totalClicks = adminAds.reduce((sum, a) => sum + Number(a.clicks_count || 0), 0);
-                const totalSpent = adminAds.reduce((sum, a) => sum + Number(a.total_spent || 0), 0);
+                const totalImpressions = adminAds.reduce((sum, a) => sum + Number(a.current_impressions ?? a.impressions_count ?? a.currentImpressions ?? 0), 0);
+                const totalClicks = adminAds.reduce((sum, a) => sum + Number(a.current_clicks ?? a.clicks_count ?? a.currentClicks ?? 0), 0);
+                const totalSpent = adminAds.reduce((sum, a) => sum + Number(a.total_spent ?? a.totalSpent ?? 0), 0);
                 const avgCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(1) : '4.8';
 
                 return (
@@ -1829,8 +1829,10 @@ export const AdminDashboardPage: React.FC = () => {
                     .map(ad => {
                       const priorityScore = ((Number(ad.cpm_bid || 25) * 2) + (Number(ad.cpc_bid || 15) * 5));
                       const isHighPriority = priorityScore >= 120;
+                      const adViews = Number(ad.current_impressions ?? ad.impressions_count ?? ad.currentImpressions ?? 0);
+                      const adClicks = Number(ad.current_clicks ?? ad.clicks_count ?? ad.currentClicks ?? 0);
                       const progressPct = ad.target_impressions > 0 
-                        ? Math.min(100, Math.round((Number(ad.impressions_count || 0) / Number(ad.target_impressions)) * 100))
+                        ? Math.min(100, Math.round((adViews / Number(ad.target_impressions)) * 100))
                         : 0;
 
                       return (
@@ -1946,7 +1948,7 @@ export const AdminDashboardPage: React.FC = () => {
                               <div>
                                 <span className="text-[9px] uppercase font-bold text-slate-500 block">Views / Clicks</span>
                                 <span className="text-xs font-black text-blue-400">
-                                  {Number(ad.impressions_count || 0).toLocaleString()} / {Number(ad.clicks_count || 0)}
+                                  {adViews.toLocaleString()} / {adClicks.toLocaleString()}
                                 </span>
                               </div>
                               <div>
@@ -1963,7 +1965,7 @@ export const AdminDashboardPage: React.FC = () => {
                               <div className="flex items-center justify-between text-[10px] text-slate-400">
                                 <span>Target Delivery Progress</span>
                                 <span className="font-bold text-slate-200">
-                                  {ad.impressions_count || 0} / {ad.target_impressions} views ({progressPct}%)
+                                  {adViews.toLocaleString()} / {Number(ad.target_impressions).toLocaleString()} views ({progressPct}%)
                                 </span>
                               </div>
                               <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">

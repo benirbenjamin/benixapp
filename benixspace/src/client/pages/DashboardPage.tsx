@@ -871,9 +871,9 @@ export const DashboardPage: React.FC = () => {
 
             {/* Campaign Performance Metrics Strip */}
             {(() => {
-              const totalSpent = userCampaigns.reduce((sum, c) => sum + Number(c.total_spent || 0), 0);
-              const totalViews = userCampaigns.reduce((sum, c) => sum + Number(c.impressions_count || 0), 0);
-              const totalClicks = userCampaigns.reduce((sum, c) => sum + Number(c.clicks_count || 0), 0);
+              const totalSpent = userCampaigns.reduce((sum, c) => sum + Number(c.total_spent ?? c.totalSpent ?? 0), 0);
+              const totalViews = userCampaigns.reduce((sum, c) => sum + Number(c.current_impressions ?? c.impressions_count ?? c.currentImpressions ?? 0), 0);
+              const totalClicks = userCampaigns.reduce((sum, c) => sum + Number(c.current_clicks ?? c.clicks_count ?? c.currentClicks ?? 0), 0);
               const activeCount = userCampaigns.filter(c => c.status === 'active').length;
               const ctr = totalViews > 0 ? ((totalClicks / totalViews) * 100).toFixed(1) : '0.0';
 

@@ -1,42 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import { usePwa } from '../../context/PwaContext';
-import { Download, X, Smartphone, Sparkles } from 'lucide-react';
+import { Download, X, Smartphone, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export const PwaInstallBanner: React.FC = () => {
   const { isInstalled, installApp } = usePwa();
   const [isVisible, setIsVisible] = useState<boolean>(false);
+  const [installing, setInstalling] = useState<boolean>(false);
 
   useEffect(() => {
-    // If app is already installed in standalone mode or recorded in localStorage, NEVER show
-    if (isInstalled || localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true') {
+    // Clear any legacy permanent dismissal from older versions
+    try {
+      localStorage.removeItem('benix_pwa_dismissed');
+    } catch {
+      // ignore
+    }
+
+    // If app is already installed in standalone mode or dismissed for this active session, do not show
+    if (isInstalled || (typeof window !== 'undefined' && sessionStorage.getItem('benix_pwa_session_dismissed') === 'true')) {
       setIsVisible(false);
       return;
     }
 
-    // Show after a polite delay only on first non-installed visit
+    // Prompt user politely after a short 1.2s delay if not running as installed PWA
     const timer = setTimeout(() => {
-      if (!isInstalled && localStorage.getItem('benix_pwa_installed') !== 'true' && localStorage.getItem('benix_pwa_dismissed') !== 'true') {
+      if (!isInstalled && sessionStorage.getItem('benix_pwa_session_dismissed') !== 'true') {
         setIsVisible(true);
       }
-    }, 4000);
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, [isInstalled]);
 
   const handleDismiss = () => {
-    localStorage.setItem('benix_pwa_dismissed', 'true');
+    try {
+      sessionStorage.setItem('benix_pwa_session_dismissed', 'true');
+    } catch {
+      // ignore
+    }
     setIsVisible(false);
   };
 
   const handleInstall = async () => {
-    const success = await installApp();
-    if (success) {
-      localStorage.setItem('benix_pwa_installed', 'true');
-      setIsVisible(false);
+    setInstalling(true);
+    try {
+      const success = await installApp();
+      if (success) {
+        try {
+          sessionStorage.setItem('benix_pwa_session_dismissed', 'true');
+        } catch {
+          // ignore
+        }
+        setIsVisible(false);
+      }
+    } finally {
+      setInstalling(false);
     }
   };
 
-  if (!isVisible || isInstalled || (typeof window !== 'undefined' && (localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true'))) {
+  if (!isVisible || isInstalled || (typeof window !== 'undefined' && sessionStorage.getItem('benix_pwa_session_dismissed') === 'true')) {
     return null;
   }
 
@@ -91,10 +112,11 @@ export const PwaInstallBanner: React.FC = () => {
           </button>
           <button
             onClick={handleInstall}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition-all transform active:scale-95"
+            disabled={installing}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition-all transform active:scale-95 disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Install App</span>
+            <span>{installing ? 'Opening Install...' : 'Install App'}</span>
           </button>
         </div>
       </div>

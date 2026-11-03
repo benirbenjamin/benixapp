@@ -24,10 +24,13 @@ import {
   Music,
   UserPlus,
   Check,
-  Zap
+  Zap,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
+import { AdSenseUnit } from '../common/AdSenseUnit';
+import { getAuthToken } from '../../services/api';
 import realVideosData from '../../config/realVideos.json';
 
 export interface ShortFeedItem {
@@ -108,6 +111,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   // Likes & Social State
   const [likesMap, setLikesMap] = useState<Record<string, number>>({});
   const [likedStatus, setLikedStatus] = useState<Record<string, boolean>>({});
+  const [subscribersMap, setSubscribersMap] = useState<Record<string, number>>({});
 
   // 6-Second Non-Skippable Interstitial Ad Sequencer State
   const [scrolledVideosCount, setScrolledVideosCount] = useState<number>(0);
@@ -147,10 +151,16 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       setShorts(loadedShorts);
       const lMap: Record<string, number> = {};
+      const sMap: Record<string, number> = {};
       loadedShorts.forEach((s: ShortFeedItem) => {
         lMap[s.id] = s.likes || 0;
+        const authorKey = s.authorId || s.authorName;
+        if (s.subscribersCount !== undefined) {
+          sMap[authorKey] = s.subscribersCount;
+        }
       });
       setLikesMap(lMap);
+      setSubscribersMap(sMap);
 
       if (adsRes?.ads && Array.isArray(adsRes.ads) && adsRes.ads.length > 0) {
         setCustomAds(adsRes.ads);
@@ -215,7 +225,35 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     });
   }, [activeIndex, currentShort, showInterstitialAd, trackViewAndMonetization, isMuted, isStandalonePage, isVerticalModalOpen]);
 
-  // 3. Scroll to Index Handler with Interstitial Ad Sequencer
+  // 3. Scroll to Index Handler with Interstitial Ad Sequencer (3 Google : 1 Custom)
+  const triggerInterstitialCheck = useCallback(() => {
+    setScrolledVideosCount((prev) => {
+      const nextCount = prev + 1;
+      if (nextCount >= nextInterstitialThreshold) {
+        const isCustom = interstitialAdIndex % 4 === 3;
+        if (isCustom && customAds.length > 0) {
+          const chosen = customAds[Math.floor(Math.random() * customAds.length)];
+          setCurrentInterstitialType('custom');
+          setActiveInterstitialCustomAd(chosen);
+          fetch('/api/ads/track-impression', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adId: chosen.id })
+          }).catch(() => {});
+        } else {
+          setCurrentInterstitialType('google');
+          setActiveInterstitialCustomAd(null);
+        }
+        setShowInterstitialAd(true);
+        setInterstitialCountdown(6);
+        setNextInterstitialThreshold(Math.floor(Math.random() * 6) + 5);
+        setInterstitialAdIndex((i) => i + 1);
+        return 0;
+      }
+      return nextCount;
+    });
+  }, [nextInterstitialThreshold, interstitialAdIndex, customAds]);
+
   const scrollToIndex = useCallback((index: number) => {
     if (index < 0 || index >= shorts.length) return;
 
@@ -226,30 +264,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
     setActiveIndex(index);
     setPhotoProgress(0);
-
-    // Interstitial ad count
-    setScrolledVideosCount((prev) => {
-      const nextCount = prev + 1;
-      if (nextCount >= nextInterstitialThreshold) {
-        const isCustom = interstitialAdIndex % 4 === 3;
-        setCurrentInterstitialType(isCustom && customAds.length > 0 ? 'custom' : 'google');
-        if (isCustom && customAds.length > 0) {
-          setActiveInterstitialCustomAd(customAds[Math.floor(Math.random() * customAds.length)]);
-        }
-        setShowInterstitialAd(true);
-        setInterstitialCountdown(6);
-        setNextInterstitialThreshold(Math.floor(Math.random() * 6) + 5);
-        setInterstitialAdIndex((i) => i + 1);
-        return 0;
-      }
-      return nextCount;
-    });
+    triggerInterstitialCheck();
 
     const el = document.getElementById(`short-slide-${index}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [shorts.length, nextInterstitialThreshold, interstitialAdIndex, customAds, currentShort]);
+  }, [shorts.length, currentShort, triggerInterstitialCheck]);
 
   // 4. Scroll Listener / Intersection Observer for container scroll (Touch swipe / Wheel)
   const handleContainerScroll = useCallback(() => {
@@ -270,11 +291,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             videoRefs.current[currentShort.id]?.pause();
           }
           setActiveIndex(i);
+          setPhotoProgress(0);
+          triggerInterstitialCheck();
         }
         break;
       }
     }
-  }, [activeIndex, currentShort]);
+  }, [activeIndex, currentShort, triggerInterstitialCheck]);
 
   // 5. Photo Story Auto-Advance Timer (6 seconds)
   useEffect(() => {
@@ -341,6 +364,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   // Subscribe Creator Handler
   const handleToggleSubscribe = (e: React.MouseEvent, creatorTarget: string) => {
     e.stopPropagation();
+    const token = getAuthToken();
+    if (!token && !user) {
+      alert('Please sign in to subscribe to creators and receive their newest updates.');
+      return;
+    }
+
     const isSub = subscribedCreators.includes(creatorTarget);
     const next = isSub
       ? subscribedCreators.filter((c) => c !== creatorTarget)
@@ -348,11 +377,32 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     setSubscribedCreators(next);
     localStorage.setItem('benix_subscribed_creators', JSON.stringify(next));
 
-    // Backend sync
+    // Optimistically update subscriber count immediately
+    const curCount = subscribersMap[creatorTarget] ?? currentShort?.subscribersCount ?? 0;
+    const newCount = isSub ? Math.max(0, curCount - 1) : curCount + 1;
+    setSubscribersMap((prev) => ({ ...prev, [creatorTarget]: newCount }));
+
+    // Backend sync with Authorization token
     const endpoint = isSub
       ? `/api/creators/${encodeURIComponent(creatorTarget)}/unsubscribe`
       : `/api/creators/${encodeURIComponent(creatorTarget)}/subscribe`;
-    fetch(endpoint, { method: 'POST' }).catch(() => {});
+
+    fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data?.subscribersCount === 'number') {
+          setSubscribersMap((prev) => ({ ...prev, [creatorTarget]: data.subscribersCount }));
+        }
+      })
+      .catch((err) => {
+        console.warn('Subscription sync error:', err);
+      });
   };
 
   // Native Picture-in-Picture & Draggable In-App PiP Trigger
@@ -488,13 +538,23 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     );
                   }
                   if (item.mediaType === 'video') {
+                    if (item.thumbnailUrl) {
+                      return (
+                        <img
+                          src={item.thumbnailUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                      );
+                    }
                     return (
                       <video
                         src={item.mediaUrl}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         muted
                         playsInline
-                        preload="metadata"
+                        preload="none"
                       />
                     );
                   }
@@ -640,6 +700,27 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                       );
                     }
                     if (item.mediaType === 'video') {
+                      // Windowed Lazy Loading: Only mount video for active or immediately next item
+                      const isNearActive = Math.abs(idx - activeIndex) <= 1;
+                      if (!isNearActive) {
+                        return (
+                          <div className="w-full h-full relative overflow-hidden bg-slate-950 flex items-center justify-center">
+                            {item.thumbnailUrl ? (
+                              <img
+                                src={item.thumbnailUrl}
+                                alt={item.title}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-700">
+                                <Play className="w-12 h-12 fill-current opacity-30" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
                       return (
                         <video
                           ref={(el) => {
@@ -648,6 +729,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                           src={item.mediaUrl}
                           className="w-full h-full object-cover"
                           playsInline
+                          preload={isCurrent ? 'auto' : 'metadata'}
                           muted={isMuted}
                           loop={!isAutoScroll}
                           onEnded={handleVideoEnded}
@@ -748,7 +830,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                           @{item.authorName.replace(/\s+/g, '').toLowerCase()}
                         </span>
                         <span className="text-[10px] text-slate-300 font-medium">
-                          {formatNumber(subsCount)} {subsCount === 1 ? 'subscriber' : 'subscribers'}
+                          {formatNumber(subscribersMap[authorKey] ?? subsCount)} {(subscribersMap[authorKey] ?? subsCount) === 1 ? 'subscriber' : 'subscribers'}
                         </span>
                       </div>
 
@@ -789,7 +871,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           const ad = customAds[idx % customAds.length];
-                          if (ad?.targetUrl) window.open(ad.targetUrl, '_blank');
+                          if (ad) {
+                            fetch('/api/ads/track-click', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ adId: ad.id })
+                            }).catch(() => {});
+                            if (ad.targetUrl) window.open(ad.targetUrl, '_blank');
+                          }
                         }}
                         className="mt-1 h-7 px-2.5 rounded-lg bg-black/60 backdrop-blur-md border border-amber-500/30 flex items-center justify-between gap-2 max-w-[260px] cursor-pointer hover:bg-black/80 transition"
                       >
@@ -941,25 +1030,56 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 </div>
                 <h4 className="font-extrabold text-base text-white">{activeInterstitialCustomAd.title}</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">{activeInterstitialCustomAd.description}</p>
-                <a
-                  href={activeInterstitialCustomAd.targetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-lg hover:scale-105 active:scale-95 transition"
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeInterstitialCustomAd) {
+                      fetch('/api/ads/track-click', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ adId: activeInterstitialCustomAd.id })
+                      }).catch(() => {});
+                      if (currentShort) {
+                        fetch('/api/ads/record-reward', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            shortId: currentShort.id,
+                            creatorId: currentShort.authorId,
+                            type: 'click',
+                            adType: 'custom',
+                            source: currentShort.source
+                          })
+                        }).catch(() => {});
+                      }
+                      if (activeInterstitialCustomAd.targetUrl) {
+                        window.open(activeInterstitialCustomAd.targetUrl, '_blank');
+                      }
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
                 >
                   <span>{activeInterstitialCustomAd.ctaText || 'Learn More'}</span>
                   <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                </button>
               </div>
             ) : (
-              <div className="space-y-3 py-6">
-                <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-xl">
-                  <Sparkles className="w-8 h-8 animate-spin" />
+              <div className="space-y-3 py-2">
+                <div className="w-full min-h-[160px] max-h-[280px] bg-[#0A0E17] rounded-2xl p-2 border border-blue-500/30 flex flex-col items-center justify-center overflow-hidden">
+                  <AdSenseUnit
+                    slot="7034214536"
+                    clientId="ca-pub-4078466828008985"
+                    format="rectangle"
+                    responsive={true}
+                    className="my-0 max-h-[260px]"
+                  />
                 </div>
-                <h4 className="font-black text-base text-white">Sponsored Partner Moment</h4>
-                <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                  Supporting verified creators on BenixSpace through automated broadcast revenue sharing.
-                </p>
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                  <span className="flex items-center gap-1 font-semibold text-blue-400">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Official Google AdSense Partner
+                  </span>
+                  <span className="text-[10px] text-slate-500">Google Ads Network</span>
+                </div>
               </div>
             )}
           </div>
