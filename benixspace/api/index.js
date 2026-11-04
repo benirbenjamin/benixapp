@@ -55540,6 +55540,20 @@ async function ensureVideoAndShortsTables() {
     );
   `).catch(() => {
   });
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_short_interactions (
+      id SERIAL PRIMARY KEY,
+      user_id VARCHAR(255) NOT NULL,
+      short_id VARCHAR(255) NOT NULL,
+      author_id VARCHAR(255),
+      category VARCHAR(100),
+      interaction_type VARCHAR(50) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_usi_user_id ON user_short_interactions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_usi_short_id ON user_short_interactions(short_id);
+  `).catch(() => {
+  });
 }
 var hasEnsuredShortsFeedTables = false;
 function ensureShortsFeedTablesOnce() {
@@ -55556,6 +55570,14 @@ function ensureShortsFeedTablesOnce() {
 app.get("/api/shorts/feed", async (req, res) => {
   try {
     ensureShortsFeedTablesOnce();
+    let viewerId = req.query.visitorId || req.headers["x-visitor-id"] || "";
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) {
+        viewerId = String(decoded.id);
+      }
+    }
     const storiesRes = await query(`
       SELECT 
         s.id, 
@@ -55570,6 +55592,7 @@ app.get("/api/shorts/feed", async (req, res) => {
         COALESCE(s.likes, 0) as likes, 
         s.created_at as "createdAt",
         'story' as source,
+        'story' as category,
         COALESCE(u.monetization_status, 'auto') as "userMonetization",
         COALESCE(
           (SELECT COUNT(DISTINCT subscriber_id) 
@@ -55581,9 +55604,8 @@ app.get("/api/shorts/feed", async (req, res) => {
         ) as "subscribersCount"
       FROM core_stories s
       LEFT JOIN core_users u ON s.user_id = u.id
-      WHERE (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)
       ORDER BY s.created_at DESC
-      LIMIT 80
+      LIMIT 150
     `).catch(() => ({ rows: [] }));
     const videosRes = await query(`
       SELECT 
@@ -55600,6 +55622,7 @@ app.get("/api/shorts/feed", async (req, res) => {
         COALESCE(v.likes, 0) as likes,
         v.created_at as "createdAt",
         'video' as source,
+        COALESCE(v.category, 'General') as category,
         COALESCE(u.monetization_status, 'auto') as "userMonetization",
         COALESCE(
           (SELECT COUNT(DISTINCT subscriber_id) 
@@ -55618,17 +55641,111 @@ app.get("/api/shorts/feed", async (req, res) => {
          OR v.description ILIKE '%#short%'
          OR v.title ILIKE '%#short%'
       ORDER BY v.created_at DESC
-      LIMIT 80
+      LIMIT 150
     `).catch(() => ({ rows: [] }));
     const combined = [...storiesRes.rows || [], ...videosRes.rows || []];
+    if (combined.length < 5) {
+      const catalogSource = Array.isArray(realVideos_default) && realVideos_default.length > 0 ? realVideos_default : [];
+      const sampleSeedShorts = catalogSource.slice(0, 25).map((v2, i) => ({
+        id: v2.id || `short-${i}`,
+        authorId: v2.creator || "benix_partner",
+        authorName: v2.creator || "Benix Creator Partner",
+        authorAvatar: v2.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v2.creator || "Benix")}&background=0D8ABC&color=fff`,
+        mediaUrl: `https://www.youtube.com/watch?v=${v2.id}`,
+        thumbnailUrl: v2.thumbnailUrl || v2.thumbnail || `https://img.youtube.com/vi/${v2.id}/hqdefault.jpg`,
+        title: v2.title || "Benix Trending Moment",
+        mediaType: "video",
+        duration: 60,
+        views: typeof v2.views === "number" ? v2.views : 14200 + i * 850,
+        likes: typeof v2.likes === "number" ? v2.likes : 1240 + i * 92,
+        subscribersCount: 250 + i * 15,
+        source: "video",
+        category: v2.category || "Trending",
+        createdAt: new Date(Date.now() - (i + 1) * 36e5).toISOString(),
+        isMonetized: true,
+        trendingScore: 60 - i
+      }));
+      for (const seed of sampleSeedShorts) {
+        if (!combined.some((c) => c.id === seed.id)) {
+          combined.push(seed);
+        }
+      }
+    }
+    let watchedShortIds = /* @__PURE__ */ new Set();
+    let authorAffinities = {};
+    let categoryAffinities = {};
+    let subscribedAuthorIds = /* @__PURE__ */ new Set();
+    if (viewerId) {
+      const [interactionsRes, subsRes] = await Promise.all([
+        query(
+          `SELECT short_id, author_id, category, interaction_type 
+           FROM user_short_interactions 
+           WHERE user_id = $1 
+           ORDER BY created_at DESC 
+           LIMIT 250`,
+          [viewerId]
+        ).catch(() => ({ rows: [] })),
+        query(
+          `SELECT creator_id FROM creator_subscribers WHERE subscriber_id = $1`,
+          [viewerId]
+        ).catch(() => ({ rows: [] }))
+      ]);
+      if (subsRes.rows) {
+        subsRes.rows.forEach((r) => {
+          if (r.creator_id) subscribedAuthorIds.add(String(r.creator_id).toLowerCase());
+        });
+      }
+      if (interactionsRes.rows) {
+        interactionsRes.rows.forEach((r) => {
+          if (r.short_id) watchedShortIds.add(String(r.short_id));
+          const authKey = String(r.author_id || "").toLowerCase();
+          if (authKey) {
+            const weight = r.interaction_type === "like" ? 4 : 1;
+            authorAffinities[authKey] = (authorAffinities[authKey] || 0) + weight;
+          }
+          const catKey = String(r.category || "").toLowerCase();
+          if (catKey) {
+            categoryAffinities[catKey] = (categoryAffinities[catKey] || 0) + 1;
+          }
+        });
+      }
+    }
+    const pseudoHash = (str) => {
+      let hash2 = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash2 = (hash2 << 5) - hash2 + str.charCodeAt(i);
+        hash2 |= 0;
+      }
+      return Math.abs(hash2);
+    };
     const now = Date.now();
     const scoredShorts = combined.map((item) => {
       const createdTime = item.createdAt ? new Date(item.createdAt).getTime() : now - 36e5;
       const ageHours = Math.max(0, (now - createdTime) / (1e3 * 60 * 60));
       const views = Number(item.views) || 0;
       const likes = Number(item.likes) || 0;
-      const recencyBonus = item.source === "story" ? 100 : Math.max(0, 50 - ageHours);
-      const trendingScore = (views * 1 + likes * 3 + recencyBonus) / Math.pow(ageHours + 2, 1.4);
+      const recencyBonus = item.source === "story" ? 80 : Math.max(0, 40 - ageHours);
+      const baseTrendingScore = (views * 1 + likes * 3.5 + recencyBonus) / Math.pow(ageHours + 2, 1.3);
+      let personalizedBoost = 0;
+      const authorKey = String(item.authorId || item.authorName || "").toLowerCase();
+      const categoryKey = String(item.category || item.source || "").toLowerCase();
+      if (subscribedAuthorIds.has(authorKey)) {
+        personalizedBoost += 120;
+      }
+      if (authorAffinities[authorKey]) {
+        personalizedBoost += Math.min(100, authorAffinities[authorKey] * 18);
+      }
+      if (categoryAffinities[categoryKey]) {
+        personalizedBoost += Math.min(50, categoryAffinities[categoryKey] * 10);
+      }
+      if (watchedShortIds.has(String(item.id))) {
+        personalizedBoost -= 70;
+      } else {
+        personalizedBoost += 40;
+      }
+      const userSeed = viewerId ? pseudoHash(`${viewerId}_${item.id}`) : pseudoHash(`guest_${item.id}`);
+      const userJitter = userSeed % 100 * 0.35;
+      const finalScore = baseTrendingScore + personalizedBoost + userJitter;
       return {
         id: item.id,
         authorId: item.authorId,
@@ -55643,9 +55760,11 @@ app.get("/api/shorts/feed", async (req, res) => {
         likes,
         subscribersCount: Number(item.subscribersCount) || 0,
         source: item.source,
+        category: item.category,
         createdAt: item.createdAt,
         isMonetized: item.userMonetization === "approved" || item.userMonetization === "active" || item.userMonetization === "monetized" || item.isMonetized,
-        trendingScore: Number(trendingScore.toFixed(3))
+        trendingScore: Number(finalScore.toFixed(3)),
+        isPersonalized: personalizedBoost > 0
       };
     });
     scoredShorts.sort((a2, b2) => b2.trendingScore - a2.trendingScore);
@@ -55658,14 +55777,36 @@ app.get("/api/shorts/feed", async (req, res) => {
 app.post("/api/shorts/:id/view", async (req, res) => {
   try {
     const { id } = req.params;
+    const { visitorId, authorId, category } = req.body || {};
     let updated = false;
-    const vRes = await query("UPDATE user_videos SET views = COALESCE(views, 0) + 1 WHERE id = $1 RETURNING views", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+    let viewerId = visitorId || req.headers["x-visitor-id"] || "";
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) viewerId = String(decoded.id);
+    }
+    const vRes = await query("UPDATE user_videos SET views = COALESCE(views, 0) + 1 WHERE id = $1 RETURNING views, user_id, category", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+    let resolvedAuthor = authorId;
+    let resolvedCat = category;
     if (vRes.rowCount > 0) {
       updated = true;
+      resolvedAuthor = resolvedAuthor || vRes.rows[0]?.user_id;
+      resolvedCat = resolvedCat || vRes.rows[0]?.category;
     } else {
-      await query("UPDATE core_stories SET views = COALESCE(views, 0) + 1 WHERE id = $1", [id]).catch(() => {
+      const sRes = await query("UPDATE core_stories SET views = COALESCE(views, 0) + 1 WHERE id = $1 RETURNING views, user_id, author_name", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (sRes.rowCount > 0) {
+        updated = true;
+        resolvedAuthor = resolvedAuthor || sRes.rows[0]?.user_id || sRes.rows[0]?.author_name;
+        resolvedCat = resolvedCat || "story";
+      }
+    }
+    if (viewerId) {
+      await query(
+        `INSERT INTO user_short_interactions (user_id, short_id, author_id, category, interaction_type)
+         VALUES ($1, $2, $3, $4, 'view')`,
+        [viewerId, id, resolvedAuthor || null, resolvedCat || "short"]
+      ).catch(() => {
       });
-      updated = true;
     }
     return res.json({ success: true, updated });
   } catch (err) {
@@ -55675,13 +55816,38 @@ app.post("/api/shorts/:id/view", async (req, res) => {
 app.post("/api/shorts/:id/like", async (req, res) => {
   try {
     const { id } = req.params;
+    const { visitorId, authorId, category, action } = req.body || {};
     let likes = 0;
-    const vRes = await query("UPDATE user_videos SET likes = COALESCE(likes, 0) + 1 WHERE id = $1 RETURNING likes", [id]).catch(() => ({ rowCount: 0, rows: [] }));
+    let viewerId = visitorId || req.headers["x-visitor-id"] || "";
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) viewerId = String(decoded.id);
+    }
+    const isUnlike = action === "unlike";
+    const delta = isUnlike ? -1 : 1;
+    const vRes = await query("UPDATE user_videos SET likes = GREATEST(0, COALESCE(likes, 0) + $2) WHERE id = $1 RETURNING likes, user_id, category", [id, delta]).catch(() => ({ rowCount: 0, rows: [] }));
+    let resolvedAuthor = authorId;
+    let resolvedCat = category;
     if (vRes.rowCount > 0) {
       likes = vRes.rows[0].likes;
+      resolvedAuthor = resolvedAuthor || vRes.rows[0]?.user_id;
+      resolvedCat = resolvedCat || vRes.rows[0]?.category;
     } else {
-      const sRes = await query("UPDATE core_stories SET likes = COALESCE(likes, 0) + 1 WHERE id = $1 RETURNING likes", [id]).catch(() => ({ rowCount: 0, rows: [] }));
-      if (sRes.rowCount > 0) likes = sRes.rows[0].likes;
+      const sRes = await query("UPDATE core_stories SET likes = GREATEST(0, COALESCE(likes, 0) + $2) WHERE id = $1 RETURNING likes, user_id, author_name", [id, delta]).catch(() => ({ rowCount: 0, rows: [] }));
+      if (sRes.rowCount > 0) {
+        likes = sRes.rows[0].likes;
+        resolvedAuthor = resolvedAuthor || sRes.rows[0]?.user_id || sRes.rows[0]?.author_name;
+        resolvedCat = resolvedCat || "story";
+      }
+    }
+    if (viewerId && !isUnlike) {
+      await query(
+        `INSERT INTO user_short_interactions (user_id, short_id, author_id, category, interaction_type)
+         VALUES ($1, $2, $3, $4, 'like')`,
+        [viewerId, id, resolvedAuthor || null, resolvedCat || "short"]
+      ).catch(() => {
+      });
     }
     return res.json({ success: true, likes });
   } catch (err) {
@@ -55715,8 +55881,6 @@ async function ensureStoriesTable() {
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {
   });
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {
-  });
-  await query("UPDATE core_stories SET expires_at = created_at + INTERVAL '24 hours' WHERE expires_at > created_at + INTERVAL '48 hours';").catch(() => {
   });
 }
 app.get("/api/stories", async (req, res) => {

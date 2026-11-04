@@ -50,6 +50,8 @@ export interface ShortFeedItem {
   isMonetized?: boolean;
   trendingScore?: number;
   subscribersCount?: number;
+  category?: string;
+  isPersonalized?: boolean;
 }
 
 interface CustomAdItem {
@@ -75,9 +77,39 @@ function extractYouTubeId(urlOrId?: string): string | null {
   return match ? match[1] : null;
 }
 
+function getVisitorId(): string {
+  try {
+    let vid = localStorage.getItem('benix_visitor_id');
+    if (!vid) {
+      vid = 'v_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+      localStorage.setItem('benix_visitor_id', vid);
+    }
+    return vid;
+  } catch {
+    return 'v_guest';
+  }
+}
+
 function getFallbackShorts(): ShortFeedItem[] {
-  // Only vertical / portrait clips are eligible for the shorts feed
-  return [];
+  return ((realVideosData as any[]) || []).slice(0, 30).map((v: any, i: number) => ({
+    id: v.id || `short-${i}`,
+    authorId: v.creator || 'benix_partner',
+    authorName: v.creator || 'Benix Creator Partner',
+    authorAvatar: v.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.creator || 'Benix')}&background=0D8ABC&color=fff`,
+    mediaUrl: `https://www.youtube.com/watch?v=${v.id}`,
+    thumbnailUrl: v.thumbnailUrl || v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
+    title: v.title || 'Benix Trending Moment',
+    mediaType: 'video',
+    duration: 60,
+    views: typeof v.views === 'number' ? v.views : 14200 + i * 850,
+    likes: typeof v.likes === 'number' ? v.likes : 1240 + i * 92,
+    subscribersCount: 250 + i * 15,
+    source: 'video',
+    category: v.category || 'Trending',
+    createdAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
+    isMonetized: true,
+    trendingScore: 60 - i
+  }));
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -135,8 +167,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000);
 
+      const token = getAuthToken();
+      const visitorId = getVisitorId();
+      const headers: Record<string, string> = {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'x-visitor-id': visitorId
+      };
+
       const [feedRes, adsRes] = await Promise.all([
-        fetch('/api/shorts/feed', { signal: controller.signal })
+        fetch(`/api/shorts/feed?visitorId=${encodeURIComponent(visitorId)}`, { signal: controller.signal, headers })
           .then((r) => r.json())
           .catch(() => ({ shorts: [] })),
         fetch('/api/ads/active', { signal: controller.signal })
@@ -147,7 +186,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       let loadedShorts: ShortFeedItem[] = feedRes?.shorts && Array.isArray(feedRes.shorts) && feedRes.shorts.length > 0
         ? feedRes.shorts
-        : [];
+        : getFallbackShorts();
 
       setShorts(loadedShorts);
       const lMap: Record<string, number> = {};
@@ -167,8 +206,19 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       }
     } catch (err) {
       console.error('Error loading shorts feed:', err);
-      setShorts([]);
-      setLikesMap({});
+      const fallback = getFallbackShorts();
+      setShorts(fallback);
+      const lMap: Record<string, number> = {};
+      const sMap: Record<string, number> = {};
+      fallback.forEach((s: ShortFeedItem) => {
+        lMap[s.id] = s.likes || 0;
+        const authorKey = s.authorId || s.authorName;
+        if (s.subscribersCount !== undefined) {
+          sMap[authorKey] = s.subscribersCount;
+        }
+      });
+      setLikesMap(lMap);
+      setSubscribersMap(sMap);
     } finally {
       setLoading(false);
     }
@@ -186,8 +236,23 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     if (!short || recordedViewsRef.current.has(short.id)) return;
     recordedViewsRef.current.add(short.id);
 
-    // Increment view count on server
-    fetch(`/api/shorts/${short.id}/view`, { method: 'POST' }).catch(() => {});
+    const token = getAuthToken();
+    const visitorId = getVisitorId();
+
+    // Increment view count on server & register interaction for recommendation algorithm
+    fetch(`/api/shorts/${short.id}/view`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        visitorId,
+        authorId: short.authorId,
+        category: short.category || (short.source === 'story' ? 'story' : 'short'),
+        title: short.title
+      })
+    }).catch(() => {});
 
     // Silent Wallet Credit if author is monetized
     fetch('/api/ads/record-reward', {
@@ -354,10 +419,20 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       [shortId]: (prev[shortId] || 0) + (isCurrentlyLiked ? -1 : 1)
     }));
 
+    const token = getAuthToken();
+    const visitorId = getVisitorId();
     fetch(`/api/shorts/${shortId}/like`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: isCurrentlyLiked ? 'unlike' : 'like' })
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        action: isCurrentlyLiked ? 'unlike' : 'like',
+        visitorId,
+        authorId: currentShort?.authorId,
+        category: currentShort?.category
+      })
     }).catch(() => {});
   };
 
