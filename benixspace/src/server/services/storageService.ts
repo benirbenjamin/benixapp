@@ -138,6 +138,10 @@ export class StorageService {
         });
       });
 
+      req.setTimeout(6000, () => {
+        req.destroy(); // getAccessToken timeout
+        resolve(null);
+      });
       req.on('error', () => resolve(null));
       req.write(postData);
       req.end();
@@ -445,6 +449,9 @@ export class StorageService {
         }
       );
 
+      req.setTimeout(6000, () => {
+        req.destroy(new Error('Google Drive upload timed out after 6s.'));
+      });
       req.on('error', reject);
       req.write(multipartRequestBody);
       req.end();

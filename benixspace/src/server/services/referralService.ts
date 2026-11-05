@@ -33,12 +33,26 @@ export class ReferralService {
     // Link user to referrer
     await query('UPDATE core_users SET referred_by_id = $1 WHERE id = $2', [referrerId, newUserId]);
 
-    // Record pending referral event
+    const rewardAmount = 50.00; // 50 FRW referral bonus directly to real wallet
+    try {
+      await WalletService.credit(
+        referrerId,
+        rewardAmount,
+        'referral',
+        'referral_reward',
+        `Referral Reward: New user registered with your code`,
+        `tx_ref_reg_${newUserId}`
+      );
+    } catch (e) {
+      console.warn('Referral credit error:', e);
+    }
+
+    // Record referral event
     const refRecordId = 'ref-' + crypto.randomUUID();
     await query(
-      `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status)
-       VALUES ($1, $2, $3, 'registration', 500.00, 'pending')`,
-      [refRecordId, referrerId, newUserId]
+      `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
+       VALUES ($1, $2, $3, 'registration', $4, 'approved', CURRENT_TIMESTAMP)`,
+      [refRecordId, referrerId, newUserId, rewardAmount]
     );
 
     return true;
@@ -63,7 +77,7 @@ export class ReferralService {
     if (pendingRef.rowCount === 0) return false;
 
     const ref = pendingRef.rows[0];
-    const rewardAmount = Number(ref.reward_amount) || 500.00; // 500 RWF reward
+    const rewardAmount = Number(ref.reward_amount) || 50.00; // 500 RWF reward
 
     // Credit referrer's wallet
     await WalletService.credit(

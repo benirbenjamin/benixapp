@@ -11,7 +11,7 @@ import { DashboardReceiptModal } from '../components/dashboard/DashboardReceiptM
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal';
 import {
-  LayoutDashboard,
+  LayoutDashboard, MessageCircle, Zap, Search,
   Wallet,
   Gift,
   Settings,
@@ -60,14 +60,14 @@ export const DashboardPage: React.FC = () => {
 
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads' | 'smm'>('overview');
 
   // React to hash (e.g. #wallet) or query param (e.g. ?tab=wallet)
   useEffect(() => {
     const hash = (location.hash || '').replace('#', '').toLowerCase();
     const tabParam = (searchParams.get('tab') || '').toLowerCase();
     const candidate = hash || tabParam;
-    if (['wallet', 'overview', 'customizer', 'referrals', 'security', 'ads'].includes(candidate)) {
+    if (['wallet', 'overview', 'customizer', 'referrals', 'security', 'ads', 'smm'].includes(candidate)) {
       setActiveTab(candidate as any);
     }
   }, [location.hash, searchParams]);
@@ -275,7 +275,146 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleTogglePause = async (campaignId: string) => {
+
+  // Social Media Boost Storefront States
+  const [smmServices, setSmmServices] = useState<any[]>([]);
+  const [smmLoading, setSmmLoading] = useState(false);
+  const [smmCategory, setSmmCategory] = useState('all');
+  const [smmSearch, setSmmSearch] = useState('');
+  const [selectedService, setSelectedService] = useState<any | null>(null);
+  const [boostLink, setBoostLink] = useState('');
+  const [boostQuantity, setBoostQuantity] = useState(100);
+  const [orderingBoost, setOrderingBoost] = useState(false);
+  const [boostOrderSuccess, setBoostOrderSuccess] = useState('');
+  const [boostOrderError, setBoostOrderError] = useState('');
+  const [myBoostOrders, setMyBoostOrders] = useState<any[]>([]);
+  const [myOrdersLoading, setMyOrdersLoading] = useState(false);
+  const [smmProviderBalance, setSmmProviderBalance] = useState<number | null>(null);
+
+  const loadSmmServices = async () => {
+    try {
+      setSmmLoading(true);
+      const res = await fetch('/api/smm/services');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.services)) {
+        setSmmServices(data.services);
+        if (!selectedService && data.services.length > 0) {
+          setSelectedService(data.services[0]);
+          setBoostQuantity(data.services[0].min_quantity || 100);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load SMM services:', e);
+    } finally {
+      setSmmLoading(false);
+    }
+  };
+
+  const loadMyBoostOrders = async () => {
+    const authToken = token || localStorage.getItem('token');
+    if (!authToken) return;
+    try {
+      setMyOrdersLoading(true);
+      const res = await fetch('/api/smm/orders/my', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.orders)) {
+        setMyBoostOrders(data.orders);
+      }
+    } catch (e) {
+      console.warn('Failed to load my boost orders:', e);
+    } finally {
+      setMyOrdersLoading(false);
+    }
+  };
+
+  const loadSmmBalanceIfAdmin = async () => {
+    const authToken = token || localStorage.getItem('token');
+    if (!authToken || (user?.role !== 'admin' && user?.role !== 'superadmin')) return;
+    try {
+      const res = await fetch('/api/smm/balance', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSmmProviderBalance(data.balance);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (activeTab === 'smm') {
+      loadSmmServices();
+      loadMyBoostOrders();
+      loadSmmBalanceIfAdmin();
+    }
+  }, [activeTab]);
+
+  const handlePlaceBoostOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedService) return;
+    const authToken = token || localStorage.getItem('token');
+    if (!authToken) {
+      alert('Please log in to place an order.');
+      return;
+    }
+
+    if (!boostLink.trim()) {
+      setBoostOrderError('Please enter your video, channel, profile, or post link.');
+      return;
+    }
+
+    const minQty = selectedService.min_quantity || 10;
+    const maxQty = selectedService.max_quantity || 100000;
+    if (boostQuantity < minQty || boostQuantity > maxQty) {
+      setBoostOrderError(`Quantity must be between ${minQty.toLocaleString()} and ${maxQty.toLocaleString()}.`);
+      return;
+    }
+
+    const costRwf = Math.ceil(Number(selectedService.rate_rwf) * (boostQuantity / 1000));
+    const currentBalance = Number(wallet?.balance || 0);
+
+    if (currentBalance < costRwf) {
+      setBoostOrderError(`Insufficient wallet balance. You need ${costRwf.toLocaleString()} RWF (Available: ${currentBalance.toLocaleString()} RWF). Please deposit to your wallet.`);
+      return;
+    }
+
+    setOrderingBoost(true);
+    setBoostOrderError('');
+    setBoostOrderSuccess('');
+
+    try {
+      const res = await fetch('/api/smm/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          serviceId: selectedService.service_id,
+          link: boostLink.trim(),
+          quantity: boostQuantity
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBoostOrderSuccess(data.message || '🚀 Order placed successfully!');
+        setBoostLink('');
+        updateWalletBalance();
+        loadMyBoostOrders();
+      } else {
+        setBoostOrderError(data.error || 'Failed to place order. Please check your balance or contact admin.');
+      }
+    } catch (err: any) {
+      setBoostOrderError(err.message || 'Connection error.');
+    } finally {
+      setOrderingBoost(false);
+    }
+  };
+
+    const handleTogglePause = async (campaignId: string) => {
     try {
       const authToken = token || localStorage.getItem('token');
       const res = await fetch(`/api/ads/${campaignId}/toggle-pause`, {
@@ -487,20 +626,25 @@ export const DashboardPage: React.FC = () => {
                   {Number(wallet?.balance || 0).toLocaleString()}{' '}
                   <span className="text-xs text-emerald-400">{wallet?.currency || 'RWF'}</span>
                 </span>
-                {Boolean(wallet?.bonus_balance) && (
-                  <span className="text-[10px] text-amber-300 font-bold block mt-0.5">
-                    +{Number(wallet?.bonus_balance || 0).toLocaleString()} Bonus RWF
-                  </span>
-                )}
+                
               </div>
             </div>
+
+            <Link
+              to="/chat"
+              title="Message System Admin for Support & Questions"
+              className="px-4 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95 shrink-0"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Chat with Admin</span>
+            </Link>
 
             <button
               onClick={handleCopyRef}
               className="px-4 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 shrink-0"
             >
               <Gift className="w-4 h-4" />
-              <span>{copied ? 'Copied!' : 'Invite & Earn Rewards'}</span>
+              <span>{copied ? 'Copied!' : 'Invite & Earn (50 RWF)'}</span>
             </button>
           </div>
         </div>
@@ -509,6 +653,7 @@ export const DashboardPage: React.FC = () => {
         <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto scrollbar-none">
           {[
             { id: 'overview', label: 'Overview & Apps', icon: LayoutDashboard },
+            { id: 'smm', label: 'Social Media Boost', icon: Zap },
             { id: 'wallet', label: 'Central Wallet & Ledger', icon: Wallet },
             { id: 'customizer', label: 'App Customizer', icon: Palette },
             { id: 'ads', label: 'Ad Campaigns & Analytics', icon: Megaphone },
@@ -827,6 +972,331 @@ export const DashboardPage: React.FC = () => {
               <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-1">
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Role</span>
                 <span className="text-sm font-bold text-white uppercase">{user?.role || 'User'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        
+        {/* TAB: SOCIAL MEDIA BOOST STOREFRONT (SMMFOLLOWS INTEGRATION) */}
+        {activeTab === 'smm' && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#171329] via-[#151B2E] to-[#0D121F] border border-amber-500/30 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden">
+              <div className="space-y-2 max-w-xl">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    SMM Boost & Growth Engine
+                  </span>
+                  {smmProviderBalance !== null && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      SMM Balance: ${smmProviderBalance.toFixed(2)} USD
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  Social Media Boost Services 🚀
+                </h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Grow your YouTube subscribers & views, Instagram followers & likes, TikTok engagement, Facebook pages, and Spotify streams. Orders are fulfilled automatically directly from your central wallet!
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="p-4 rounded-2xl bg-[#1A2234] border border-slate-700/80 text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Available Balance</span>
+                  <span className="text-xl font-black text-emerald-400">
+                    {Number(wallet?.balance || 0).toLocaleString()} <span className="text-xs font-bold text-white">RWF</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowWalletModal(true)}
+                  className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition-all active:scale-95 shrink-0"
+                >
+                  Deposit RWF
+                </button>
+              </div>
+            </div>
+
+            {/* Main Boost Storefront Grid: Service Selector + Order Form */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Service Selector (7 Cols) */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* Search & Category Tabs */}
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
+                    <input
+                      type="text"
+                      value={smmSearch}
+                      onChange={(e) => setSmmSearch(e.target.value)}
+                      placeholder="Search boosts (e.g. YouTube, TikTok)..."
+                      className="w-full pl-9 pr-3 py-2 rounded-2xl bg-[#162032] border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <select
+                    value={smmCategory}
+                    onChange={(e) => setSmmCategory(e.target.value)}
+                    className="w-full sm:w-auto px-4 py-2 rounded-2xl bg-[#162032] border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="all">All Platforms & Categories</option>
+                    {Array.from(new Set(smmServices.map((s) => s.category))).filter(Boolean).map((cat: any) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Services List */}
+                <div className="p-4 rounded-3xl bg-[#121824] border border-slate-800 space-y-2 max-h-[520px] overflow-y-auto">
+                  {smmLoading ? (
+                    <div className="py-12 text-center text-slate-400 text-xs">Loading services from growth engine...</div>
+                  ) : smmServices.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400 text-xs">
+                      No services available right now. Please check back shortly or contact admin.
+                    </div>
+                  ) : (
+                    smmServices
+                      .filter((s) => smmCategory === 'all' || s.category === smmCategory)
+                      .filter((s) => !smmSearch || s.name.toLowerCase().includes(smmSearch.toLowerCase()) || s.category.toLowerCase().includes(smmSearch.toLowerCase()))
+                      .map((svc) => {
+                        const isSelected = selectedService?.id === svc.id;
+                        return (
+                          <div
+                            key={svc.id}
+                            onClick={() => {
+                              setSelectedService(svc);
+                              setBoostQuantity(Math.max(svc.min_quantity || 10, boostQuantity));
+                              setBoostOrderError('');
+                              setBoostOrderSuccess('');
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-amber-500/15 to-orange-500/10 border-amber-500/60 shadow-lg'
+                                : 'bg-[#162032]/60 hover:bg-[#162032] border-slate-800/80 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[9px] font-bold text-slate-300 border border-slate-700">
+                                  {svc.category}
+                                </span>
+                                {svc.refill && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-400 border border-emerald-500/30">
+                                    ♻️ Auto-Refill
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-xs font-bold text-white truncate" title={svc.name}>
+                                {svc.name}
+                              </h4>
+                              <p className="text-[10px] text-slate-400">
+                                Min: {svc.min_quantity?.toLocaleString()} | Max: {svc.max_quantity?.toLocaleString()}
+                              </p>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span className="text-sm font-black text-emerald-400 block font-mono">
+                                {Number(svc.rate_rwf).toLocaleString()} RWF
+                              </span>
+                              <span className="text-[9px] text-slate-400 uppercase font-bold">per 1,000 units</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Order Placement Form (5 Cols) */}
+              <div className="lg:col-span-5">
+                <div className="p-6 rounded-3xl bg-[#121824] border border-slate-800 shadow-xl space-y-5 sticky top-24">
+                  <div className="border-b border-slate-800 pb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">Configure Boost</span>
+                    <h3 className="text-base font-black text-white mt-0.5 truncate">
+                      {selectedService?.name || 'Select a service'}
+                    </h3>
+                  </div>
+
+                  {boostOrderSuccess && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-200 text-xs flex items-center gap-2 animate-fade-in">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <span>{boostOrderSuccess}</span>
+                    </div>
+                  )}
+
+                  {boostOrderError && (
+                    <div className="p-3.5 rounded-2xl bg-red-950/70 border border-red-500/40 text-red-200 text-xs flex items-center gap-2 animate-fade-in">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                      <span>{boostOrderError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handlePlaceBoostOrder} className="space-y-4">
+                    {/* Target Link */}
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                        Target URL / Link <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        required
+                        value={boostLink}
+                        onChange={(e) => setBoostLink(e.target.value)}
+                        placeholder="https://youtube.com/watch?v=... or profile URL"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-[#162032] border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-1">Make sure account or video is set to public.</span>
+                    </div>
+
+                    {/* Quantity */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-300">Quantity</label>
+                        <span className="text-[10px] text-slate-400">
+                          Min: {selectedService?.min_quantity || 10} - Max: {selectedService?.max_quantity?.toLocaleString() || 100000}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        required
+                        min={selectedService?.min_quantity || 10}
+                        max={selectedService?.max_quantity || 100000}
+                        value={boostQuantity}
+                        onChange={(e) => setBoostQuantity(parseInt(e.target.value) || 0)}
+                        className="w-full px-4 py-2.5 rounded-2xl bg-[#162032] border border-slate-700 text-white font-mono text-sm focus:outline-none focus:border-amber-500 font-bold"
+                      />
+                    </div>
+
+                    {/* Cost Calculation Box */}
+                    {selectedService && (
+                      <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>Unit Rate:</span>
+                          <span className="font-mono">{Number(selectedService.rate_rwf).toLocaleString()} RWF / 1,000</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>Quantity:</span>
+                          <span className="font-mono">{boostQuantity.toLocaleString()}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">Total Cost (Debited from Real Wallet):</span>
+                          <span className="text-lg font-black text-emerald-400 font-mono">
+                            {Math.ceil(Number(selectedService.rate_rwf) * (boostQuantity / 1000)).toLocaleString()} RWF
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={orderingBoost || !selectedService}
+                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                      {orderingBoost ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          <span>Processing Order...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4" />
+                          <span>Boost Now</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            {/* My Boost Orders History */}
+            <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-400" />
+                  <h3 className="text-base font-black text-white">My Boost Orders History</h3>
+                </div>
+                <button
+                  onClick={loadMyBoostOrders}
+                  disabled={myOrdersLoading}
+                  className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                >
+                  {myOrdersLoading ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
+
+              {myBoostOrders.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  You haven't placed any social boost orders yet. Select a service above to boost your audience!
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-[#1A2234] text-[10px] text-slate-400 uppercase tracking-wider">
+                      <tr>
+                        <th className="p-3">Order ID</th>
+                        <th className="p-3">Service</th>
+                        <th className="p-3">Target Link</th>
+                        <th className="p-3">Quantity</th>
+                        <th className="p-3">Total Paid</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {myBoostOrders.map((ord) => (
+                        <tr key={ord.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="p-3 font-mono text-[11px] text-slate-400">#{ord.id}</td>
+                          <td className="p-3 font-bold text-white max-w-xs truncate" title={ord.service_name}>
+                            {ord.service_name}
+                          </td>
+                          <td className="p-3 max-w-xs truncate text-blue-400" title={ord.link}>
+                            <a href={ord.link} target="_blank" rel="noreferrer" className="hover:underline flex items-center gap-1">
+                              <span className="truncate">{ord.link}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                          </td>
+                          <td className="p-3 font-mono font-bold text-white">{ord.quantity.toLocaleString()}</td>
+                          <td className="p-3 font-mono text-emerald-400 font-bold">{Number(ord.charge_rwf).toLocaleString()} RWF</td>
+                          <td className="p-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                              ord.status === 'completed'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : ord.status === 'in_progress'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                : ord.status === 'pending_deposit'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {ord.status === 'pending_deposit' ? 'Processing / Queued' : ord.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-[11px] text-slate-400">
+                            {new Date(ord.created_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Chat with Admin prompt */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 to-indigo-950/30 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="font-bold text-white block">Need custom volume or have a question about your boost order?</span>
+                  <span className="text-[11px] text-slate-300">Our administrative support team is available 24/7 to assist you.</span>
+                </div>
+                <Link
+                  to="/chat"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all shrink-0 active:scale-95 flex items-center gap-1.5"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Chat with Admin</span>
+                </Link>
               </div>
             </div>
           </div>

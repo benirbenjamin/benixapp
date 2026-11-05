@@ -21386,7 +21386,7 @@ var require_application = __commonJS({
     var finalhandler = require_finalhandler();
     var debug = require_src()("express:application");
     var View = require_view();
-    var http2 = __require("node:http");
+    var http3 = __require("node:http");
     var methods = require_utils3().methods;
     var compileETag = require_utils3().compileETag;
     var compileQueryParser = require_utils3().compileQueryParser;
@@ -21619,7 +21619,7 @@ var require_application = __commonJS({
       tryRender(view, renderOptions, done);
     };
     app2.listen = function listen() {
-      var server = http2.createServer(this);
+      var server = http3.createServer(this);
       var args = slice.call(arguments);
       if (typeof args[args.length - 1] === "function") {
         var done = args[args.length - 1] = once(args[args.length - 1]);
@@ -22469,12 +22469,12 @@ var require_request = __commonJS({
     var accepts = require_accepts();
     var isIP = __require("node:net").isIP;
     var typeis = require_type_is();
-    var http2 = __require("node:http");
+    var http3 = __require("node:http");
     var fresh = require_fresh();
     var parseRange = require_range_parser();
     var parse2 = require_parseurl();
     var proxyaddr = require_proxy_addr();
-    var req = Object.create(http2.IncomingMessage.prototype);
+    var req = Object.create(http3.IncomingMessage.prototype);
     module.exports = req;
     req.get = req.header = function header(name2) {
       if (!name2) {
@@ -23568,7 +23568,7 @@ var require_response = __commonJS({
     var deprecate = require_depd()("express");
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
-    var http2 = __require("node:http");
+    var http3 = __require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
     var path5 = __require("node:path");
@@ -23584,7 +23584,7 @@ var require_response = __commonJS({
     var resolve3 = path5.resolve;
     var vary = require_vary();
     var { Buffer: Buffer2 } = __require("node:buffer");
-    var res = Object.create(http2.ServerResponse.prototype);
+    var res = Object.create(http3.ServerResponse.prototype);
     module.exports = res;
     res.status = function status(code) {
       if (!Number.isInteger(code)) {
@@ -35747,6 +35747,9 @@ var WalletService = class {
         ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS total_bonus_received NUMERIC(15,2) DEFAULT 0.00;
         ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS last_login_bonus_date VARCHAR(20) DEFAULT NULL;
 
+        -- Real Wallet Unification: Transfer all existing bonus_balance into real balance
+        UPDATE core_wallets SET balance = balance + COALESCE(bonus_balance, 0), bonus_balance = 0 WHERE bonus_balance > 0;
+
         CREATE TABLE IF NOT EXISTS core_wallet_transactions (
           id VARCHAR(255) PRIMARY KEY,
           wallet_id VARCHAR(255),
@@ -35820,42 +35823,13 @@ var WalletService = class {
    * Stored strictly in bonus_balance (NEVER mixes into deposit/earned balance).
    */
   static async creditBonus(userId, amount, module = "wallet", type = "bonus_credit", description = "Platform Bonus", reference, metadata) {
-    if (amount <= 0) throw new Error("Bonus credit amount must be greater than zero.");
-    const txRef = reference || `tx_bonus_${Date.now()}_${crypto2.randomBytes(4).toString("hex")}`;
-    const txId = "cwt-" + crypto2.randomUUID();
-    return await withTransaction(async (client) => {
-      let walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
-      if (walletRes.rowCount === 0) {
-        await client.query(
-          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings, total_bonus_received)
-           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00, 0.00)
-           ON CONFLICT (user_id) DO NOTHING`,
-          ["wallet-" + userId, userId]
-        );
-        walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
-      }
-      const wallet = walletRes.rows[0];
-      const newBonusBalance = Number(wallet.bonus_balance || 0) + amount;
-      const newTotalBonus = Number(wallet.total_bonus_received || 0) + amount;
-      await client.query(
-        `UPDATE core_wallets 
-         SET bonus_balance = $1, total_bonus_received = $2, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        [newBonusBalance, newTotalBonus, wallet.id]
-      );
-      await client.query(
-        `INSERT INTO core_wallet_transactions 
-         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, 0.00, 'RWF', 'completed', $7, $8, $9)`,
-        [txId, wallet.id, userId, module, type, amount, txRef, description, JSON.stringify(metadata || {})]
-      );
-      return { success: true, newBonusBalance, transactionId: txId };
-    });
+    const cred = await this.credit(userId, amount, module, type, description, reference, metadata);
+    return { success: true, newBonusBalance: 0, newBalance: cred.newBalance, transactionId: cred.transactionId };
   }
   /**
-   * Claim Daily Login Bonus (Credited into bonus_balance, once every calendar day)
+   * Claim Daily Login Bonus (Credited into real balance, once every calendar day)
    */
-  static async claimDailyLoginBonus(userId, bonusAmount = 200) {
+  static async claimDailyLoginBonus(userId, bonusAmount = 10) {
     const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return await withTransaction(async (client) => {
       let walletRes = await client.query("SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE", [userId]);
@@ -35875,17 +35849,18 @@ var WalletService = class {
           claimed: false,
           alreadyClaimed: true,
           amount: 0,
-          bonusBalance: Number(wallet.bonus_balance || 0),
+          bonusBalance: 0,
+          newBalance: Number(wallet.balance || 0),
           message: "Daily login bonus already claimed for today."
         };
       }
-      const newBonusBalance = Number(wallet.bonus_balance || 0) + bonusAmount;
-      const newTotalBonus = Number(wallet.total_bonus_received || 0) + bonusAmount;
+      const newBalance = Number(wallet.balance || 0) + bonusAmount;
+      const newTotalEarnings = Number(wallet.total_earnings || 0) + bonusAmount;
       await client.query(
         `UPDATE core_wallets 
-         SET bonus_balance = $1, total_bonus_received = $2, last_login_bonus_date = $3, updated_at = CURRENT_TIMESTAMP 
+         SET balance = $1, total_earnings = $2, bonus_balance = 0, last_login_bonus_date = $3, updated_at = CURRENT_TIMESTAMP 
          WHERE id = $4`,
-        [newBonusBalance, newTotalBonus, today, wallet.id]
+        [newBalance, newTotalEarnings, today, wallet.id]
       );
       const txId = "cwt-" + crypto2.randomUUID();
       await client.query(
@@ -35898,7 +35873,7 @@ var WalletService = class {
           userId,
           bonusAmount,
           `tx_daily_${today}_${userId}`,
-          `Daily Login Bonus (${today}): +${bonusAmount} RWF credited to Bonus Wallet`,
+          `Daily Login Bonus (${today}): +${bonusAmount} RWF credited to Real Wallet`,
           JSON.stringify({ date: today, bonusAmount })
         ]
       );
@@ -35906,8 +35881,9 @@ var WalletService = class {
         claimed: true,
         alreadyClaimed: false,
         amount: bonusAmount,
-        bonusBalance: newBonusBalance,
-        message: `\u{1F389} Daily Login Bonus Credited: +${bonusAmount} RWF added to your Bonus Wallet!`
+        bonusBalance: 0,
+        newBalance,
+        message: `\u{1F389} Daily Login Bonus Credited: +${bonusAmount} RWF added to your Real Wallet!`
       };
     });
   }
@@ -35965,33 +35941,18 @@ var WalletService = class {
       }
       const wallet = walletRes.rows[0];
       const realBalance = Number(wallet.balance || 0);
-      const bonusBalance = Number(wallet.bonus_balance || 0);
-      const totalAvailable = realBalance + bonusBalance;
-      if (totalAvailable < amount) {
+      if (realBalance < amount) {
         throw new Error(
-          `Insufficient wallet balance. Required: ${amount.toLocaleString()} RWF (Available: ${realBalance.toLocaleString()} RWF real deposit + ${bonusBalance.toLocaleString()} RWF bonus).`
+          `Insufficient wallet balance. Required: ${amount.toLocaleString()} RWF (Available: ${realBalance.toLocaleString()} RWF). Please deposit funds to your wallet.`
         );
       }
-      let deductedFromBonus = 0;
-      let deductedFromReal = 0;
-      if (bonusBalance >= amount) {
-        deductedFromBonus = amount;
-      } else {
-        deductedFromBonus = bonusBalance;
-        deductedFromReal = amount - bonusBalance;
-      }
-      const newBonusBalance = bonusBalance - deductedFromBonus;
-      const newRealBalance = realBalance - deductedFromReal;
+      const newRealBalance = realBalance - amount;
       await client.query(
         `UPDATE core_wallets 
-         SET balance = $1, bonus_balance = $2, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        [newRealBalance, newBonusBalance, wallet.id]
+         SET balance = $1, bonus_balance = 0, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $2`,
+        [newRealBalance, wallet.id]
       );
-      const debitBreakdown = [
-        deductedFromBonus > 0 ? `${deductedFromBonus} RWF bonus` : null,
-        deductedFromReal > 0 ? `${deductedFromReal} RWF deposit` : null
-      ].filter(Boolean).join(" + ");
       await client.query(
         `INSERT INTO core_wallet_transactions 
          (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description, metadata)
@@ -36004,17 +35965,17 @@ var WalletService = class {
           type,
           -amount,
           txRef,
-          `${description} [${debitBreakdown}]`,
-          JSON.stringify({ ...metadata || {}, deductedFromBonus, deductedFromReal })
+          description,
+          JSON.stringify({ ...metadata || {}, deductedFromBonus: 0, deductedFromReal: amount })
         ]
       );
       return {
         success: true,
         newBalance: newRealBalance,
-        newBonusBalance,
-        totalBalance: newRealBalance + newBonusBalance,
-        deductedFromBonus,
-        deductedFromReal,
+        newBonusBalance: 0,
+        totalBalance: newRealBalance,
+        deductedFromBonus: 0,
+        deductedFromReal: amount,
         transactionId: txId
       };
     });
@@ -36194,325 +36155,12 @@ var WalletService = class {
   }
 };
 
-// src/server/services/referralService.ts
-import crypto3 from "crypto";
-var ReferralService = class {
-  /**
-   * Generates or fetches unique referral code for a user
-   */
-  static async getReferralCode(userId) {
-    const res = await query("SELECT referral_code FROM core_users WHERE id = $1", [userId]);
-    if (res.rowCount > 0 && res.rows[0].referral_code) {
-      return res.rows[0].referral_code;
-    }
-    const code = "REF-" + crypto3.randomBytes(3).toString("hex").toUpperCase();
-    await query("UPDATE core_users SET referral_code = $1 WHERE id = $2", [code, userId]);
-    return code;
-  }
-  /**
-   * Applies referral attribution during registration
-   */
-  static async applyReferralCode(newUserId, referralCode) {
-    if (!referralCode) return false;
-    const refRes = await query("SELECT id FROM core_users WHERE referral_code = $1", [referralCode.trim()]);
-    if (refRes.rowCount === 0) return false;
-    const referrerId = refRes.rows[0].id;
-    if (referrerId === newUserId) return false;
-    await query("UPDATE core_users SET referred_by_id = $1 WHERE id = $2", [referrerId, newUserId]);
-    const refRecordId = "ref-" + crypto3.randomUUID();
-    await query(
-      `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status)
-       VALUES ($1, $2, $3, 'registration', 500.00, 'pending')`,
-      [refRecordId, referrerId, newUserId]
-    );
-    return true;
-  }
-  /**
-   * Credits referral reward upon verified qualifying event (first deposit, purchase, or bet)
-   */
-  static async triggerQualifyingEvent(userId, action, module) {
-    const pendingRef = await query(
-      `SELECT * FROM core_referrals 
-       WHERE referred_id = $1 AND status = 'pending' 
-       ORDER BY created_at ASC LIMIT 1`,
-      [userId]
-    );
-    if (pendingRef.rowCount === 0) return false;
-    const ref = pendingRef.rows[0];
-    const rewardAmount = Number(ref.reward_amount) || 500;
-    await WalletService.credit(
-      ref.referrer_id,
-      rewardAmount,
-      "referral",
-      "commission",
-      `Referral Reward: New user completed ${action} in ${module}`,
-      `tx_ref_rew_${ref.id}`
-    );
-    await query(
-      `UPDATE core_referrals 
-       SET status = 'approved', qualifying_action = $1, credited_at = CURRENT_TIMESTAMP 
-       WHERE id = $2`,
-      [action, ref.id]
-    );
-    return true;
-  }
-  /**
-   * Get referral performance statistics for a user
-   */
-  static async getStats(userId) {
-    const code = await this.getReferralCode(userId);
-    const referrals = await query(
-      `SELECT r.*, u.name as referred_name, u.email as referred_email 
-       FROM core_referrals r 
-       JOIN core_users u ON r.referred_id = u.id 
-       WHERE r.referrer_id = $1 
-       ORDER BY r.created_at DESC`,
-      [userId]
-    );
-    const totalReferrals = referrals.rowCount;
-    const approvedReferrals = referrals.rows.filter((r) => r.status === "approved").length;
-    const totalEarnings = referrals.rows.filter((r) => r.status === "approved").reduce((sum, r) => sum + Number(r.reward_amount || 0), 0);
-    return {
-      referral_code: code,
-      referral_link: `https://benix.space/?ref=${code}`,
-      total_referrals: totalReferrals,
-      approved_referrals: approvedReferrals,
-      total_earnings: totalEarnings,
-      history: referrals.rows
-    };
-  }
-  /**
-   * Credits Affiliate Commission to Referrer when a purchase or unlock happens via shareable link
-   * Earned money ALWAYS goes to real wallet balance (never to bonus wallet).
-   */
-  static async recordAffiliateSale(referrerCodeOrId, itemId, itemTitle, saleAmount, commissionRate = 0.1, module = "marketplace", buyerUserId) {
-    if (!referrerCodeOrId) return null;
-    const cleanRef = String(referrerCodeOrId).trim();
-    const refUser = await query(
-      "SELECT id, name, email FROM core_users WHERE referral_code = $1 OR id = $1 LIMIT 1",
-      [cleanRef]
-    );
-    if (refUser.rowCount === 0) return null;
-    const referrer = refUser.rows[0];
-    if (buyerUserId && referrer.id === buyerUserId) return null;
-    const commissionAmount = Math.max(100, Math.round(saleAmount * commissionRate));
-    await WalletService.credit(
-      referrer.id,
-      commissionAmount,
-      module,
-      "affiliate_commission",
-      `Affiliate Commission (${Math.round(commissionRate * 100)}%): Shared link sale for "${itemTitle}"`,
-      `tx_aff_${Date.now()}_${itemId}`
-    );
-    const refRecordId = "ref-sale-" + crypto3.randomUUID();
-    await query(
-      `INSERT INTO core_referrals 
-       (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
-       VALUES ($1, $2, $3, $4, $5, 'approved', CURRENT_TIMESTAMP)`,
-      [
-        refRecordId,
-        referrer.id,
-        buyerUserId || referrer.id,
-        `sale_${module}_${itemId}`,
-        commissionAmount
-      ]
-    ).catch(() => {
-    });
-    return {
-      success: true,
-      commissionAmount,
-      referrerId: referrer.id
-    };
-  }
-};
-
-// src/server/services/translationService.ts
-import crypto4 from "crypto";
-import https from "https";
-var DICTIONARY = {
-  rw: {
-    "Home": "Ahabanza",
-    "Discover": "Vumbura",
-    "Search": "Shakisha",
-    "Videos": "Amashusho",
-    "TV & Streaming": "Televiziyo & Amashusho",
-    "Music": "Umuziki",
-    "Choirs": "Amakorali",
-    "Dating": "Guhuza Imitima (Kunda)",
-    "Marketplace": "Isoko (Benix)",
-    "Services": "Serivisi",
-    "Radio": "Radiyo",
-    "Games": "Imikino",
-    "Tools": "Ibikoresho (EasyCalc)",
-    "Calculators": "Imibare & Kubara",
-    "Blog": "Amakuru & Inyandiko",
-    "Wallet": "Icyifuzo cyanjye / Umufuka",
-    "Referrals": "Ubutumire",
-    "Notifications": "Ubutumwa",
-    "Profile": "Umwirondoro",
-    "Settings": "Igenamiterere",
-    "Login": "Injira",
-    "Sign Up": "Iyandikishe",
-    "Logout": "Sohoka",
-    "Admin Portal": "Ibiro Bikuru",
-    "Explore NebeluRw Digital Ecosystem": "Vumbura Ikoranabuhanga rya BenixSpace",
-    "Play Game": "Kina Umukino",
-    "Deposit": "Kwishyura / Kubitsa",
-    "Withdraw": "Kubikuza",
-    "Balance": "Amafaranga asigaye",
-    "Live Radio": "Radiyo Imbonankubone",
-    "Watch Live": "Reba Ako Kanya"
-  },
-  fr: {
-    "Home": "Accueil",
-    "Discover": "D\xE9couvrir",
-    "Search": "Rechercher",
-    "Videos": "Vid\xE9os",
-    "TV & Streaming": "TV & Diffusion",
-    "Music": "Musique",
-    "Choirs": "Chorales",
-    "Dating": "Rencontres (Kunda)",
-    "Marketplace": "Boutique (Benix)",
-    "Services": "Services",
-    "Radio": "Radio",
-    "Games": "Jeux",
-    "Tools": "Outils (EasyCalc)",
-    "Calculators": "Calculatrices",
-    "Blog": "Actualit\xE9s & Blog",
-    "Wallet": "Portefeuille",
-    "Referrals": "Parrainage",
-    "Notifications": "Notifications",
-    "Profile": "Profil",
-    "Settings": "Param\xE8tres",
-    "Login": "Connexion",
-    "Sign Up": "Inscription",
-    "Logout": "D\xE9connexion",
-    "Admin Portal": "Portail Admin",
-    "Explore NebeluRw Digital Ecosystem": "Explorez l\u2019\xC9cosyst\xE8me Num\xE9rique BenixSpace",
-    "Play Game": "Jouer",
-    "Deposit": "D\xE9p\xF4t",
-    "Withdraw": "Retrait",
-    "Balance": "Solde",
-    "Live Radio": "Radio en direct",
-    "Watch Live": "Regarder en direct"
-  },
-  sw: {
-    "Home": "Nyumbani",
-    "Discover": "Gundua",
-    "Search": "Tafuta",
-    "Videos": "Video",
-    "TV & Streaming": "Runinga & Matangazo",
-    "Music": "Muziki",
-    "Choirs": "Kwaya",
-    "Dating": "Kuchumbiana (Kunda)",
-    "Marketplace": "Soko (Benix)",
-    "Services": "Huduma",
-    "Radio": "Redio",
-    "Games": "Michezo",
-    "Tools": "Zana (EasyCalc)",
-    "Calculators": "Vikokotoo",
-    "Blog": "Habari & Makala",
-    "Wallet": "Pochi / Mkoba",
-    "Referrals": "Mialiko",
-    "Notifications": "Arifa",
-    "Profile": "Wasifu",
-    "Settings": "Mipangilio",
-    "Login": "Ingia",
-    "Sign Up": "Jisajili",
-    "Logout": "Toka",
-    "Admin Portal": "Lango Kuu la Msimamizi",
-    "Explore NebeluRw Digital Ecosystem": "Gundua Mfumo wa Kidijitali wa BenixSpace",
-    "Play Game": "Cheza Mchezo",
-    "Deposit": "Weka Pesa",
-    "Withdraw": "Toa Pesa",
-    "Balance": "Salio",
-    "Live Radio": "Redio Moja kwa Moja",
-    "Watch Live": "Tazama Moja kwa Moja"
-  }
-};
-var TranslationService = class {
-  /**
-   * Translates a string or returns cached/dictionary value
-   */
-  static async translateText(text, targetLang = "en", sourceLang = "en") {
-    if (!text || text.trim() === "" || targetLang === sourceLang) {
-      return text;
-    }
-    const trimmed = text.trim();
-    if (DICTIONARY[targetLang] && DICTIONARY[targetLang][trimmed]) {
-      return DICTIONARY[targetLang][trimmed];
-    }
-    const textHash = crypto4.createHash("md5").update(trimmed).digest("hex");
-    const cached = await query(
-      "SELECT translated_text FROM core_translations_cache WHERE source_hash = $1 AND target_lang = $2",
-      [textHash, targetLang]
-    );
-    if (cached.rowCount > 0 && cached.rows[0].translated_text) {
-      return cached.rows[0].translated_text;
-    }
-    try {
-      const translated = await this.fetchOnlineTranslation(trimmed, sourceLang, targetLang);
-      if (translated && translated !== trimmed) {
-        await query(
-          `INSERT INTO core_translations_cache 
-           (source_hash, source_lang, target_lang, source_text, translated_text, provider)
-           VALUES ($1, $2, $3, $4, $5, 'mymemory')
-           ON CONFLICT (source_hash, target_lang) DO NOTHING`,
-          [textHash, sourceLang, targetLang, trimmed, translated]
-        );
-        return translated;
-      }
-    } catch (err) {
-      console.warn("Online translation provider error, falling back to original:", err);
-    }
-    return trimmed;
-  }
-  /**
-   * Batch Translate UI Strings
-   */
-  static async translateBatch(texts, targetLang) {
-    const results = {};
-    for (const t of texts) {
-      results[t] = await this.translateText(t, targetLang);
-    }
-    return results;
-  }
-  /**
-   * Helper to query free MyMemory Translation endpoint
-   */
-  static fetchOnlineTranslation(text, from, to2) {
-    return new Promise((resolve3) => {
-      const encoded = encodeURIComponent(text.substring(0, 500));
-      const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${from}|${to2}`;
-      const req = https.get(url, { timeout: 3e3 }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => data += chunk);
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            const resText = parsed?.responseData?.translatedText;
-            resolve3(resText || text);
-          } catch {
-            resolve3(text);
-          }
-        });
-      });
-      req.on("error", () => resolve3(text));
-      req.on("timeout", () => {
-        req.destroy();
-        resolve3(text);
-      });
-    });
-  }
-};
-
-// src/server/services/storageService.ts
-import https4 from "https";
-import fs5 from "fs";
-import path3 from "path";
+// src/server/services/smmService.ts
+import http2 from "http";
+import https3 from "https";
 
 // src/server/services/emailService.ts
-import https3 from "https";
+import https2 from "https";
 
 // node_modules/nodemailer/dist/esm/mailer/index.js
 import { EventEmitter } from "node:events";
@@ -36870,7 +36518,7 @@ import fs2 from "node:fs";
 
 // node_modules/nodemailer/dist/esm/fetch/index.js
 import http from "node:http";
-import https2 from "node:https";
+import https from "node:https";
 import zlib from "node:zlib";
 import { PassThrough } from "node:stream";
 
@@ -37210,7 +36858,7 @@ function nmfetch(url, options) {
   let finished3 = false;
   let cookies;
   let body;
-  const handler2 = parsed.protocol === "https:" ? https2 : http;
+  const handler2 = parsed.protocol === "https:" ? https : http;
   const headers = {
     "accept-encoding": "gzip,deflate",
     "user-agent": "nodemailer/" + version
@@ -40104,7 +39752,7 @@ function detectExtension(mimeType) {
 }
 
 // node_modules/nodemailer/dist/esm/mime-node/index.js
-import crypto5 from "node:crypto";
+import crypto3 from "node:crypto";
 import fs3 from "node:fs";
 import { PassThrough as PassThrough2, finished as finished2, pipeline } from "node:stream";
 import urlModule from "node:url";
@@ -41808,7 +41456,7 @@ var MimeNode = class _MimeNode {
   constructor(contentType, options) {
     this.nodeCounter = 0;
     options = options || {};
-    this.baseBoundary = _stripBoundaryControls(options.baseBoundary || crypto5.randomBytes(8).toString("hex"));
+    this.baseBoundary = _stripBoundaryControls(options.baseBoundary || crypto3.randomBytes(8).toString("hex"));
     this.boundaryPrefix = _stripBoundaryControls(options.boundaryPrefix || "--_NmP");
     this.disableFileAccess = !!options.disableFileAccess;
     this.disableUrlAccess = !!options.disableUrlAccess;
@@ -42950,8 +42598,8 @@ var MimeNode = class _MimeNode {
   _generateMessageId() {
     return "<" + [2, 2, 2, 6].reduce(
       // crux to generate UUID-like random strings
-      (prev, len) => prev + "-" + crypto5.randomBytes(len).toString("hex"),
-      crypto5.randomBytes(4).toString("hex")
+      (prev, len) => prev + "-" + crypto3.randomBytes(len).toString("hex"),
+      crypto3.randomBytes(4).toString("hex")
     ) + "@" + // try to use the domain of the FROM address or fallback to server hostname
     (this.getEnvelope().from || this.hostname || "localhost").split("@").pop() + ">";
   }
@@ -43584,7 +43232,7 @@ var message_parser_default = MessageParser;
 
 // node_modules/nodemailer/dist/esm/dkim/relaxed-body.js
 import { Transform as Transform7 } from "node:stream";
-import crypto6 from "node:crypto";
+import crypto4 from "node:crypto";
 var CHAR_CR = 13;
 var CHAR_LF = 10;
 var CHAR_SPACE = 32;
@@ -43595,7 +43243,7 @@ var RelaxedBody = class extends Transform7 {
   constructor(options) {
     super();
     options = options || {};
-    this.bodyHash = crypto6.createHash(options.hashAlgo || "sha256");
+    this.bodyHash = crypto4.createHash(options.hashAlgo || "sha256");
     this.byteLength = 0;
     this.debug = options.debug;
     this._debugBody = options.debug ? [] : false;
@@ -43705,7 +43353,7 @@ var RelaxedBody = class extends Transform7 {
 var relaxed_body_default = RelaxedBody;
 
 // node_modules/nodemailer/dist/esm/dkim/sign.js
-import crypto7 from "node:crypto";
+import crypto5 from "node:crypto";
 function unsupportedHashAlgoError(hashAlgo) {
   const err = new Error('Unsupported DKIM hash algorithm "' + hashAlgo + '"');
   err.code = ECONFIG;
@@ -43720,7 +43368,7 @@ function sign(headers, hashAlgo, bodyHash, options) {
   canonicalizedHeaderData.headers += "dkim-signature:" + relaxedHeaderLine(dkimHeader);
   let signer;
   try {
-    signer = crypto7.createSign(("rsa-" + hashAlgo).toUpperCase());
+    signer = crypto5.createSign(("rsa-" + hashAlgo).toUpperCase());
   } catch (_E) {
     throw unsupportedHashAlgoError(hashAlgo);
   }
@@ -43787,7 +43435,7 @@ function relaxedHeaderLine(line) {
 import { PassThrough as PassThrough3 } from "node:stream";
 import fs4 from "node:fs";
 import path2 from "node:path";
-import crypto8 from "node:crypto";
+import crypto6 from "node:crypto";
 var DKIM_ALGO = "sha256";
 var MAX_MESSAGE_SIZE = 10 * 1024 * 1024;
 var DKIMSigner = class {
@@ -43800,7 +43448,7 @@ var DKIMSigner = class {
     this.chunks = [];
     this.chunklen = 0;
     this.readPos = 0;
-    this.cachePath = this.cacheDir ? path2.join(this.cacheDir, "message." + Date.now() + "-" + crypto8.randomBytes(14).toString("hex")) : false;
+    this.cachePath = this.cacheDir ? path2.join(this.cacheDir, "message." + Date.now() + "-" + crypto6.randomBytes(14).toString("hex")) : false;
     this.cache = false;
     this.headers = false;
     this.bodyHash = false;
@@ -44410,7 +44058,7 @@ var MailMessage = class {
 // node_modules/nodemailer/dist/esm/mailer/index.js
 import net6 from "node:net";
 import dns2 from "node:dns";
-import crypto9 from "node:crypto";
+import crypto7 from "node:crypto";
 var DEFAULT_MAX_RECIPIENTS = 1e5;
 var Mail = class extends EventEmitter {
   constructor(transporter, options, defaults) {
@@ -44728,7 +44376,7 @@ var Mail = class extends EventEmitter {
       }
       let cidCounter = 0;
       html = (html || "").toString().replace(/(<img\b[^<>]{0,1024} src\s{0,20}=[\s"']{0,20})(data:([^;"'<>\s]{1,255});[^"'>\s]+)/gi, (match, prefix, dataUri, mimeType) => {
-        const cid = crypto9.randomBytes(10).toString("hex") + "@localhost";
+        const cid = crypto7.randomBytes(10).toString("hex") + "@localhost";
         if (!mail.data.attachments) {
           mail.data.attachments = [];
         }
@@ -44763,7 +44411,7 @@ import { EventEmitter as EventEmitter2 } from "node:events";
 import net7 from "node:net";
 import tls2 from "node:tls";
 import os3 from "node:os";
-import crypto10 from "node:crypto";
+import crypto8 from "node:crypto";
 
 // node_modules/nodemailer/dist/esm/smtp-connection/data-stream.js
 import { Transform as Transform8 } from "node:stream";
@@ -44898,7 +44546,7 @@ function maskAuthCommand(cmd) {
 var SMTPConnection = class extends EventEmitter2 {
   constructor(options) {
     super(options);
-    this.id = crypto10.randomBytes(8).toString("base64").replace(/\W/g, "");
+    this.id = crypto8.randomBytes(8).toString("base64").replace(/\W/g, "");
     this.stage = "init";
     this.options = options || {};
     if (this.options.requireTLS && (this.options.ignoreTLS || this.options.opportunisticTLS)) {
@@ -46237,7 +45885,7 @@ var SMTPConnection = class extends EventEmitter2 {
       return callback(this._formatError("Invalid login sequence while waiting for server challenge string", "EAUTH", str, "AUTH CRAM-MD5"));
     }
     const base64decoded = Buffer.from(challengeMatch[1], "base64").toString("ascii");
-    const hmacMD5 = crypto10.createHmac("md5", this._auth.credentials.pass);
+    const hmacMD5 = crypto8.createHmac("md5", this._auth.credentials.pass);
     hmacMD5.update(base64decoded);
     const prepended = this._auth.credentials.user + " " + hmacMD5.digest("hex");
     this._responseActions.push((str2) => {
@@ -46571,7 +46219,7 @@ var smtp_connection_default = SMTPConnection;
 
 // node_modules/nodemailer/dist/esm/xoauth2/index.js
 import { Stream } from "node:stream";
-import crypto11 from "node:crypto";
+import crypto9 from "node:crypto";
 var XOAuth2 = class extends Stream {
   constructor(options, logger) {
     super();
@@ -46894,7 +46542,7 @@ var XOAuth2 = class extends Stream {
    */
   jwtSignRS256(payload) {
     const signedPayload = ['{"alg":"RS256","typ":"JWT"}', JSON.stringify(payload)].map((val) => this.toBase64URL(val)).join(".");
-    const signature = crypto11.createSign("RSA-SHA256").update(signedPayload).sign(this.options.privateKey);
+    const signature = crypto9.createSign("RSA-SHA256").update(signedPayload).sign(this.options.privateKey);
     return signedPayload + "." + this.toBase64URL(signature);
   }
 };
@@ -49373,7 +49021,7 @@ ${html}
         subject,
         html
       });
-      const req = https3.request(
+      const req = https2.request(
         {
           hostname: "api.resend.com",
           path: "/emails",
@@ -49408,7 +49056,781 @@ ${html}
   }
 };
 
+// src/server/services/smmService.ts
+async function getSystemSetting(key, defaultValue) {
+  const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
+    return String(res.rows[0].value);
+  }
+  const coreRes = await query("SELECT value FROM core_system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (coreRes.rowCount > 0 && coreRes.rows[0].value !== null && coreRes.rows[0].value !== void 0 && String(coreRes.rows[0].value).trim() !== "") {
+    return String(coreRes.rows[0].value);
+  }
+  return defaultValue !== void 0 ? defaultValue : null;
+}
+async function setSystemSetting(key, value) {
+  await query(
+    `INSERT INTO system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+  await query(
+    `INSERT INTO core_system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+}
+var SmmService = class {
+  static async ensureTables() {
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS smm_services (
+          id SERIAL PRIMARY KEY,
+          service_id INT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          type TEXT DEFAULT 'Default',
+          rate_usd NUMERIC(12, 4) NOT NULL,
+          rate_rwf NUMERIC(12, 2) NOT NULL,
+          min_quantity INT DEFAULT 10,
+          max_quantity INT DEFAULT 100000,
+          refill BOOLEAN DEFAULT FALSE,
+          cancel BOOLEAN DEFAULT FALSE,
+          is_enabled BOOLEAN DEFAULT TRUE,
+          custom_markup_percent NUMERIC(5, 2) DEFAULT 30.00,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS smm_orders (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          service_id INT NOT NULL,
+          service_name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          link TEXT NOT NULL,
+          quantity INT NOT NULL,
+          charge_rwf NUMERIC(15, 2) NOT NULL,
+          charge_usd NUMERIC(12, 4) NOT NULL,
+          external_order_id VARCHAR(100),
+          status VARCHAR(50) DEFAULT 'pending',
+          status_details JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_notifications (
+          id SERIAL PRIMARY KEY,
+          type VARCHAR(50) NOT NULL,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          metadata JSONB,
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+    } catch (err) {
+      console.warn("ensureSmmTables non-fatal:", err.message);
+    }
+  }
+  static async callApi(action, extraParams = {}) {
+    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
+    const params = new URLSearchParams({
+      key: apiKey.trim(),
+      action: action.trim(),
+      ...Object.fromEntries(
+        Object.entries(extraParams).map(([k, v2]) => [k, String(v2 !== void 0 && v2 !== null ? v2 : "")])
+      )
+    });
+    const postData = params.toString();
+    return new Promise((resolve3, reject) => {
+      try {
+        const urlObj = new URL(apiUrl);
+        const isHttps = urlObj.protocol === "https:";
+        const client = isHttps ? https3 : http2;
+        const req = client.request(
+          {
+            hostname: urlObj.hostname,
+            port: urlObj.port || (isHttps ? 443 : 80),
+            path: urlObj.pathname + (urlObj.search || ""),
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Content-Length": Buffer.byteLength(postData),
+              "User-Agent": "BenixSpace/2.0"
+            }
+          },
+          (res) => {
+            let body = "";
+            res.on("data", (c) => body += c);
+            res.on("end", () => {
+              try {
+                const parsed = JSON.parse(body);
+                resolve3(parsed);
+              } catch {
+                resolve3({ raw: body });
+              }
+            });
+          }
+        );
+        req.setTimeout(12e3, () => {
+          req.destroy(new Error("SMM API timeout after 12s"));
+        });
+        req.on("error", (err) => reject(err));
+        req.write(postData);
+        req.end();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+  static async alertAdminLowBalance(details) {
+    const adminEmail = process.env.SUPERADMIN_EMAIL || "benirabok@gmail.com";
+    const balDisplay = details.currentBalance !== void 0 ? `$${details.currentBalance}` : "low";
+    const adminMsg = `\u26A0\uFE0F Low SMM Follows Balance! User #${details.userId} wants to order "${details.serviceName}" costing $${details.chargeUsd} USD (${details.chargeRwf.toLocaleString()} RWF). Current SMM balance is ${balDisplay}. Please deposit funds on https://smmfollows.com immediately so the order can run.`;
+    await query(
+      `INSERT INTO admin_notifications (type, title, message, metadata)
+       VALUES ('low_smm_balance', '\u26A0\uFE0F SMM Deposit Required', $1, $2)`,
+      [adminMsg, JSON.stringify(details)]
+    ).catch(() => {
+    });
+    try {
+      await EmailService.sendEmail({
+        to: adminEmail,
+        subject: `\u{1F6A8} Action Required: Deposit SMM Balance on SMMFollows.com`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0f172a; color: #f8fafc; border-radius: 16px; border: 2px solid #ef4444;">
+            <h2 style="color: #ef4444; margin-top: 0;">\u26A0\uFE0F SMM Follows Balance Low - Deposit Required</h2>
+            <p style="font-size: 15px; line-height: 1.6; color: #cbd5e1;">
+              A user placed a Social Media Boost order, but your balance on <strong>smmfollows.com</strong> is low or insufficient.
+            </p>
+            <div style="background: #1e293b; padding: 16px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
+              <p style="margin: 6px 0;"><strong>Service:</strong> ${details.serviceName}</p>
+              <p style="margin: 6px 0;"><strong>Required Cost (USD):</strong> $${details.chargeUsd}</p>
+              <p style="margin: 6px 0;"><strong>Paid by User (RWF):</strong> ${details.chargeRwf.toLocaleString()} RWF (debited from user's real wallet)</p>
+              <p style="margin: 6px 0;"><strong>Order Status:</strong> Queued as <span style="color: #f59e0b; font-weight: bold;">pending_deposit</span></p>
+            </div>
+            <p style="font-size: 14px; color: #94a3b8;">
+              Please log into <a href="https://smmfollows.com" style="color: #38bdf8;">smmfollows.com</a>, deposit funds, and BenixSpace will automatically execute the queued order.
+            </p>
+          </div>
+        `
+      });
+    } catch (err) {
+      console.warn("Failed to send SMM balance email alert:", err.message);
+    }
+  }
+  static async getBalance() {
+    try {
+      const data = await this.callApi("balance");
+      if (data?.error) {
+        return { success: false, balance: 0, currency: "USD", error: data.error };
+      }
+      return { success: true, balance: Number(data?.balance || 0), currency: data?.currency || "USD" };
+    } catch (err) {
+      return { success: false, balance: 0, currency: "USD", error: err.message };
+    }
+  }
+  static async getServices(showAll = false) {
+    await this.ensureTables();
+    const queryStr = showAll ? "SELECT * FROM smm_services ORDER BY category ASC, rate_rwf ASC" : "SELECT * FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC";
+    const res = await query(queryStr);
+    return res.rows;
+  }
+  static async syncServices() {
+    await this.ensureTables();
+    const services2 = await this.callApi("services");
+    if (!Array.isArray(services2)) {
+      return { success: false, count: 0, error: services2?.error || "Failed to fetch services from SMM provider." };
+    }
+    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
+    const rwfRate = Number(await getSystemSetting("rwf_per_usd", "1400")) || 1400;
+    let syncedCount = 0;
+    for (const s of services2) {
+      if (!s.service || !s.name) continue;
+      const rateUsd = Number(s.rate || 0);
+      const rateRwf = Math.ceil(rateUsd * rwfRate * (1 + defaultMarkup / 100));
+      await query(
+        `INSERT INTO smm_services (
+          service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, custom_markup_percent
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ON CONFLICT (service_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          category = EXCLUDED.category,
+          type = EXCLUDED.type,
+          rate_usd = EXCLUDED.rate_usd,
+          rate_rwf = CASE 
+            WHEN smm_services.custom_markup_percent IS NOT NULL 
+            THEN CEIL(EXCLUDED.rate_usd * $12 * (1 + smm_services.custom_markup_percent / 100))
+            ELSE EXCLUDED.rate_rwf
+          END,
+          min_quantity = EXCLUDED.min_quantity,
+          max_quantity = EXCLUDED.max_quantity,
+          refill = EXCLUDED.refill,
+          cancel = EXCLUDED.cancel,
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          Number(s.service),
+          s.name,
+          s.category || "General",
+          s.type || "Default",
+          rateUsd,
+          rateRwf,
+          parseInt(s.min) || 10,
+          parseInt(s.max) || 1e5,
+          Boolean(s.refill),
+          Boolean(s.cancel),
+          defaultMarkup,
+          rwfRate
+        ]
+      );
+      syncedCount++;
+    }
+    return { success: true, count: syncedCount, message: `Successfully synced ${syncedCount} services from SMMFollows.` };
+  }
+  static async toggleService(id, isEnabled) {
+    let res;
+    if (isEnabled !== void 0) {
+      res = await query("UPDATE smm_services SET is_enabled = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *", [Boolean(isEnabled), id]);
+    } else {
+      res = await query("UPDATE smm_services SET is_enabled = NOT is_enabled, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *", [id]);
+    }
+    return res.rows[0];
+  }
+  static async updatePricing(id, markup, rateRwf) {
+    const rwfRate = Number(await getSystemSetting("rwf_per_usd", "1400")) || 1400;
+    let res;
+    if (markup !== void 0) {
+      res = await query(
+        `UPDATE smm_services 
+         SET custom_markup_percent = $1, 
+             rate_rwf = CEIL(rate_usd * $2 * (1 + $1 / 100)),
+             updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $3 RETURNING *`,
+        [Number(markup), rwfRate, id]
+      );
+    } else if (rateRwf !== void 0) {
+      res = await query("UPDATE smm_services SET rate_rwf = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *", [Number(rateRwf), id]);
+    }
+    return res?.rows[0];
+  }
+  static async getSettings() {
+    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
+    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
+    const rwfPerUsd = Number(await getSystemSetting("rwf_per_usd", "1400")) || 1400;
+    return { apiKey, apiUrl, defaultMarkup, rwfPerUsd };
+  }
+  static async saveSettings(apiKey, defaultMarkup, rwfPerUsd) {
+    if (apiKey !== void 0) await setSystemSetting("smm_api_key", String(apiKey).trim());
+    if (defaultMarkup !== void 0) await setSystemSetting("smm_default_markup_percent", String(defaultMarkup));
+    if (rwfPerUsd !== void 0) await setSystemSetting("rwf_per_usd", String(rwfPerUsd));
+  }
+  static async placeOrder(userId, serviceId, link, quantity) {
+    await this.ensureTables();
+    const qty = parseInt(String(quantity));
+    const sRes = await query("SELECT * FROM smm_services WHERE (id = $1 OR service_id = $1) AND is_enabled = TRUE", [serviceId]);
+    if (sRes.rowCount === 0) {
+      throw new Error("Selected service is currently unavailable or disabled.");
+    }
+    const svc = sRes.rows[0];
+    if (qty < svc.min_quantity || qty > svc.max_quantity) {
+      throw new Error(`Quantity must be between ${svc.min_quantity.toLocaleString()} and ${svc.max_quantity.toLocaleString()}.`);
+    }
+    const chargeRwf = Math.ceil(Number(svc.rate_rwf) * (qty / 1e3));
+    const chargeUsd = Number((Number(svc.rate_usd) * (qty / 1e3)).toFixed(4));
+    await WalletService.debit(
+      userId,
+      chargeRwf,
+      "smm",
+      "smm_boost_order",
+      `Social Boost: ${svc.name} (${qty.toLocaleString()})`,
+      `smm_ord_${Date.now()}`,
+      { service_id: svc.service_id, service_name: svc.name, quantity: qty, target_link: link, charge_usd: chargeUsd }
+    );
+    let smmBal = null;
+    try {
+      smmBal = await this.callApi("balance");
+    } catch {
+    }
+    const currentUsdBal = smmBal && smmBal.balance !== void 0 ? Number(smmBal.balance) : 0;
+    if (smmBal?.error || currentUsdBal < chargeUsd) {
+      const ordRes = await query(
+        `INSERT INTO smm_orders (
+          user_id, service_id, service_name, category, link, quantity, charge_rwf, charge_usd, status, status_details
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_deposit', $9) RETURNING *`,
+        [
+          userId,
+          svc.service_id,
+          svc.name,
+          svc.category,
+          link.trim(),
+          qty,
+          chargeRwf,
+          chargeUsd,
+          JSON.stringify({ reason: "Insufficient provider balance", smmBalance: currentUsdBal })
+        ]
+      );
+      const orderRow = ordRes.rows[0];
+      await this.alertAdminLowBalance({
+        orderId: orderRow.id,
+        userId,
+        serviceName: svc.name,
+        chargeUsd,
+        chargeRwf,
+        currentBalance: currentUsdBal
+      });
+      return {
+        success: true,
+        order: orderRow,
+        status: "pending_deposit",
+        message: "Order placed and reserved! It has been queued and will begin delivery shortly."
+      };
+    }
+    const addRes = await this.callApi("add", {
+      service: svc.service_id,
+      link: link.trim(),
+      quantity: qty
+    });
+    if (addRes && addRes.order) {
+      const ordRes = await query(
+        `INSERT INTO smm_orders (
+          user_id, service_id, service_name, category, link, quantity, charge_rwf, charge_usd, external_order_id, status, status_details
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'in_progress', $10) RETURNING *`,
+        [
+          userId,
+          svc.service_id,
+          svc.name,
+          svc.category,
+          link.trim(),
+          qty,
+          chargeRwf,
+          chargeUsd,
+          String(addRes.order),
+          JSON.stringify(addRes)
+        ]
+      );
+      return {
+        success: true,
+        order: ordRes.rows[0],
+        status: "in_progress",
+        message: "\u{1F680} Social boost order placed and activated successfully!"
+      };
+    } else {
+      const ordRes = await query(
+        `INSERT INTO smm_orders (
+          user_id, service_id, service_name, category, link, quantity, charge_rwf, charge_usd, status, status_details
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending_deposit', $9) RETURNING *`,
+        [
+          userId,
+          svc.service_id,
+          svc.name,
+          svc.category,
+          link.trim(),
+          qty,
+          chargeRwf,
+          chargeUsd,
+          JSON.stringify(addRes || {})
+        ]
+      );
+      await this.alertAdminLowBalance({
+        orderId: ordRes.rows[0].id,
+        userId,
+        serviceName: svc.name,
+        chargeUsd,
+        chargeRwf,
+        currentBalance: currentUsdBal
+      });
+      return {
+        success: true,
+        order: ordRes.rows[0],
+        status: "pending_deposit",
+        message: "Order received and queued for execution."
+      };
+    }
+  }
+  static async getUserOrders(userId) {
+    await this.ensureTables();
+    const res = await query("SELECT * FROM smm_orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50", [userId]);
+    return res.rows;
+  }
+  static async getAllOrders() {
+    await this.ensureTables();
+    const ordRes = await query(`
+      SELECT o.*, u.email as user_email, u.name as user_name 
+      FROM smm_orders o 
+      LEFT JOIN core_users u ON o.user_id = u.id 
+      ORDER BY o.created_at DESC 
+      LIMIT 100
+    `);
+    const pRes = await query("SELECT COUNT(*) as count FROM smm_orders WHERE status = 'pending_deposit'");
+    return {
+      orders: ordRes.rows,
+      pendingCount: Number(pRes.rows[0]?.count || 0)
+    };
+  }
+  static async retryPendingOrder(orderId) {
+    const ordRes = await query("SELECT * FROM smm_orders WHERE id = $1", [orderId]);
+    if (ordRes.rowCount === 0) throw new Error("Order not found");
+    const ord = ordRes.rows[0];
+    const addRes = await this.callApi("add", {
+      service: ord.service_id,
+      link: ord.link,
+      quantity: ord.quantity
+    });
+    if (addRes && addRes.order) {
+      await query(
+        `UPDATE smm_orders 
+         SET status = 'in_progress', external_order_id = $1, status_details = $2, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $3`,
+        [String(addRes.order), JSON.stringify(addRes), orderId]
+      );
+      return { success: true, externalOrderId: addRes.order };
+    } else {
+      throw new Error(addRes?.error || "SMM Provider rejected order. Check your balance.");
+    }
+  }
+  static async getNotifications() {
+    await this.ensureTables();
+    const res = await query("SELECT * FROM admin_notifications ORDER BY created_at DESC LIMIT 50");
+    return res.rows;
+  }
+};
+
+// src/server/services/referralService.ts
+import crypto10 from "crypto";
+var ReferralService = class {
+  /**
+   * Generates or fetches unique referral code for a user
+   */
+  static async getReferralCode(userId) {
+    const res = await query("SELECT referral_code FROM core_users WHERE id = $1", [userId]);
+    if (res.rowCount > 0 && res.rows[0].referral_code) {
+      return res.rows[0].referral_code;
+    }
+    const code = "REF-" + crypto10.randomBytes(3).toString("hex").toUpperCase();
+    await query("UPDATE core_users SET referral_code = $1 WHERE id = $2", [code, userId]);
+    return code;
+  }
+  /**
+   * Applies referral attribution during registration
+   */
+  static async applyReferralCode(newUserId, referralCode) {
+    if (!referralCode) return false;
+    const refRes = await query("SELECT id FROM core_users WHERE referral_code = $1", [referralCode.trim()]);
+    if (refRes.rowCount === 0) return false;
+    const referrerId = refRes.rows[0].id;
+    if (referrerId === newUserId) return false;
+    await query("UPDATE core_users SET referred_by_id = $1 WHERE id = $2", [referrerId, newUserId]);
+    const rewardAmount = 50;
+    try {
+      await WalletService.credit(
+        referrerId,
+        rewardAmount,
+        "referral",
+        "referral_reward",
+        `Referral Reward: New user registered with your code`,
+        `tx_ref_reg_${newUserId}`
+      );
+    } catch (e) {
+      console.warn("Referral credit error:", e);
+    }
+    const refRecordId = "ref-" + crypto10.randomUUID();
+    await query(
+      `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
+       VALUES ($1, $2, $3, 'registration', $4, 'approved', CURRENT_TIMESTAMP)`,
+      [refRecordId, referrerId, newUserId, rewardAmount]
+    );
+    return true;
+  }
+  /**
+   * Credits referral reward upon verified qualifying event (first deposit, purchase, or bet)
+   */
+  static async triggerQualifyingEvent(userId, action, module) {
+    const pendingRef = await query(
+      `SELECT * FROM core_referrals 
+       WHERE referred_id = $1 AND status = 'pending' 
+       ORDER BY created_at ASC LIMIT 1`,
+      [userId]
+    );
+    if (pendingRef.rowCount === 0) return false;
+    const ref = pendingRef.rows[0];
+    const rewardAmount = Number(ref.reward_amount) || 50;
+    await WalletService.credit(
+      ref.referrer_id,
+      rewardAmount,
+      "referral",
+      "commission",
+      `Referral Reward: New user completed ${action} in ${module}`,
+      `tx_ref_rew_${ref.id}`
+    );
+    await query(
+      `UPDATE core_referrals 
+       SET status = 'approved', qualifying_action = $1, credited_at = CURRENT_TIMESTAMP 
+       WHERE id = $2`,
+      [action, ref.id]
+    );
+    return true;
+  }
+  /**
+   * Get referral performance statistics for a user
+   */
+  static async getStats(userId) {
+    const code = await this.getReferralCode(userId);
+    const referrals = await query(
+      `SELECT r.*, u.name as referred_name, u.email as referred_email 
+       FROM core_referrals r 
+       JOIN core_users u ON r.referred_id = u.id 
+       WHERE r.referrer_id = $1 
+       ORDER BY r.created_at DESC`,
+      [userId]
+    );
+    const totalReferrals = referrals.rowCount;
+    const approvedReferrals = referrals.rows.filter((r) => r.status === "approved").length;
+    const totalEarnings = referrals.rows.filter((r) => r.status === "approved").reduce((sum, r) => sum + Number(r.reward_amount || 0), 0);
+    return {
+      referral_code: code,
+      referral_link: `https://benix.space/?ref=${code}`,
+      total_referrals: totalReferrals,
+      approved_referrals: approvedReferrals,
+      total_earnings: totalEarnings,
+      history: referrals.rows
+    };
+  }
+  /**
+   * Credits Affiliate Commission to Referrer when a purchase or unlock happens via shareable link
+   * Earned money ALWAYS goes to real wallet balance (never to bonus wallet).
+   */
+  static async recordAffiliateSale(referrerCodeOrId, itemId, itemTitle, saleAmount, commissionRate = 0.1, module = "marketplace", buyerUserId) {
+    if (!referrerCodeOrId) return null;
+    const cleanRef = String(referrerCodeOrId).trim();
+    const refUser = await query(
+      "SELECT id, name, email FROM core_users WHERE referral_code = $1 OR id = $1 LIMIT 1",
+      [cleanRef]
+    );
+    if (refUser.rowCount === 0) return null;
+    const referrer = refUser.rows[0];
+    if (buyerUserId && referrer.id === buyerUserId) return null;
+    const commissionAmount = Math.max(100, Math.round(saleAmount * commissionRate));
+    await WalletService.credit(
+      referrer.id,
+      commissionAmount,
+      module,
+      "affiliate_commission",
+      `Affiliate Commission (${Math.round(commissionRate * 100)}%): Shared link sale for "${itemTitle}"`,
+      `tx_aff_${Date.now()}_${itemId}`
+    );
+    const refRecordId = "ref-sale-" + crypto10.randomUUID();
+    await query(
+      `INSERT INTO core_referrals 
+       (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
+       VALUES ($1, $2, $3, $4, $5, 'approved', CURRENT_TIMESTAMP)`,
+      [
+        refRecordId,
+        referrer.id,
+        buyerUserId || referrer.id,
+        `sale_${module}_${itemId}`,
+        commissionAmount
+      ]
+    ).catch(() => {
+    });
+    return {
+      success: true,
+      commissionAmount,
+      referrerId: referrer.id
+    };
+  }
+};
+
+// src/server/services/translationService.ts
+import crypto11 from "crypto";
+import https4 from "https";
+var DICTIONARY = {
+  rw: {
+    "Home": "Ahabanza",
+    "Discover": "Vumbura",
+    "Search": "Shakisha",
+    "Videos": "Amashusho",
+    "TV & Streaming": "Televiziyo & Amashusho",
+    "Music": "Umuziki",
+    "Choirs": "Amakorali",
+    "Dating": "Guhuza Imitima (Kunda)",
+    "Marketplace": "Isoko (Benix)",
+    "Services": "Serivisi",
+    "Radio": "Radiyo",
+    "Games": "Imikino",
+    "Tools": "Ibikoresho (EasyCalc)",
+    "Calculators": "Imibare & Kubara",
+    "Blog": "Amakuru & Inyandiko",
+    "Wallet": "Icyifuzo cyanjye / Umufuka",
+    "Referrals": "Ubutumire",
+    "Notifications": "Ubutumwa",
+    "Profile": "Umwirondoro",
+    "Settings": "Igenamiterere",
+    "Login": "Injira",
+    "Sign Up": "Iyandikishe",
+    "Logout": "Sohoka",
+    "Admin Portal": "Ibiro Bikuru",
+    "Explore NebeluRw Digital Ecosystem": "Vumbura Ikoranabuhanga rya BenixSpace",
+    "Play Game": "Kina Umukino",
+    "Deposit": "Kwishyura / Kubitsa",
+    "Withdraw": "Kubikuza",
+    "Balance": "Amafaranga asigaye",
+    "Live Radio": "Radiyo Imbonankubone",
+    "Watch Live": "Reba Ako Kanya"
+  },
+  fr: {
+    "Home": "Accueil",
+    "Discover": "D\xE9couvrir",
+    "Search": "Rechercher",
+    "Videos": "Vid\xE9os",
+    "TV & Streaming": "TV & Diffusion",
+    "Music": "Musique",
+    "Choirs": "Chorales",
+    "Dating": "Rencontres (Kunda)",
+    "Marketplace": "Boutique (Benix)",
+    "Services": "Services",
+    "Radio": "Radio",
+    "Games": "Jeux",
+    "Tools": "Outils (EasyCalc)",
+    "Calculators": "Calculatrices",
+    "Blog": "Actualit\xE9s & Blog",
+    "Wallet": "Portefeuille",
+    "Referrals": "Parrainage",
+    "Notifications": "Notifications",
+    "Profile": "Profil",
+    "Settings": "Param\xE8tres",
+    "Login": "Connexion",
+    "Sign Up": "Inscription",
+    "Logout": "D\xE9connexion",
+    "Admin Portal": "Portail Admin",
+    "Explore NebeluRw Digital Ecosystem": "Explorez l\u2019\xC9cosyst\xE8me Num\xE9rique BenixSpace",
+    "Play Game": "Jouer",
+    "Deposit": "D\xE9p\xF4t",
+    "Withdraw": "Retrait",
+    "Balance": "Solde",
+    "Live Radio": "Radio en direct",
+    "Watch Live": "Regarder en direct"
+  },
+  sw: {
+    "Home": "Nyumbani",
+    "Discover": "Gundua",
+    "Search": "Tafuta",
+    "Videos": "Video",
+    "TV & Streaming": "Runinga & Matangazo",
+    "Music": "Muziki",
+    "Choirs": "Kwaya",
+    "Dating": "Kuchumbiana (Kunda)",
+    "Marketplace": "Soko (Benix)",
+    "Services": "Huduma",
+    "Radio": "Redio",
+    "Games": "Michezo",
+    "Tools": "Zana (EasyCalc)",
+    "Calculators": "Vikokotoo",
+    "Blog": "Habari & Makala",
+    "Wallet": "Pochi / Mkoba",
+    "Referrals": "Mialiko",
+    "Notifications": "Arifa",
+    "Profile": "Wasifu",
+    "Settings": "Mipangilio",
+    "Login": "Ingia",
+    "Sign Up": "Jisajili",
+    "Logout": "Toka",
+    "Admin Portal": "Lango Kuu la Msimamizi",
+    "Explore NebeluRw Digital Ecosystem": "Gundua Mfumo wa Kidijitali wa BenixSpace",
+    "Play Game": "Cheza Mchezo",
+    "Deposit": "Weka Pesa",
+    "Withdraw": "Toa Pesa",
+    "Balance": "Salio",
+    "Live Radio": "Redio Moja kwa Moja",
+    "Watch Live": "Tazama Moja kwa Moja"
+  }
+};
+var TranslationService = class {
+  /**
+   * Translates a string or returns cached/dictionary value
+   */
+  static async translateText(text, targetLang = "en", sourceLang = "en") {
+    if (!text || text.trim() === "" || targetLang === sourceLang) {
+      return text;
+    }
+    const trimmed = text.trim();
+    if (DICTIONARY[targetLang] && DICTIONARY[targetLang][trimmed]) {
+      return DICTIONARY[targetLang][trimmed];
+    }
+    const textHash = crypto11.createHash("md5").update(trimmed).digest("hex");
+    const cached = await query(
+      "SELECT translated_text FROM core_translations_cache WHERE source_hash = $1 AND target_lang = $2",
+      [textHash, targetLang]
+    );
+    if (cached.rowCount > 0 && cached.rows[0].translated_text) {
+      return cached.rows[0].translated_text;
+    }
+    try {
+      const translated = await this.fetchOnlineTranslation(trimmed, sourceLang, targetLang);
+      if (translated && translated !== trimmed) {
+        await query(
+          `INSERT INTO core_translations_cache 
+           (source_hash, source_lang, target_lang, source_text, translated_text, provider)
+           VALUES ($1, $2, $3, $4, $5, 'mymemory')
+           ON CONFLICT (source_hash, target_lang) DO NOTHING`,
+          [textHash, sourceLang, targetLang, trimmed, translated]
+        );
+        return translated;
+      }
+    } catch (err) {
+      console.warn("Online translation provider error, falling back to original:", err);
+    }
+    return trimmed;
+  }
+  /**
+   * Batch Translate UI Strings
+   */
+  static async translateBatch(texts, targetLang) {
+    const results = {};
+    for (const t of texts) {
+      results[t] = await this.translateText(t, targetLang);
+    }
+    return results;
+  }
+  /**
+   * Helper to query free MyMemory Translation endpoint
+   */
+  static fetchOnlineTranslation(text, from, to2) {
+    return new Promise((resolve3) => {
+      const encoded = encodeURIComponent(text.substring(0, 500));
+      const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${from}|${to2}`;
+      const req = https4.get(url, { timeout: 3e3 }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => data += chunk);
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(data);
+            const resText = parsed?.responseData?.translatedText;
+            resolve3(resText || text);
+          } catch {
+            resolve3(text);
+          }
+        });
+      });
+      req.on("error", () => resolve3(text));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve3(text);
+      });
+    });
+  }
+};
+
 // src/server/services/storageService.ts
+import https5 from "https";
+import fs5 from "fs";
+import path3 from "path";
 var StorageService = class {
   static tokenCache = /* @__PURE__ */ new Map();
   static lastAlertSentAt = /* @__PURE__ */ new Map();
@@ -49499,7 +49921,7 @@ var StorageService = class {
           "Content-Length": Buffer.byteLength(postData)
         }
       };
-      const req = https4.request(options, (res) => {
+      const req = https5.request(options, (res) => {
         let body = "";
         res.on("data", (d) => body += d);
         res.on("end", () => {
@@ -49517,6 +49939,10 @@ var StorageService = class {
             resolve3(null);
           }
         });
+      });
+      req.setTimeout(6e3, () => {
+        req.destroy();
+        resolve3(null);
       });
       req.on("error", () => resolve3(null));
       req.write(postData);
@@ -49546,7 +49972,7 @@ var StorageService = class {
           Authorization: `Bearer ${token}`
         }
       };
-      const req = https4.request(options, (res) => {
+      const req = https5.request(options, (res) => {
         let body = "";
         res.on("data", (d) => body += d);
         res.on("end", async () => {
@@ -49739,7 +50165,7 @@ var StorageService = class {
         buffer,
         Buffer.from(closeDelim)
       ]);
-      const req = https4.request(
+      const req = https5.request(
         {
           hostname: "www.googleapis.com",
           path: "/upload/drive/v3/files?uploadType=multipart",
@@ -49767,6 +50193,9 @@ var StorageService = class {
           });
         }
       );
+      req.setTimeout(6e3, () => {
+        req.destroy(new Error("Google Drive upload timed out after 6s."));
+      });
       req.on("error", reject);
       req.write(multipartRequestBody);
       req.end();
@@ -52736,7 +53165,7 @@ app.post("/api/auth/login", async (req, res) => {
     let loginBonusResult = null;
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
-      let dailyAmount = 200;
+      let dailyAmount = 10;
       try {
         const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
         if (sRes.rowCount && sRes.rows[0].services_json) {
@@ -52832,7 +53261,7 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
     let dailyBonusAwarded = null;
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
-      let dailyAmount = 200;
+      let dailyAmount = 10;
       const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
       if (sRes.rowCount && sRes.rows[0].services_json) {
         const parsed = JSON.parse(sRes.rows[0].services_json);
@@ -53092,7 +53521,7 @@ app.get("/api/wallet", authenticateToken, async (req, res) => {
 });
 app.post("/api/wallet/claim-daily-bonus", authenticateToken, async (req, res) => {
   try {
-    let dailyAmount = 200;
+    let dailyAmount = 10;
     try {
       const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
       if (sRes.rowCount && sRes.rows[0].services_json) {
@@ -53249,7 +53678,7 @@ app.post("/api/wallet/transfer", authenticateToken, async (req, res) => {
 });
 app.get("/api/wallet/settings", async (req, res) => {
   try {
-    const minWithdrawalStr = await getSystemSetting("min_withdrawal_amount", "500");
+    const minWithdrawalStr = await getSystemSetting2("min_withdrawal_amount", "500");
     const minWithdrawalAmount = Math.max(100, Number(minWithdrawalStr) || 500);
     return res.json({ success: true, minWithdrawalAmount });
   } catch {
@@ -53260,7 +53689,7 @@ app.post("/api/wallet/withdraw", authenticateToken, async (req, res) => {
   try {
     const { amount, payoutMethod = "MTN_MOMO", accountDetails } = req.body;
     const numAmount = parseFloat(amount);
-    const minWithdrawalStr = await getSystemSetting("min_withdrawal_amount", "500");
+    const minWithdrawalStr = await getSystemSetting2("min_withdrawal_amount", "500");
     const minWithdrawal = Math.max(100, Number(minWithdrawalStr) || 500);
     if (!numAmount || numAmount < minWithdrawal) {
       return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal.toLocaleString()} RWF.` });
@@ -54137,7 +54566,7 @@ app.post("/api/modules/kunda/unlock-contact", authenticateToken, async (req, res
     return res.status(400).json({ error: err.message || "Failed to unlock contact." });
   }
 });
-async function getSystemSetting(key, defaultValue) {
+async function getSystemSetting2(key, defaultValue) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -54187,7 +54616,7 @@ async function getSystemSetting(key, defaultValue) {
   }
   return defaultValue;
 }
-async function setSystemSetting(key, value) {
+async function setSystemSetting2(key, value) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -54221,10 +54650,10 @@ async function setSystemSetting(key, value) {
 }
 app.get("/api/chat/settings", async (req, res) => {
   try {
-    const contactUnlockPrice = Number(await getSystemSetting("contact_unlock_price", "500")) || 500;
-    const creatorRevSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
-    const messageCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
-    const freeMessages = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
+    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
+    const creatorRevSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+    const freeMessages = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice,
@@ -54248,21 +54677,21 @@ app.post("/api/admin/settings/chat", authenticateToken, requireAdminRole, async 
   try {
     const { contactUnlockPrice, creatorRevSharePct, messageCost, freeMessages } = req.body;
     if (contactUnlockPrice !== void 0) {
-      await setSystemSetting("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
+      await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
     }
     if (creatorRevSharePct !== void 0) {
-      await setSystemSetting("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
+      await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
     }
     if (messageCost !== void 0) {
-      await setSystemSetting("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
+      await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
     }
     if (freeMessages !== void 0) {
-      await setSystemSetting("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
+      await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
     }
-    const currentPrice = Number(await getSystemSetting("contact_unlock_price", "500")) || 500;
-    const currentShare = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
-    const currentCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
-    const currentFree = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
+    const currentPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
+    const currentShare = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const currentCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+    const currentFree = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice: currentPrice,
@@ -54305,10 +54734,10 @@ app.get("/api/chat/partner-status/:partnerId", authenticateToken, async (req, re
   try {
     const partnerId = req.params.partnerId;
     const senderId = req.user.id;
-    const freeLimit = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
-    const messageCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
-    const revSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
-    const contactUnlockPrice = Number(await getSystemSetting("contact_unlock_price", "500")) || 500;
+    const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
     let partnerPrivacy = "public";
     let partnerName = "Member";
     if (partnerId !== "support") {
@@ -54412,10 +54841,10 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         [senderId, recipientId]
       );
       const sentCount = Number(countRes.rows[0]?.count || 0);
-      const freeLimit = Number(await getSystemSetting("kunda_free_messages", "3")) || 3;
-      const messageCost = Number(await getSystemSetting("kunda_message_cost", "50")) || 50;
+      const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+      const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
       if (sentCount >= freeLimit && messageCost > 0) {
-        const revSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+        const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
         creatorEarning = Math.round(messageCost * revSharePct / 100);
         amountPaid = messageCost;
         isPaid = true;
@@ -54496,7 +54925,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
   try {
     const { contactId } = req.body;
     if (!contactId) return res.status(400).json({ error: "contactId is required." });
-    const dbPriceStr = await getSystemSetting("contact_unlock_price", "500");
+    const dbPriceStr = await getSystemSetting2("contact_unlock_price", "500");
     const unlockPrice = Math.max(0, Number(dbPriceStr) || 500);
     const userId = req.user.id;
     await WalletService.getOrCreateWallet(userId).catch(() => {
@@ -54509,7 +54938,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       `Unlocked direct contact phone number for member #${contactId}`,
       `tx_chat_unl_${Date.now()}`
     );
-    const revSharePct = Number(await getSystemSetting("kunda_creator_rev_share_pct", "15")) || 15;
+    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
     const creatorCut = Math.round(unlockPrice * revSharePct / 100);
     if (creatorCut > 0 && contactId !== "support" && contactId !== userId) {
       await WalletService.credit(
@@ -54571,7 +55000,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      const dbPrice = await getSystemSetting("contact_unlock_price", "500");
+      const dbPrice = await getSystemSetting2("contact_unlock_price", "500");
       return res.status(400).json({
         error: "INSUFFICIENT_FUNDS",
         message: `Insufficient wallet balance. Unlocking contact requires ${dbPrice} RWF. Please top up your wallet.`
@@ -55973,7 +56402,7 @@ app.post("/api/stories/:id/repost", authenticateToken, async (req, res) => {
     }
     const old = storyRes.rows[0];
     const newId = "story-" + Date.now();
-    const lifespanHours = Number(await getSystemSetting("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -56036,7 +56465,7 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
         console.warn("Story base64 storage notice:", err?.message);
       }
     }
-    const lifespanHours = Number(await getSystemSetting("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -56418,8 +56847,8 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
       [userId]
     );
     const currentSubscribers = Number(subRes.rows[0]?.count || 0);
-    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -56597,8 +57026,8 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
     ).catch(() => ({ rows: [{ story_count: 0, total_story_views: 0 }] }));
     const storyCount = Number(storiesRes.rows[0]?.story_count || 0);
     const totalStoryViews = Number(storiesRes.rows[0]?.total_story_views || 0);
-    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -56901,8 +57330,8 @@ app.post("/api/admin/videos/batch-import", authenticateToken, requireAdminRole, 
 });
 app.get("/api/admin/monetization/settings", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     return res.json({
       success: true,
       requiredWatchHours: Number(reqHoursStr) || 300,
@@ -56916,10 +57345,10 @@ app.post("/api/admin/monetization/settings", authenticateToken, requireAdminRole
   try {
     const { requiredWatchHours, requiredSubscribers } = req.body;
     if (requiredWatchHours !== void 0) {
-      await setSystemSetting("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
+      await setSystemSetting2("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
     }
     if (requiredSubscribers !== void 0) {
-      await setSystemSetting("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
+      await setSystemSetting2("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
     }
     return res.json({ success: true, message: "Monetization requirements updated in database." });
   } catch (err) {
@@ -56932,8 +57361,8 @@ app.get("/api/admin/creators/monetization", authenticateToken, requireAdminRole,
     });
     await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {
     });
-    const reqHoursStr = await getSystemSetting("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     const reqHours = Number(reqHoursStr) || 300;
     const reqSubs = Number(reqSubsStr) || 30;
     const creatorsRes = await query(`
@@ -57928,6 +58357,88 @@ app.post("/api/ads/record-reward", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+app.get("/api/smm/balance", authenticateToken, async (req, res) => {
+  const data = await SmmService.getBalance();
+  return res.json(data);
+});
+app.get("/api/smm/services", async (req, res) => {
+  try {
+    const isAdmin = req.user?.role === "superadmin" || req.user?.role === "admin";
+    const showAll = req.query.adminView === "true" || isAdmin;
+    const services2 = await SmmService.getServices(showAll);
+    return res.json({ success: true, services: services2 });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message, services: [] });
+  }
+});
+app.post("/api/smm/sync", authenticateToken, requireAdminRole, async (req, res) => {
+  const result = await SmmService.syncServices();
+  return res.json(result);
+});
+app.post("/api/smm/services/:id/toggle", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const service = await SmmService.toggleService(req.params.id, req.body.is_enabled);
+    return res.json({ success: true, service });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+app.post("/api/smm/services/:id/pricing", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const service = await SmmService.updatePricing(req.params.id, req.body.custom_markup_percent, req.body.rate_rwf);
+    return res.json({ success: true, service });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+app.get("/api/smm/settings", authenticateToken, requireAdminRole, async (req, res) => {
+  const settings = await SmmService.getSettings();
+  return res.json({ success: true, settings });
+});
+app.post("/api/smm/settings", authenticateToken, requireAdminRole, async (req, res) => {
+  await SmmService.saveSettings(req.body.apiKey, req.body.defaultMarkup, req.body.rwfPerUsd);
+  return res.json({ success: true, message: "SMM settings updated successfully." });
+});
+app.post("/api/smm/order", authenticateToken, async (req, res) => {
+  try {
+    const result = await SmmService.placeOrder(req.user.id, req.body.serviceId, req.body.link, req.body.quantity);
+    return res.json(result);
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+app.get("/api/smm/orders/my", authenticateToken, async (req, res) => {
+  try {
+    const orders = await SmmService.getUserOrders(req.user.id);
+    return res.json({ success: true, orders });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message, orders: [] });
+  }
+});
+app.get("/api/smm/orders/all", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const result = await SmmService.getAllOrders();
+    return res.json({ success: true, orders: result.orders, pendingDepositCount: result.pendingCount });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message, orders: [], pendingDepositCount: 0 });
+  }
+});
+app.post("/api/smm/orders/:id/retry", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const result = await SmmService.retryPendingOrder(req.params.id);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+app.get("/api/admin/notifications", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const notifications = await SmmService.getNotifications();
+    return res.json({ success: true, notifications });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message, notifications: [] });
+  }
+});
 app.get("/api/referrals", authenticateToken, async (req, res) => {
   try {
     const stats = await ReferralService.getStats(req.user.id);
@@ -58757,7 +59268,7 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
     );
     userUnlocked.add(video.id);
     unlockedVideosByUser.set(req.user.id, userUnlocked);
-    const platformCommissionPct = Number(await getSystemSetting("video_affiliate_commission_pct", "15")) || 15;
+    const platformCommissionPct = Number(await getSystemSetting2("video_affiliate_commission_pct", "15")) || 15;
     const creatorCutPct = Math.max(0, 100 - platformCommissionPct);
     const creatorEarned = Math.round(video.price * creatorCutPct / 100);
     const videoCreatorId = video.userId || video.user_id;
@@ -60082,6 +60593,14 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
       VALUES ('platform_all_apps', $1, 'All-Apps control and platform settings', CURRENT_TIMESTAMP)
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
     `, [JSON.stringify(payload)]);
+    if (payload.adsense) {
+      const a2 = payload.adsense;
+      if (a2.google_ad_view_payout !== void 0) await setSystemSetting2("google_ad_view_payout", String(a2.google_ad_view_payout));
+      if (a2.google_ad_click_payout !== void 0) await setSystemSetting2("google_ad_click_payout", String(a2.google_ad_click_payout));
+      if (a2.custom_ad_view_payout !== void 0) await setSystemSetting2("custom_ad_view_payout", String(a2.custom_ad_view_payout));
+      if (a2.custom_ad_click_payout !== void 0) await setSystemSetting2("custom_ad_click_payout", String(a2.custom_ad_click_payout));
+      if (a2.client_id !== void 0) await setSystemSetting2("adsense_client_id", String(a2.client_id));
+    }
     if (payload.branding || payload.contacts) {
       const b2 = payload.branding || {};
       const c = payload.contacts || {};
@@ -60106,38 +60625,38 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     if (payload.modules) {
       const m = payload.modules;
       if (m.kunda_contact_unlock_price !== void 0) {
-        await setSystemSetting("contact_unlock_price", String(Math.max(0, Number(m.kunda_contact_unlock_price) || 500)));
+        await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(m.kunda_contact_unlock_price) || 500)));
       }
       if (m.kunda_creator_rev_share_pct !== void 0) {
-        await setSystemSetting("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m.kunda_creator_rev_share_pct) || 15))));
+        await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m.kunda_creator_rev_share_pct) || 15))));
       }
       if (m.kunda_message_cost !== void 0) {
-        await setSystemSetting("kunda_message_cost", String(Math.max(0, Number(m.kunda_message_cost) || 50)));
+        await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(m.kunda_message_cost) || 50)));
       }
       if (m.kunda_free_messages !== void 0) {
-        await setSystemSetting("kunda_free_messages", String(Math.max(0, Number(m.kunda_free_messages) || 3)));
+        await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(m.kunda_free_messages) || 3)));
       }
       if (m.creator_watch_hours_goal !== void 0 || m.min_watch_hours !== void 0) {
         const wh = String(Math.max(0, Number(m.creator_watch_hours_goal ?? m.min_watch_hours) || 300));
-        await setSystemSetting("monetization_required_watch_hours", wh);
-        await setSystemSetting("creator_watch_hours_goal", wh);
+        await setSystemSetting2("monetization_required_watch_hours", wh);
+        await setSystemSetting2("creator_watch_hours_goal", wh);
       }
       if (m.creator_subscribers_goal !== void 0 || m.min_subscribers !== void 0) {
         const sb = String(Math.max(0, Number(m.creator_subscribers_goal ?? m.min_subscribers) || 30));
-        await setSystemSetting("monetization_required_subscribers", sb);
-        await setSystemSetting("creator_subscribers_goal", sb);
+        await setSystemSetting2("monetization_required_subscribers", sb);
+        await setSystemSetting2("creator_subscribers_goal", sb);
       }
       if (m.min_withdrawal_amount !== void 0) {
-        await setSystemSetting("min_withdrawal_amount", String(Math.max(100, Number(m.min_withdrawal_amount) || 500)));
+        await setSystemSetting2("min_withdrawal_amount", String(Math.max(100, Number(m.min_withdrawal_amount) || 500)));
       }
       if (m.creator_revenue_share_pct !== void 0 || m.creatorSharePercent !== void 0) {
-        await setSystemSetting("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m.creator_revenue_share_pct ?? m.creatorSharePercent) || 70))));
+        await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m.creator_revenue_share_pct ?? m.creatorSharePercent) || 70))));
       }
       if (m.default_cpm_rwf !== void 0 || m.defaultCpmRwf !== void 0) {
-        await setSystemSetting("default_cpm_rwf", String(Math.max(100, Number(m.default_cpm_rwf ?? m.defaultCpmRwf) || 1200)));
+        await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(m.default_cpm_rwf ?? m.defaultCpmRwf) || 1200)));
       }
       if (m.story_lifespan_hours !== void 0) {
-        await setSystemSetting("story_lifespan_hours", String(Math.max(1, Number(m.story_lifespan_hours) || 24)));
+        await setSystemSetting2("story_lifespan_hours", String(Math.max(1, Number(m.story_lifespan_hours) || 24)));
       }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });
@@ -60148,10 +60667,10 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
 });
 app.get("/api/admin/settings/monetization", async (req, res) => {
   try {
-    const minWatchHours = Number(await getSystemSetting("monetization_required_watch_hours", "300")) || 300;
-    const minSubscribers = Number(await getSystemSetting("monetization_required_subscribers", "30")) || 30;
-    const creatorSharePercent = Number(await getSystemSetting("creator_revenue_share_pct", "70")) || 70;
-    const defaultCpmRwf = Number(await getSystemSetting("default_cpm_rwf", "1200")) || 1200;
+    const minWatchHours = Number(await getSystemSetting2("monetization_required_watch_hours", "300")) || 300;
+    const minSubscribers = Number(await getSystemSetting2("monetization_required_subscribers", "30")) || 30;
+    const creatorSharePercent = Number(await getSystemSetting2("creator_revenue_share_pct", "70")) || 70;
+    const defaultCpmRwf = Number(await getSystemSetting2("default_cpm_rwf", "1200")) || 1200;
     return res.json({
       success: true,
       settings: {
@@ -60170,19 +60689,19 @@ app.post("/api/admin/settings/monetization", authenticateToken, requireAdminRole
     const { minWatchHours, minSubscribers, creatorSharePercent, defaultCpmRwf } = req.body;
     if (minWatchHours !== void 0) {
       const wh = String(Math.max(0, Number(minWatchHours)));
-      await setSystemSetting("monetization_required_watch_hours", wh);
-      await setSystemSetting("creator_watch_hours_goal", wh);
+      await setSystemSetting2("monetization_required_watch_hours", wh);
+      await setSystemSetting2("creator_watch_hours_goal", wh);
     }
     if (minSubscribers !== void 0) {
       const sb = String(Math.max(0, Number(minSubscribers)));
-      await setSystemSetting("monetization_required_subscribers", sb);
-      await setSystemSetting("creator_subscribers_goal", sb);
+      await setSystemSetting2("monetization_required_subscribers", sb);
+      await setSystemSetting2("creator_subscribers_goal", sb);
     }
     if (creatorSharePercent !== void 0) {
-      await setSystemSetting("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
+      await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
     }
     if (defaultCpmRwf !== void 0) {
-      await setSystemSetting("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
+      await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
     }
     const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     let currentSettings = {};
@@ -60235,8 +60754,8 @@ app.get("/api/settings", async (req, res) => {
     const sysRes = await query("SELECT key, value FROM core_system_settings").catch(() => ({ rows: [] }));
     const rawSysRes = await query("SELECT key, value FROM system_settings").catch(() => ({ rows: [] }));
     const systemSettings = {
-      welcome_bonus_amount: 1e3,
-      referral_reward: 1e3,
+      welcome_bonus_amount: 100,
+      referral_reward: 50,
       affiliate_commission_percentage: 15,
       monetization_required_watch_hours: 300,
       monetization_required_subscribers: 30,

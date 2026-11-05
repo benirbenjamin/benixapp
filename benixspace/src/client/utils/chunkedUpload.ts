@@ -72,7 +72,7 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 export interface ChunkUploadOptions {
   onProgress?: (percent: number) => void;
   folder?: string;
-  chunkSize?: number; // default 1,000,000 bytes (~1 MB) to be well under Vercel 4.5MB limit
+  chunkSize?: number; // default 2,500,000 bytes (~2.5 MB) for 2.5x faster upload speed
 }
 
 /**
@@ -84,7 +84,7 @@ export async function uploadFileInChunks(
   file: File,
   options: ChunkUploadOptions = {}
 ): Promise<string> {
-  const { onProgress, folder = 'media', chunkSize = 1000000 } = options;
+  const { onProgress, folder = 'media', chunkSize = 2500000 } = options;
   const token = getAuthToken();
 
   let fileToUpload: Blob = file;
@@ -108,30 +108,44 @@ export async function uploadFileInChunks(
     const chunkBlob = fileToUpload.slice(start, end);
     const chunkBase64 = await blobToBase64(chunkBlob);
 
-    const res = await axios.post(
-      '/api/upload/chunk',
-      {
-        uploadId,
-        chunkIndex: i,
-        totalChunks,
-        fileName: file.name,
-        fileType: file.type || 'application/octet-stream',
-        chunkData: chunkBase64,
-        folder
-      },
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    let res: any = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        res = await axios.post(
+          '/api/upload/chunk',
+          {
+            uploadId,
+            chunkIndex: i,
+            totalChunks,
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            chunkData: chunkBase64,
+            folder
+          },
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            timeout: 30000 // 30s per chunk
+          }
+        );
+        break;
+      } catch (postErr: any) {
+        if (attempts >= maxAttempts) throw postErr;
+        await new Promise((r) => setTimeout(r, 1000 * attempts));
       }
-    );
+    }
 
     const pct = Math.round(((i + 1) / totalChunks) * 95);
     if (onProgress) onProgress(pct);
 
     if (i === totalChunks - 1) {
-      if (res.data?.url) {
+      if (res?.data?.url) {
         finalUrl = res.data.url;
       } else {
-        throw new Error(res.data?.error || 'Failed to assemble uploaded chunks.');
+        throw new Error(res?.data?.error || 'Failed to assemble uploaded chunks.');
       }
     }
   }

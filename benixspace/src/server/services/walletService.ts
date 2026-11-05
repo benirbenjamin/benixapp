@@ -42,6 +42,9 @@ export class WalletService {
         ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS total_bonus_received NUMERIC(15,2) DEFAULT 0.00;
         ALTER TABLE core_wallets ADD COLUMN IF NOT EXISTS last_login_bonus_date VARCHAR(20) DEFAULT NULL;
 
+        -- Real Wallet Unification: Transfer all existing bonus_balance into real balance
+        UPDATE core_wallets SET balance = balance + COALESCE(bonus_balance, 0), bonus_balance = 0 WHERE bonus_balance > 0;
+
         CREATE TABLE IF NOT EXISTS core_wallet_transactions (
           id VARCHAR(255) PRIMARY KEY,
           wallet_id VARCHAR(255),
@@ -142,52 +145,18 @@ export class WalletService {
     description: string = 'Platform Bonus',
     reference?: string,
     metadata?: any
-  ): Promise<{ success: boolean; newBonusBalance: number; transactionId: string }> {
-    if (amount <= 0) throw new Error('Bonus credit amount must be greater than zero.');
-    const txRef = reference || `tx_bonus_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    const txId = 'cwt-' + crypto.randomUUID();
-
-    return await withTransaction(async (client) => {
-      let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
-      if (walletRes.rowCount === 0) {
-        await client.query(
-          `INSERT INTO core_wallets (id, user_id, balance, bonus_balance, pending_balance, currency, total_earnings, total_bonus_received)
-           VALUES ($1, $2, 0.00, 0.00, 0.00, 'RWF', 0.00, 0.00)
-           ON CONFLICT (user_id) DO NOTHING`,
-          ['wallet-' + userId, userId]
-        );
-        walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
-      }
-
-      const wallet = walletRes.rows[0];
-      const newBonusBalance = Number(wallet.bonus_balance || 0) + amount;
-      const newTotalBonus = Number(wallet.total_bonus_received || 0) + amount;
-
-      await client.query(
-        `UPDATE core_wallets 
-         SET bonus_balance = $1, total_bonus_received = $2, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        [newBonusBalance, newTotalBonus, wallet.id]
-      );
-
-      await client.query(
-        `INSERT INTO core_wallet_transactions 
-         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, 0.00, 'RWF', 'completed', $7, $8, $9)`,
-        [txId, wallet.id, userId, module, type, amount, txRef, description, JSON.stringify(metadata || {})]
-      );
-
-      return { success: true, newBonusBalance, transactionId: txId };
-    });
+  ): Promise<{ success: boolean; newBonusBalance: number; newBalance: number; transactionId: string }> {
+    const cred = await this.credit(userId, amount, module, type, description, reference, metadata);
+    return { success: true, newBonusBalance: 0, newBalance: cred.newBalance, transactionId: cred.transactionId };
   }
 
   /**
-   * Claim Daily Login Bonus (Credited into bonus_balance, once every calendar day)
+   * Claim Daily Login Bonus (Credited into real balance, once every calendar day)
    */
   static async claimDailyLoginBonus(
     userId: string,
-    bonusAmount: number = 200
-  ): Promise<{ claimed: boolean; alreadyClaimed: boolean; amount: number; bonusBalance: number; message: string }> {
+    bonusAmount: number = 10
+  ): Promise<{ claimed: boolean; alreadyClaimed: boolean; amount: number; bonusBalance: number; newBalance: number; message: string }> {
     const today = new Date().toISOString().split('T')[0];
 
     return await withTransaction(async (client) => {
@@ -210,19 +179,20 @@ export class WalletService {
           claimed: false,
           alreadyClaimed: true,
           amount: 0,
-          bonusBalance: Number(wallet.bonus_balance || 0),
+          bonusBalance: 0,
+          newBalance: Number(wallet.balance || 0),
           message: 'Daily login bonus already claimed for today.'
         };
       }
 
-      const newBonusBalance = Number(wallet.bonus_balance || 0) + bonusAmount;
-      const newTotalBonus = Number(wallet.total_bonus_received || 0) + bonusAmount;
+      const newBalance = Number(wallet.balance || 0) + bonusAmount;
+      const newTotalEarnings = Number(wallet.total_earnings || 0) + bonusAmount;
 
       await client.query(
         `UPDATE core_wallets 
-         SET bonus_balance = $1, total_bonus_received = $2, last_login_bonus_date = $3, updated_at = CURRENT_TIMESTAMP 
+         SET balance = $1, total_earnings = $2, bonus_balance = 0, last_login_bonus_date = $3, updated_at = CURRENT_TIMESTAMP 
          WHERE id = $4`,
-        [newBonusBalance, newTotalBonus, today, wallet.id]
+        [newBalance, newTotalEarnings, today, wallet.id]
       );
 
       const txId = 'cwt-' + crypto.randomUUID();
@@ -236,7 +206,7 @@ export class WalletService {
           userId,
           bonusAmount,
           `tx_daily_${today}_${userId}`,
-          `Daily Login Bonus (${today}): +${bonusAmount} RWF credited to Bonus Wallet`,
+          `Daily Login Bonus (${today}): +${bonusAmount} RWF credited to Real Wallet`,
           JSON.stringify({ date: today, bonusAmount })
         ]
       );
@@ -245,8 +215,9 @@ export class WalletService {
         claimed: true,
         alreadyClaimed: false,
         amount: bonusAmount,
-        bonusBalance: newBonusBalance,
-        message: `🎉 Daily Login Bonus Credited: +${bonusAmount} RWF added to your Bonus Wallet!`
+        bonusBalance: 0,
+        newBalance,
+        message: `🎉 Daily Login Bonus Credited: +${bonusAmount} RWF added to your Real Wallet!`
       };
     });
   }
@@ -316,7 +287,6 @@ export class WalletService {
     const txId = 'cwt-' + crypto.randomUUID();
 
     return await withTransaction(async (client) => {
-      // Lock wallet row for update
       let walletRes = await client.query('SELECT * FROM core_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
       if (walletRes.rowCount === 0) {
         await client.query(
@@ -333,41 +303,22 @@ export class WalletService {
 
       const wallet = walletRes.rows[0];
       const realBalance = Number(wallet.balance || 0);
-      const bonusBalance = Number(wallet.bonus_balance || 0);
-      const totalAvailable = realBalance + bonusBalance;
 
-      if (totalAvailable < amount) {
+      // Strict real wallet deduction (bonus wallet eliminated per user requirement)
+      if (realBalance < amount) {
         throw new Error(
-          `Insufficient wallet balance. Required: ${amount.toLocaleString()} RWF (Available: ${realBalance.toLocaleString()} RWF real deposit + ${bonusBalance.toLocaleString()} RWF bonus).`
+          `Insufficient wallet balance. Required: ${amount.toLocaleString()} RWF (Available: ${realBalance.toLocaleString()} RWF). Please deposit funds to your wallet.`
         );
       }
 
-      let deductedFromBonus = 0;
-      let deductedFromReal = 0;
+      const newRealBalance = realBalance - amount;
 
-      if (bonusBalance >= amount) {
-        deductedFromBonus = amount;
-      } else {
-        deductedFromBonus = bonusBalance;
-        deductedFromReal = amount - bonusBalance;
-      }
-
-      const newBonusBalance = bonusBalance - deductedFromBonus;
-      const newRealBalance = realBalance - deductedFromReal;
-
-      // Update wallet balances
       await client.query(
         `UPDATE core_wallets 
-         SET balance = $1, bonus_balance = $2, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        [newRealBalance, newBonusBalance, wallet.id]
+         SET balance = $1, bonus_balance = 0, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $2`,
+        [newRealBalance, wallet.id]
       );
-
-      // Record negative ledger entry
-      const debitBreakdown = [
-        deductedFromBonus > 0 ? `${deductedFromBonus} RWF bonus` : null,
-        deductedFromReal > 0 ? `${deductedFromReal} RWF deposit` : null
-      ].filter(Boolean).join(' + ');
 
       await client.query(
         `INSERT INTO core_wallet_transactions 
@@ -381,18 +332,18 @@ export class WalletService {
           type,
           -amount,
           txRef,
-          `${description} [${debitBreakdown}]`,
-          JSON.stringify({ ...(metadata || {}), deductedFromBonus, deductedFromReal })
+          description,
+          JSON.stringify({ ...(metadata || {}), deductedFromBonus: 0, deductedFromReal: amount })
         ]
       );
 
       return {
         success: true,
         newBalance: newRealBalance,
-        newBonusBalance,
-        totalBalance: newRealBalance + newBonusBalance,
-        deductedFromBonus,
-        deductedFromReal,
+        newBonusBalance: 0,
+        totalBalance: newRealBalance,
+        deductedFromBonus: 0,
+        deductedFromReal: amount,
         transactionId: txId
       };
     });

@@ -3,14 +3,14 @@ import { Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { fetchCompanySettings, updateCompanySettings, getAuthToken } from '../../services/api';
 import {
-  Settings, Save, CheckCircle2, AlertCircle, Building2, User, Mail, Phone,
+  Settings, Save, Zap, CheckSquare, Search, CheckCircle2, AlertCircle, Building2, User, Mail, Phone,
   MapPin, ShieldCheck, Tv, Radio, Heart, Music, ShoppingBag, Dices, Calculator,
   Database, Send, Upload, Image, HardDrive, DollarSign, Globe, ExternalLink,
   Layers, RefreshCw, Eye, Sparkles, Check, Film, Plus, Trash2, X
 } from 'lucide-react';
 
 export const AdminSettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'branding' | 'contacts' | 'adsense' | 'drive' | 'flutterwave' | 'email' | 'modules' | 'database'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'contacts' | 'adsense' | 'smm' | 'drive' | 'flutterwave' | 'email' | 'modules' | 'database'>('branding');
 
   // 1. Branding & Image Assets
   const [branding, setBranding] = useState({
@@ -52,10 +52,10 @@ export const AdminSettingsPage: React.FC = () => {
     video_delay_sec: 10, // 10s initial watch delay (as user requested)
     video_interval_sec: 300, // 5m interval
     video_countdown_sec: 10,
-    google_ad_view_payout: 2, // 2 RWF for Google Ad view (monetized channel)
-    google_ad_click_payout: 4, // 4 RWF for Google Ad click
-    custom_ad_view_payout: 10, // 10 RWF for Custom Ad view
-    custom_ad_click_payout: 18 // 18 RWF for Custom Ad click
+    google_ad_view_payout: 0.02, // 2 RWF for Google Ad view (monetized channel)
+    google_ad_click_payout: 0.04, // 4 RWF for Google Ad click
+    custom_ad_view_payout: 0.1, // 10 RWF for Custom Ad view
+    custom_ad_click_payout: 0.4 // 18 RWF for Custom Ad click
   });
 
   // 4. Multi-Google Drive Cloud Storage Accounts & Quota Tracking
@@ -63,6 +63,177 @@ export const AdminSettingsPage: React.FC = () => {
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveTestResult, setDriveTestResult] = useState('');
   const [showAddDriveModal, setShowAddDriveModal] = useState(false);
+  
+  // SMM Follows Boost & Services Management
+  const [smmApiKey, setSmmApiKey] = useState('4eb27fc1b22e70e9f168bc6391d4e7ef');
+  const [smmDefaultMarkup, setSmmDefaultMarkup] = useState(30);
+  const [smmRwfRate, setSmmRwfRate] = useState(1400);
+  const [smmBalance, setSmmBalance] = useState<number | null>(null);
+  const [smmCurrency, setSmmCurrency] = useState('USD');
+  const [smmBalanceLoading, setSmmBalanceLoading] = useState(false);
+  const [smmBalanceError, setSmmBalanceError] = useState('');
+  const [smmServices, setSmmServices] = useState<any[]>([]);
+  const [smmServicesLoading, setSmmServicesLoading] = useState(false);
+  const [smmSyncing, setSmmSyncing] = useState(false);
+  const [smmCategoryFilter, setSmmCategoryFilter] = useState('all');
+  const [smmSearch, setSmmSearch] = useState('');
+  const [smmPendingOrders, setSmmPendingOrders] = useState<any[]>([]);
+  const [smmOrdersLoading, setSmmOrdersLoading] = useState(false);
+  const [smmRetryingId, setSmmRetryingId] = useState<number | null>(null);
+
+  const fetchSmmData = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    // 1. Fetch balance
+    setSmmBalanceLoading(true);
+    setSmmBalanceError('');
+    try {
+      const bRes = await fetch('/api/smm/balance', { headers: { Authorization: `Bearer ${token}` } });
+      const bData = await bRes.json();
+      if (bData.success) {
+        setSmmBalance(bData.balance);
+        setSmmCurrency(bData.currency || 'USD');
+      } else {
+        setSmmBalanceError(bData.error || 'Failed to fetch balance');
+      }
+    } catch (e: any) {
+      setSmmBalanceError(e.message);
+    } finally {
+      setSmmBalanceLoading(false);
+    }
+
+    // 2. Fetch settings
+    try {
+      const sRes = await fetch('/api/smm/settings', { headers: { Authorization: `Bearer ${token}` } });
+      const sData = await sRes.json();
+      if (sData.success && sData.settings) {
+        if (sData.settings.apiKey) setSmmApiKey(sData.settings.apiKey);
+        if (sData.settings.defaultMarkup) setSmmDefaultMarkup(sData.settings.defaultMarkup);
+        if (sData.settings.rwfPerUsd) setSmmRwfRate(sData.settings.rwfPerUsd);
+      }
+    } catch {}
+
+    // 3. Fetch services
+    setSmmServicesLoading(true);
+    try {
+      const svRes = await fetch('/api/smm/services?adminView=true', { headers: { Authorization: `Bearer ${token}` } });
+      const svData = await svRes.json();
+      if (svData.success && Array.isArray(svData.services)) {
+        setSmmServices(svData.services);
+      }
+    } catch {} finally {
+      setSmmServicesLoading(false);
+    }
+
+    // 4. Fetch orders
+    setSmmOrdersLoading(true);
+    try {
+      const ordRes = await fetch('/api/smm/orders/all', { headers: { Authorization: `Bearer ${token}` } });
+      const ordData = await ordRes.json();
+      if (ordData.success && Array.isArray(ordData.orders)) {
+        setSmmPendingOrders(ordData.orders.filter((o: any) => o.status === 'pending_deposit'));
+      }
+    } catch {} finally {
+      setSmmOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'smm') {
+      fetchSmmData();
+    }
+  }, [activeTab]);
+
+  const handleSyncSmmServices = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    setSmmSyncing(true);
+    try {
+      const res = await fetch('/api/smm/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(data.message || 'Services synced successfully!');
+        fetchSmmData();
+      } else {
+        setError(data.error || 'Failed to sync services.');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Sync failed.');
+    } finally {
+      setSmmSyncing(false);
+      setTimeout(() => { setError(''); setSuccess(''); }, 4000);
+    }
+  };
+
+  const handleToggleSmmService = async (serviceId: number, currentEnabled: boolean) => {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/smm/services/${serviceId}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_enabled: !currentEnabled })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSmmServices((prev) => prev.map((s) => s.id === serviceId ? { ...s, is_enabled: !currentEnabled } : s));
+      }
+    } catch (e) {
+      console.warn('Failed to toggle service:', e);
+    }
+  };
+
+  const handleSaveSmmSettings = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/smm/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ apiKey: smmApiKey, defaultMarkup: smmDefaultMarkup, rwfPerUsd: smmRwfRate })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess('SMM settings saved! Refreshing balance & services...');
+        fetchSmmData();
+      } else {
+        setError(data.error || 'Failed to save SMM settings.');
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setTimeout(() => { setError(''); setSuccess(''); }, 4000);
+    }
+  };
+
+  const handleRetryPendingOrder = async (orderId: number) => {
+    const token = getAuthToken();
+    if (!token) return;
+    setSmmRetryingId(orderId);
+    try {
+      const res = await fetch(`/api/smm/orders/${orderId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(data.message || 'Order submitted successfully!');
+        fetchSmmData();
+      } else {
+        setError(data.error || 'Retry failed. Check balance.');
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSmmRetryingId(null);
+      setTimeout(() => { setError(''); setSuccess(''); }, 4000);
+    }
+  };
+
   const [newDriveForm, setNewDriveForm] = useState({
     name: '',
     clientId: '',
@@ -473,6 +644,7 @@ export const AdminSettingsPage: React.FC = () => {
     { key: 'branding', label: 'Logo & Branding', icon: Image },
     { key: 'contacts', label: 'Contacts & Dynamic Footer', icon: Phone },
     { key: 'adsense', label: 'Google AdSense Monetization', icon: DollarSign },
+    { key: 'smm', label: 'SMM Follows Boost & Services', icon: Zap },
     { key: 'drive', label: 'Google Drive Multi-Storage', icon: HardDrive },
     { key: 'flutterwave', label: 'Flutterwave Payment Gateway', icon: ShieldCheck },
     { key: 'email', label: 'Resend & Email Relay', icon: Mail },
@@ -1013,6 +1185,218 @@ export const AdminSettingsPage: React.FC = () => {
                     </div>
                     <span className="text-[10px] text-slate-400 mt-1 block">Supports decimals: e.g. 0.20 or 0.02 RWF</span>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          
+          {/* TAB: SMM FOLLOWS SOCIAL MEDIA BOOST & SERVICES */}
+          {activeTab === 'smm' && (
+            <div className="rounded-3xl p-6 sm:p-8 border border-slate-800 bg-[#131926] shadow-xl space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-amber-400" /> SMM Follows Boost & Social Services Control Panel
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Manage API connection to <strong>smmfollows.com</strong>, monitor your live USD balance, import services with automatic 30% profit markup, and toggle what services to show or hide for users.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleSyncSmmServices}
+                    disabled={smmSyncing}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${smmSyncing ? 'animate-spin' : ''}`} />
+                    <span>{smmSyncing ? 'Syncing...' : 'Sync Services from SMMFollows'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SMM Balance & Settings Banner */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Live Balance Card */}
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-[#1A2234] to-[#121824] border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Live SMM Provider Balance</span>
+                    <button
+                      onClick={fetchSmmData}
+                      disabled={smmBalanceLoading}
+                      title="Refresh Balance"
+                      className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${smmBalanceLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                  <div className="text-3xl font-black text-emerald-400">
+                    {smmBalance !== null ? `${smmBalance.toFixed(2)} ${smmCurrency}` : (smmBalanceLoading ? 'Loading...' : '$0.00')}
+                  </div>
+                  {smmBalanceError ? (
+                    <span className="text-[11px] text-red-400 block">⚠️ {smmBalanceError}</span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 block">
+                      {smmBalance !== null && smmBalance < 2 ? (
+                        <span className="text-amber-400 font-bold">⚠️ Balance Low! Deposit on smmfollows.com</span>
+                      ) : (
+                        'Funds available for instant automated order delivery'
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                {/* API Key Configuration */}
+                <div className="p-5 rounded-2xl bg-[#1A2234] border border-slate-800 space-y-3 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">SMMFollows API Key & Profit Margin</span>
+                    <button
+                      onClick={handleSaveSmmSettings}
+                      className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                    >
+                      Save Key & Rates
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">API Key (smmfollows.com/account)</label>
+                      <input
+                        type="text"
+                        value={smmApiKey}
+                        onChange={(e) => setSmmApiKey(e.target.value)}
+                        placeholder="Paste your SMMFollows API key"
+                        className="w-full px-3 py-2 rounded-xl bg-[#121824] border border-slate-700 text-white font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Default Profit Markup (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="200"
+                        value={smmDefaultMarkup}
+                        onChange={(e) => setSmmDefaultMarkup(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl bg-[#121824] border border-slate-700 text-amber-400 font-black text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Exchange Rate: 1 USD = <strong>{smmRwfRate} RWF</strong></span>
+                    <span className="text-emerald-400">Default +30% profit added automatically to base price</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending Deposit Orders Banner */}
+              {smmPendingOrders.length > 0 && (
+                <div className="p-4 rounded-2xl bg-amber-950/60 border border-amber-500/50 space-y-3 animate-fade-in">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>⚠️ {smmPendingOrders.length} Order(s) Awaiting SMMFollows Deposit! (Users already paid from real wallet)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Deposit funds to your account on <a href="https://smmfollows.com" target="_blank" rel="noreferrer" className="text-blue-400 underline font-bold">smmfollows.com</a>, then click "Retry Order" below to submit them immediately.
+                  </p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {smmPendingOrders.map((ord) => (
+                      <div key={ord.id} className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs gap-3">
+                        <div>
+                          <span className="font-bold text-white block">{ord.service_name}</span>
+                          <span className="text-[10px] text-slate-400">Qty: {ord.quantity.toLocaleString()} | Paid: {Number(ord.charge_rwf).toLocaleString()} RWF (${ord.charge_usd} USD) | User: {ord.user_email || ord.user_id}</span>
+                        </div>
+                        <button
+                          onClick={() => handleRetryPendingOrder(ord.id)}
+                          disabled={smmRetryingId === ord.id}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shrink-0 active:scale-95 disabled:opacity-50"
+                        >
+                          {smmRetryingId === ord.id ? 'Submitting...' : 'Retry Order'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Services Search & Category Filter */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                    <input
+                      type="text"
+                      value={smmSearch}
+                      onChange={(e) => setSmmSearch(e.target.value)}
+                      placeholder="Search services..."
+                      className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <select
+                    value={smmCategoryFilter}
+                    onChange={(e) => setSmmCategoryFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs"
+                  >
+                    <option value="all">All Categories</option>
+                    {Array.from(new Set(smmServices.map((s) => s.category))).filter(Boolean).map((cat: any) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-xs text-slate-400">
+                  Total Services: <strong className="text-white">{smmServices.length}</strong> | Visible: <strong className="text-emerald-400">{smmServices.filter((s) => s.is_enabled).length}</strong>
+                </div>
+              </div>
+
+              {/* Services Table */}
+              <div className="rounded-2xl border border-slate-800 overflow-hidden bg-[#101726]">
+                <div className="max-h-[500px] overflow-y-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-[#1A2234] text-[10px] text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                      <tr>
+                        <th className="p-3 w-12 text-center">Show</th>
+                        <th className="p-3">ID</th>
+                        <th className="p-3">Service Name</th>
+                        <th className="p-3">Category</th>
+                        <th className="p-3">Base USD</th>
+                        <th className="p-3">Customer RWF</th>
+                        <th className="p-3">Min / Max</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {smmServices
+                        .filter((s) => smmCategoryFilter === 'all' || s.category === smmCategoryFilter)
+                        .filter((s) => !smmSearch || s.name.toLowerCase().includes(smmSearch.toLowerCase()) || String(s.service_id).includes(smmSearch))
+                        .map((svc) => (
+                          <tr key={svc.id} className={`hover:bg-slate-800/40 transition-colors ${!svc.is_enabled ? 'opacity-50 bg-slate-900/30' : ''}`}>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(svc.is_enabled)}
+                                onChange={() => handleToggleSmmService(svc.id, svc.is_enabled)}
+                                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3 font-mono text-[11px] text-slate-400">{svc.service_id}</td>
+                            <td className="p-3 font-bold text-white max-w-xs truncate" title={svc.name}>
+                              {svc.name}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-300 border border-slate-700">
+                                {svc.category}
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono text-slate-400">${svc.rate_usd}</td>
+                            <td className="p-3 font-mono font-bold text-emerald-400">
+                              {Number(svc.rate_rwf).toLocaleString()} RWF
+                            </td>
+                            <td className="p-3 text-[11px] text-slate-400">
+                              {svc.min_quantity?.toLocaleString()} - {svc.max_quantity?.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

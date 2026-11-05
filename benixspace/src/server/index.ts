@@ -18,6 +18,7 @@ import {
   verifyToken
 } from './auth/auth';
 import { WalletService } from './services/walletService';
+import { SmmService } from './services/smmService';
 import { ReferralService } from './services/referralService';
 import { TranslationService } from './services/translationService';
 import { StorageService } from './services/storageService';
@@ -748,7 +749,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
       
-      let dailyAmount = 200;
+      let dailyAmount = 10;
       try {
         const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
         if (sRes.rowCount && sRes.rows[0].services_json) {
@@ -851,7 +852,7 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
     let dailyBonusAwarded: any = null;
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
-      let dailyAmount = 200;
+      let dailyAmount = 10;
       const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
       if (sRes.rowCount && sRes.rows[0].services_json) {
         const parsed = JSON.parse(sRes.rows[0].services_json);
@@ -1155,7 +1156,7 @@ app.get('/api/wallet', authenticateToken, async (req: AuthenticatedRequest, res)
 
 app.post('/api/wallet/claim-daily-bonus', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    let dailyAmount = 200;
+    let dailyAmount = 10;
     try {
       const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
       if (sRes.rowCount && sRes.rows[0].services_json) {
@@ -6794,6 +6795,103 @@ app.post('/api/ads/record-reward', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+// ==================== 2.7 SMM FOLLOWS SOCIAL MEDIA BOOST SERVICES ==================== //
+
+app.get('/api/smm/balance', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const data = await SmmService.getBalance();
+  return res.json(data);
+});
+
+app.get('/api/smm/services', async (req, res) => {
+  try {
+    const isAdmin = (req as any).user?.role === 'superadmin' || (req as any).user?.role === 'admin';
+    const showAll = req.query.adminView === 'true' || isAdmin;
+    const services = await SmmService.getServices(showAll);
+    return res.json({ success: true, services });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, services: [] });
+  }
+});
+
+app.post('/api/smm/sync', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  const result = await SmmService.syncServices();
+  return res.json(result);
+});
+
+app.post('/api/smm/services/:id/toggle', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const service = await SmmService.toggleService(req.params.id, req.body.is_enabled);
+    return res.json({ success: true, service });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/smm/services/:id/pricing', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const service = await SmmService.updatePricing(req.params.id, req.body.custom_markup_percent, req.body.rate_rwf);
+    return res.json({ success: true, service });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/smm/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  const settings = await SmmService.getSettings();
+  return res.json({ success: true, settings });
+});
+
+app.post('/api/smm/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  await SmmService.saveSettings(req.body.apiKey, req.body.defaultMarkup, req.body.rwfPerUsd);
+  return res.json({ success: true, message: 'SMM settings updated successfully.' });
+});
+
+app.post('/api/smm/order', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await SmmService.placeOrder(req.user!.id, req.body.serviceId, req.body.link, req.body.quantity);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/smm/orders/my', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const orders = await SmmService.getUserOrders(req.user!.id);
+    return res.json({ success: true, orders });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, orders: [] });
+  }
+});
+
+app.get('/api/smm/orders/all', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await SmmService.getAllOrders();
+    return res.json({ success: true, orders: result.orders, pendingDepositCount: result.pendingCount });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, orders: [], pendingDepositCount: 0 });
+  }
+});
+
+app.post('/api/smm/orders/:id/retry', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await SmmService.retryPendingOrder(req.params.id);
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/notifications', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const notifications = await SmmService.getNotifications();
+    return res.json({ success: true, notifications });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, notifications: [] });
+  }
+});
+
 // ==================== 3. CENTRAL REFERRALS API ==================== //
 
 app.get('/api/referrals', authenticateToken, async (req: AuthenticatedRequest, res) => {
@@ -9439,6 +9537,15 @@ app.post('/api/admin/settings/all-apps', authenticateToken, requireAdminRole, as
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
     `, [JSON.stringify(payload)]);
 
+    if (payload.adsense) {
+      const a = payload.adsense;
+      if (a.google_ad_view_payout !== undefined) await setSystemSetting('google_ad_view_payout', String(a.google_ad_view_payout));
+      if (a.google_ad_click_payout !== undefined) await setSystemSetting('google_ad_click_payout', String(a.google_ad_click_payout));
+      if (a.custom_ad_view_payout !== undefined) await setSystemSetting('custom_ad_view_payout', String(a.custom_ad_view_payout));
+      if (a.custom_ad_click_payout !== undefined) await setSystemSetting('custom_ad_click_payout', String(a.custom_ad_click_payout));
+      if (a.client_id !== undefined) await setSystemSetting('adsense_client_id', String(a.client_id));
+    }
+
     if (payload.branding || payload.contacts) {
       const b = payload.branding || {};
       const c = payload.contacts || {};
@@ -9606,8 +9713,8 @@ app.get('/api/settings', async (req, res) => {
     const rawSysRes = await query('SELECT key, value FROM system_settings').catch(() => ({ rows: [] }));
 
     const systemSettings: Record<string, any> = {
-      welcome_bonus_amount: 1000,
-      referral_reward: 1000,
+      welcome_bonus_amount: 100,
+      referral_reward: 50,
       affiliate_commission_percentage: 15,
       monetization_required_watch_hours: 300,
       monetization_required_subscribers: 30,
