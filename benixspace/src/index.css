@@ -199,3 +199,13 @@
   }
 }
 
+
+
+/* Compact Story & Shorts Google Ads (Strict 50px-55px Slim Banner Sizing) */
+.adsense-compact,
+.adsense-compact ins,
+.adsense-compact iframe {
+  max-height: 55px !important;
+  height: 50px !important;
+  overflow: hidden !important;
+}

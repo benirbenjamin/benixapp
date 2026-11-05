@@ -15,6 +15,11 @@ interface AdSenseUnitProps {
   layoutKey?: string;
   className?: string;
   style?: React.CSSProperties;
+  minHeight?: number | string;
+  maxHeight?: number | string;
+  isCompact?: boolean;
+  fallback?: React.ReactNode;
+  creatorName?: string;
 }
 
 export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
@@ -25,21 +30,31 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
   layoutKey,
   className = '',
   style = {},
+  minHeight,
+  maxHeight,
+  isCompact = false,
+  fallback,
+  creatorName,
 }) => {
   const insRef = useRef<HTMLModElement | null>(null);
   const [isUnfilled, setIsUnfilled] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     const insNode = insRef.current;
     if (!insNode) return;
 
-    // MutationObserver to hide container ONLY if AdSense explicitly returns unfilled status
+    // Reset status on mount / slot change
+    setIsUnfilled(false);
+
+    // MutationObserver to hide container or show fallback ONLY if AdSense explicitly returns unfilled status
     const observer = new MutationObserver(() => {
       const status = insNode.getAttribute('data-ad-status');
       if (status === 'unfilled') {
         setIsUnfilled(true);
       } else if (status === 'filled') {
         setIsUnfilled(false);
+        setHasLoaded(true);
       }
     });
 
@@ -63,18 +78,56 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     };
   }, [slot, clientId]);
 
+  const defaultCompactFallback = (
+    <div className="w-full h-[50px] max-h-[50px] flex items-center justify-between px-3 bg-gradient-to-r from-slate-900/90 via-slate-800/80 to-slate-900/90 border border-slate-700/60 rounded-xl text-white select-none">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 text-xs font-bold shrink-0">
+          ★
+        </div>
+        <div className="text-left min-w-0">
+          <p className="text-[11px] font-bold text-white truncate leading-tight">BenixSpace Sponsor Spotlight</p>
+          <p className="text-[9px] text-slate-400 truncate">Supporting @{creatorName || 'Creator'} earnings</p>
+        </div>
+      </div>
+      <a
+        href="https://benix.space/dashboard#wallet"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[10px] font-bold text-white shadow shrink-0 transition"
+      >
+        Learn More
+      </a>
+    </div>
+  );
+
   if (isUnfilled) {
+    if (fallback) return <>{fallback}</>;
+    if (isCompact) return defaultCompactFallback;
     return null;
   }
 
-  const containerMinHeight = style?.minHeight || '90px';
+  const effectiveMinHeight = minHeight || style?.minHeight || (isCompact ? 50 : '90px');
+  const effectiveMaxHeight = maxHeight || (isCompact ? 55 : undefined);
+  const effectiveFormat = isCompact ? 'horizontal' : format;
+  const effectiveResponsive = isCompact ? false : responsive;
 
   return (
     <div
-      className={`adsense-container w-full text-center transition-all duration-300 ${className.includes('my-') ? className : `my-6 ${className}`}`}
+      className={`adsense-container w-full text-center transition-all duration-300 ${
+        isCompact
+          ? `adsense-compact ${className || 'my-0 py-0'}`
+          : className.includes('my-')
+          ? className
+          : `my-6 ${className}`
+      }`}
       style={{
-        display: 'block',
-        minHeight: containerMinHeight,
+        display: isCompact ? 'flex' : 'block',
+        alignItems: isCompact ? 'center' : undefined,
+        justifyContent: isCompact ? 'center' : undefined,
+        height: isCompact ? (typeof effectiveMinHeight === 'number' ? `${effectiveMinHeight}px` : effectiveMinHeight) : undefined,
+        minHeight: typeof effectiveMinHeight === 'number' ? `${effectiveMinHeight}px` : effectiveMinHeight,
+        maxHeight: effectiveMaxHeight ? (typeof effectiveMaxHeight === 'number' ? `${effectiveMaxHeight}px` : effectiveMaxHeight) : undefined,
         overflow: 'hidden',
         ...style
       }}
@@ -83,15 +136,20 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
         ref={insRef}
         className="adsbygoogle"
         style={{
-          display: 'block',
+          display: isCompact ? 'inline-block' : 'block',
           textAlign: 'center',
-          minWidth: '250px',
-          minHeight: (typeof containerMinHeight === 'number' ? `${containerMinHeight}px` : containerMinHeight) || '90px',
+          width: '100%',
+          maxWidth: isCompact ? '468px' : undefined,
+          minWidth: isCompact ? undefined : '250px',
+          height: isCompact ? '50px' : undefined,
+          minHeight: isCompact ? '50px' : (typeof effectiveMinHeight === 'number' ? `${effectiveMinHeight}px` : effectiveMinHeight) || '90px',
+          maxHeight: isCompact ? '55px' : undefined,
+          overflow: 'hidden',
         }}
         data-ad-client={clientId}
         data-ad-slot={slot}
-        data-ad-format={format}
-        data-full-width-responsive={responsive ? 'true' : 'false'}
+        data-ad-format={effectiveFormat}
+        data-full-width-responsive={effectiveResponsive ? 'true' : 'false'}
         {...(layoutKey ? { 'data-ad-layout-key': layoutKey } : {})}
       />
     </div>

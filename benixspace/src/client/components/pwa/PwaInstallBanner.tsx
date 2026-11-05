@@ -8,31 +8,46 @@ export const PwaInstallBanner: React.FC = () => {
   const [installing, setInstalling] = useState<boolean>(false);
 
   useEffect(() => {
-    // Clear any legacy permanent dismissal from older versions
-    try {
-      localStorage.removeItem('benix_pwa_dismissed');
-    } catch {
-      // ignore
-    }
+    // If app is already installed, marked as installed, or user dismissed it, do not show
+    const checkAlreadyHandled = () => {
+      if (typeof window === 'undefined') return true;
+      return (
+        isInstalled ||
+        localStorage.getItem('benix_pwa_installed') === 'true' ||
+        localStorage.getItem('benix_pwa_dismissed') === 'true' ||
+        sessionStorage.getItem('benix_pwa_session_dismissed') === 'true'
+      );
+    };
 
-    // If app is already installed in standalone mode or dismissed for this active session, do not show
-    if (isInstalled || (typeof window !== 'undefined' && sessionStorage.getItem('benix_pwa_session_dismissed') === 'true')) {
+    if (checkAlreadyHandled()) {
       setIsVisible(false);
       return;
     }
 
-    // Prompt user politely after a short 1.2s delay if not running as installed PWA
+    // Prompt user politely after a short 2s delay if not installed
     const timer = setTimeout(() => {
-      if (!isInstalled && sessionStorage.getItem('benix_pwa_session_dismissed') !== 'true') {
+      if (!checkAlreadyHandled()) {
         setIsVisible(true);
       }
-    }, 1200);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [isInstalled]);
 
   const handleDismiss = () => {
     try {
+      localStorage.setItem('benix_pwa_dismissed', 'true');
+      sessionStorage.setItem('benix_pwa_session_dismissed', 'true');
+    } catch {
+      // ignore
+    }
+    setIsVisible(false);
+  };
+
+  const handleMarkInstalled = () => {
+    try {
+      localStorage.setItem('benix_pwa_installed', 'true');
+      localStorage.setItem('benix_pwa_dismissed', 'true');
       sessionStorage.setItem('benix_pwa_session_dismissed', 'true');
     } catch {
       // ignore
@@ -46,6 +61,8 @@ export const PwaInstallBanner: React.FC = () => {
       const success = await installApp();
       if (success) {
         try {
+          localStorage.setItem('benix_pwa_installed', 'true');
+          localStorage.setItem('benix_pwa_dismissed', 'true');
           sessionStorage.setItem('benix_pwa_session_dismissed', 'true');
         } catch {
           // ignore
@@ -57,7 +74,7 @@ export const PwaInstallBanner: React.FC = () => {
     }
   };
 
-  if (!isVisible || isInstalled || (typeof window !== 'undefined' && sessionStorage.getItem('benix_pwa_session_dismissed') === 'true')) {
+  if (!isVisible || isInstalled || (typeof window !== 'undefined' && (localStorage.getItem('benix_pwa_installed') === 'true' || localStorage.getItem('benix_pwa_dismissed') === 'true' || sessionStorage.getItem('benix_pwa_session_dismissed') === 'true'))) {
     return null;
   }
 
@@ -103,21 +120,29 @@ export const PwaInstallBanner: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2.5 pt-1 border-t border-slate-800/80 relative z-10">
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 relative z-10">
           <button
-            onClick={handleDismiss}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all"
+            onClick={handleMarkInstalled}
+            className="text-[11px] text-slate-400 hover:text-emerald-400 transition underline underline-offset-2"
           >
-            Not Now
+            Already Installed
           </button>
-          <button
-            onClick={handleInstall}
-            disabled={installing}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition-all transform active:scale-95 disabled:opacity-50"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>{installing ? 'Opening Install...' : 'Install App'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDismiss}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all"
+            >
+              Not Now
+            </button>
+            <button
+              onClick={handleInstall}
+              disabled={installing}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center gap-1.5 transition-all transform active:scale-95 disabled:opacity-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{installing ? 'Opening Install...' : 'Install App'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </aside>

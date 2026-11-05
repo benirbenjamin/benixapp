@@ -39,7 +39,8 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           window.matchMedia('(display-mode: fullscreen)').matches ||
           window.matchMedia('(display-mode: minimal-ui)').matches ||
           (window.navigator as any).standalone === true ||
-          document.referrer.includes('android-app://'));
+          document.referrer.includes('android-app://') ||
+          localStorage.getItem('benix_pwa_installed') === 'true');
 
       setIsInstalled(Boolean(isStandalone));
     };
@@ -48,12 +49,16 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const mediaQuery = window.matchMedia('(display-mode: standalone)');
     const handleMediaChange = (e: MediaQueryListEvent) => {
-      setIsInstalled(Boolean(e.matches || (window.navigator as any).standalone === true));
+      setIsInstalled(Boolean(e.matches || (window.navigator as any).standalone === true || localStorage.getItem('benix_pwa_installed') === 'true'));
     };
     mediaQuery.addEventListener('change', handleMediaChange);
 
     // 2. Capture beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
+      // If user already installed or marked installed, don't trigger install UI
+      if (typeof window !== 'undefined' && localStorage.getItem('benix_pwa_installed') === 'true') {
+        return;
+      }
       e.preventDefault();
       setDeferredPrompt(e);
       setCanInstall(true);
@@ -64,6 +69,10 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsInstalled(true);
       setCanInstall(false);
       setDeferredPrompt(null);
+      try {
+        localStorage.setItem('benix_pwa_installed', 'true');
+        localStorage.setItem('benix_pwa_dismissed', 'true');
+      } catch {}
       console.log('🎉 BenixSpace PWA successfully installed on device!');
     };
 
@@ -149,6 +158,10 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsInstalled(true);
           setCanInstall(false);
           setDeferredPrompt(null);
+          try {
+            localStorage.setItem('benix_pwa_installed', 'true');
+            localStorage.setItem('benix_pwa_dismissed', 'true');
+          } catch {}
           return true;
         }
         return false;

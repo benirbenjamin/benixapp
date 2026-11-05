@@ -127,12 +127,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [likedStatus, setLikedStatus] = useState<Record<string, boolean>>({});
   const [subscribersMap, setSubscribersMap] = useState<Record<string, number>>({});
 
-  // 6-Second Non-Skippable Interstitial Ad Sequencer State
+  // 10-Second Non-Skippable Interstitial Ad Sequencer State
   const [scrolledVideosCount, setScrolledVideosCount] = useState<number>(0);
   const [nextInterstitialThreshold, setNextInterstitialThreshold] = useState<number>(() => Math.floor(Math.random() * 6) + 5); // 5 to 10
   const [interstitialAdIndex, setInterstitialAdIndex] = useState<number>(0);
   const [showInterstitialAd, setShowInterstitialAd] = useState<boolean>(false);
-  const [interstitialCountdown, setInterstitialCountdown] = useState<number>(6);
+  const [interstitialCountdown, setInterstitialCountdown] = useState<number>(10);
   const [currentInterstitialType, setCurrentInterstitialType] = useState<'google' | 'custom'>('google');
   const [activeInterstitialCustomAd, setActiveInterstitialCustomAd] = useState<CustomAdItem | null>(null);
 
@@ -298,7 +298,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           setActiveInterstitialCustomAd(null);
         }
         setShowInterstitialAd(true);
-        setInterstitialCountdown(6);
+        setInterstitialCountdown(10);
         setNextInterstitialThreshold(Math.floor(Math.random() * 6) + 5);
         setInterstitialAdIndex((i) => i + 1);
         return 0;
@@ -352,7 +352,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     }
   }, [activeIndex, currentShort, triggerInterstitialCheck]);
 
-  // 5. Photo Story Auto-Advance Timer (6 seconds)
+  // 5. Photo Story Auto-Advance Timer (10 seconds)
   useEffect(() => {
     if (!currentShort || currentShort.mediaType === 'video' || showInterstitialAd) return;
 
@@ -365,14 +365,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           }
           return 0;
         }
-        return prev + 1.67; // 100% over 6 seconds
+        return prev + 1.0; // 100% over 10 seconds (100 * 100ms)
       });
     }, 100);
 
     return () => clearInterval(interval);
   }, [activeIndex, currentShort, isAutoScroll, shorts.length, scrollToIndex, showInterstitialAd]);
 
-  // 6. Interstitial Ad 6-second non-skippable countdown
+  // 6. Interstitial Ad 10-second non-skippable countdown
   useEffect(() => {
     if (!showInterstitialAd) return;
 
@@ -381,7 +381,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         if (prev <= 1) {
           clearInterval(timer);
           setShowInterstitialAd(false);
-          return 6;
+          return 10;
         }
         return prev - 1;
       });
@@ -1090,14 +1090,23 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                             </span>
                             <span className="truncate max-w-[160px]">Supporting @{item.authorName}</span>
                           </div>
-                          <div className="w-full overflow-hidden flex items-center justify-center max-h-[55px]">
-                            <AdSenseUnit
-                              slot="7034214536"
-                              clientId="ca-pub-4078466828008985"
-                              format="horizontal"
-                              minHeight={50}
-                              className="w-full my-0 py-0"
-                            />
+                          <div className="w-full overflow-hidden flex items-center justify-center h-[50px] max-h-[55px] shrink-0">
+                            {idx === activeIndex ? (
+                              <AdSenseUnit
+                                key={`short-google-ad-${item.id}-${activeIndex}`}
+                                slot="7034214536"
+                                clientId="ca-pub-4078466828008985"
+                                format="horizontal"
+                                isCompact={true}
+                                responsive={false}
+                                minHeight={50}
+                                maxHeight={55}
+                                creatorName={item.authorName}
+                                className="w-full my-0 py-0"
+                              />
+                            ) : (
+                              <div className="w-full h-[50px] rounded-xl bg-slate-900/60 border border-slate-800/80" />
+                            )}
                           </div>
                         </div>
                       );

@@ -131,7 +131,7 @@ export const HomePage: React.FC = () => {
   const [nextStoryAdThreshold, setNextStoryAdThreshold] = useState<number>(() => Math.floor(Math.random() * 6) + 5);
   const [storyAdIndex, setStoryAdIndex] = useState<number>(0);
   const [showStoryInterstitialAd, setShowStoryInterstitialAd] = useState<boolean>(false);
-  const [storyInterstitialCountdown, setStoryInterstitialCountdown] = useState<number>(6);
+  const [storyInterstitialCountdown, setStoryInterstitialCountdown] = useState<number>(10);
   const [storyInterstitialType, setStoryInterstitialType] = useState<'google' | 'custom'>('google');
   const [activeStoryCustomAd, setActiveStoryCustomAd] = useState<any | null>(null);
 
@@ -291,7 +291,7 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  // 6-Second Non-Skippable Story Interstitial Ad Countdown
+  // 10-Second Non-Skippable Story Interstitial Ad Countdown
   useEffect(() => {
     if (!showStoryInterstitialAd) return;
 
@@ -301,7 +301,7 @@ export const HomePage: React.FC = () => {
           clearInterval(timer);
           setShowStoryInterstitialAd(false);
           setIsStoryPaused(false);
-          return 6;
+          return 10;
         }
         return prev - 1;
       });
@@ -330,7 +330,7 @@ export const HomePage: React.FC = () => {
         }
         setShowStoryInterstitialAd(true);
         setIsStoryPaused(true);
-        setStoryInterstitialCountdown(6);
+        setStoryInterstitialCountdown(10);
         setNextStoryAdThreshold(Math.floor(Math.random() * 6) + 5);
         setStoryAdIndex((i) => i + 1);
         return 0;
@@ -357,7 +357,7 @@ export const HomePage: React.FC = () => {
     });
   }, []);
 
-  // Photo story auto-advance (5 seconds smooth progress)
+  // Photo story auto-advance (10 seconds smooth progress)
   useEffect(() => {
     if (activeStoryIndex === null || stories.length === 0 || isStoryPaused || showStoryInterstitialAd) return;
     const currentStory = stories[activeStoryIndex];
@@ -375,7 +375,7 @@ export const HomePage: React.FC = () => {
           handleNextStory();
           return 0;
         }
-        return prev + 1;
+        return prev + 0.5; // 100% over 10 seconds (200 * 50ms)
       });
     }, 50);
 
@@ -1942,7 +1942,7 @@ export const HomePage: React.FC = () => {
 
               {/* Story Ad Banner: Strictly 3 Google Ads : 1 Custom Ad Rotation */}
               <div
-                className="w-full bg-[#0F1420]/95 border-t border-slate-800 p-2 z-40 backdrop-blur-md select-none"
+                className="w-full bg-[#0F1420]/95 border-t border-slate-800 p-2 z-40 backdrop-blur-md select-none shrink-0"
                 onClick={handleStoryAdClick}
               >
                 {currentCustomAd ? (
@@ -1981,12 +1981,17 @@ export const HomePage: React.FC = () => {
                       </span>
                       <span className="truncate max-w-[200px]">Supporting @{currentStory.authorName || 'Creator'}</span>
                     </div>
-                    <div className="w-full overflow-hidden flex items-center justify-center max-h-[55px]">
+                    <div className="w-full overflow-hidden flex items-center justify-center h-[50px] max-h-[55px] shrink-0">
                       <AdSenseUnit
+                        key={`story-google-ad-${currentStory.id}`}
                         slot="7034214536"
                         clientId="ca-pub-4078466828008985"
                         format="horizontal"
+                        isCompact={true}
+                        responsive={false}
                         minHeight={50}
+                        maxHeight={55}
+                        creatorName={currentStory.authorName || 'Creator'}
                         className="w-full my-0 py-0"
                       />
                     </div>

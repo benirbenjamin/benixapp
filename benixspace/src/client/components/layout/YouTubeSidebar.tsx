@@ -34,7 +34,9 @@ import {
   Flame,
   RadioTower,
   Zap,
-  Download
+  Download,
+  LayoutDashboard,
+  Rocket
 } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
@@ -87,6 +89,22 @@ export const YouTubeSidebar: React.FC = () => {
       color: 'text-blue-400 group-hover:text-blue-300'
     },
     {
+      id: 'studio',
+      name: 'Creator Studio',
+      icon: Sparkles,
+      route: '/studio',
+      badge: 'Earn 15%',
+      color: 'text-amber-400 group-hover:text-amber-300'
+    },
+    {
+      id: 'smm',
+      name: 'Boost SMM Services',
+      icon: Rocket,
+      route: '/dashboard#smm',
+      badge: 'Boost',
+      color: 'text-cyan-400 group-hover:text-cyan-300'
+    },
+    {
       id: 'shorts',
       name: 'Shorts',
       icon: Zap,
@@ -110,6 +128,14 @@ export const YouTubeSidebar: React.FC = () => {
       route: '/radio',
       badge: '19 FM',
       color: 'text-purple-400 group-hover:text-purple-300'
+    },
+    {
+      id: 'dashboard',
+      name: 'Dashboard',
+      icon: LayoutDashboard,
+      route: '/dashboard',
+      badge: null,
+      color: 'text-blue-400 group-hover:text-blue-300'
     },
     {
       id: 'videos',
@@ -169,14 +195,6 @@ export const YouTubeSidebar: React.FC = () => {
       route: '/blog',
       badge: 'Articles',
       color: 'text-sky-400'
-    },
-    {
-      id: 'studio',
-      name: 'Creator Studio',
-      icon: Sparkles,
-      route: '/studio',
-      badge: 'Earn 15%',
-      color: 'text-amber-400'
     },
     {
       id: 'messages',

@@ -620,7 +620,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
                 <span className="text-[11px] text-emerald-400 font-medium block mt-1">Available for SMM Boosts, Unlocks, Shop & Withdrawals</span>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                <Wallet className="w-6 h-6" />
+                <WalletIcon className="w-6 h-6" />
               </div>
             </div>
 

@@ -6618,7 +6618,7 @@ app.post('/api/ads/record-reward', async (req, res) => {
     let creatorUserId = targetCreatorId;
     try {
       const uFind = await query(
-        `SELECT id, monetization_status FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1`,
+        `SELECT id, monetization_status FROM core_users WHERE id = $1 OR LOWER(channel_name) = LOWER($1) OR LOWER(name) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1`,
         [targetCreatorId]
       );
       if (uFind.rowCount > 0 && uFind.rows[0]?.id) {
@@ -6668,13 +6668,11 @@ app.post('/api/ads/record-reward', async (req, res) => {
     ).catch(() => ({ rows: [{ count: 0 }] }));
     const totalSubscribers = Number(subRes.rows[0]?.count || 0);
 
-    const isMonetized = isManuallyApproved || (
-      overrideStatus !== 'suspended' && overrideStatus !== 'paused' &&
-      totalWatchHours >= reqWatchHours && totalSubscribers >= reqSubs
-    );
+    // All non-suspended creators of stories, shorts, and videos earn revenue when ads are displayed on their content
+    const isMonetized = overrideStatus !== 'suspended';
 
     if (!isMonetized) {
-      return res.json({ success: true, monetized: false, credited: false, reason: 'Creator not yet monetized' });
+      return res.json({ success: true, monetized: false, credited: false, reason: 'Creator account is suspended' });
     }
 
     // Calculate reward based on ad type and interaction type (fine decimal)
