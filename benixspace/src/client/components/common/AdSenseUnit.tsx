@@ -20,6 +20,8 @@ interface AdSenseUnitProps {
   isCompact?: boolean;
   fallback?: React.ReactNode;
   creatorName?: string;
+  timeoutMs?: number;
+  onStatusChange?: (status: 'filled' | 'unfilled') => void;
 }
 
 export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
@@ -35,6 +37,8 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
   isCompact = false,
   fallback,
   creatorName,
+  timeoutMs = 1800,
+  onStatusChange,
 }) => {
   const insRef = useRef<HTMLModElement | null>(null);
   const [isUnfilled, setIsUnfilled] = useState(false);
@@ -46,15 +50,52 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
 
     // Reset status on mount / slot change
     setIsUnfilled(false);
+    setHasLoaded(false);
 
-    // MutationObserver to hide container or show fallback ONLY if AdSense explicitly returns unfilled status
+    // Timeout guard: If Google AdSense has not rendered filled content within timeoutMs, trigger fallback
+    const timer = setTimeout(() => {
+      const ins = insRef.current;
+      if (!ins) return;
+
+      const status = ins.getAttribute('data-ad-status');
+      if (status === 'filled') {
+        setIsUnfilled(false);
+        setHasLoaded(true);
+        onStatusChange?.('filled');
+        return;
+      }
+
+      const iframe = ins.querySelector('iframe');
+      const hasRealContent = Boolean(
+        iframe &&
+          (iframe.offsetHeight > 10 ||
+            (iframe.contentDocument &&
+              iframe.contentDocument.body &&
+              iframe.contentDocument.body.children.length > 0))
+      );
+
+      if (status === 'unfilled' || !hasRealContent) {
+        setIsUnfilled(true);
+        onStatusChange?.('unfilled');
+      } else {
+        setIsUnfilled(false);
+        setHasLoaded(true);
+        onStatusChange?.('filled');
+      }
+    }, timeoutMs);
+
+    // MutationObserver to track Google AdSense status changes
     const observer = new MutationObserver(() => {
       const status = insNode.getAttribute('data-ad-status');
       if (status === 'unfilled') {
+        clearTimeout(timer);
         setIsUnfilled(true);
+        onStatusChange?.('unfilled');
       } else if (status === 'filled') {
+        clearTimeout(timer);
         setIsUnfilled(false);
         setHasLoaded(true);
+        onStatusChange?.('filled');
       }
     });
 
@@ -70,13 +111,17 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
         (window.adsbygoogle = window.adsbygoogle || []).push({});
       }
     } catch (err) {
-      // Catch duplicate push or adblocker restrictions gracefully
+      // AdBlock or duplicate push: immediately trigger fallback
+      clearTimeout(timer);
+      setIsUnfilled(true);
+      onStatusChange?.('unfilled');
     }
 
     return () => {
+      clearTimeout(timer);
       observer.disconnect();
     };
-  }, [slot, clientId]);
+  }, [slot, clientId, timeoutMs]);
 
   const defaultCompactFallback = (
     <div className="w-full h-[50px] max-h-[50px] flex items-center justify-between px-3 bg-gradient-to-r from-slate-900/90 via-slate-800/80 to-slate-900/90 border border-slate-700/60 rounded-xl text-white select-none">

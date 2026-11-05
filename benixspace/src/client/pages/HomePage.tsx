@@ -19,6 +19,7 @@ import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { SeoHead } from '../components/common/SeoHead';
 import { ShortsFeed } from '../components/home/ShortsFeed';
 import { AdSenseUnit } from '../components/common/AdSenseUnit';
+import { getEffectiveCustomAd } from '../config/sponsorAds';
 import realVideosData from '../config/realVideos.json';
 import {
   Tv,
@@ -134,6 +135,7 @@ export const HomePage: React.FC = () => {
   const [storyInterstitialCountdown, setStoryInterstitialCountdown] = useState<number>(10);
   const [storyInterstitialType, setStoryInterstitialType] = useState<'google' | 'custom'>('google');
   const [activeStoryCustomAd, setActiveStoryCustomAd] = useState<any | null>(null);
+  const [storyGoogleAdUnfilled, setStoryGoogleAdUnfilled] = useState<boolean>(false);
 
   // Active Category Chip
   const [activeChip, setActiveChip] = useState<string>('All');
@@ -386,6 +388,7 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     setStoryProgress(0);
     setIsStoryPaused(false);
+    setStoryGoogleAdUnfilled(false);
   }, [activeStoryIndex]);
 
   // Track story ad impression on story load (rewards monetized creators with custom ads & AdSense, and increments story views)
@@ -427,33 +430,40 @@ export const HomePage: React.FC = () => {
     if (activeStoryIndex === null || !stories[activeStoryIndex]) return;
     const currentStory = stories[activeStoryIndex];
     const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
-    const isCustomSlot = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3)) && customAds.length > 0;
-    const currentCustomAd = isCustomSlot ? customAds[Math.floor(activeStoryIndex / 4) % customAds.length] : null;
+    const isNaturalCustom = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3));
+    const showCustomAd = isNaturalCustom || storyGoogleAdUnfilled;
+    const customAd = getEffectiveCustomAd(customAds, activeStoryIndex !== null ? Math.floor(activeStoryIndex / 4) : 0);
 
-    if (currentCustomAd) {
+    if (showCustomAd) {
       fetch('/api/ads/track-click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adId: currentCustomAd.id })
+        body: JSON.stringify({ adId: customAd.id })
       }).catch(() => {});
-    }
-
-    fetch('/api/ads/record-reward', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        storyId: currentStory.id,
-        creatorId: authorId,
-        type: 'click',
-        adType: currentCustomAd ? 'custom' : 'google',
-        mediaType: 'story'
-      })
-    }).catch(() => {});
-
-    if (currentCustomAd?.targetUrl) {
-      window.open(currentCustomAd.targetUrl, '_blank');
+      fetch('/api/ads/record-reward', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyId: currentStory.id,
+          creatorId: authorId,
+          type: 'click',
+          adType: 'custom',
+          mediaType: 'story'
+        })
+      }).catch(() => {});
+      if (customAd.targetUrl) window.open(customAd.targetUrl, '_blank');
     } else {
-      window.open('https://benix.space', '_blank');
+      fetch('/api/ads/record-reward', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyId: currentStory.id,
+          creatorId: authorId,
+          type: 'click',
+          adType: 'google',
+          mediaType: 'story'
+        })
+      }).catch(() => {});
     }
   };
 
@@ -1798,6 +1808,14 @@ export const HomePage: React.FC = () => {
                             clientId="ca-pub-4078466828008985"
                             format="rectangle"
                             responsive={true}
+                            timeoutMs={1800}
+                            onStatusChange={(status) => {
+                              if (status === 'unfilled') {
+                                const fallbackCustom = getEffectiveCustomAd(customAds, activeStoryIndex || 0);
+                                setActiveStoryCustomAd(fallbackCustom as any);
+                                setStoryInterstitialType('custom');
+                              }
+                            }}
                             className="my-0 max-h-[220px]"
                           />
                         </div>
@@ -1940,63 +1958,95 @@ export const HomePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Story Ad Banner: Strictly 3 Google Ads : 1 Custom Ad Rotation */}
+              {/* Story Ad Banner: Strictly 3 Google Ads : 1 Custom Ad Rotation with Auto-Fallback */}
               <div
                 className="w-full bg-[#0F1420]/95 border-t border-slate-800 p-2 z-40 backdrop-blur-md select-none shrink-0"
                 onClick={handleStoryAdClick}
               >
-                {currentCustomAd ? (
-                  <div className="w-full flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <img
-                        src={currentCustomAd.mediaUrl || '/logo.png'}
-                        alt={currentCustomAd.title}
-                        className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">Sponsored Ad</span>
-                          <span className="text-xs font-bold text-white truncate">{currentCustomAd.title}</span>
+                {(() => {
+                  const isNaturalCustom = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3));
+                  const showCustomAd = isNaturalCustom || storyGoogleAdUnfilled;
+                  const customAd = getEffectiveCustomAd(customAds, activeStoryIndex !== null ? Math.floor(activeStoryIndex / 4) : 0);
+
+                  const customCard = (
+                    <div className="w-full flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={customAd.mediaUrl || '/logo.png'}
+                          alt={customAd.title}
+                          className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">Sponsored Ad</span>
+                            <span className="text-xs font-bold text-white truncate">{customAd.title}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {customAd.description || 'Promoted partner • Creator earns ad revenue'}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-slate-400 truncate">
-                          {currentCustomAd.description || 'Promoted partner • Creator earns ad revenue'}
-                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStoryAdClick}
+                        className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 transition shadow-md flex items-center gap-1"
+                      >
+                        <span>{customAd.ctaText || 'Learn More'}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+
+                  if (showCustomAd) {
+                    return (
+                      <div className="w-full flex flex-col justify-center">
+                        <div className="w-full flex items-center justify-between px-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
+                          <span className="flex items-center gap-1 text-amber-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                            Sponsored Partner
+                          </span>
+                          <span className="truncate max-w-[200px]">Supporting @{currentStory.authorName || 'Creator'}</span>
+                        </div>
+                        <div className="w-full overflow-hidden flex items-center justify-center h-[50px] max-h-[55px] shrink-0">
+                          {customCard}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="w-full flex flex-col items-center justify-center">
+                      <div className="w-full flex items-center justify-between px-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
+                        <span className="flex items-center gap-1 text-blue-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                          Ad by Google
+                        </span>
+                        <span className="truncate max-w-[200px]">Supporting @{currentStory.authorName || 'Creator'}</span>
+                      </div>
+                      <div className="w-full overflow-hidden flex items-center justify-center h-[50px] max-h-[55px] shrink-0">
+                        <AdSenseUnit
+                          key={`story-google-ad-${currentStory.id}`}
+                          slot="7034214536"
+                          clientId="ca-pub-4078466828008985"
+                          format="horizontal"
+                          isCompact={true}
+                          responsive={false}
+                          minHeight={50}
+                          maxHeight={55}
+                          creatorName={currentStory.authorName || 'Creator'}
+                          timeoutMs={1800}
+                          onStatusChange={(status) => {
+                            if (status === 'unfilled') {
+                              setStoryGoogleAdUnfilled(true);
+                            }
+                          }}
+                          fallback={customCard}
+                          className="w-full my-0 py-0"
+                        />
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleStoryAdClick}
-                      className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 transition shadow-md flex items-center gap-1"
-                    >
-                      <span>{currentCustomAd.ctaText || 'Learn More'}</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full flex flex-col items-center justify-center">
-                    <div className="w-full flex items-center justify-between px-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
-                      <span className="flex items-center gap-1 text-blue-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-                        Ad by Google
-                      </span>
-                      <span className="truncate max-w-[200px]">Supporting @{currentStory.authorName || 'Creator'}</span>
-                    </div>
-                    <div className="w-full overflow-hidden flex items-center justify-center h-[50px] max-h-[55px] shrink-0">
-                      <AdSenseUnit
-                        key={`story-google-ad-${currentStory.id}`}
-                        slot="7034214536"
-                        clientId="ca-pub-4078466828008985"
-                        format="horizontal"
-                        isCompact={true}
-                        responsive={false}
-                        minHeight={50}
-                        maxHeight={55}
-                        creatorName={currentStory.authorName || 'Creator'}
-                        className="w-full my-0 py-0"
-                      />
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Desktop Navigation Arrows */}

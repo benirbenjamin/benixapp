@@ -31,6 +31,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
 import { AdSenseUnit } from '../common/AdSenseUnit';
 import { getAuthToken } from '../../services/api';
+import { getEffectiveCustomAd } from '../../config/sponsorAds';
 import realVideosData from '../../config/realVideos.json';
 
 export interface ShortFeedItem {
@@ -135,6 +136,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [interstitialCountdown, setInterstitialCountdown] = useState<number>(10);
   const [currentInterstitialType, setCurrentInterstitialType] = useState<'google' | 'custom'>('google');
   const [activeInterstitialCustomAd, setActiveInterstitialCustomAd] = useState<CustomAdItem | null>(null);
+  const [unfilledGoogleSlots, setUnfilledGoogleSlots] = useState<Record<string, boolean>>({});
 
   // DOM Refs
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1003,69 +1005,86 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     </div>
                   </div>
 
-                  {/* --- DOCKED BOTTOM AD CONTAINER (3 Google Ads : 1 Custom Ad Rotation) --- */}
+                  {/* --- DOCKED BOTTOM AD CONTAINER (3 Google Ads : 1 Custom Ad Rotation with Auto-Fallback) --- */}
                   <div
                     className="absolute inset-x-0 bottom-0 z-30 bg-[#0B0E14]/95 backdrop-blur-md border-t border-slate-800/80 px-2.5 py-1 flex flex-col justify-center min-h-[60px]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {(() => {
-                      const isCustomAd = (idx % 4 === 3) && customAds.length > 0;
-                      const customAd = isCustomAd ? customAds[Math.floor(idx / 4) % customAds.length] : null;
+                      const isNaturalCustom = (idx % 4 === 3);
+                      const isUnfilledGoogle = Boolean(unfilledGoogleSlots[item.id]);
+                      const showCustomAd = isNaturalCustom || isUnfilledGoogle;
+                      const customAd = getEffectiveCustomAd(customAds, Math.floor(idx / 4));
 
-                      if (customAd) {
-                        return (
-                          <div
-                            onClick={() => {
-                              fetch('/api/ads/track-click', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ adId: customAd.id })
-                              }).catch(() => {});
-                              fetch('/api/ads/record-reward', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  storyId: item.id,
-                                  creatorId: item.authorId,
-                                  type: 'click',
-                                  adType: 'custom',
-                                  mediaType: 'short'
-                                })
-                              }).catch(() => {});
-                              if (customAd.targetUrl) window.open(customAd.targetUrl, '_blank');
-                            }}
-                            className="w-full flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-800/40 p-1 rounded-xl transition"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <img
-                                src={customAd.mediaUrl || '/logo.png'}
-                                alt={customAd.title}
-                                className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">
-                                    Sponsored
-                                  </span>
-                                  <span className="text-xs font-bold text-white truncate">{customAd.title}</span>
-                                </div>
-                                <p className="text-[10px] text-slate-400 truncate">
-                                  {customAd.description || 'Visit sponsor website'}
-                                </p>
+                      const customAdCard = (
+                        <div
+                          onClick={() => {
+                            fetch('/api/ads/track-click', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ adId: customAd.id })
+                            }).catch(() => {});
+                            fetch('/api/ads/record-reward', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                storyId: item.id,
+                                creatorId: item.authorId,
+                                type: 'click',
+                                adType: 'custom',
+                                mediaType: 'short'
+                              })
+                            }).catch(() => {});
+                            if (customAd.targetUrl) window.open(customAd.targetUrl, '_blank');
+                          }}
+                          className="w-full flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-800/40 p-1 rounded-xl transition"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <img
+                              src={customAd.mediaUrl || '/logo.png'}
+                              alt={customAd.title}
+                              className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">
+                                  Sponsored
+                                </span>
+                                <span className="text-xs font-bold text-white truncate">{customAd.title}</span>
                               </div>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {customAd.description || 'Visit sponsor website'}
+                              </p>
                             </div>
-                            <button
-                              type="button"
-                              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 shadow-md flex items-center gap-1"
-                            >
-                              <span>{customAd.ctaText || 'Learn More'}</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 shadow-md flex items-center gap-1"
+                          >
+                            <span>{customAd.ctaText || 'Learn More'}</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+
+                      if (showCustomAd) {
+                        return (
+                          <div className="w-full flex flex-col justify-center">
+                            <div className="w-full flex items-center justify-between px-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
+                              <span className="flex items-center gap-1 text-amber-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                Sponsored Partner
+                              </span>
+                              <span className="truncate max-w-[160px]">Supporting @{item.authorName}</span>
+                            </div>
+                            <div className="w-full overflow-hidden flex items-center justify-center h-[50px] max-h-[55px] shrink-0">
+                              {customAdCard}
+                            </div>
                           </div>
                         );
                       }
 
-                      // Google Ad Unit (Slot 7034214536)
+                      // Attempt Google Ad Unit with automatic Custom Ad Fallback
                       return (
                         <div
                           onClick={() => {
@@ -1102,6 +1121,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                                 minHeight={50}
                                 maxHeight={55}
                                 creatorName={item.authorName}
+                                timeoutMs={1800}
+                                onStatusChange={(status) => {
+                                  if (status === 'unfilled') {
+                                    setUnfilledGoogleSlots((prev) => ({ ...prev, [item.id]: true }));
+                                  }
+                                }}
+                                fallback={customAdCard}
                                 className="w-full my-0 py-0"
                               />
                             ) : (
@@ -1219,6 +1245,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     clientId="ca-pub-4078466828008985"
                     format="rectangle"
                     responsive={true}
+                    timeoutMs={1800}
+                    onStatusChange={(status) => {
+                      if (status === 'unfilled') {
+                        const fallbackCustom = getEffectiveCustomAd(customAds, activeIndex);
+                        setActiveInterstitialCustomAd(fallbackCustom as any);
+                        setCurrentInterstitialType('custom');
+                      }
+                    }}
                     className="my-0 max-h-[260px]"
                   />
                 </div>
