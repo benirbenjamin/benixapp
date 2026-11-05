@@ -228,8 +228,10 @@ export const MessagesPage: React.FC = () => {
   const secToken = searchParams.get('sec');
   const decrypted = secToken ? decryptPayload(secToken) : null;
 
-  const queryUserId = decrypted?.user || decrypted?.chatWith || searchParams.get('user') || searchParams.get('chatWith');
-  const queryUserName = decrypted?.name || searchParams.get('name');
+  const rawQueryUserId = decrypted?.user || decrypted?.chatWith || searchParams.get('user') || searchParams.get('chatWith');
+  const queryEmail = searchParams.get('email');
+  const queryUserId = (rawQueryUserId === 'benirabok' || rawQueryUserId === 'user-superadmin-benir' || queryEmail === 'benirabok@gmail.com') ? 'user-superadmin-benir' : rawQueryUserId;
+  const queryUserName = (queryUserId === 'user-superadmin-benir') ? 'benirabok' : (decrypted?.name || searchParams.get('name'));
   const queryUserAvatar = decrypted?.avatar || searchParams.get('avatar');
   const queryTopic = decrypted?.topic || searchParams.get('topic');
 

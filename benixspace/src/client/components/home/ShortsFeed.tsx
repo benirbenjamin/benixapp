@@ -91,25 +91,7 @@ function getVisitorId(): string {
 }
 
 function getFallbackShorts(): ShortFeedItem[] {
-  return ((realVideosData as any[]) || []).slice(0, 30).map((v: any, i: number) => ({
-    id: v.id || `short-${i}`,
-    authorId: v.creator || 'benix_partner',
-    authorName: v.creator || 'Benix Creator Partner',
-    authorAvatar: v.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.creator || 'Benix')}&background=0D8ABC&color=fff`,
-    mediaUrl: `https://www.youtube.com/watch?v=${v.id}`,
-    thumbnailUrl: v.thumbnailUrl || v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
-    title: v.title || 'Benix Trending Moment',
-    mediaType: 'video',
-    duration: 60,
-    views: typeof v.views === 'number' ? v.views : 14200 + i * 850,
-    likes: typeof v.likes === 'number' ? v.likes : 1240 + i * 92,
-    subscribersCount: 250 + i * 15,
-    source: 'video',
-    category: v.category || 'Trending',
-    createdAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
-    isMonetized: true,
-    trendingScore: 60 - i
-  }));
+  return [];
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -184,9 +166,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       ]);
       clearTimeout(timer);
 
-      let loadedShorts: ShortFeedItem[] = feedRes?.shorts && Array.isArray(feedRes.shorts) && feedRes.shorts.length > 0
-        ? feedRes.shorts
-        : getFallbackShorts();
+      let loadedShorts: ShortFeedItem[] = feedRes?.shorts && Array.isArray(feedRes.shorts)
+        ? feedRes.shorts.filter((s: ShortFeedItem) => {
+            if (s.source === 'story') return true;
+            if (s.isPortrait) return true;
+            const cat = (s.category || '').toLowerCase();
+            const title = (s.title || '').toLowerCase();
+            return cat.includes('short') || cat.includes('tiktok') || cat.includes('reels') || cat.includes('portrait') || title.includes('#short');
+          })
+        : [];
 
       setShorts(loadedShorts);
       const lMap: Record<string, number> = {};
@@ -892,7 +880,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   </div>
 
                   {/* --- BOTTOM-LEFT INFO AREA (Matches Reference Mockup) --- */}
-                  <div className="absolute left-3.5 bottom-6 right-16 z-20 space-y-2 text-white">
+                  <div className="absolute left-3.5 bottom-20 right-16 z-20 space-y-2 text-white">
                     {/* Creator Row: Avatar + @Handle + Subscribe Pill */}
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <img
@@ -940,36 +928,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                       <span className="truncate">Original Audio • {item.authorName}</span>
                     </div>
 
-                    {/* Non-intrusive Sponsor Pill (Clean 30px banner, strictly NO auto-expanding ads) */}
-                    {customAds.length > 0 && (
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const ad = customAds[idx % customAds.length];
-                          if (ad) {
-                            fetch('/api/ads/track-click', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ adId: ad.id })
-                            }).catch(() => {});
-                            if (ad.targetUrl) window.open(ad.targetUrl, '_blank');
-                          }
-                        }}
-                        className="mt-1 h-7 px-2.5 rounded-lg bg-black/60 backdrop-blur-md border border-amber-500/30 flex items-center justify-between gap-2 max-w-[260px] cursor-pointer hover:bg-black/80 transition"
-                      >
-                        <span className="text-[9px] font-black uppercase text-amber-400 shrink-0">
-                          Sponsored
-                        </span>
-                        <span className="text-[10px] text-slate-200 truncate">
-                          {customAds[idx % customAds.length]?.title || 'Featured Partner'}
-                        </span>
-                        <ExternalLink className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-                      </div>
-                    )}
+
                   </div>
 
                   {/* --- RIGHT ACTION SIDEBAR (Matches Reference Mockup) --- */}
-                  <div className="absolute right-2.5 bottom-6 z-20 flex flex-col items-center gap-3.5 text-white">
+                  <div className="absolute right-2.5 bottom-20 z-20 flex flex-col items-center gap-3.5 text-white">
                     {/* 1. Like Button */}
                     <button
                       onClick={(e) => handleLike(e, item.id)}
@@ -1038,6 +1001,107 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* --- DOCKED BOTTOM AD CONTAINER (3 Google Ads : 1 Custom Ad Rotation) --- */}
+                  <div
+                    className="absolute inset-x-0 bottom-0 z-30 bg-[#0B0E14]/95 backdrop-blur-md border-t border-slate-800/80 px-2.5 py-1 flex flex-col justify-center min-h-[60px]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {(() => {
+                      const isCustomAd = (idx % 4 === 3) && customAds.length > 0;
+                      const customAd = isCustomAd ? customAds[Math.floor(idx / 4) % customAds.length] : null;
+
+                      if (customAd) {
+                        return (
+                          <div
+                            onClick={() => {
+                              fetch('/api/ads/track-click', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ adId: customAd.id })
+                              }).catch(() => {});
+                              fetch('/api/ads/record-reward', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  storyId: item.id,
+                                  creatorId: item.authorId,
+                                  type: 'click',
+                                  adType: 'custom',
+                                  mediaType: 'short'
+                                })
+                              }).catch(() => {});
+                              if (customAd.targetUrl) window.open(customAd.targetUrl, '_blank');
+                            }}
+                            className="w-full flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-800/40 p-1 rounded-xl transition"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                src={customAd.mediaUrl || '/logo.png'}
+                                alt={customAd.title}
+                                className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">
+                                    Sponsored
+                                  </span>
+                                  <span className="text-xs font-bold text-white truncate">{customAd.title}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 truncate">
+                                  {customAd.description || 'Visit sponsor website'}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 shadow-md flex items-center gap-1"
+                            >
+                              <span>{customAd.ctaText || 'Learn More'}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      // Google Ad Unit (Slot 7034214536)
+                      return (
+                        <div
+                          onClick={() => {
+                            fetch('/api/ads/record-reward', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                storyId: item.id,
+                                creatorId: item.authorId,
+                                type: 'click',
+                                adType: 'google',
+                                mediaType: 'short'
+                              })
+                            }).catch(() => {});
+                          }}
+                          className="w-full flex flex-col items-center justify-center cursor-pointer"
+                        >
+                          <div className="w-full flex items-center justify-between px-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
+                            <span className="flex items-center gap-1 text-blue-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                              Ad by Google
+                            </span>
+                            <span className="truncate max-w-[160px]">Supporting @{item.authorName}</span>
+                          </div>
+                          <div className="w-full overflow-hidden flex items-center justify-center max-h-[55px]">
+                            <AdSenseUnit
+                              slot="7034214536"
+                              clientId="ca-pub-4078466828008985"
+                              format="horizontal"
+                              minHeight={50}
+                              className="w-full my-0 py-0"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );

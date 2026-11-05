@@ -19249,14 +19249,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto13.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto14.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -22822,17 +22822,17 @@ var require_content_disposition = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto13.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto14.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(input, secret) {
       if ("string" != typeof input) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input.slice(0, input.lastIndexOf(".")), expectedInput = exports.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input);
-      return expectedBuffer.length === inputBuffer.length && crypto13.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto14.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -24465,7 +24465,7 @@ var require_main = __commonJS({
     var fs7 = __require("fs");
     var path5 = __require("path");
     var os4 = __require("os");
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -24709,7 +24709,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto13.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto14.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error2) {
@@ -25086,14 +25086,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports, module) {
     var Buffer2 = require_safe_buffer().Buffer;
-    var crypto13 = __require("crypto");
+    var crypto14 = __require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util3 = __require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto13.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto14.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -25183,17 +25183,17 @@ var require_jwa = __commonJS({
       return function sign2(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto13.createHmac("sha" + bits, secret);
+        var hmac = crypto14.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase64(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual = "timingSafeEqual" in crypto13 ? function timingSafeEqual2(a2, b2) {
+    var timingSafeEqual = "timingSafeEqual" in crypto14 ? function timingSafeEqual2(a2, b2) {
       if (a2.byteLength !== b2.byteLength) {
         return false;
       }
-      return crypto13.timingSafeEqual(a2, b2);
+      return crypto14.timingSafeEqual(a2, b2);
     } : function timingSafeEqual2(a2, b2) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -25210,7 +25210,7 @@ var require_jwa = __commonJS({
       return function sign2(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto13.createSign("RSA-SHA" + bits);
+        var signer = crypto14.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig);
       };
@@ -25220,7 +25220,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto13.createVerify("RSA-SHA" + bits);
+        var verifier = crypto14.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -25229,11 +25229,11 @@ var require_jwa = __commonJS({
       return function sign2(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto13.createSign("RSA-SHA" + bits);
+        var signer = crypto14.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto13.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto13.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto14.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto14.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig);
       };
@@ -25243,12 +25243,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto13.createVerify("RSA-SHA" + bits);
+        var verifier = crypto14.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto13.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto13.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto14.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto14.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -30322,7 +30322,7 @@ var bcryptjs_default = {
 };
 
 // src/server/index.ts
-import crypto12 from "crypto";
+import crypto13 from "crypto";
 
 // node_modules/@neondatabase/serverless/index.mjs
 var Po = Object.create;
@@ -36155,9 +36155,9 @@ var WalletService = class {
   }
 };
 
-// src/server/services/smmService.ts
-import http2 from "http";
+// src/server/services/withdrawalService.ts
 import https3 from "https";
+import crypto10 from "crypto";
 
 // src/server/services/emailService.ts
 import https2 from "https";
@@ -49056,7 +49056,7 @@ ${html}
   }
 };
 
-// src/server/services/smmService.ts
+// src/server/services/withdrawalService.ts
 async function getSystemSetting(key, defaultValue) {
   const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
   if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
@@ -49084,7 +49084,422 @@ async function setSystemSetting(key, value) {
   ).catch(() => {
   });
 }
+async function getFlutterwaveSecretKey() {
+  try {
+    const row = await query("SELECT secret_key FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    if (row.rowCount > 0 && row.rows[0].secret_key) {
+      return String(row.rows[0].secret_key).trim();
+    }
+  } catch {
+  }
+  return (process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim();
+}
+function callFlutterwaveApi(path5, method = "GET", data) {
+  return new Promise(async (resolve3, reject) => {
+    try {
+      const secretKey = await getFlutterwaveSecretKey();
+      const payload = data ? JSON.stringify(data) : null;
+      const req = https3.request(
+        {
+          hostname: "api.flutterwave.com",
+          port: 443,
+          path: path5,
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${secretKey}`,
+            ...payload ? { "Content-Length": Buffer.byteLength(payload) } : {}
+          }
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (c) => body += c);
+          res.on("end", () => {
+            try {
+              const parsed = JSON.parse(body);
+              resolve3(parsed);
+            } catch {
+              resolve3({ raw: body, statusCode: res.statusCode });
+            }
+          });
+        }
+      );
+      req.setTimeout(12e3, () => {
+        req.destroy(new Error("Flutterwave API timeout after 12s"));
+      });
+      req.on("error", (err) => reject(err));
+      if (payload) req.write(payload);
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+var WithdrawalService = class {
+  /**
+   * Get all withdrawals with joined user details and 4 summary KPI stats
+   */
+  static async listWithdrawals() {
+    const listRes = await query(`
+      SELECT w.*, 
+             u.name as user_name, 
+             u.email as user_email, 
+             u.phone as user_phone,
+             u.role as user_role
+      FROM core_withdrawals w
+      LEFT JOIN core_users u ON w.user_id = u.id
+      ORDER BY w.created_at DESC 
+      LIMIT 150
+    `);
+    const userWithdrawnRes = await query(`
+      SELECT COALESCE(SUM(COALESCE(w.net_amount, w.amount)), 0) as total 
+      FROM core_withdrawals w
+      LEFT JOIN core_users u ON w.user_id = u.id
+      WHERE w.status IN ('COMPLETED', 'PARTIAL') 
+        AND (u.role IS NULL OR u.role NOT IN ('superadmin', 'admin'))
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    const adminWithdrawnRes = await query(`
+      SELECT COALESCE(SUM(COALESCE(w.net_amount, w.amount)), 0) as total 
+      FROM core_withdrawals w
+      LEFT JOIN core_users u ON w.user_id = u.id
+      WHERE w.status IN ('COMPLETED', 'PARTIAL') 
+        AND u.role IN ('superadmin', 'admin')
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    const userBalancesRes = await query(`
+      SELECT COALESCE(SUM(balance), 0) as total 
+      FROM core_wallets
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    const userEarningsRes = await query(`
+      SELECT COALESCE(SUM(total_earnings), 0) as total 
+      FROM core_wallets
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    let flwBal = 0;
+    let flwCurrency = "RWF";
+    try {
+      const flwRes = await callFlutterwaveApi("/v3/balances");
+      if (flwRes?.data && Array.isArray(flwRes.data)) {
+        const rwfItem = flwRes.data.find((b2) => b2.currency === "RWF") || flwRes.data[0];
+        if (rwfItem) {
+          flwBal = Number(rwfItem.available_balance || rwfItem.ledger_balance || 0);
+          flwCurrency = rwfItem.currency || "RWF";
+        }
+      }
+    } catch {
+    }
+    const feeStr = await getSystemSetting("withdrawal_fee_percent", "3");
+    const defaultFeePercent = parseFloat(feeStr || "3") || 3;
+    return {
+      withdrawals: listRes.rows,
+      kpi: {
+        totalUserWithdrawn: Number(userWithdrawnRes.rows[0]?.total || 0),
+        totalAdminWithdrawn: Number(adminWithdrawnRes.rows[0]?.total || 0),
+        totalUserBalances: Number(userBalancesRes.rows[0]?.total || 0),
+        totalUserEarnings: Number(userEarningsRes.rows[0]?.total || 0),
+        flutterwaveBalance: flwBal,
+        flutterwaveCurrency: flwCurrency
+      },
+      settings: {
+        defaultFeePercent
+      }
+    };
+  }
+  /**
+   * Approve a withdrawal (Full or Partial) with fee deduction and optional direct Flutterwave transfer
+   */
+  static async approveWithdrawal(id, approvedAmount, feePercent, sendViaFlutterwave = true, note) {
+    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
+    if (wRes.rowCount === 0) throw new Error("Withdrawal request not found.");
+    const w = wRes.rows[0];
+    if (w.status === "COMPLETED") throw new Error("Withdrawal is already completed.");
+    const reqAmount = Number(w.amount);
+    const appAmount = Math.min(reqAmount, Math.max(1, Number(approvedAmount)));
+    const feeRate = Math.max(0, Math.min(50, Number(feePercent) || 0));
+    const feeDeducted = Math.round(appAmount * (feeRate / 100));
+    const netAmount = Math.max(0, appAmount - feeDeducted);
+    const unapprovedRemainder = Math.max(0, reqAmount - appAmount);
+    const isPartial = unapprovedRemainder > 0;
+    let flwTransferRef = "";
+    let flwStatus = "manual";
+    if (sendViaFlutterwave && netAmount > 0) {
+      let accDetails = {};
+      try {
+        accDetails = typeof w.account_details === "string" ? JSON.parse(w.account_details) : w.account_details || {};
+      } catch {
+      }
+      const recipientNumber = String(accDetails.accountNumber || accDetails.phone || "").trim();
+      if (!recipientNumber) {
+        throw new Error("Recipient account number/phone is missing in withdrawal details.");
+      }
+      try {
+        const balRes = await callFlutterwaveApi("/v3/balances");
+        if (balRes?.data && Array.isArray(balRes.data)) {
+          const rwfItem = balRes.data.find((b2) => b2.currency === "RWF") || balRes.data[0];
+          const available = rwfItem ? Number(rwfItem.available_balance || 0) : 0;
+          if (available < netAmount) {
+            throw new Error(`Flutterwave account needs topup to approve this withdrawal. (Available: ${available.toLocaleString()} RWF, Needed: ${netAmount.toLocaleString()} RWF)`);
+          }
+        }
+      } catch (balErr) {
+        if (balErr.message.includes("Flutterwave account needs topup")) throw balErr;
+      }
+      const transferPayload = {
+        account_bank: w.payout_method === "BANK" ? "MPS" : "MPS",
+        account_number: recipientNumber,
+        amount: netAmount,
+        narration: `BenixSpace Withdrawal #${id}`,
+        currency: "RWF",
+        reference: `flw_tx_${id}_${Date.now()}`,
+        debit_currency: "RWF"
+      };
+      const flwResult = await callFlutterwaveApi("/v3/transfers", "POST", transferPayload);
+      if (flwResult?.status !== "success") {
+        const errMsg = flwResult?.message || "";
+        if (errMsg.toLowerCase().includes("insufficient") || errMsg.toLowerCase().includes("balance")) {
+          throw new Error("Flutterwave account needs topup to approve this withdrawal.");
+        }
+        throw new Error(flwResult?.message || "Flutterwave transfer failed. Please verify credentials or top up.");
+      }
+      flwTransferRef = String(flwResult?.data?.id || flwResult?.data?.reference || "");
+      flwStatus = flwResult?.data?.status || "SUCCESSFUL";
+    }
+    await query(
+      `UPDATE core_withdrawals 
+       SET status = $1,
+           fee_percent = $2,
+           fee_deducted = $3,
+           net_amount = $4,
+           is_partial = $5,
+           flutterwave_ref = $6,
+           flutterwave_status = $7,
+           admin_note = $8,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9`,
+      [
+        isPartial ? "PARTIAL" : "COMPLETED",
+        feeRate,
+        feeDeducted,
+        netAmount,
+        isPartial,
+        flwTransferRef,
+        flwStatus,
+        note || (isPartial ? "Partial withdrawal approved" : "Approved by administrator"),
+        id
+      ]
+    );
+    await query(
+      `UPDATE core_wallets 
+       SET pending_balance = GREATEST(0, pending_balance - $1),
+           total_withdrawn = total_withdrawn + $2,
+           balance = balance + $3,
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $4`,
+      [reqAmount, appAmount, unapprovedRemainder, w.user_id]
+    );
+    await query(
+      `INSERT INTO core_wallet_transactions 
+       (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+       VALUES ($1, $2, $3, 'wallet', 'withdrawal_approved', $4, $5, 'RWF', 'completed', $6, $7)`,
+      [
+        "cwt-" + crypto10.randomUUID(),
+        w.wallet_id || "wallet-" + w.user_id,
+        w.user_id,
+        -netAmount,
+        feeDeducted,
+        flwTransferRef || `wd_payout_${id}`,
+        `Withdrawal Payout via ${w.payout_method} (Approved: ${appAmount} RWF, Fee: ${feeDeducted} RWF, Received: ${netAmount} RWF)`
+      ]
+    );
+    if (unapprovedRemainder > 0) {
+      await query(
+        `INSERT INTO core_wallet_transactions 
+         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+         VALUES ($1, $2, $3, 'wallet', 'withdrawal_partial_refund', $4, 0.00, 'RWF', 'completed', $5, $6)`,
+        [
+          "cwt-" + crypto10.randomUUID(),
+          w.wallet_id || "wallet-" + w.user_id,
+          w.user_id,
+          unapprovedRemainder,
+          `ref_part_${id}`,
+          `Partial Withdrawal Refund (${unapprovedRemainder.toLocaleString()} RWF refunded back to balance)`
+        ]
+      );
+    }
+    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
+    if (uRes.rowCount > 0) {
+      const u = uRes.rows[0];
+      EmailService.sendEmail({
+        to: u.email,
+        subject: `Payout Confirmation: ${netAmount.toLocaleString()} RWF sent to your ${w.payout_method}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+            <h2 style="color: #10B981; margin-top: 0;">\u{1F389} Withdrawal Payout Successful!</h2>
+            <p>Hello ${u.name},</p>
+            <p>Your withdrawal request #${id} has been approved and processed.</p>
+            <div style="background: #161D2E; padding: 16px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
+              <p style="margin: 6px 0;"><strong>Requested Amount:</strong> ${reqAmount.toLocaleString()} RWF</p>
+              <p style="margin: 6px 0;"><strong>Approved Amount:</strong> ${appAmount.toLocaleString()} RWF ${isPartial ? '<span style="color: #38BDF8;">(Partial)</span>' : ""}</p>
+              <p style="margin: 6px 0; color: #F87171;"><strong>Platform Fee (${feeRate}%):</strong> -${feeDeducted.toLocaleString()} RWF</p>
+              <hr style="border: 0; border-top: 1px solid #334155; margin: 10px 0;" />
+              <p style="margin: 6px 0; font-size: 16px; color: #34D399;"><strong>Final Amount Received:</strong> ${netAmount.toLocaleString()} RWF</p>
+              ${unapprovedRemainder > 0 ? `<p style="margin: 6px 0; color: #60A5FA;"><strong>Refunded to Real Wallet:</strong> ${unapprovedRemainder.toLocaleString()} RWF</p>` : ""}
+              <p style="margin: 6px 0; font-size: 12px; color: #94A3B8;">Payout Method: ${w.payout_method} \u2022 BenixSpace</p>
+            </div>
+            <p style="font-size: 13px; color: #94A3B8;">Thank you for being part of the BenixSpace creator ecosystem!</p>
+          </div>
+        `
+      }).catch(() => {
+      });
+    }
+    return {
+      success: true,
+      id,
+      requestedAmount: reqAmount,
+      approvedAmount: appAmount,
+      feeDeducted,
+      netAmount,
+      refundedToUser: unapprovedRemainder,
+      isPartial,
+      flutterwaveRef: flwTransferRef
+    };
+  }
+  /**
+   * Reject a withdrawal: full amount is refunded back to user's real wallet balance
+   */
+  static async rejectWithdrawal(id, reason) {
+    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
+    if (wRes.rowCount === 0) throw new Error("Withdrawal request not found.");
+    const w = wRes.rows[0];
+    if (w.status === "COMPLETED") throw new Error("Cannot reject an already completed withdrawal.");
+    const refundAmount = Number(w.amount);
+    await query(
+      "UPDATE core_withdrawals SET status = 'REJECTED', admin_note = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+      [reason || "Rejected by administrator", id]
+    );
+    await query(
+      `UPDATE core_wallets 
+       SET balance = balance + $1, 
+           pending_balance = GREATEST(0, pending_balance - $1),
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $2`,
+      [refundAmount, w.user_id]
+    );
+    await query(
+      `INSERT INTO core_wallet_transactions 
+       (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+       VALUES ($1, $2, $3, 'wallet', 'withdrawal_refund', $4, 0.00, 'RWF', 'completed', $5, $6)`,
+      [
+        "cwt-" + crypto10.randomUUID(),
+        w.wallet_id || "wallet-" + w.user_id,
+        w.user_id,
+        refundAmount,
+        `tx_rej_${id}`,
+        `Withdrawal Rejected & Refunded: ${reason || "Administrator review"}`
+      ]
+    );
+    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
+    if (uRes.rowCount > 0) {
+      const u = uRes.rows[0];
+      EmailService.sendEmail({
+        to: u.email,
+        subject: `Update on Withdrawal Request #${id} - Refunded to Wallet`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+            <h2 style="color: #F87171; margin-top: 0;">Withdrawal Request Update</h2>
+            <p>Hello ${u.name},</p>
+            <p>Your withdrawal request for <strong>${refundAmount.toLocaleString()} RWF</strong> has been rejected by our compliance team.</p>
+            <div style="background: #161D2E; padding: 14px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
+              <p style="margin: 0;"><strong>Reason:</strong> ${reason || "Details could not be verified"}</p>
+            </div>
+            <p style="color: #34D399;"><strong>\u2705 The full amount of ${refundAmount.toLocaleString()} RWF has been returned to your wallet balance.</strong></p>
+            <p style="font-size: 13px; color: #94A3B8;">Please verify your phone number, account name, and payout method before re-submitting.</p>
+          </div>
+        `
+      }).catch(() => {
+      });
+    }
+    return {
+      success: true,
+      message: `Withdrawal #${id} rejected and ${refundAmount.toLocaleString()} RWF refunded back to user wallet.`
+    };
+  }
+  static async saveFeePercent(percent) {
+    const val = Math.max(0, Math.min(50, Number(percent) || 0));
+    await setSystemSetting("withdrawal_fee_percent", String(val));
+  }
+};
+
+// src/server/services/smmService.ts
+import http2 from "http";
+import https4 from "https";
+async function getSystemSetting2(key, defaultValue) {
+  const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
+    return String(res.rows[0].value);
+  }
+  const coreRes = await query("SELECT value FROM core_system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (coreRes.rowCount > 0 && coreRes.rows[0].value !== null && coreRes.rows[0].value !== void 0 && String(coreRes.rows[0].value).trim() !== "") {
+    return String(coreRes.rows[0].value);
+  }
+  return defaultValue !== void 0 ? defaultValue : null;
+}
+async function setSystemSetting2(key, value) {
+  await query(
+    `INSERT INTO system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+  await query(
+    `INSERT INTO core_system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+}
+var cachedRate = null;
 var SmmService = class {
+  /**
+   * Real-time currency exchange rate API (USD to RWF)
+   * Fetches live rate from open exchange API with 1-hour cache and DB fallback
+   */
+  static async getLiveExchangeRate() {
+    const ONE_HOUR = 36e5;
+    if (cachedRate && Date.now() - cachedRate.timestamp < ONE_HOUR) {
+      return cachedRate.rate;
+    }
+    try {
+      const liveRate = await new Promise((resolve3, reject) => {
+        https4.get("https://open.er-api.com/v6/latest/USD", (res) => {
+          let data = "";
+          res.on("data", (c) => data += c);
+          res.on("end", () => {
+            try {
+              const json = JSON.parse(data);
+              const rwf = json.rates?.RWF;
+              if (typeof rwf === "number" && rwf > 500) {
+                resolve3(Number(rwf.toFixed(2)));
+              } else {
+                reject(new Error("Invalid RWF rate in response"));
+              }
+            } catch (e) {
+              reject(e);
+            }
+          });
+        }).on("error", reject);
+      });
+      cachedRate = { rate: liveRate, timestamp: Date.now() };
+      await setSystemSetting2("rwf_per_usd", String(liveRate));
+      return liveRate;
+    } catch (err) {
+      console.warn("Live exchange rate API failed, checking stored fallback:", err.message);
+      const dbRateStr = await getSystemSetting2("rwf_per_usd", "1480");
+      const fallback = parseFloat(dbRateStr || "1480") || 1480;
+      cachedRate = { rate: fallback, timestamp: Date.now() };
+      return fallback;
+    }
+  }
   static async ensureTables() {
     try {
       await query(`
@@ -49104,8 +49519,10 @@ var SmmService = class {
           custom_markup_percent NUMERIC(5, 2) DEFAULT 30.00,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-
+        )
+      `).catch(() => {
+      });
+      await query(`
         CREATE TABLE IF NOT EXISTS smm_orders (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
@@ -49121,8 +49538,10 @@ var SmmService = class {
           status_details JSONB,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-
+        )
+      `).catch(() => {
+      });
+      await query(`
         CREATE TABLE IF NOT EXISTS admin_notifications (
           id SERIAL PRIMARY KEY,
           type VARCHAR(50) NOT NULL,
@@ -49131,15 +49550,16 @@ var SmmService = class {
           metadata JSONB,
           is_read BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
+        )
+      `).catch(() => {
+      });
     } catch (err) {
-      console.warn("ensureSmmTables non-fatal:", err.message);
+      console.warn("ensureTables non-fatal:", err.message);
     }
   }
   static async callApi(action, extraParams = {}) {
-    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
-    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
+    const apiKey = await getSystemSetting2("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting2("smm_api_url") || "https://smmfollows.com/api/v2";
     const params = new URLSearchParams({
       key: apiKey.trim(),
       action: action.trim(),
@@ -49148,11 +49568,11 @@ var SmmService = class {
       )
     });
     const postData = params.toString();
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve3) => {
       try {
         const urlObj = new URL(apiUrl);
         const isHttps = urlObj.protocol === "https:";
-        const client = isHttps ? https3 : http2;
+        const client = isHttps ? https4 : http2;
         const req = client.request(
           {
             hostname: urlObj.hostname,
@@ -49178,14 +49598,17 @@ var SmmService = class {
             });
           }
         );
-        req.setTimeout(12e3, () => {
-          req.destroy(new Error("SMM API timeout after 12s"));
+        req.setTimeout(1e4, () => {
+          req.destroy(new Error("SMM API timeout"));
+          resolve3({ error: "SMM API connection timed out." });
         });
-        req.on("error", (err) => reject(err));
+        req.on("error", (err) => {
+          resolve3({ error: err.message || "Network error contacting SMM provider." });
+        });
         req.write(postData);
         req.end();
       } catch (err) {
-        reject(err);
+        resolve3({ error: err.message || "Invalid API URL" });
       }
     });
   }
@@ -49236,20 +49659,70 @@ var SmmService = class {
       return { success: false, balance: 0, currency: "USD", error: err.message };
     }
   }
+  static async seedDefaultServicesIfEmpty() {
+    try {
+      const countRes = await query("SELECT COUNT(*) as count FROM smm_services");
+      const count = Number(countRes.rows[0]?.count || 0);
+      if (count > 0) return;
+      const rwfRate = await this.getLiveExchangeRate();
+      const markup = 30;
+      const defaultServices = [
+        { service_id: 101, name: "Instagram Followers (HQ Real & Active - High Retention)", category: "Instagram Boost", rate_usd: 1.2, min: 50, max: 5e4, refill: true },
+        { service_id: 102, name: "Instagram Likes (Instant Delivery - Non-Drop)", category: "Instagram Boost", rate_usd: 0.45, min: 20, max: 2e4, refill: true },
+        { service_id: 103, name: "Instagram Reels Views + Reach Boost", category: "Instagram Boost", rate_usd: 0.15, min: 100, max: 5e5, refill: true },
+        { service_id: 201, name: "TikTok Followers (Real Organic Worldwide Profiles)", category: "TikTok Boost", rate_usd: 1.6, min: 50, max: 1e5, refill: true },
+        { service_id: 202, name: "TikTok Likes & Hearts (Fast Delivery)", category: "TikTok Boost", rate_usd: 0.35, min: 50, max: 5e4, refill: true },
+        { service_id: 203, name: "TikTok Video Views (Viral Algorithm Booster)", category: "TikTok Boost", rate_usd: 0.1, min: 200, max: 1e6, refill: true },
+        { service_id: 301, name: "YouTube Subscribers (Real Profiles - Non-Drop 30-Day)", category: "YouTube Growth", rate_usd: 4.8, min: 50, max: 1e4, refill: true },
+        { service_id: 302, name: "YouTube Video Views (High Retention - Monetizable)", category: "YouTube Growth", rate_usd: 1.9, min: 100, max: 1e5, refill: true },
+        { service_id: 303, name: "YouTube Watch Hours (4000h Monetization Booster)", category: "YouTube Growth", rate_usd: 12, min: 100, max: 4e3, refill: true },
+        { service_id: 401, name: "Facebook Page Likes & Real Followers", category: "Facebook Growth", rate_usd: 2.1, min: 50, max: 25e3, refill: true },
+        { service_id: 402, name: "Facebook Post Likes & Reactions", category: "Facebook Growth", rate_usd: 0.6, min: 50, max: 1e4, refill: true },
+        { service_id: 501, name: "X / Twitter Followers (Worldwide Active)", category: "X (Twitter) Boost", rate_usd: 3.2, min: 50, max: 2e4, refill: true },
+        { service_id: 502, name: "X / Twitter Retweets & Likes Combo", category: "X (Twitter) Boost", rate_usd: 1.1, min: 25, max: 1e4, refill: true },
+        { service_id: 601, name: "Telegram Channel Members (Zero Drop - Guaranteed)", category: "Telegram Channels", rate_usd: 1.4, min: 50, max: 5e4, refill: true },
+        { service_id: 701, name: "Spotify Music Plays (Royalties Eligible Streams)", category: "Music & Audio", rate_usd: 1.8, min: 500, max: 1e5, refill: true }
+      ];
+      for (const s of defaultServices) {
+        const rateRwf = Math.ceil(s.rate_usd * rwfRate * (1 + markup / 100));
+        await query(
+          `INSERT INTO smm_services (
+            service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent
+          ) VALUES ($1, $2, $3, 'Default', $4, $5, $6, $7, $8, FALSE, TRUE, $9)
+          ON CONFLICT (service_id) DO NOTHING`,
+          [s.service_id, s.name, s.category, s.rate_usd, rateRwf, s.min, s.max, s.refill, markup]
+        ).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("seedDefaultServicesIfEmpty non-fatal:", e.message);
+    }
+  }
   static async getServices(showAll = false) {
     await this.ensureTables();
-    const queryStr = showAll ? "SELECT * FROM smm_services ORDER BY category ASC, rate_rwf ASC" : "SELECT * FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC";
-    const res = await query(queryStr);
-    return res.rows;
+    await this.seedDefaultServicesIfEmpty();
+    try {
+      const queryStr = showAll ? "SELECT * FROM smm_services ORDER BY category ASC, rate_rwf ASC" : "SELECT * FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC";
+      const res = await query(queryStr);
+      return res.rows;
+    } catch {
+      return [];
+    }
   }
   static async syncServices() {
     await this.ensureTables();
     const services2 = await this.callApi("services");
     if (!Array.isArray(services2)) {
-      return { success: false, count: 0, error: services2?.error || "Failed to fetch services from SMM provider." };
+      await this.seedDefaultServicesIfEmpty();
+      const currentServices = await this.getServices(true);
+      return {
+        success: currentServices.length > 0,
+        count: currentServices.length,
+        error: services2?.error ? `SMM Provider response: ${services2.error}` : "Unable to sync live services. Initial services catalog active."
+      };
     }
-    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
-    const rwfRate = Number(await getSystemSetting("rwf_per_usd", "1400")) || 1400;
+    const defaultMarkup = Number(await getSystemSetting2("smm_default_markup_percent", "30")) || 30;
+    const rwfRate = await this.getLiveExchangeRate();
     let syncedCount = 0;
     for (const s of services2) {
       if (!s.service || !s.name) continue;
@@ -49288,12 +49761,14 @@ var SmmService = class {
           defaultMarkup,
           rwfRate
         ]
-      );
+      ).catch(() => {
+      });
       syncedCount++;
     }
     return { success: true, count: syncedCount, message: `Successfully synced ${syncedCount} services from SMMFollows.` };
   }
   static async toggleService(id, isEnabled) {
+    await this.ensureTables();
     let res;
     if (isEnabled !== void 0) {
       res = await query("UPDATE smm_services SET is_enabled = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *", [Boolean(isEnabled), id]);
@@ -49303,7 +49778,8 @@ var SmmService = class {
     return res.rows[0];
   }
   static async updatePricing(id, markup, rateRwf) {
-    const rwfRate = Number(await getSystemSetting("rwf_per_usd", "1400")) || 1400;
+    await this.ensureTables();
+    const rwfRate = await this.getLiveExchangeRate();
     let res;
     if (markup !== void 0) {
       res = await query(
@@ -49320,16 +49796,16 @@ var SmmService = class {
     return res?.rows[0];
   }
   static async getSettings() {
-    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
-    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
-    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
-    const rwfPerUsd = Number(await getSystemSetting("rwf_per_usd", "1400")) || 1400;
+    const apiKey = await getSystemSetting2("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting2("smm_api_url") || "https://smmfollows.com/api/v2";
+    const defaultMarkup = Number(await getSystemSetting2("smm_default_markup_percent", "30")) || 30;
+    const rwfPerUsd = await this.getLiveExchangeRate();
     return { apiKey, apiUrl, defaultMarkup, rwfPerUsd };
   }
   static async saveSettings(apiKey, defaultMarkup, rwfPerUsd) {
-    if (apiKey !== void 0) await setSystemSetting("smm_api_key", String(apiKey).trim());
-    if (defaultMarkup !== void 0) await setSystemSetting("smm_default_markup_percent", String(defaultMarkup));
-    if (rwfPerUsd !== void 0) await setSystemSetting("rwf_per_usd", String(rwfPerUsd));
+    if (apiKey !== void 0) await setSystemSetting2("smm_api_key", String(apiKey).trim());
+    if (defaultMarkup !== void 0) await setSystemSetting2("smm_default_markup_percent", String(defaultMarkup));
+    if (rwfPerUsd !== void 0) await setSystemSetting2("rwf_per_usd", String(rwfPerUsd));
   }
   static async placeOrder(userId, serviceId, link, quantity) {
     await this.ensureTables();
@@ -49373,12 +49849,11 @@ var SmmService = class {
           qty,
           chargeRwf,
           chargeUsd,
-          JSON.stringify({ reason: "Insufficient provider balance", smmBalance: currentUsdBal })
+          JSON.stringify({ reason: smmBal?.error || "insufficient_provider_balance", currentBalance: currentUsdBal })
         ]
       );
-      const orderRow = ordRes.rows[0];
       await this.alertAdminLowBalance({
-        orderId: orderRow.id,
+        orderId: ordRes.rows[0].id,
         userId,
         serviceName: svc.name,
         chargeUsd,
@@ -49387,9 +49862,9 @@ var SmmService = class {
       });
       return {
         success: true,
-        order: orderRow,
+        order: ordRes.rows[0],
         status: "pending_deposit",
-        message: "Order placed and reserved! It has been queued and will begin delivery shortly."
+        message: "Order received and queued. Will execute as soon as provider balance confirms."
       };
     }
     const addRes = await this.callApi("add", {
@@ -49419,7 +49894,8 @@ var SmmService = class {
         success: true,
         order: ordRes.rows[0],
         status: "in_progress",
-        message: "\u{1F680} Social boost order placed and activated successfully!"
+        externalOrderId: addRes.order,
+        message: "Order placed successfully and processing on provider network!"
       };
     } else {
       const ordRes = await query(
@@ -49456,25 +49932,34 @@ var SmmService = class {
   }
   static async getUserOrders(userId) {
     await this.ensureTables();
-    const res = await query("SELECT * FROM smm_orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50", [userId]);
-    return res.rows;
+    try {
+      const res = await query("SELECT * FROM smm_orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50", [userId]);
+      return res.rows;
+    } catch {
+      return [];
+    }
   }
   static async getAllOrders() {
     await this.ensureTables();
-    const ordRes = await query(`
-      SELECT o.*, u.email as user_email, u.name as user_name 
-      FROM smm_orders o 
-      LEFT JOIN core_users u ON o.user_id = u.id 
-      ORDER BY o.created_at DESC 
-      LIMIT 100
-    `);
-    const pRes = await query("SELECT COUNT(*) as count FROM smm_orders WHERE status = 'pending_deposit'");
-    return {
-      orders: ordRes.rows,
-      pendingCount: Number(pRes.rows[0]?.count || 0)
-    };
+    try {
+      const ordRes = await query(`
+        SELECT o.*, u.email as user_email, u.name as user_name 
+        FROM smm_orders o 
+        LEFT JOIN core_users u ON o.user_id = u.id 
+        ORDER BY o.created_at DESC 
+        LIMIT 100
+      `);
+      const pRes = await query("SELECT COUNT(*) as count FROM smm_orders WHERE status = 'pending_deposit'");
+      return {
+        orders: ordRes.rows,
+        pendingCount: Number(pRes.rows[0]?.count || 0)
+      };
+    } catch {
+      return { orders: [], pendingCount: 0 };
+    }
   }
   static async retryPendingOrder(orderId) {
+    await this.ensureTables();
     const ordRes = await query("SELECT * FROM smm_orders WHERE id = $1", [orderId]);
     if (ordRes.rowCount === 0) throw new Error("Order not found");
     const ord = ordRes.rows[0];
@@ -49485,25 +49970,27 @@ var SmmService = class {
     });
     if (addRes && addRes.order) {
       await query(
-        `UPDATE smm_orders 
-         SET status = 'in_progress', external_order_id = $1, status_details = $2, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
+        "UPDATE smm_orders SET external_order_id = $1, status = 'in_progress', status_details = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
         [String(addRes.order), JSON.stringify(addRes), orderId]
       );
-      return { success: true, externalOrderId: addRes.order };
+      return { success: true, message: `Order #${orderId} submitted to provider as #${addRes.order}!` };
     } else {
-      throw new Error(addRes?.error || "SMM Provider rejected order. Check your balance.");
+      throw new Error(addRes?.error || "Provider rejected order submission. Check balance or credentials.");
     }
   }
   static async getNotifications() {
     await this.ensureTables();
-    const res = await query("SELECT * FROM admin_notifications ORDER BY created_at DESC LIMIT 50");
-    return res.rows;
+    try {
+      const res = await query("SELECT * FROM admin_notifications ORDER BY created_at DESC LIMIT 30");
+      return res.rows;
+    } catch {
+      return [];
+    }
   }
 };
 
 // src/server/services/referralService.ts
-import crypto10 from "crypto";
+import crypto11 from "crypto";
 var ReferralService = class {
   /**
    * Generates or fetches unique referral code for a user
@@ -49513,7 +50000,7 @@ var ReferralService = class {
     if (res.rowCount > 0 && res.rows[0].referral_code) {
       return res.rows[0].referral_code;
     }
-    const code = "REF-" + crypto10.randomBytes(3).toString("hex").toUpperCase();
+    const code = "REF-" + crypto11.randomBytes(3).toString("hex").toUpperCase();
     await query("UPDATE core_users SET referral_code = $1 WHERE id = $2", [code, userId]);
     return code;
   }
@@ -49540,7 +50027,7 @@ var ReferralService = class {
     } catch (e) {
       console.warn("Referral credit error:", e);
     }
-    const refRecordId = "ref-" + crypto10.randomUUID();
+    const refRecordId = "ref-" + crypto11.randomUUID();
     await query(
       `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
        VALUES ($1, $2, $3, 'registration', $4, 'approved', CURRENT_TIMESTAMP)`,
@@ -49625,7 +50112,7 @@ var ReferralService = class {
       `Affiliate Commission (${Math.round(commissionRate * 100)}%): Shared link sale for "${itemTitle}"`,
       `tx_aff_${Date.now()}_${itemId}`
     );
-    const refRecordId = "ref-sale-" + crypto10.randomUUID();
+    const refRecordId = "ref-sale-" + crypto11.randomUUID();
     await query(
       `INSERT INTO core_referrals 
        (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
@@ -49648,8 +50135,8 @@ var ReferralService = class {
 };
 
 // src/server/services/translationService.ts
-import crypto11 from "crypto";
-import https4 from "https";
+import crypto12 from "crypto";
+import https5 from "https";
 var DICTIONARY = {
   rw: {
     "Home": "Ahabanza",
@@ -49763,7 +50250,7 @@ var TranslationService = class {
     if (DICTIONARY[targetLang] && DICTIONARY[targetLang][trimmed]) {
       return DICTIONARY[targetLang][trimmed];
     }
-    const textHash = crypto11.createHash("md5").update(trimmed).digest("hex");
+    const textHash = crypto12.createHash("md5").update(trimmed).digest("hex");
     const cached = await query(
       "SELECT translated_text FROM core_translations_cache WHERE source_hash = $1 AND target_lang = $2",
       [textHash, targetLang]
@@ -49805,7 +50292,7 @@ var TranslationService = class {
     return new Promise((resolve3) => {
       const encoded = encodeURIComponent(text.substring(0, 500));
       const url = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${from}|${to2}`;
-      const req = https4.get(url, { timeout: 3e3 }, (res) => {
+      const req = https5.get(url, { timeout: 3e3 }, (res) => {
         let data = "";
         res.on("data", (chunk) => data += chunk);
         res.on("end", () => {
@@ -49828,7 +50315,7 @@ var TranslationService = class {
 };
 
 // src/server/services/storageService.ts
-import https5 from "https";
+import https6 from "https";
 import fs5 from "fs";
 import path3 from "path";
 var StorageService = class {
@@ -49921,7 +50408,7 @@ var StorageService = class {
           "Content-Length": Buffer.byteLength(postData)
         }
       };
-      const req = https5.request(options, (res) => {
+      const req = https6.request(options, (res) => {
         let body = "";
         res.on("data", (d) => body += d);
         res.on("end", () => {
@@ -49972,7 +50459,7 @@ var StorageService = class {
           Authorization: `Bearer ${token}`
         }
       };
-      const req = https5.request(options, (res) => {
+      const req = https6.request(options, (res) => {
         let body = "";
         res.on("data", (d) => body += d);
         res.on("end", async () => {
@@ -50165,7 +50652,7 @@ var StorageService = class {
         buffer,
         Buffer.from(closeDelim)
       ]);
-      const req = https5.request(
+      const req = https6.request(
         {
           hostname: "www.googleapis.com",
           path: "/upload/drive/v3/files?uploadType=multipart",
@@ -52950,8 +53437,8 @@ app.post("/api/auth/register-wizard", async (req, res) => {
       return res.status(400).json({ error: "An account with this email address already exists. Please log in." });
     }
     const pwdHash = await hashPassword(password);
-    const userId = "usr_" + crypto12.randomUUID();
-    const userReferralCode = "REF-" + crypto12.randomBytes(3).toString("hex").toUpperCase();
+    const userId = "usr_" + crypto13.randomUUID();
+    const userReferralCode = "REF-" + crypto13.randomBytes(3).toString("hex").toUpperCase();
     let isVerified = false;
     if (verification_code) {
       const stored = verificationCodes.get(cleanEmail);
@@ -53386,20 +53873,9 @@ app.post("/api/auth/profile-photo", authenticateToken, async (req, res) => {
     if (!finalPhoto) {
       return res.status(400).json({ error: "Profile photo data or URL is required." });
     }
-    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
-    });
     await query(
       `UPDATE core_users SET
         avatar_url = $1,
-        app_profiles = jsonb_set(
-          jsonb_set(
-            COALESCE(app_profiles, '{}'::jsonb),
-            '{avatar}',
-            to_jsonb($1::text)
-          ),
-          '{kunda,avatarUrl}',
-          to_jsonb($1::text)
-        ),
         updated_at = CURRENT_TIMESTAMP
        WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
       [finalPhoto, req.user.id, req.user.email || ""]
@@ -53678,7 +54154,7 @@ app.post("/api/wallet/transfer", authenticateToken, async (req, res) => {
 });
 app.get("/api/wallet/settings", async (req, res) => {
   try {
-    const minWithdrawalStr = await getSystemSetting2("min_withdrawal_amount", "500");
+    const minWithdrawalStr = await getSystemSetting3("min_withdrawal_amount", "500");
     const minWithdrawalAmount = Math.max(100, Number(minWithdrawalStr) || 500);
     return res.json({ success: true, minWithdrawalAmount });
   } catch {
@@ -53689,7 +54165,7 @@ app.post("/api/wallet/withdraw", authenticateToken, async (req, res) => {
   try {
     const { amount, payoutMethod = "MTN_MOMO", accountDetails } = req.body;
     const numAmount = parseFloat(amount);
-    const minWithdrawalStr = await getSystemSetting2("min_withdrawal_amount", "500");
+    const minWithdrawalStr = await getSystemSetting3("min_withdrawal_amount", "500");
     const minWithdrawal = Math.max(100, Number(minWithdrawalStr) || 500);
     if (!numAmount || numAmount < minWithdrawal) {
       return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal.toLocaleString()} RWF.` });
@@ -53748,28 +54224,8 @@ app.post("/api/wallet/withdraw", authenticateToken, async (req, res) => {
 });
 app.get("/api/admin/withdrawals", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS core_withdrawals (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        wallet_id VARCHAR(255),
-        amount NUMERIC(15,2) NOT NULL,
-        currency VARCHAR(10) DEFAULT 'RWF',
-        payout_method VARCHAR(50) DEFAULT 'MTN_MOMO',
-        account_details JSONB,
-        status VARCHAR(50) DEFAULT 'PENDING',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    const resDb = await query(
-      `SELECT w.*, u.name as user_name, u.email as user_email, u.phone as user_phone
-       FROM core_withdrawals w
-       LEFT JOIN core_users u ON w.user_id = u.id
-       ORDER BY w.created_at DESC LIMIT 50`
-    );
-    return res.json({ withdrawals: resDb.rows });
+    const data = await WithdrawalService.listWithdrawals();
+    return res.json(data);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -53777,35 +54233,35 @@ app.get("/api/admin/withdrawals", authenticateToken, requireAdminRole, async (re
 app.post("/api/admin/withdrawals/:id/approve", authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { id } = req.params;
-    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
-    if (wRes.rowCount === 0) return res.status(404).json({ error: "Withdrawal request not found." });
-    const w = wRes.rows[0];
-    if (w.status === "COMPLETED") return res.status(400).json({ error: "Withdrawal is already completed." });
-    await query(
-      "UPDATE core_wallets SET pending_balance = GREATEST(0, pending_balance - $1), total_withdrawn = total_withdrawn + $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2",
-      [w.amount, w.user_id]
+    const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
+    const result = await WithdrawalService.approveWithdrawal(
+      id,
+      Number(approvedAmount),
+      Number(feePercent),
+      Boolean(sendViaFlutterwave),
+      note
     );
-    await query("UPDATE core_withdrawals SET status = 'COMPLETED', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [id]);
-    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
-    if (uRes.rowCount > 0) {
-      const u = uRes.rows[0];
-      EmailService.sendEmail({
-        to: u.email,
-        subject: `Your Withdrawal of ${Number(w.amount).toLocaleString()} RWF is Complete!`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px;">
-            <h2 style="color: #10B981;">Payout Completed!</h2>
-            <p>Hello ${u.name},</p>
-            <p>Your withdrawal of <strong>${Number(w.amount).toLocaleString()} RWF</strong> has been approved and sent to your <strong>${w.payout_method}</strong> account.</p>
-            <p>Thank you for using Benix.Space.</p>
-          </div>
-        `
-      }).catch(() => {
-      });
-    }
-    return res.json({ success: true, message: "Withdrawal marked as completed and notification sent." });
+    return res.json(result);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.post("/api/admin/withdrawals/:id/reject", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const result = await WithdrawalService.rejectWithdrawal(id, reason);
+    return res.json(result);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.post("/api/admin/withdrawals/settings", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await WithdrawalService.saveFeePercent(Number(req.body.feePercent));
+    return res.json({ success: true, feePercent: Number(req.body.feePercent) });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
   }
 });
 async function getFlutterwaveConfig() {
@@ -53873,7 +54329,7 @@ app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, re
     };
     const rate = ratesToRwf[currency] || 1;
     const convertedRwf = Math.round(numAmount * rate);
-    const txRef = `FLW-BENIX-${Date.now()}-${crypto12.randomBytes(3).toString("hex").toUpperCase()}`;
+    const txRef = `FLW-BENIX-${Date.now()}-${crypto13.randomBytes(3).toString("hex").toUpperCase()}`;
     let customerEmail = (email || req.user?.email || "member@benix.space").trim();
     let customerPhone = (phone || "0780000000").trim();
     let customerName = (name2 || "Benix Member").trim();
@@ -54566,7 +55022,7 @@ app.post("/api/modules/kunda/unlock-contact", authenticateToken, async (req, res
     return res.status(400).json({ error: err.message || "Failed to unlock contact." });
   }
 });
-async function getSystemSetting2(key, defaultValue) {
+async function getSystemSetting3(key, defaultValue) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -54616,7 +55072,7 @@ async function getSystemSetting2(key, defaultValue) {
   }
   return defaultValue;
 }
-async function setSystemSetting2(key, value) {
+async function setSystemSetting3(key, value) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -54650,10 +55106,10 @@ async function setSystemSetting2(key, value) {
 }
 app.get("/api/chat/settings", async (req, res) => {
   try {
-    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
-    const creatorRevSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
-    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
-    const freeMessages = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+    const contactUnlockPrice = Number(await getSystemSetting3("contact_unlock_price", "500")) || 500;
+    const creatorRevSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
+    const messageCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
+    const freeMessages = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice,
@@ -54677,21 +55133,21 @@ app.post("/api/admin/settings/chat", authenticateToken, requireAdminRole, async 
   try {
     const { contactUnlockPrice, creatorRevSharePct, messageCost, freeMessages } = req.body;
     if (contactUnlockPrice !== void 0) {
-      await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
+      await setSystemSetting3("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
     }
     if (creatorRevSharePct !== void 0) {
-      await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
+      await setSystemSetting3("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
     }
     if (messageCost !== void 0) {
-      await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
+      await setSystemSetting3("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
     }
     if (freeMessages !== void 0) {
-      await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
+      await setSystemSetting3("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
     }
-    const currentPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
-    const currentShare = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
-    const currentCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
-    const currentFree = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+    const currentPrice = Number(await getSystemSetting3("contact_unlock_price", "500")) || 500;
+    const currentShare = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
+    const currentCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
+    const currentFree = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice: currentPrice,
@@ -54734,10 +55190,10 @@ app.get("/api/chat/partner-status/:partnerId", authenticateToken, async (req, re
   try {
     const partnerId = req.params.partnerId;
     const senderId = req.user.id;
-    const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
-    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
-    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
-    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
+    const freeLimit = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
+    const messageCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
+    const revSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
+    const contactUnlockPrice = Number(await getSystemSetting3("contact_unlock_price", "500")) || 500;
     let partnerPrivacy = "public";
     let partnerName = "Member";
     if (partnerId !== "support") {
@@ -54841,10 +55297,10 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         [senderId, recipientId]
       );
       const sentCount = Number(countRes.rows[0]?.count || 0);
-      const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
-      const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+      const freeLimit = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
+      const messageCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
       if (sentCount >= freeLimit && messageCost > 0) {
-        const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+        const revSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
         creatorEarning = Math.round(messageCost * revSharePct / 100);
         amountPaid = messageCost;
         isPaid = true;
@@ -54925,7 +55381,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
   try {
     const { contactId } = req.body;
     if (!contactId) return res.status(400).json({ error: "contactId is required." });
-    const dbPriceStr = await getSystemSetting2("contact_unlock_price", "500");
+    const dbPriceStr = await getSystemSetting3("contact_unlock_price", "500");
     const unlockPrice = Math.max(0, Number(dbPriceStr) || 500);
     const userId = req.user.id;
     await WalletService.getOrCreateWallet(userId).catch(() => {
@@ -54938,7 +55394,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       `Unlocked direct contact phone number for member #${contactId}`,
       `tx_chat_unl_${Date.now()}`
     );
-    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const revSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
     const creatorCut = Math.round(unlockPrice * revSharePct / 100);
     if (creatorCut > 0 && contactId !== "support" && contactId !== userId) {
       await WalletService.credit(
@@ -55000,7 +55456,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      const dbPrice = await getSystemSetting2("contact_unlock_price", "500");
+      const dbPrice = await getSystemSetting3("contact_unlock_price", "500");
       return res.status(400).json({
         error: "INSUFFICIENT_FUNDS",
         message: `Insufficient wallet balance. Unlocking contact requires ${dbPrice} RWF. Please top up your wallet.`
@@ -56073,33 +56529,6 @@ app.get("/api/shorts/feed", async (req, res) => {
       LIMIT 150
     `).catch(() => ({ rows: [] }));
     const combined = [...storiesRes.rows || [], ...videosRes.rows || []];
-    if (combined.length < 5) {
-      const catalogSource = Array.isArray(realVideos_default) && realVideos_default.length > 0 ? realVideos_default : [];
-      const sampleSeedShorts = catalogSource.slice(0, 25).map((v2, i) => ({
-        id: v2.id || `short-${i}`,
-        authorId: v2.creator || "benix_partner",
-        authorName: v2.creator || "Benix Creator Partner",
-        authorAvatar: v2.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v2.creator || "Benix")}&background=0D8ABC&color=fff`,
-        mediaUrl: `https://www.youtube.com/watch?v=${v2.id}`,
-        thumbnailUrl: v2.thumbnailUrl || v2.thumbnail || `https://img.youtube.com/vi/${v2.id}/hqdefault.jpg`,
-        title: v2.title || "Benix Trending Moment",
-        mediaType: "video",
-        duration: 60,
-        views: typeof v2.views === "number" ? v2.views : 14200 + i * 850,
-        likes: typeof v2.likes === "number" ? v2.likes : 1240 + i * 92,
-        subscribersCount: 250 + i * 15,
-        source: "video",
-        category: v2.category || "Trending",
-        createdAt: new Date(Date.now() - (i + 1) * 36e5).toISOString(),
-        isMonetized: true,
-        trendingScore: 60 - i
-      }));
-      for (const seed of sampleSeedShorts) {
-        if (!combined.some((c) => c.id === seed.id)) {
-          combined.push(seed);
-        }
-      }
-    }
     let watchedShortIds = /* @__PURE__ */ new Set();
     let authorAffinities = {};
     let categoryAffinities = {};
@@ -56402,7 +56831,7 @@ app.post("/api/stories/:id/repost", authenticateToken, async (req, res) => {
     }
     const old = storyRes.rows[0];
     const newId = "story-" + Date.now();
-    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting3("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -56465,7 +56894,7 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
         console.warn("Story base64 storage notice:", err?.message);
       }
     }
-    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting3("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -56847,8 +57276,8 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
       [userId]
     );
     const currentSubscribers = Number(subRes.rows[0]?.count || 0);
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -57026,8 +57455,8 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
     ).catch(() => ({ rows: [{ story_count: 0, total_story_views: 0 }] }));
     const storyCount = Number(storiesRes.rows[0]?.story_count || 0);
     const totalStoryViews = Number(storiesRes.rows[0]?.total_story_views || 0);
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -57330,8 +57759,8 @@ app.post("/api/admin/videos/batch-import", authenticateToken, requireAdminRole, 
 });
 app.get("/api/admin/monetization/settings", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
     return res.json({
       success: true,
       requiredWatchHours: Number(reqHoursStr) || 300,
@@ -57345,10 +57774,10 @@ app.post("/api/admin/monetization/settings", authenticateToken, requireAdminRole
   try {
     const { requiredWatchHours, requiredSubscribers } = req.body;
     if (requiredWatchHours !== void 0) {
-      await setSystemSetting2("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
+      await setSystemSetting3("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
     }
     if (requiredSubscribers !== void 0) {
-      await setSystemSetting2("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
+      await setSystemSetting3("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
     }
     return res.json({ success: true, message: "Monetization requirements updated in database." });
   } catch (err) {
@@ -57361,8 +57790,8 @@ app.get("/api/admin/creators/monetization", authenticateToken, requireAdminRole,
     });
     await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {
     });
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
     const reqHours = Number(reqHoursStr) || 300;
     const reqSubs = Number(reqSubsStr) || 30;
     const creatorsRes = await query(`
@@ -58264,10 +58693,10 @@ app.post("/api/ads/record-reward", async (req, res) => {
     } catch {
     }
     const settingsRow = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
-    let googleView = 2;
-    let googleClick = 4;
-    let customView = 10;
-    let customClick = 18;
+    let googleView = 0.02;
+    let googleClick = 0.04;
+    let customView = 0.1;
+    let customClick = 0.4;
     let reqWatchHours = 300;
     let reqSubs = 30;
     if (settingsRow.rows[0]?.value) {
@@ -59268,7 +59697,7 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
     );
     userUnlocked.add(video.id);
     unlockedVideosByUser.set(req.user.id, userUnlocked);
-    const platformCommissionPct = Number(await getSystemSetting2("video_affiliate_commission_pct", "15")) || 15;
+    const platformCommissionPct = Number(await getSystemSetting3("video_affiliate_commission_pct", "15")) || 15;
     const creatorCutPct = Math.max(0, 100 - platformCommissionPct);
     const creatorEarned = Math.round(video.price * creatorCutPct / 100);
     const videoCreatorId = video.userId || video.user_id;
@@ -60351,7 +60780,7 @@ var handleBonusSpin = async (req, res) => {
     const stake = Number(room.stake);
     const totalPot = stake * 2;
     const basePayout = totalPot - totalPot * 10 / 100;
-    const randNum = crypto12.randomBytes(4).readUInt32BE(0) % 1e5 + 1;
+    const randNum = crypto13.randomBytes(4).readUInt32BE(0) % 1e5 + 1;
     let selectedTier = MULTIPLIER_TIERS_SERVER[2];
     let tierIndex = 2;
     for (let i = 0; i < MULTIPLIER_TIERS_SERVER.length; i++) {
@@ -60595,11 +61024,11 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     `, [JSON.stringify(payload)]);
     if (payload.adsense) {
       const a2 = payload.adsense;
-      if (a2.google_ad_view_payout !== void 0) await setSystemSetting2("google_ad_view_payout", String(a2.google_ad_view_payout));
-      if (a2.google_ad_click_payout !== void 0) await setSystemSetting2("google_ad_click_payout", String(a2.google_ad_click_payout));
-      if (a2.custom_ad_view_payout !== void 0) await setSystemSetting2("custom_ad_view_payout", String(a2.custom_ad_view_payout));
-      if (a2.custom_ad_click_payout !== void 0) await setSystemSetting2("custom_ad_click_payout", String(a2.custom_ad_click_payout));
-      if (a2.client_id !== void 0) await setSystemSetting2("adsense_client_id", String(a2.client_id));
+      if (a2.google_ad_view_payout !== void 0) await setSystemSetting3("google_ad_view_payout", String(a2.google_ad_view_payout));
+      if (a2.google_ad_click_payout !== void 0) await setSystemSetting3("google_ad_click_payout", String(a2.google_ad_click_payout));
+      if (a2.custom_ad_view_payout !== void 0) await setSystemSetting3("custom_ad_view_payout", String(a2.custom_ad_view_payout));
+      if (a2.custom_ad_click_payout !== void 0) await setSystemSetting3("custom_ad_click_payout", String(a2.custom_ad_click_payout));
+      if (a2.client_id !== void 0) await setSystemSetting3("adsense_client_id", String(a2.client_id));
     }
     if (payload.branding || payload.contacts) {
       const b2 = payload.branding || {};
@@ -60625,38 +61054,38 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     if (payload.modules) {
       const m = payload.modules;
       if (m.kunda_contact_unlock_price !== void 0) {
-        await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(m.kunda_contact_unlock_price) || 500)));
+        await setSystemSetting3("contact_unlock_price", String(Math.max(0, Number(m.kunda_contact_unlock_price) || 500)));
       }
       if (m.kunda_creator_rev_share_pct !== void 0) {
-        await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m.kunda_creator_rev_share_pct) || 15))));
+        await setSystemSetting3("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m.kunda_creator_rev_share_pct) || 15))));
       }
       if (m.kunda_message_cost !== void 0) {
-        await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(m.kunda_message_cost) || 50)));
+        await setSystemSetting3("kunda_message_cost", String(Math.max(0, Number(m.kunda_message_cost) || 50)));
       }
       if (m.kunda_free_messages !== void 0) {
-        await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(m.kunda_free_messages) || 3)));
+        await setSystemSetting3("kunda_free_messages", String(Math.max(0, Number(m.kunda_free_messages) || 3)));
       }
       if (m.creator_watch_hours_goal !== void 0 || m.min_watch_hours !== void 0) {
         const wh = String(Math.max(0, Number(m.creator_watch_hours_goal ?? m.min_watch_hours) || 300));
-        await setSystemSetting2("monetization_required_watch_hours", wh);
-        await setSystemSetting2("creator_watch_hours_goal", wh);
+        await setSystemSetting3("monetization_required_watch_hours", wh);
+        await setSystemSetting3("creator_watch_hours_goal", wh);
       }
       if (m.creator_subscribers_goal !== void 0 || m.min_subscribers !== void 0) {
         const sb = String(Math.max(0, Number(m.creator_subscribers_goal ?? m.min_subscribers) || 30));
-        await setSystemSetting2("monetization_required_subscribers", sb);
-        await setSystemSetting2("creator_subscribers_goal", sb);
+        await setSystemSetting3("monetization_required_subscribers", sb);
+        await setSystemSetting3("creator_subscribers_goal", sb);
       }
       if (m.min_withdrawal_amount !== void 0) {
-        await setSystemSetting2("min_withdrawal_amount", String(Math.max(100, Number(m.min_withdrawal_amount) || 500)));
+        await setSystemSetting3("min_withdrawal_amount", String(Math.max(100, Number(m.min_withdrawal_amount) || 500)));
       }
       if (m.creator_revenue_share_pct !== void 0 || m.creatorSharePercent !== void 0) {
-        await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m.creator_revenue_share_pct ?? m.creatorSharePercent) || 70))));
+        await setSystemSetting3("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m.creator_revenue_share_pct ?? m.creatorSharePercent) || 70))));
       }
       if (m.default_cpm_rwf !== void 0 || m.defaultCpmRwf !== void 0) {
-        await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(m.default_cpm_rwf ?? m.defaultCpmRwf) || 1200)));
+        await setSystemSetting3("default_cpm_rwf", String(Math.max(100, Number(m.default_cpm_rwf ?? m.defaultCpmRwf) || 1200)));
       }
       if (m.story_lifespan_hours !== void 0) {
-        await setSystemSetting2("story_lifespan_hours", String(Math.max(1, Number(m.story_lifespan_hours) || 24)));
+        await setSystemSetting3("story_lifespan_hours", String(Math.max(1, Number(m.story_lifespan_hours) || 24)));
       }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });
@@ -60667,10 +61096,10 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
 });
 app.get("/api/admin/settings/monetization", async (req, res) => {
   try {
-    const minWatchHours = Number(await getSystemSetting2("monetization_required_watch_hours", "300")) || 300;
-    const minSubscribers = Number(await getSystemSetting2("monetization_required_subscribers", "30")) || 30;
-    const creatorSharePercent = Number(await getSystemSetting2("creator_revenue_share_pct", "70")) || 70;
-    const defaultCpmRwf = Number(await getSystemSetting2("default_cpm_rwf", "1200")) || 1200;
+    const minWatchHours = Number(await getSystemSetting3("monetization_required_watch_hours", "300")) || 300;
+    const minSubscribers = Number(await getSystemSetting3("monetization_required_subscribers", "30")) || 30;
+    const creatorSharePercent = Number(await getSystemSetting3("creator_revenue_share_pct", "70")) || 70;
+    const defaultCpmRwf = Number(await getSystemSetting3("default_cpm_rwf", "1200")) || 1200;
     return res.json({
       success: true,
       settings: {
@@ -60689,19 +61118,19 @@ app.post("/api/admin/settings/monetization", authenticateToken, requireAdminRole
     const { minWatchHours, minSubscribers, creatorSharePercent, defaultCpmRwf } = req.body;
     if (minWatchHours !== void 0) {
       const wh = String(Math.max(0, Number(minWatchHours)));
-      await setSystemSetting2("monetization_required_watch_hours", wh);
-      await setSystemSetting2("creator_watch_hours_goal", wh);
+      await setSystemSetting3("monetization_required_watch_hours", wh);
+      await setSystemSetting3("creator_watch_hours_goal", wh);
     }
     if (minSubscribers !== void 0) {
       const sb = String(Math.max(0, Number(minSubscribers)));
-      await setSystemSetting2("monetization_required_subscribers", sb);
-      await setSystemSetting2("creator_subscribers_goal", sb);
+      await setSystemSetting3("monetization_required_subscribers", sb);
+      await setSystemSetting3("creator_subscribers_goal", sb);
     }
     if (creatorSharePercent !== void 0) {
-      await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
+      await setSystemSetting3("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
     }
     if (defaultCpmRwf !== void 0) {
-      await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
+      await setSystemSetting3("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
     }
     const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     let currentSettings = {};

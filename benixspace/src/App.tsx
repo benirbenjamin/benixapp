@@ -218,6 +218,7 @@ export const App: React.FC = () => {
                           {/* Unified Dashboard */}
                           <Route path="/dashboard" element={<DashboardPage />} />
                           <Route path="/messages" element={<MessagesPage />} />
+                          <Route path="/chat" element={<Navigate to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com" replace />} />
 
                           {/* Integrated Module Pages */}
                           <Route path="/shorts" element={<VideosPage initialTab="shorts" />} />

@@ -153,7 +153,7 @@ export const DashboardPage: React.FC = () => {
         const img = new Image();
         img.onload = async () => {
           const canvas = document.createElement('canvas');
-          const maxDim = 400;
+          const maxDim = 200;
           let w = img.width;
           let h = img.height;
           if (w > maxDim || h > maxDim) {
@@ -169,7 +169,7 @@ export const DashboardPage: React.FC = () => {
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
 
           const res = await updateProfilePhoto(compressed);
           setUploadingPhoto(false);
@@ -631,7 +631,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             <Link
-              to="/chat"
+              to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com"
               title="Message System Admin for Support & Questions"
               className="px-4 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95 shrink-0"
             >
@@ -1291,7 +1291,7 @@ export const DashboardPage: React.FC = () => {
                   <span className="text-[11px] text-slate-300">Our administrative support team is available 24/7 to assist you.</span>
                 </div>
                 <Link
-                  to="/chat"
+                  to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com"
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all shrink-0 active:scale-95 flex items-center gap-1.5"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />

@@ -18,6 +18,7 @@ import {
   verifyToken
 } from './auth/auth';
 import { WalletService } from './services/walletService';
+import { WithdrawalService } from './services/withdrawalService';
 import { SmmService } from './services/smmService';
 import { ReferralService } from './services/referralService';
 import { TranslationService } from './services/translationService';
@@ -990,19 +991,9 @@ app.post('/api/auth/profile-photo', authenticateToken, async (req: Authenticated
       return res.status(400).json({ error: 'Profile photo data or URL is required.' });
     }
 
-    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
     await query(
       `UPDATE core_users SET
         avatar_url = $1,
-        app_profiles = jsonb_set(
-          jsonb_set(
-            COALESCE(app_profiles, '{}'::jsonb),
-            '{avatar}',
-            to_jsonb($1::text)
-          ),
-          '{kunda,avatarUrl}',
-          to_jsonb($1::text)
-        ),
         updated_at = CURRENT_TIMESTAMP
        WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
       [finalPhoto, req.user!.id, req.user!.email || '']
@@ -1417,79 +1408,60 @@ app.post('/api/wallet/withdraw', authenticateToken, async (req: AuthenticatedReq
 });
 
 /**
- * Admin: List All Withdrawals
+ * Admin: List All Withdrawals with KPIs & Platform Fees
  */
 app.get('/api/admin/withdrawals', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS core_withdrawals (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        wallet_id VARCHAR(255),
-        amount NUMERIC(15,2) NOT NULL,
-        currency VARCHAR(10) DEFAULT 'RWF',
-        payout_method VARCHAR(50) DEFAULT 'MTN_MOMO',
-        account_details JSONB,
-        status VARCHAR(50) DEFAULT 'PENDING',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {});
-
-    const resDb = await query(
-      `SELECT w.*, u.name as user_name, u.email as user_email, u.phone as user_phone
-       FROM core_withdrawals w
-       LEFT JOIN core_users u ON w.user_id = u.id
-       ORDER BY w.created_at DESC LIMIT 50`
-    );
-    return res.json({ withdrawals: resDb.rows });
+    const data = await WithdrawalService.listWithdrawals();
+    return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
 /**
- * Admin: Approve & Payout Withdrawal
+ * Admin: Approve & Payout Withdrawal (Full or Partial with Flutterwave direct transfer)
  */
 app.post('/api/admin/withdrawals/:id/approve', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const wRes = await query('SELECT * FROM core_withdrawals WHERE id = $1', [id]);
-    if (wRes.rowCount === 0) return res.status(404).json({ error: 'Withdrawal request not found.' });
-
-    const w = wRes.rows[0];
-    if (w.status === 'COMPLETED') return res.status(400).json({ error: 'Withdrawal is already completed.' });
-
-    // Deduct pending balance from wallet
-    await query(
-      'UPDATE core_wallets SET pending_balance = GREATEST(0, pending_balance - $1), total_withdrawn = total_withdrawn + $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2',
-      [w.amount, w.user_id]
+    const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
+    const result = await WithdrawalService.approveWithdrawal(
+      id,
+      Number(approvedAmount),
+      Number(feePercent),
+      Boolean(sendViaFlutterwave),
+      note
     );
-
-    // Update status to COMPLETED
-    await query("UPDATE core_withdrawals SET status = 'COMPLETED', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [id]);
-
-    // Send Completion Email to User
-    const uRes = await query('SELECT email, name FROM core_users WHERE id = $1', [w.user_id]);
-    if (uRes.rowCount > 0) {
-      const u = uRes.rows[0];
-      EmailService.sendEmail({
-        to: u.email,
-        subject: `Your Withdrawal of ${Number(w.amount).toLocaleString()} RWF is Complete!`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px;">
-            <h2 style="color: #10B981;">Payout Completed!</h2>
-            <p>Hello ${u.name},</p>
-            <p>Your withdrawal of <strong>${Number(w.amount).toLocaleString()} RWF</strong> has been approved and sent to your <strong>${w.payout_method}</strong> account.</p>
-            <p>Thank you for using Benix.Space.</p>
-          </div>
-        `
-      }).catch(() => {});
-    }
-
-    return res.json({ success: true, message: 'Withdrawal marked as completed and notification sent.' });
+    return res.json(result);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Reject Withdrawal with immediate full refund to user wallet
+ */
+app.post('/api/admin/withdrawals/:id/reject', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const result = await WithdrawalService.rejectWithdrawal(id, reason);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Update default withdrawal fee percentage
+ */
+app.post('/api/admin/withdrawals/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    await WithdrawalService.saveFeePercent(Number(req.body.feePercent));
+    return res.json({ success: true, feePercent: Number(req.body.feePercent) });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
   }
 });
 
@@ -4143,35 +4115,7 @@ app.get('/api/shorts/feed', async (req, res) => {
     // Combined pool of vertical content (all stories + vertical creator videos)
     const combined = [...(storiesRes.rows || []), ...(videosRes.rows || [])];
 
-    // Fallback seed catalog if combined content is scarce so feed is never empty
-    if (combined.length < 5) {
-      const catalogSource = Array.isArray(realVideosData) && realVideosData.length > 0 ? realVideosData : [];
-      const sampleSeedShorts = catalogSource.slice(0, 25).map((v: any, i: number) => ({
-        id: v.id || `short-${i}`,
-        authorId: v.creator || 'benix_partner',
-        authorName: v.creator || 'Benix Creator Partner',
-        authorAvatar: v.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.creator || 'Benix')}&background=0D8ABC&color=fff`,
-        mediaUrl: `https://www.youtube.com/watch?v=${v.id}`,
-        thumbnailUrl: v.thumbnailUrl || v.thumbnail || `https://img.youtube.com/vi/${v.id}/hqdefault.jpg`,
-        title: v.title || 'Benix Trending Moment',
-        mediaType: 'video',
-        duration: 60,
-        views: typeof v.views === 'number' ? v.views : 14200 + i * 850,
-        likes: typeof v.likes === 'number' ? v.likes : 1240 + i * 92,
-        subscribersCount: 250 + i * 15,
-        source: 'video',
-        category: v.category || 'Trending',
-        createdAt: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
-        isMonetized: true,
-        trendingScore: 60 - i
-      }));
-
-      for (const seed of sampleSeedShorts) {
-        if (!combined.some(c => c.id === seed.id)) {
-          combined.push(seed);
-        }
-      }
-    }
+    // Strictly vertical stories & portrait creator videos only (NO horizontal YouTube catalog videos)
 
     // 3. User Personalization Engine
     // Query viewer's interaction history (views, likes, subscribed authors)
@@ -6684,10 +6628,10 @@ app.post('/api/ads/record-reward', async (req, res) => {
 
     // Load active payout settings from system settings (supports fine-grained decimals like 0.001)
     const settingsRow = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
-    let googleView = 2;
-    let googleClick = 4;
-    let customView = 10;
-    let customClick = 18;
+    let googleView = 0.02;
+    let googleClick = 0.04;
+    let customView = 0.1;
+    let customClick = 0.4;
     let reqWatchHours = 300;
     let reqSubs = 30;
 

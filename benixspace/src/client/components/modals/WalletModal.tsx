@@ -522,9 +522,17 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         setStatusMsg({ text: 'Bank Account number is required.', error: true });
         return;
       }
+      if (!accountName.trim()) {
+        setStatusMsg({ text: 'Account holder full name is required.', error: true });
+        return;
+      }
     } else {
       if (!phone.trim()) {
         setStatusMsg({ text: 'Mobile Money phone number is required.', error: true });
+        return;
+      }
+      if (!accountName.trim()) {
+        setStatusMsg({ text: 'Account holder registered full name is required.', error: true });
         return;
       }
     }
@@ -540,7 +548,7 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
         body: JSON.stringify({
           amount: num,
           payoutMethod: method,
-          accountDetails: method === 'BANK' ? { bankName, accountNumber, accountName } : { phone, method }
+          accountDetails: method === 'BANK' ? { bankName, accountNumber, accountName } : { phone, accountName, method }
         })
       });
       const data = await parseSafeJson(res);
@@ -852,20 +860,46 @@ export const WalletModal: React.FC<Props> = ({ isOpen, onClose, initialTab = 'ba
                       className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      Bank Account Holder Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                      placeholder="e.g. Jean Damascene"
+                      className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
                 </>
               ) : (
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Mobile Money Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="0783987223"
-                    className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      Mobile Money Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="0783987223"
+                      className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      Account Registered Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                      placeholder="Registered Name on SIM (e.g. Jean Damascene)"
+                      className="w-full px-4 py-3 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </>
               )}
 
               <button

@@ -393,7 +393,8 @@ export const HomePage: React.FC = () => {
     if (activeStoryIndex === null || !stories[activeStoryIndex]) return;
     const currentStory = stories[activeStoryIndex];
     const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
-    const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+    const isCustomSlot = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3)) && customAds.length > 0;
+    const currentCustomAd = isCustomSlot ? customAds[Math.floor(activeStoryIndex / 4) % customAds.length] : null;
 
     // Increment story view count
     if (currentStory.id) {
@@ -426,7 +427,8 @@ export const HomePage: React.FC = () => {
     if (activeStoryIndex === null || !stories[activeStoryIndex]) return;
     const currentStory = stories[activeStoryIndex];
     const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
-    const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+    const isCustomSlot = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3)) && customAds.length > 0;
+    const currentCustomAd = isCustomSlot ? customAds[Math.floor(activeStoryIndex / 4) % customAds.length] : null;
 
     if (currentCustomAd) {
       fetch('/api/ads/track-click', {
@@ -1677,7 +1679,8 @@ export const HomePage: React.FC = () => {
           mediaUrl.startsWith('data:video') ||
           /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(mediaUrl) ||
           currentStory.mediaType === 'video';
-        const currentCustomAd = customAds.length > 0 ? customAds[activeStoryIndex % customAds.length] : null;
+        const isCustomSlot = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3)) && customAds.length > 0;
+        const currentCustomAd = isCustomSlot ? customAds[Math.floor(activeStoryIndex / 4) % customAds.length] : null;
 
         const handleScreenTap = (e: React.MouseEvent<HTMLDivElement>) => {
           const rect = e.currentTarget.getBoundingClientRect();
@@ -1937,18 +1940,18 @@ export const HomePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Story Ad Banner (Google AdSense or Custom Ad; monetized owner earns impression & click revenue) */}
+              {/* Story Ad Banner: Strictly 3 Google Ads : 1 Custom Ad Rotation */}
               <div
-                className="w-full bg-[#121824]/95 border-t border-slate-800 p-2.5 flex items-center justify-between gap-2 z-40 backdrop-blur-md cursor-pointer select-none"
+                className="w-full bg-[#0F1420]/95 border-t border-slate-800 p-2 z-40 backdrop-blur-md select-none"
                 onClick={handleStoryAdClick}
               >
                 {currentCustomAd ? (
-                  <>
+                  <div className="w-full flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <img
                         src={currentCustomAd.mediaUrl || '/logo.png'}
                         alt={currentCustomAd.title}
-                        className="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0"
+                        className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -1956,29 +1959,37 @@ export const HomePage: React.FC = () => {
                           <span className="text-xs font-bold text-white truncate">{currentCustomAd.title}</span>
                         </div>
                         <p className="text-[10px] text-slate-400 truncate">
-                          {currentCustomAd.description || 'Promoted product • Creator earns ad revenue'}
+                          {currentCustomAd.description || 'Promoted partner • Creator earns ad revenue'}
                         </p>
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={handleStoryAdClick}
-                      className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"
+                      className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 transition shadow-md flex items-center gap-1"
                     >
-                      {currentCustomAd.ctaText || 'Learn More'}
+                      <span>{currentCustomAd.ctaText || 'Learn More'}</span>
+                      <ExternalLink className="w-3 h-3" />
                     </button>
-                  </>
+                  </div>
                 ) : (
-                  <div className="w-full flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-blue-500 text-white rounded font-mono shrink-0">Google Ad</span>
-                      <span className="text-xs font-bold text-white truncate">Supporting @{currentStory.authorName || 'Creator'} • Monetized Partner</span>
+                  <div className="w-full flex flex-col items-center justify-center">
+                    <div className="w-full flex items-center justify-between px-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
+                      <span className="flex items-center gap-1 text-blue-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                        Ad by Google
+                      </span>
+                      <span className="truncate max-w-[200px]">Supporting @{currentStory.authorName || 'Creator'}</span>
                     </div>
-                    <button
-                      onClick={handleStoryAdClick}
-                      className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-extrabold shrink-0 transition shadow-md"
-                    >
-                      Visit Sponsor
-                    </button>
+                    <div className="w-full overflow-hidden flex items-center justify-center max-h-[55px]">
+                      <AdSenseUnit
+                        slot="7034214536"
+                        clientId="ca-pub-4078466828008985"
+                        format="horizontal"
+                        minHeight={50}
+                        className="w-full my-0 py-0"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

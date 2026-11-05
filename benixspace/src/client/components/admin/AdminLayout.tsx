@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { removeAuthToken } from '../../services/api';
 import {
-  LayoutDashboard, Layers, FileText, BarChart3, SearchCheck,
+  LayoutDashboard, Layers, FileText, BarChart3, SearchCheck, ArrowUpRight,
   Settings, LogOut, Menu, X, ShieldCheck, Users, UserCheck,
   Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2
 } from 'lucide-react';
@@ -32,6 +32,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const coreNavItems = [
     { name: 'Dashboard Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Users & Permissions', path: '/admin/users', icon: Users },
+    { name: 'Withdrawals & Payouts', path: '/admin#withdrawals', icon: ArrowUpRight, badge: 'Payouts' },
     { name: 'Project Portfolio', path: '/admin/projects', icon: Layers },
     { name: 'Blog Articles CMS', path: '/admin/blog', icon: FileText },
     { name: 'Visitor Analytics', path: '/admin/analytics', icon: BarChart3 },

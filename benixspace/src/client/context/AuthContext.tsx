@@ -83,7 +83,7 @@ const AuthContext = createContext<AuthContextType>({
 // Configure Axios instance
 const apiClient = axios.create({
   baseURL: '',
-  timeout: 15000,
+  timeout: 45000,
   headers: {
     'Content-Type': 'application/json'
   }

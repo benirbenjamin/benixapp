@@ -10,7 +10,7 @@ declare global {
 interface AdSenseUnitProps {
   slot?: string;
   clientId?: string;
-  format?: 'auto' | 'fluid' | 'rectangle' | 'autorelaxed';
+  format?: 'auto' | 'fluid' | 'rectangle' | 'autorelaxed' | 'horizontal';
   responsive?: boolean;
   layoutKey?: string;
   className?: string;
@@ -67,12 +67,14 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     return null;
   }
 
+  const containerMinHeight = style?.minHeight || '90px';
+
   return (
     <div
-      className={`adsense-container my-6 w-full text-center transition-all duration-300 ${className}`}
+      className={`adsense-container w-full text-center transition-all duration-300 ${className.includes('my-') ? className : `my-6 ${className}`}`}
       style={{
         display: 'block',
-        minHeight: '90px',
+        minHeight: containerMinHeight,
         overflow: 'hidden',
         ...style
       }}
@@ -84,7 +86,7 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
           display: 'block',
           textAlign: 'center',
           minWidth: '250px',
-          minHeight: '90px',
+          minHeight: (typeof containerMinHeight === 'number' ? `${containerMinHeight}px` : containerMinHeight) || '90px',
         }}
         data-ad-client={clientId}
         data-ad-slot={slot}
