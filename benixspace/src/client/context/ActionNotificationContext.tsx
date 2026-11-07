@@ -5,6 +5,24 @@ import { usePwa } from './PwaContext';
 import { notificationSound } from '../utils/notificationSound';
 import { getAuthToken } from '../services/api';
 
+function formatTimeAgo(dateString?: string): string {
+  if (!dateString) return 'Just now';
+  try {
+    const diffMs = Date.now() - new Date(dateString).getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return 'Just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHrs = Math.floor(diffMin / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return new Date(dateString).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  } catch {
+    return 'Recent';
+  }
+}
+
 export interface InAppActionItem {
   id: string;
   title: string;
@@ -159,6 +177,116 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
     return list;
   }, [user, wallet?.bonus_balance, hasAppProfile, readIds]);
 
+  // Server-side real notifications (withdrawals, deposits, transfers, admin alerts)
+  const [serverNotifications, setServerNotifications] = useState<InAppActionItem[]>([]);
+  const knownNotificationIdsRef = useRef<Set<string>>(new Set());
+  const initialLoadRef = useRef<boolean>(true);
+
+  // Poll server notifications (user + admin activities)
+  useEffect(() => {
+    if (!user) {
+      setServerNotifications([]);
+      return;
+    }
+
+    const fetchServerNotifications = async () => {
+      const token = getAuthToken();
+      if (!token) return;
+
+      try {
+        const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+        const endpoints = ['/api/notifications'];
+        if (isAdmin) {
+          endpoints.push('/api/admin/activities');
+        }
+
+        const responses = await Promise.all(
+          endpoints.map((ep) =>
+            axios.get(ep, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: {} }))
+          )
+        );
+
+        const rawList: any[] = [];
+        const seenRawIds = new Set<string>();
+
+        responses.forEach((res) => {
+          const list = res.data?.notifications || res.data?.activities || [];
+          if (Array.isArray(list)) {
+            list.forEach((item: any) => {
+              const strId = String(item.id);
+              if (!seenRawIds.has(strId)) {
+                seenRawIds.add(strId);
+                rawList.push(item);
+              }
+            });
+          }
+        });
+
+        // Convert raw server records to InAppActionItem
+        const mappedItems: InAppActionItem[] = rawList.map((n: any) => {
+          const sId = `srv_${n.id}`;
+          const isDeposit = n.type === 'deposit';
+          const isWithdrawal = n.type === 'withdrawal';
+          const isTransfer = n.type === 'transfer';
+          const isChat = n.type === 'chat';
+
+          let category: InAppActionItem['category'] = 'system';
+          if (isDeposit || isWithdrawal || isTransfer) category = 'wallet';
+          else if (isChat) category = 'inbox';
+
+          let defaultRoute = '/dashboard#wallet';
+          if (n.action_url) defaultRoute = n.action_url;
+          else if (isWithdrawal && isAdmin) defaultRoute = '/admin#withdrawals';
+          else if (isDeposit && isAdmin) defaultRoute = '/admin#withdrawals';
+
+          let defaultActionLabel = 'View';
+          if (isDeposit) defaultActionLabel = 'View Wallet';
+          else if (isWithdrawal) defaultActionLabel = isAdmin ? 'Review Payout' : 'View Payout';
+          else if (n.type === 'user_registered') defaultActionLabel = 'View Users';
+
+          const timeAgo = formatTimeAgo(n.created_at);
+          const isUnread = !n.is_read && !readIds.includes(sId) && !readIds.includes(String(n.id));
+
+          return {
+            id: sId,
+            title: n.title,
+            body: n.message,
+            time: timeAgo,
+            category,
+            route: defaultRoute,
+            actionLabel: defaultActionLabel,
+            isActionable: true,
+            unread: isUnread
+          };
+        });
+
+        // Check for brand new incoming notifications
+        mappedItems.forEach((item) => {
+          if (!knownNotificationIdsRef.current.has(item.id)) {
+            knownNotificationIdsRef.current.add(item.id);
+            // Only trigger alert/push if this is not the initial load and it's unread
+            if (!initialLoadRef.current && item.unread) {
+              notificationSound.playNotificationChime();
+              showTrayNotification(item.title, {
+                body: item.body,
+                url: item.route
+              });
+            }
+          }
+        });
+
+        initialLoadRef.current = false;
+        setServerNotifications(mappedItems);
+      } catch (err) {
+        console.warn('Could not fetch server notifications:', err);
+      }
+    };
+
+    fetchServerNotifications();
+    const interval = setInterval(fetchServerNotifications, 12000);
+    return () => clearInterval(interval);
+  }, [user, readIds, showTrayNotification]);
+
   // Dynamic real-time direct chat unread count from database
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
@@ -198,10 +326,10 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
     return () => clearInterval(interval);
   }, [user]);
 
-  // Combine computed actions and custom notifications
+  // Combine server activity notifications, computed actions and custom notifications
   const allItems = useMemo<InAppActionItem[]>(() => {
-    return [...computedActions, ...customNotifications];
-  }, [computedActions, customNotifications]);
+    return [...serverNotifications, ...computedActions, ...customNotifications];
+  }, [serverNotifications, computedActions, customNotifications]);
 
   // Total unread/actionable items badge count
   const totalBadgeCount = useMemo(() => {
@@ -231,6 +359,19 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
       localStorage.setItem('benix_welcome_inbox_read', 'true');
     }
 
+    // If server notification, notify backend
+    if (id.startsWith('srv_')) {
+      const rawId = id.replace('srv_', '');
+      const token = getAuthToken();
+      if (token) {
+        axios.post(`/api/notifications/${rawId}/read`, {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      }
+    }
+
+    setServerNotifications(prev =>
+      prev.map(item => item.id === id ? { ...item, unread: false } : item)
+    );
+
     setCustomNotifications(prev => {
       const updated = prev.map(item => item.id === id ? { ...item, unread: false } : item);
       localStorage.setItem('benix_custom_inapp_notifs', JSON.stringify(updated));
@@ -243,6 +384,15 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
     setReadIds(allIds);
     localStorage.setItem('benix_read_notif_ids', JSON.stringify(allIds));
     localStorage.setItem('benix_welcome_inbox_read', 'true');
+
+    const token = getAuthToken();
+    if (token) {
+      axios.post('/api/notifications/read-all', {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    }
+
+    setServerNotifications(prev =>
+      prev.map(item => ({ ...item, unread: false }))
+    );
 
     setCustomNotifications(prev => {
       const updated = prev.map(item => ({ ...item, unread: false }));

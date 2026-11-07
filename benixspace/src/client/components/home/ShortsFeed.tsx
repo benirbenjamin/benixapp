@@ -31,7 +31,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
 import { AdSenseUnit } from '../common/AdSenseUnit';
 import { getAuthToken } from '../../services/api';
-import { getEffectiveCustomAd } from '../../config/sponsorAds';
+import { getEffectiveCustomAd, getEffectiveBannerOnlyAd } from '../../config/sponsorAds';
 import realVideosData from '../../config/realVideos.json';
 
 export interface ShortFeedItem {
@@ -1014,7 +1014,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                       const isNaturalCustom = (idx % 4 === 3);
                       const isUnfilledGoogle = Boolean(unfilledGoogleSlots[item.id]);
                       const showCustomAd = isNaturalCustom || isUnfilledGoogle;
-                      const customAd = getEffectiveCustomAd(customAds, Math.floor(idx / 4));
+                      const customAd = getEffectiveBannerOnlyAd(customAds, Math.floor(idx / 4));
 
                       const customAdCard = (
                         <div

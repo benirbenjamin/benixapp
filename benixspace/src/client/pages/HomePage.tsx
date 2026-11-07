@@ -19,7 +19,7 @@ import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { SeoHead } from '../components/common/SeoHead';
 import { ShortsFeed } from '../components/home/ShortsFeed';
 import { AdSenseUnit } from '../components/common/AdSenseUnit';
-import { getEffectiveCustomAd } from '../config/sponsorAds';
+import { getEffectiveCustomAd, getEffectiveBannerOnlyAd } from '../config/sponsorAds';
 import realVideosData from '../config/realVideos.json';
 import {
   Tv,
@@ -432,7 +432,7 @@ export const HomePage: React.FC = () => {
     const authorId = (currentStory as any).authorId || (currentStory as any).author_id || (currentStory as any).userId;
     const isNaturalCustom = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3));
     const showCustomAd = isNaturalCustom || storyGoogleAdUnfilled;
-    const customAd = getEffectiveCustomAd(customAds, activeStoryIndex !== null ? Math.floor(activeStoryIndex / 4) : 0);
+    const customAd = getEffectiveBannerOnlyAd(customAds, activeStoryIndex !== null ? Math.floor(activeStoryIndex / 4) : 0);
 
     if (showCustomAd) {
       fetch('/api/ads/track-click', {
@@ -1966,7 +1966,7 @@ export const HomePage: React.FC = () => {
                 {(() => {
                   const isNaturalCustom = (activeStoryIndex !== null && (activeStoryIndex % 4 === 3));
                   const showCustomAd = isNaturalCustom || storyGoogleAdUnfilled;
-                  const customAd = getEffectiveCustomAd(customAds, activeStoryIndex !== null ? Math.floor(activeStoryIndex / 4) : 0);
+                  const customAd = getEffectiveBannerOnlyAd(customAds, activeStoryIndex !== null ? Math.floor(activeStoryIndex / 4) : 0);
 
                   const customCard = (
                     <div className="w-full flex items-center justify-between gap-2">

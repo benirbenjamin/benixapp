@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { removeAuthToken } from '../../services/api';
+import { useInAppActions } from '../../context/ActionNotificationContext';
+import { NotificationTray } from '../modals/NotificationTray';
 import {
   LayoutDashboard, Layers, FileText, BarChart3, SearchCheck, ArrowUpRight,
   Settings, LogOut, Menu, X, ShieldCheck, Users, UserCheck,
-  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2
+  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2, Bell
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -13,7 +15,9 @@ interface AdminLayoutProps {
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [customLogo, setCustomLogo] = useState<string>('/logo.png');
+  const { totalBadgeCount } = useInAppActions();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -218,6 +222,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <span className="font-black text-base text-white">BenixSpace Admin</span>
         </Link>
         <div className="flex items-center gap-2">
+          {/* Mobile Admin Notification Bell */}
+          <button
+            onClick={() => setShowNotifications(true)}
+            className="relative p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
+            title="Platform Activities"
+          >
+            <Bell className="w-5 h-5 text-amber-400" />
+            {totalBadgeCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-[9px] font-black text-white flex items-center justify-center border-2 border-[#111724]">
+                {totalBadgeCount}
+              </span>
+            )}
+          </button>
           <Link
             to="/"
             className="p-2 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center gap-1"
@@ -332,12 +349,60 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-8 lg:p-10 overflow-y-auto">
-        <div className="w-full max-w-[1720px] mx-auto">
-          {children}
-        </div>
-      </main>
+      {/* Right Content Wrap with Sticky Top Header */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Desktop Top Header Bar with Live Bell */}
+        <header className="hidden md:flex h-16 px-6 lg:px-10 bg-[#111724]/95 backdrop-blur-md border-b border-slate-800 items-center justify-between shrink-0 z-30">
+          <div className="flex items-center gap-3">
+            <span className="font-extrabold text-sm text-slate-200">
+              Admin Console & Operations
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              Live Platform
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              target="_blank"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition border border-slate-700/60"
+            >
+              <Globe className="w-3.5 h-3.5 text-blue-400" />
+              <span>Public Website</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
+            </Link>
+
+            {/* Notification Bell */}
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="relative p-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white transition-all shadow-md active:scale-95 border border-slate-700/60 cursor-pointer"
+              title="Platform Activities & Alerts"
+            >
+              <Bell className="w-5 h-5 text-amber-400" />
+              {totalBadgeCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[19px] h-[19px] px-1 rounded-full bg-rose-600 text-[10px] font-black text-white flex items-center justify-center border-2 border-[#111724] shadow-md animate-pulse">
+                  {totalBadgeCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 sm:p-8 lg:p-10 overflow-y-auto">
+          <div className="w-full max-w-[1720px] mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* In-App Notifications Tray Modal for Admin */}
+      <NotificationTray
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
 
     </div>
   );

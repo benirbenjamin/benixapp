@@ -96,6 +96,67 @@ interface AuthCodeRecord {
 const verificationCodes = new Map<string, AuthCodeRecord>();
 const loginOtpCodes = new Map<string, AuthCodeRecord>();
 
+// ==================== REAL-TIME NOTIFICATIONS SYSTEM ==================== //
+export const initCoreNotificationsTable = async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_notifications (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(64),
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(64) DEFAULT 'activity',
+        recipient_role VARCHAR(32) DEFAULT 'user',
+        action_url TEXT,
+        metadata JSONB,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_core_notif_user ON core_notifications(user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_core_notif_role ON core_notifications(recipient_role, created_at DESC);
+    `);
+  } catch (err: any) {
+    console.warn('Could not initialize core_notifications table:', err?.message);
+  }
+};
+initCoreNotificationsTable();
+
+export async function createNotification({
+  userId,
+  title,
+  message,
+  type = 'activity',
+  recipientRole = 'user',
+  actionUrl,
+  metadata
+}: {
+  userId?: string | null;
+  title: string;
+  message: string;
+  type?: string;
+  recipientRole?: 'user' | 'admin' | 'all';
+  actionUrl?: string;
+  metadata?: any;
+}) {
+  try {
+    await query(
+      `INSERT INTO core_notifications (user_id, title, message, type, recipient_role, action_url, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        userId || null,
+        title,
+        message,
+        type,
+        recipientRole,
+        actionUrl || null,
+        metadata ? JSON.stringify(metadata) : null
+      ]
+    );
+  } catch (err: any) {
+    console.warn('Could not insert notification into core_notifications:', err?.message);
+  }
+}
+
 // ==================== 1. UNIFIED AUTH & ONBOARDING WIZARD ==================== //
 
 /**
@@ -590,6 +651,16 @@ app.post('/api/auth/register-wizard', async (req, res) => {
       to: cleanEmail,
       subject: 'Welcome to Benix.Space Unified Platform!',
       html: `<h2>Welcome to Benix.Space, ${name}!</h2><p>Your unified super-account is ready. Your wallet has been credited with 100 RWF welcome bonus.</p>`
+    }).catch(() => {});
+
+    // Notify Admin of new registration
+    createNotification({
+      recipientRole: 'admin',
+      title: '👤 New User Registered',
+      message: `${name} (${cleanEmail}) joined BenixSpace.`,
+      type: 'user_registered',
+      actionUrl: '/admin/users',
+      metadata: { userId: user.id, email: user.email, name: user.name }
     }).catch(() => {});
 
     const token = generateToken({ id: user.id, email: user.email, role: user.role });
@@ -1318,6 +1389,16 @@ app.post('/api/wallet/transfer', authenticateToken, async (req: AuthenticatedReq
       `
     }).catch(() => {});
 
+    // In-app & push notification to recipient
+    createNotification({
+      userId: recipient.id,
+      title: 'Money Received 💸',
+      message: `You received ${numAmount.toLocaleString()} RWF from ${req.user!.name || req.user!.email}.${note ? ` ("${note}")` : ''}`,
+      type: 'wallet',
+      actionUrl: '/dashboard#wallet',
+      metadata: { from: req.user!.id, amount: numAmount }
+    }).catch(() => {});
+
     return res.json({
       success: true,
       newBalance: debitResult.newBalance,
@@ -1397,6 +1478,26 @@ app.post('/api/wallet/withdraw', authenticateToken, async (req: AuthenticatedReq
       `
     }).catch((e) => console.warn('User withdrawal email warning:', e?.message));
 
+    // In-app notification to requesting user
+    createNotification({
+      userId: req.user!.id,
+      title: 'Withdrawal Pending Review',
+      message: `Your withdrawal request for ${numAmount.toLocaleString()} RWF via ${payoutMethod} has been submitted.`,
+      type: 'withdrawal',
+      actionUrl: '/dashboard#wallet',
+      metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
+    }).catch(() => {});
+
+    // In-app notification to all admins
+    createNotification({
+      recipientRole: 'admin',
+      title: '⚠️ Action Required: New Payout Request',
+      message: `${userEmail} requested withdrawal of ${numAmount.toLocaleString()} RWF via ${payoutMethod}.`,
+      type: 'withdrawal',
+      actionUrl: '/admin#withdrawals',
+      metadata: { userId: req.user!.id, email: userEmail, amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
+    }).catch(() => {});
+
     return res.json({
       success: true,
       message: 'Withdrawal request submitted! Admin and user confirmation emails sent.',
@@ -1433,6 +1534,24 @@ app.post('/api/admin/withdrawals/:id/approve', authenticateToken, requireAdminRo
       Boolean(sendViaFlutterwave),
       note
     );
+
+    // Notify user of approved payout
+    query('SELECT user_id, amount, payout_method FROM core_withdrawals WHERE id = $1', [id])
+      .then((wRes) => {
+        if (wRes.rows && wRes.rows[0]) {
+          const w = wRes.rows[0];
+          createNotification({
+            userId: w.user_id,
+            title: 'Withdrawal Approved & Sent! 🎉',
+            message: `Your withdrawal of ${Number(approvedAmount || w.amount).toLocaleString()} RWF has been approved and paid out to your ${w.payout_method || 'account'}.`,
+            type: 'withdrawal',
+            actionUrl: '/dashboard#wallet',
+            metadata: { withdrawalId: id, amount: approvedAmount || w.amount }
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
@@ -1447,6 +1566,24 @@ app.post('/api/admin/withdrawals/:id/reject', authenticateToken, requireAdminRol
     const { id } = req.params;
     const { reason } = req.body;
     const result = await WithdrawalService.rejectWithdrawal(id, reason);
+
+    // Notify user of declined withdrawal and instant refund
+    query('SELECT user_id, amount FROM core_withdrawals WHERE id = $1', [id])
+      .then((wRes) => {
+        if (wRes.rows && wRes.rows[0]) {
+          const w = wRes.rows[0];
+          createNotification({
+            userId: w.user_id,
+            title: 'Withdrawal Declined & Refunded',
+            message: `Your withdrawal request of ${Number(w.amount).toLocaleString()} RWF was rejected (${reason || 'Account issue'}). The funds have been refunded to your wallet.`,
+            type: 'withdrawal',
+            actionUrl: '/dashboard#wallet',
+            metadata: { withdrawalId: id, amount: w.amount, reason }
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
@@ -1764,6 +1901,26 @@ app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
         await ReferralService.triggerQualifyingEvent(p.user_id, 'first_deposit', 'wallet');
       } catch {}
 
+      // In-app notification to user
+      createNotification({
+        userId: p.user_id,
+        title: 'Deposit Received! 💰',
+        message: `Your deposit of ${convertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
+        type: 'deposit',
+        actionUrl: '/dashboard#wallet',
+        metadata: { amount: convertedRwf, txRef }
+      }).catch(() => {});
+
+      // In-app notification to admin
+      createNotification({
+        recipientRole: 'admin',
+        title: '💰 New Deposit Credited',
+        message: `User ${p.user_id} deposited ${convertedRwf.toLocaleString()} RWF via Flutterwave.`,
+        type: 'deposit',
+        actionUrl: '/admin#withdrawals',
+        metadata: { userId: p.user_id, amount: convertedRwf, txRef }
+      }).catch(() => {});
+
       return res.status(200).json({ status: 'success', credited: true, txRef });
     }
 
@@ -1932,6 +2089,26 @@ app.post('/api/wallet/flutterwave/verify', authenticateToken, async (req: Authen
     } catch (refErr) {
       console.warn('Referral trigger non-fatal:', refErr);
     }
+
+    // In-app notification to user
+    createNotification({
+      userId: req.user!.id,
+      title: 'Deposit Received! 💰',
+      message: `Your deposit of ${finalConvertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
+      type: 'deposit',
+      actionUrl: '/dashboard#wallet',
+      metadata: { amount: finalConvertedRwf, txRef }
+    }).catch(() => {});
+
+    // In-app notification to admin
+    createNotification({
+      recipientRole: 'admin',
+      title: '💰 New Deposit Credited',
+      message: `User ${req.user!.name || req.user!.email} deposited ${finalConvertedRwf.toLocaleString()} RWF via Flutterwave.`,
+      type: 'deposit',
+      actionUrl: '/admin#withdrawals',
+      metadata: { userId: req.user!.id, email: req.user!.email, amount: finalConvertedRwf, txRef }
+    }).catch(() => {});
 
     return res.json({
       success: true,
@@ -6831,6 +7008,90 @@ app.get('/api/admin/notifications', authenticateToken, requireAdminRole, async (
     return res.json({ success: true, notifications });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message, notifications: [] });
+  }
+});
+
+/**
+ * Universal User In-App & Push Notifications (Withdrawals, Deposits, Transfers, Activity)
+ */
+app.get('/api/notifications', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const result = await query(
+      `SELECT * FROM core_notifications 
+       WHERE user_id = $1 OR recipient_role = 'all'
+       ORDER BY created_at DESC LIMIT 40`,
+      [userId]
+    );
+
+    const unreadResult = await query(
+      `SELECT COUNT(*)::int as count FROM core_notifications
+       WHERE (user_id = $1 OR recipient_role = 'all') AND is_read = false`,
+      [userId]
+    );
+
+    return res.json({
+      success: true,
+      notifications: result.rows || [],
+      unreadCount: unreadResult.rows[0]?.count || 0
+    });
+  } catch (err: any) {
+    return res.json({ success: true, notifications: [], unreadCount: 0 });
+  }
+});
+
+app.post('/api/notifications/:id/read', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await query(
+      `UPDATE core_notifications SET is_read = true WHERE id = $1 AND (user_id = $2 OR recipient_role = 'all')`,
+      [req.params.id, req.user!.id]
+    );
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notifications/read-all', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await query(
+      `UPDATE core_notifications SET is_read = true WHERE user_id = $1 OR recipient_role = 'all'`,
+      [req.user!.id]
+    );
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin Real-Time Platform Activity & Notifications Feed
+ */
+app.get('/api/admin/activities', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT * FROM core_notifications 
+       WHERE recipient_role IN ('admin', 'all') OR type IN ('withdrawal', 'deposit', 'user_registered', 'ad_campaign')
+       ORDER BY created_at DESC LIMIT 50`
+    );
+
+    const pendingWithRes = await query(
+      `SELECT COUNT(*)::int as count FROM core_withdrawals WHERE status = 'pending'`
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const unreadAdmin = await query(
+      `SELECT COUNT(*)::int as count FROM core_notifications 
+       WHERE recipient_role = 'admin' AND is_read = false`
+    ).catch(() => ({ rows: [{ count: 0 }] }));
+
+    return res.json({
+      success: true,
+      activities: result.rows || [],
+      pendingWithdrawalsCount: pendingWithRes.rows[0]?.count || 0,
+      unreadCount: unreadAdmin.rows[0]?.count || 0
+    });
+  } catch (err: any) {
+    return res.json({ success: true, activities: [], pendingWithdrawalsCount: 0, unreadCount: 0 });
   }
 });
 

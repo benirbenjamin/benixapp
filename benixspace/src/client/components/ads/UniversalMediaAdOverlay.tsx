@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Sparkles, Volume2, ShieldCheck, X, ExternalLink } from 'lucide-react';
+import { Sparkles, Volume2, VolumeX, ShieldCheck, X, ExternalLink, Play } from 'lucide-react';
 import { ADS_CONFIG } from '../../config/ads';
 import { AdSenseUnit } from '../common/AdSenseUnit';
+import { getEffectiveVideoAd, SponsorAdItem } from '../../config/sponsorAds';
 
 interface SubmittedAd {
   id: string;
@@ -9,7 +10,9 @@ interface SubmittedAd {
   description: string;
   targetUrl: string;
   mediaUrl?: string;
+  videoUrl?: string;
   mediaType?: string;
+  ctaText?: string;
 }
 
 interface UniversalMediaAdOverlayProps {
@@ -21,9 +24,10 @@ interface UniversalMediaAdOverlayProps {
   videoId?: string;
   slot?: string;
   countdownDuration?: number;
+  forceVideoAd?: boolean;
 }
 
-// Module-level rotation counter to strictly enforce 2 Google Ads : 1 Submitted Ad cycle
+// Module-level rotation counter
 let globalAdImpressionCounter = 0;
 
 export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = ({
@@ -35,11 +39,15 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
   videoId,
   slot = ADS_CONFIG.SLOTS.VIDEO_WATCH_BANNER,
   countdownDuration = 10,
+  forceVideoAd = true,
 }) => {
   const [countdown, setCountdown] = useState<number>(countdownDuration);
-  const [activeCustomAd, setActiveCustomAd] = useState<SubmittedAd | null>(null);
-  const [isCustomTurn, setIsCustomTurn] = useState<boolean>(false);
+  const [activeCustomAd, setActiveCustomAd] = useState<SponsorAdItem | SubmittedAd | null>(null);
+  const [isCustomTurn, setIsCustomTurn] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [googleAdUnfilled, setGoogleAdUnfilled] = useState<boolean>(false);
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const hasRecordedViewRef = useRef<boolean>(false);
   const hasRecordedClickRef = useRef<boolean>(false);
   const onCloseRef = useRef(onClose);
@@ -50,7 +58,8 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
     if (!isOpen) {
       setCountdown(countdownDuration);
       setActiveCustomAd(null);
-      setIsCustomTurn(false);
+      setIsCustomTurn(true);
+      setGoogleAdUnfilled(false);
       hasRecordedViewRef.current = false;
       hasRecordedClickRef.current = false;
       return;
@@ -59,38 +68,55 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
     setCountdown(countdownDuration);
     hasRecordedViewRef.current = false;
     hasRecordedClickRef.current = false;
+    setGoogleAdUnfilled(false);
 
-    // Strict 2:1 Rotation: (count % 3 === 2) -> Custom Submitted Ad; otherwise -> Google AdSense
+    const isVideoOrTv = mediaType === 'video' || mediaType === 'tv' || forceVideoAd;
+
+    // For video playing, TV and single ad load: force video ads
     const currentCount = globalAdImpressionCounter++;
-    const shouldShowCustom = currentCount % 3 === 2;
+    // In video/TV mode, if forceVideoAd is true, we always guarantee a video ad is loaded
+    const shouldShowCustom = isVideoOrTv ? true : (currentCount % 3 === 2);
 
-    if (shouldShowCustom) {
-      fetch('/api/ads/active')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.ads && Array.isArray(data.ads) && data.ads.length > 0) {
-            const randomAd = data.ads[Math.floor(Math.random() * data.ads.length)];
-            setActiveCustomAd(randomAd);
-            setIsCustomTurn(true);
-            // Track custom ad impression
-            fetch('/api/ads/track-impression', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ adId: randomAd.id }),
-            }).catch(() => {});
-          } else {
-            setIsCustomTurn(false);
-          }
-        })
-        .catch(() => {
+    fetch('/api/ads/active')
+      .then((res) => res.json())
+      .then((data) => {
+        const adsList = data?.ads && Array.isArray(data.ads) ? data.ads : [];
+        if (isVideoOrTv) {
+          const videoAd = getEffectiveVideoAd(adsList, currentCount);
+          setActiveCustomAd(videoAd);
+          setIsCustomTurn(true);
+        } else if (shouldShowCustom && adsList.length > 0) {
+          const randomAd = adsList[Math.floor(Math.random() * adsList.length)];
+          setActiveCustomAd(randomAd);
+          setIsCustomTurn(true);
+        } else {
           setIsCustomTurn(false);
-        });
-    } else {
-      setIsCustomTurn(false);
-    }
-  }, [isOpen, countdownDuration]);
+          const fallbackAd = getEffectiveVideoAd(adsList, currentCount);
+          setActiveCustomAd(fallbackAd);
+        }
+      })
+      .catch(() => {
+        const fallbackAd = getEffectiveVideoAd([], currentCount);
+        setActiveCustomAd(fallbackAd);
+        setIsCustomTurn(true);
+      });
+  }, [isOpen, countdownDuration, mediaType, forceVideoAd]);
 
-  // Record quiet reward to creator wallet (silent: no transaction log chime/popup)
+  // Attempt video autoplay with sound once ready
+  useEffect(() => {
+    if (isOpen && videoRef.current) {
+      videoRef.current.play().catch(() => {
+        // Browser autoplay policy might require muted start
+        setIsMuted(true);
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          videoRef.current.play().catch(() => {});
+        }
+      });
+    }
+  }, [isOpen, activeCustomAd]);
+
+  // Record quiet reward to creator wallet
   const sendAdReward = (type: 'view' | 'click') => {
     if (type === 'view' && hasRecordedViewRef.current) return;
     if (type === 'click' && hasRecordedClickRef.current) return;
@@ -103,9 +129,10 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type,
-        adType: isCustomTurn ? 'custom' : 'google',
+        adType: isCustomTurn || googleAdUnfilled ? 'custom' : 'google',
         creatorId: creatorId || undefined,
         videoId: videoId || undefined,
+        mediaType: mediaType || 'video',
       }),
     }).catch(() => {});
   };
@@ -153,7 +180,6 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
   };
 
   const handleSkipOrComplete = () => {
-    // If skipping after at least 5s watched or finished, record view reward
     if (countdownDuration - countdown >= 5 || countdown <= 1) {
       sendAdReward('view');
     }
@@ -162,6 +188,7 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
 
   if (!isOpen) return null;
 
+  const isVideoMode = mediaType === 'video' || mediaType === 'tv' || forceVideoAd || (activeCustomAd && (activeCustomAd as any).videoUrl);
   const progressPercent = Math.min(100, Math.max(0, ((countdownDuration - countdown) / countdownDuration) * 100));
 
   return (
@@ -174,7 +201,7 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
             <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              {isCustomTurn ? 'Partner Advertisement' : 'Google AdSense Sponsor'}
+              {isVideoMode ? 'Featured Video Advertisement' : (isCustomTurn ? 'Partner Advertisement' : 'Google AdSense Sponsor')}
             </span>
           </div>
 
@@ -183,7 +210,7 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
           </div>
         </div>
 
-        {/* Modal Body - Vertically fitted without scrollbar */}
+        {/* Modal Body */}
         <div className="p-3 sm:p-4 space-y-2 flex-1 flex flex-col justify-between overflow-hidden">
           
           {/* Active Audio / Media indicator */}
@@ -192,27 +219,67 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
             <span className="truncate">Media active • {title}</span>
           </div>
 
-          {/* Ad Container: Custom Submitted Ad OR Real Google AdSense */}
-          {isCustomTurn && activeCustomAd ? (
+          {/* Forced Video Ad Player for Video Playing, TV and Single Ad Load */}
+          {isVideoMode && activeCustomAd ? (
             <div className="rounded-2xl bg-gradient-to-br from-indigo-950/70 to-slate-900 border border-indigo-500/40 p-2.5 sm:p-3 space-y-2 text-left shrink overflow-hidden flex flex-col justify-between">
               <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 font-semibold border-b border-slate-800/80 pb-1 shrink-0">
                 <span className="flex items-center gap-1 text-amber-300">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Verified Benix Partner
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Verified Benix Video Partner
                 </span>
                 <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                  Sponsored
+                  Sponsored Video
                 </span>
               </div>
 
-              {activeCustomAd.mediaUrl && (
-                <div className="w-full max-h-[130px] sm:max-h-[160px] rounded-xl overflow-hidden border border-slate-800 shrink flex items-center justify-center bg-black">
+              {/* Video Player Container */}
+              <div
+                onClick={handleCustomAdClick}
+                className="relative w-full aspect-video rounded-xl overflow-hidden border border-slate-800 shrink flex items-center justify-center bg-black cursor-pointer group"
+              >
+                {(activeCustomAd as any).videoUrl ? (
+                  <video
+                    ref={videoRef}
+                    src={(activeCustomAd as any).videoUrl}
+                    poster={activeCustomAd.mediaUrl}
+                    autoPlay
+                    playsInline
+                    muted={isMuted}
+                    loop
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
                   <img
                     src={activeCustomAd.mediaUrl}
                     alt={activeCustomAd.title}
-                    className="w-full h-full max-h-[130px] sm:max-h-[160px] object-cover"
+                    className="w-full h-full object-cover"
                   />
+                )}
+
+                {/* Sound Toggle Button */}
+                {(activeCustomAd as any).videoUrl && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMuted(!isMuted);
+                      if (videoRef.current) {
+                        videoRef.current.muted = !isMuted;
+                      }
+                    }}
+                    className="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-md transition z-20"
+                    title={isMuted ? 'Tap to unmute ad audio' : 'Mute ad audio'}
+                  >
+                    {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+                    <span>{isMuted ? 'Unmute' : 'Mute'}</span>
+                  </button>
+                )}
+
+                {/* Playing Badge */}
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] font-black uppercase text-amber-300 border border-amber-400/30 flex items-center gap-1 backdrop-blur-md pointer-events-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                  HD Video Ad
                 </div>
-              )}
+              </div>
 
               <div className="shrink-0">
                 <p className="font-black text-xs sm:text-sm text-white line-clamp-1">{activeCustomAd.title}</p>
@@ -222,9 +289,9 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
               <button
                 type="button"
                 onClick={handleCustomAdClick}
-                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-blue-600/30 shrink-0"
+                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-blue-600/30 shrink-0 cursor-pointer active:scale-95"
               >
-                <span>Visit Sponsor</span>
+                <span>{activeCustomAd.ctaText || 'Visit Sponsor'}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -239,6 +306,11 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
                 format="rectangle"
                 responsive={true}
                 className="my-0 max-h-[170px]"
+                onStatusChange={(status) => {
+                  if (status === 'unfilled') {
+                    setGoogleAdUnfilled(true);
+                  }
+                }}
               />
             </div>
           )}
@@ -248,45 +320,42 @@ export const UniversalMediaAdOverlay: React.FC<UniversalMediaAdOverlayProps> = (
             <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                {isCustomTurn ? 'Verified Partner Campaign' : 'Official Google AdSense'}
+                Verified Video Ad • Creator earns revenue
               </span>
               <span className="text-amber-400 font-black">
                 {countdown}s remaining
               </span>
             </div>
-
-            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 transition-all duration-1000 ease-linear rounded-full"
+                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-amber-400 transition-all duration-1000 ease-linear rounded-full"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
           </div>
-        </div>
 
-        {/* Footer Bar: Auto-resumes or Skip after 5s */}
-        <div className="px-4 py-2 bg-black/60 border-t border-slate-800 shrink-0 flex items-center justify-between">
-          <span className="text-[11px] text-slate-400 font-medium">
-            Resumes in {countdown}s
-          </span>
+          {/* Bottom Action Footer */}
+          <div className="flex items-center justify-between pt-1 shrink-0 border-t border-slate-800/80">
+            <span className="text-[10px] text-slate-400 font-semibold truncate max-w-[200px]">
+              Reward supports <strong className="text-white">@{creatorId || 'Streamer'}</strong>
+            </span>
 
-          {countdown <= 5 ? (
             <button
               type="button"
               onClick={handleSkipOrComplete}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-md active:scale-95 cursor-pointer"
-              title="Skip Ad"
+              disabled={countdownDuration - countdown < 5 && countdown > 1}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1 ${
+                countdownDuration - countdown >= 5 || countdown <= 1
+                  ? 'bg-slate-800 hover:bg-slate-700 text-white cursor-pointer active:scale-95 border border-slate-700'
+                  : 'bg-slate-900/50 text-slate-500 cursor-not-allowed border border-slate-800'
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
-              <span>Skip ({countdown}s)</span>
+              <span>{countdownDuration - countdown >= 5 || countdown <= 1 ? 'Continue Stream' : `Skip in ${Math.max(1, 5 - (countdownDuration - countdown))}s`}</span>
             </button>
-          ) : (
-            <span className="text-[11px] text-slate-500 bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-700/60">
-              Skip in {countdown - 5}s
-            </span>
-          )}
-        </div>
+          </div>
 
+        </div>
       </div>
     </div>
   );
