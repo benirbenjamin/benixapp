@@ -53073,7 +53073,7 @@ app.use((req, res, next) => {
   if (matched && matched.startsWith("/api") && (req.url.includes("[...route]") || req.url === "/api" || req.url === "/api/")) {
     req.url = matched;
   }
-  if (!req.url.startsWith("/api") && !req.url.startsWith("/robots.txt") && !req.url.startsWith("/sitemap.xml")) {
+  if (process.env.VERCEL && !req.url.startsWith("/api") && !req.url.startsWith("/robots.txt") && !req.url.startsWith("/sitemap.xml")) {
     req.url = "/api" + (req.url.startsWith("/") ? req.url : "/" + req.url);
   }
   if (typeof req.body === "string" && req.body.trim().startsWith("{")) {
@@ -63000,7 +63000,8 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   return res.status(500).json({ error: err?.message || "Internal server error." });
 });
-if (!process.env.VERCEL && !process.env.VERCEL_ENV && !process.env.NOW_REGION && process.env.NODE_ENV !== "production") {
+var isDirectExecution = process.argv[1] && (process.argv[1].endsWith("index.ts") || process.argv[1].endsWith("index.js"));
+if (isDirectExecution && !process.env.VERCEL && !process.env.VERCEL_ENV && !process.env.NOW_REGION && process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
     console.log(`\u{1F310} Benix.Space Unified Platform Server running on port ${PORT}`);
   });

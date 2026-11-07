@@ -32,3 +32,4 @@ sql/
 
 push_all_incremental.ps1
 
+*.exe

@@ -10,7 +10,7 @@
     "build": "tsc && vite build && node bundle_api.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node dist/server/index.js",
+    "start": "node server.js",
     "db:init": "tsx src/server/db/init.ts"
   },
   "dependencies": {
