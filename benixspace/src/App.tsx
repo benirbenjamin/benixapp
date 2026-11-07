@@ -46,6 +46,10 @@ import { MarketplacePage } from './client/pages/modules/MarketplacePage';
 import { VoxifyPage } from './client/pages/modules/VoxifyPage';
 import { KundaPage } from './client/pages/modules/KundaPage';
 import { EasyCalcPage } from './client/pages/modules/EasyCalcPage';
+import { CloudLandingPage } from './client/pages/modules/CloudLandingPage';
+import { CloudLoginPage, CloudRegisterPage } from './client/pages/cloud/CloudAuthPages';
+import { CloudDashboardPage } from './client/pages/cloud/CloudDashboardPage';
+import { CloudAdminPage } from './client/pages/cloud/CloudAdminPage';
 import { MessagesPage } from './client/pages/MessagesPage';
 import { CreatorStudioPage } from './client/pages/CreatorStudioPage';
 import { AdvertisePage } from './client/pages/AdvertisePage';
@@ -111,6 +115,19 @@ export const App: React.FC = () => {
               <RouteAnalyticsTracker />
               <Routes>
                 
+                {/* Benix Cloud Standalone Console & Auth Routes */}
+                <Route path="/cloud/login" element={<CloudLoginPage />} />
+                <Route path="/cloud/register" element={<CloudRegisterPage />} />
+                <Route path="/cloud/dashboard" element={<CloudDashboardPage />} />
+                <Route
+                  path="/cloud/admin"
+                  element={
+                    <ProtectedAdminRoute>
+                      <CloudAdminPage />
+                    </ProtectedAdminRoute>
+                  }
+                />
+
                 {/* Admin Routes (No default Navbar/Footer) */}
                 <Route path="/admin/login" element={<AdminLoginPage />} />
                 <Route
@@ -241,6 +258,7 @@ export const App: React.FC = () => {
                           <Route path="/kunda" element={<KundaPage />} />
                           <Route path="/calc" element={<EasyCalcPage />} />
                           <Route path="/calculators" element={<EasyCalcPage />} />
+                          <Route path="/cloud" element={<CloudLandingPage />} />
 
                           {/* Core Platform Pages */}
                           <Route path="/projects" element={<ProjectsPage />} />

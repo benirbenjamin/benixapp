@@ -30,7 +30,8 @@ import {
   TrendingUp,
   LogIn,
   UserPlus,
-  ChevronDown
+  ChevronDown,
+  Cloud
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
@@ -582,6 +583,19 @@ export const Navbar: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2">
                   Ecosystem Apps
                 </span>
+
+                <button
+                  onClick={() => handleAppClick('cloud', '/cloud')}
+                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
+                >
+                  <div className="p-2 rounded-xl bg-sky-500/15 text-sky-400">
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span>Benix Cloud VPS</span>
+                    <span className="text-[10px] text-sky-400 font-semibold">Free 2-Month Trial</span>
+                  </div>
+                </button>
 
                 <button
                   onClick={() => handleAppClick('tv', '/tv')}

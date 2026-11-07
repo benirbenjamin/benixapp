@@ -36,6 +36,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Settings,
+  Cloud,
   Mail,
   Zap,
   Globe,
@@ -997,6 +998,14 @@ export const AdminDashboardPage: React.FC = () => {
                 <Wallet className="w-3.5 h-3.5" />
                 <span>Deposits</span>
               </button>
+
+              <Link
+                to="/cloud/admin"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-sky-600/20 text-sky-400 hover:bg-sky-600/30 border border-sky-500/30"
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span>Benix Cloud VPS</span>
+              </Link>
 
               <button
                 onClick={() => setActiveAppTab('withdrawals')}

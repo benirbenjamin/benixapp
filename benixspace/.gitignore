@@ -123,4 +123,5 @@ dist-ssr/
 # Database backups & SQL dumps (explicitly excluded as requested)
 sql/
 *.sql
+!src/server/db/*.sql
 

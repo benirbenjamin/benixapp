@@ -27,6 +27,8 @@ import { SearchService } from './services/searchService';
 import { EmailService } from './services/emailService';
 import { checkInappropriateLanguage, checkKundaContactPolicy, checkContactModeration } from './utils/moderation';
 import realVideosData from '../client/config/realVideos.json';
+import { cloudRouter } from './routes/cloudRoutes';
+import { initCloudDb } from './db/initCloudDb';
 
 dotenv.config();
 
@@ -86,6 +88,13 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Initialize Benix Cloud Database Schema & Plans
+initCloudDb().catch((err) => console.warn('Cloud DB auto-init warning:', err.message));
+
+// Benix Cloud & Manual Wallet Deposits Engine
+app.use('/api/cloud', cloudRouter);
+app.use('/api', cloudRouter);
 
 // Verification & OTP In-Memory Cache (with 15-minute expiration)
 interface AuthCodeRecord {
@@ -10585,14 +10594,45 @@ app.get('/api/admin/deposits', authenticateToken, requireAdminRole, async (req, 
     `).catch(() => {});
 
     const resDb = await query(`
-      SELECT d.*, 
-             COALESCE(d.converted_rwf, d.original_amount, 0)::numeric as amount,
-             u.email as user_email, u.name as user_name, u.phone as user_phone
+      SELECT 
+        id::text as id,
+        transaction_reference as tx_ref,
+        user_id,
+        currency,
+        amount as original_amount,
+        amount as converted_rwf,
+        amount,
+        status,
+        sender_phone as user_phone,
+        user_name,
+        user_email,
+        payment_method,
+        proof_image_url,
+        notes as admin_note,
+        created_at
+      FROM wallet_manual_deposits
+      UNION ALL
+      SELECT 
+        tx_ref as id,
+        tx_ref,
+        d.user_id,
+        currency,
+        original_amount,
+        converted_rwf,
+        COALESCE(converted_rwf, original_amount, 0)::numeric as amount,
+        status,
+        u.phone as user_phone,
+        u.name as user_name,
+        u.email as user_email,
+        'FLUTTERWAVE' as payment_method,
+        NULL as proof_image_url,
+        admin_note,
+        d.created_at
       FROM pending_flutterwave_deposits d
       LEFT JOIN core_users u ON d.user_id = u.id
-      ORDER BY d.created_at DESC
+      ORDER BY created_at DESC
       LIMIT 100
-    `);
+    `).catch(() => query('SELECT * FROM pending_flutterwave_deposits ORDER BY created_at DESC LIMIT 50'));
 
     return res.json({ deposits: resDb.rows });
   } catch (err: any) {
@@ -10604,6 +10644,57 @@ app.post('/api/admin/deposits/:txRef/approve', authenticateToken, requireAdminRo
   try {
     const { txRef } = req.params;
 
+    // 1. Check wallet_manual_deposits first
+    const manualRes = await query(
+      'SELECT * FROM wallet_manual_deposits WHERE transaction_reference = $1 OR id = $1',
+      [txRef]
+    );
+
+    if (manualRes.rowCount > 0) {
+      const deposit = manualRes.rows[0];
+      if (deposit.status === 'approved') {
+        return res.status(400).json({ error: 'Deposit is already marked as approved.' });
+      }
+
+      const rwfAmount = Number(deposit.amount);
+      const cr = await WalletService.credit(
+        deposit.user_id,
+        rwfAmount,
+        'wallet',
+        'momo_manual_deposit',
+        `MTN MoMo Deposit Approved: +${rwfAmount.toLocaleString()} RWF (Ref: ${deposit.transaction_reference})`,
+        deposit.transaction_reference,
+        { depositId: deposit.id, adminId: req.user?.id, approvedAt: new Date().toISOString() }
+      );
+
+      await query(
+        `UPDATE wallet_manual_deposits 
+         SET status = 'approved', admin_id = $1, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [req.user?.id, deposit.id]
+      );
+
+      try {
+        await query(
+          `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
+           VALUES ($1, $2, 'deposit_approved', $3, $4, false)`,
+          [
+            'notif-' + crypto.randomUUID(),
+            deposit.user_id,
+            'Deposit Approved! 🎉',
+            `Your MTN MoMo deposit of ${rwfAmount.toLocaleString()} RWF has been verified and added to your wallet balance.`
+          ]
+        );
+      } catch {}
+
+      return res.json({
+        success: true,
+        message: `MTN MoMo Deposit of ${rwfAmount.toLocaleString()} RWF approved and credited to customer wallet!`,
+        newBalance: cr.newBalance
+      });
+    }
+
+    // 2. Check pending_flutterwave_deposits
     const depRes = await query('SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1', [txRef]);
     if (depRes.rowCount === 0) {
       return res.status(404).json({ error: 'Deposit record not found.' });
@@ -10616,7 +10707,6 @@ app.post('/api/admin/deposits/:txRef/approve', authenticateToken, requireAdminRo
 
     const rwfAmount = Number(deposit.converted_rwf || deposit.original_amount);
 
-    // Credit user wallet
     const cr = await WalletService.credit(
       deposit.user_id,
       rwfAmount,
@@ -10644,11 +10734,43 @@ app.post('/api/admin/deposits/:txRef/approve', authenticateToken, requireAdminRo
 app.post('/api/admin/deposits/:txRef/reject', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
     const { txRef } = req.params;
-    const { note } = req.body;
+    const { note, reason } = req.body;
+    const finalReason = reason || note || 'Disapproved by Administrator';
 
+    // 1. Check wallet_manual_deposits
+    const manualRes = await query(
+      'SELECT id, user_id, amount FROM wallet_manual_deposits WHERE transaction_reference = $1 OR id = $1',
+      [txRef]
+    );
+    if (manualRes.rowCount > 0) {
+      const deposit = manualRes.rows[0];
+      await query(
+        `UPDATE wallet_manual_deposits 
+         SET status = 'rejected', admin_id = $1, rejection_reason = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [req.user?.id, finalReason, deposit.id]
+      );
+
+      try {
+        await query(
+          `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
+           VALUES ($1, $2, 'deposit_rejected', $3, $4, false)`,
+          [
+            'notif-' + crypto.randomUUID(),
+            deposit.user_id,
+            'Deposit Verification Notice',
+            `Your deposit submission of ${Number(deposit.amount).toLocaleString()} RWF was rejected: ${finalReason}`
+          ]
+        );
+      } catch {}
+
+      return res.json({ success: true, message: 'MTN MoMo Deposit marked as rejected.' });
+    }
+
+    // 2. Check pending_flutterwave_deposits
     await query(
       "UPDATE pending_flutterwave_deposits SET status = 'rejected', admin_note = $1 WHERE tx_ref = $2",
-      [note || 'Disapproved by Administrator', txRef]
+      [finalReason, txRef]
     );
 
     return res.json({ success: true, message: 'Deposit marked as rejected.' });

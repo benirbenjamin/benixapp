@@ -315,6 +315,14 @@ export async function initDb() {
       console.log('✓ Initial Baseline Analytics Events Seeded.');
     }
 
+    // Initialize Benix Cloud Schema and Plans
+    try {
+      const { initCloudDb } = await import('./initCloudDb');
+      await initCloudDb();
+    } catch (cErr: any) {
+      console.warn('⚠️ Could not run initCloudDb in init.ts:', cErr?.message);
+    }
+
     console.log('✨ BenixSpace Database Verification & Seeding Complete!');
   } catch (err: any) {
     console.error('⚠️ Database Initialization Error:', err?.message || err);

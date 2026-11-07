@@ -36,7 +36,8 @@ import {
   Zap,
   Download,
   LayoutDashboard,
-  Rocket
+  Rocket,
+  Cloud
 } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
@@ -103,6 +104,14 @@ export const YouTubeSidebar: React.FC = () => {
       route: '/dashboard#smm',
       badge: 'Boost',
       color: 'text-cyan-400 group-hover:text-cyan-300'
+    },
+    {
+      id: 'cloud',
+      name: 'Benix Cloud VPS',
+      icon: Cloud,
+      route: '/cloud',
+      badge: 'Free 2 Mo',
+      color: 'text-sky-400 group-hover:text-sky-300'
     },
     {
       id: 'shorts',
