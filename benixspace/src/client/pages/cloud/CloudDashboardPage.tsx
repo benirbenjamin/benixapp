@@ -30,7 +30,10 @@ import {
   AlertCircle,
   Clock,
   XCircle,
-  FileText
+  FileText,
+  Camera,
+  Image,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getAuthToken } from '../../services/api';
@@ -86,9 +89,37 @@ export const CloudDashboardPage: React.FC = () => {
   const [depositPhone, setDepositPhone] = useState('');
   const [depositRef, setDepositRef] = useState('');
   const [depositProof, setDepositProof] = useState('');
+  const [screenshotFileName, setScreenshotFileName] = useState<string | null>(null);
   const [submittingDeposit, setSubmittingDeposit] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
   const [depositError, setDepositError] = useState<string | null>(null);
+
+  const handleScreenshotFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, JPEG, WebP).');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Screenshot file is too large (maximum 10 MB).');
+      return;
+    }
+
+    setScreenshotFileName(`${file.name} (${(file.size / 1024).toFixed(0)} KB)`);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDepositProof(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveScreenshot = () => {
+    setDepositProof('');
+    setScreenshotFileName(null);
+  };
 
   const fetchCloudData = async () => {
     try {
@@ -1027,16 +1058,59 @@ export const CloudDashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Proof Screenshot URL / Receipt (Optional)
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Upload Payment Screenshot / SMS Photo</span>
+                  <span className="text-[10px] text-amber-400 font-normal">Fast admin verification</span>
                 </label>
+
                 <input
-                  type="text"
-                  value={depositProof}
-                  onChange={(e) => setDepositProof(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                  type="file"
+                  id="momo-screenshot-file"
+                  accept="image/*"
+                  onChange={handleScreenshotFileChange}
+                  className="hidden"
                 />
+
+                {!depositProof ? (
+                  <label
+                    htmlFor="momo-screenshot-file"
+                    className="border-2 border-dashed border-white/15 hover:border-emerald-500/50 bg-black/30 hover:bg-black/50 rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                      <Camera className="w-6 h-6" />
+                    </div>
+                    <div className="text-xs font-bold text-white mt-1">
+                      Click to Browse or Take Screenshot Photo
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Supports PNG, JPG, JPEG, WebP from phone or computer
+                    </div>
+                  </label>
+                ) : (
+                  <div className="bg-black/40 border border-white/10 rounded-2xl p-3 space-y-2">
+                    <div className="relative group max-h-52 overflow-hidden rounded-xl bg-black/60 flex items-center justify-center border border-white/5">
+                      <img
+                        src={depositProof}
+                        alt="MTN MoMo Deposit Proof"
+                        className="max-h-52 w-auto object-contain rounded-xl"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs text-emerald-400 font-semibold truncate flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{screenshotFileName || 'Screenshot Uploaded'}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveScreenshot}
+                        className="text-xs text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded-lg hover:bg-rose-500/10 flex items-center gap-1 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">

@@ -27,6 +27,8 @@ export const CloudAdminPage: React.FC = () => {
   const [servers, setServers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
 
+  const [viewingProofUrl, setViewingProofUrl] = useState<string | null>(null);
+
   // Modals & Forms
   const [showAddServerModal, setShowAddServerModal] = useState(false);
   const [serverName, setServerName] = useState('');
@@ -284,15 +286,24 @@ export const CloudAdminPage: React.FC = () => {
                           <strong className="text-emerald-400">{dep.transaction_reference}</strong>
                         </div>
                         {dep.proof_image_url && (
-                          <div className="mt-2">
-                            <a
-                              href={dep.proof_image_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-blue-400 hover:underline"
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setViewingProofUrl(dep.proof_image_url)}
+                              className="inline-flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-black/40 border border-white/10 hover:border-emerald-500/50 transition-colors text-left"
                             >
-                              View Proof Screenshot →
-                            </a>
+                              <img
+                                src={dep.proof_image_url}
+                                alt="Payment Proof"
+                                className="w-12 h-12 rounded-lg object-cover border border-white/10 shrink-0"
+                              />
+                              <div>
+                                <span className="text-xs font-bold text-emerald-400 block">
+                                  View Uploaded Screenshot 🔍
+                                </span>
+                                <span className="text-[10px] text-slate-400">Click to inspect receipt</span>
+                              </div>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -583,6 +594,35 @@ export const CloudAdminPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* PROOF SCREENSHOT LIGHTBOX MODAL */}
+      {viewingProofUrl && (
+        <div
+          onClick={() => setViewingProofUrl(null)}
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-md cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#121620] border border-white/10 rounded-2xl p-4 max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl cursor-default"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
+              <h4 className="font-bold text-sm text-white">Payment Proof Screenshot</h4>
+              <button
+                onClick={() => setViewingProofUrl(null)}
+                className="text-slate-400 hover:text-white px-2 py-1 rounded-lg"
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-black/60 rounded-xl p-2">
+              <img
+                src={viewingProofUrl}
+                alt="Uploaded Payment Receipt"
+                className="max-h-[75vh] w-auto object-contain rounded-lg"
+              />
+            </div>
           </div>
         </div>
       )}

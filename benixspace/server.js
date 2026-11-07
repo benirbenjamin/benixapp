@@ -15369,11 +15369,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path7) {
-      if (!path7 || typeof path7 !== "string") {
+    function lookup(path6) {
+      if (!path6 || typeof path6 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path7).toLowerCase().slice(1);
+      var extension2 = extname("x." + path6).toLowerCase().slice(1);
       if (!extension2) {
         return false;
       }
@@ -19060,13 +19060,13 @@ var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports, module) {
     "use strict";
     var debug = require_src()("express:view");
-    var path7 = __require("node:path");
-    var fs9 = __require("node:fs");
-    var dirname = path7.dirname;
-    var basename = path7.basename;
-    var extname = path7.extname;
-    var join = path7.join;
-    var resolve3 = path7.resolve;
+    var path6 = __require("node:path");
+    var fs8 = __require("node:fs");
+    var dirname = path6.dirname;
+    var basename = path6.basename;
+    var extname = path6.extname;
+    var join = path6.join;
+    var resolve3 = path6.resolve;
     module.exports = View;
     function View(name2, options) {
       var opts = options || {};
@@ -19095,17 +19095,17 @@ var require_view = __commonJS({
       this.path = this.lookup(fileName);
     }
     View.prototype.lookup = function lookup(name2) {
-      var path8;
+      var path7;
       var roots = [].concat(this.root);
       debug('lookup "%s"', name2);
-      for (var i = 0; i < roots.length && !path8; i++) {
+      for (var i = 0; i < roots.length && !path7; i++) {
         var root = roots[i];
         var loc = resolve3(root, name2);
         var dir = dirname(loc);
         var file = basename(loc);
-        path8 = this.resolve(dir, file);
+        path7 = this.resolve(dir, file);
       }
-      return path8;
+      return path7;
     };
     View.prototype.render = function render(options, callback) {
       var sync = true;
@@ -19127,21 +19127,21 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve4(dir, file) {
       var ext = this.ext;
-      var path8 = join(dir, file);
-      var stat = tryStat(path8);
+      var path7 = join(dir, file);
+      var stat = tryStat(path7);
       if (stat && stat.isFile()) {
-        return path8;
+        return path7;
       }
-      path8 = join(dir, basename(file, ext), "index" + ext);
-      stat = tryStat(path8);
+      path7 = join(dir, basename(file, ext), "index" + ext);
+      stat = tryStat(path7);
       if (stat && stat.isFile()) {
-        return path8;
+        return path7;
       }
     };
-    function tryStat(path8) {
-      debug('stat "%s"', path8);
+    function tryStat(path7) {
+      debug('stat "%s"', path7);
       try {
-        return fs9.statSync(path8);
+        return fs8.statSync(path7);
       } catch (e) {
         return void 0;
       }
@@ -20397,15 +20397,15 @@ var require_dist3 = __commonJS({
       let index = 0;
       function consumeUntil(end) {
         const output = [];
-        let path7 = "";
+        let path6 = "";
         function writePath() {
-          if (!path7)
+          if (!path6)
             return;
           output.push({
             type: "text",
-            value: encodePath(path7)
+            value: encodePath(path6)
           });
-          path7 = "";
+          path6 = "";
         }
         while (index < chars.length) {
           const value = chars[index++];
@@ -20417,7 +20417,7 @@ var require_dist3 = __commonJS({
             if (index === chars.length) {
               throw new PathError(`Unexpected end after \\ at index ${index}`, str);
             }
-            path7 += chars[index++];
+            path6 += chars[index++];
             continue;
           }
           if (value === ":" || value === "*") {
@@ -20461,7 +20461,7 @@ var require_dist3 = __commonJS({
           if (value === "}" || value === "(" || value === ")" || value === "[" || value === "]" || value === "+" || value === "?" || value === "!") {
             throw new PathError(`Unexpected ${value} at index ${index - 1}`, str);
           }
-          path7 += value;
+          path6 += value;
         }
         if (end) {
           throw new PathError(`Unexpected end at index ${index}, expected ${end}`, str);
@@ -20471,17 +20471,17 @@ var require_dist3 = __commonJS({
       }
       return new TokenData(consumeUntil(""), str);
     }
-    function compile(path7, options = {}) {
+    function compile(path6, options = {}) {
       const { encode: encode6 = encodeURIComponent, delimiter: delimiter2 = DEFAULT_DELIMITER } = options;
-      const data = typeof path7 === "object" ? path7 : parse2(path7, options);
+      const data = typeof path6 === "object" ? path6 : parse2(path6, options);
       const fn = tokensToFunction(data.tokens, delimiter2, encode6);
-      return function path8(params = {}) {
+      return function path7(params = {}) {
         const missing = [];
-        const path9 = fn(params, missing);
+        const path8 = fn(params, missing);
         if (missing.length) {
           throw new TypeError(`Missing parameters: ${missing.join(", ")}`);
         }
-        return path9;
+        return path8;
       };
     }
     function tokensToFunction(tokens, delimiter2, encode6) {
@@ -20543,9 +20543,9 @@ var require_dist3 = __commonJS({
         return encodeValue(value);
       };
     }
-    function match(path7, options = {}) {
+    function match(path6, options = {}) {
       const { decode: decode2 = decodeURIComponent, delimiter: delimiter2 = DEFAULT_DELIMITER } = options;
-      const { regexp, keys } = pathToRegexp(path7, options);
+      const { regexp, keys } = pathToRegexp(path6, options);
       const decoders = keys.map((key) => {
         if (decode2 === false)
           return NOOP_VALUE;
@@ -20557,7 +20557,7 @@ var require_dist3 = __commonJS({
         const m = regexp.exec(input);
         if (!m)
           return false;
-        const path8 = m[0];
+        const path7 = m[0];
         const params = /* @__PURE__ */ Object.create(null);
         for (let i = 1; i < m.length; i++) {
           if (m[i] === void 0)
@@ -20566,21 +20566,21 @@ var require_dist3 = __commonJS({
           const decoder = decoders[i - 1];
           params[key.name] = decoder(m[i]);
         }
-        return { path: path8, params };
+        return { path: path7, params };
       };
     }
-    function pathToRegexp(path7, options = {}) {
+    function pathToRegexp(path6, options = {}) {
       const { delimiter: delimiter2 = DEFAULT_DELIMITER, end = true, sensitive = false, trailing = true } = options;
       const keys = [];
       let source = "";
       let combinations = 0;
-      function process2(path8) {
-        if (Array.isArray(path8)) {
-          for (const p2 of path8)
+      function process2(path7) {
+        if (Array.isArray(path7)) {
+          for (const p2 of path7)
             process2(p2);
           return;
         }
-        const data = typeof path8 === "object" ? path8 : parse2(path8, options);
+        const data = typeof path7 === "object" ? path7 : parse2(path7, options);
         flatten(data.tokens, 0, [], (tokens) => {
           if (combinations >= 256) {
             throw new PathError("Too many path combinations", data.originalPath);
@@ -20591,7 +20591,7 @@ var require_dist3 = __commonJS({
           combinations++;
         });
       }
-      process2(path7);
+      process2(path6);
       let pattern = `^(?:${source})`;
       if (trailing)
         pattern += "(?:" + escape2(delimiter2) + "$)?";
@@ -20731,18 +20731,18 @@ var require_layer = __commonJS({
     var TRAILING_SLASH_REGEXP = /\/+$/;
     var MATCHING_GROUP_REGEXP = /\((?:\?<(.*?)>)?(?!\?)/g;
     module.exports = Layer;
-    function Layer(path7, options, fn) {
+    function Layer(path6, options, fn) {
       if (!(this instanceof Layer)) {
-        return new Layer(path7, options, fn);
+        return new Layer(path6, options, fn);
       }
-      debug("new %o", path7);
+      debug("new %o", path6);
       const opts = options || {};
       this.handle = fn;
       this.keys = [];
       this.name = fn.name || "<anonymous>";
       this.params = void 0;
       this.path = void 0;
-      this.slash = path7 === "/" && opts.end === false;
+      this.slash = path6 === "/" && opts.end === false;
       function matcher(_path) {
         if (_path instanceof RegExp) {
           const keys = [];
@@ -20781,7 +20781,7 @@ var require_layer = __commonJS({
           decode: decodeParam
         });
       }
-      this.matchers = Array.isArray(path7) ? path7.map(matcher) : [matcher(path7)];
+      this.matchers = Array.isArray(path6) ? path6.map(matcher) : [matcher(path6)];
     }
     Layer.prototype.handleError = function handleError(error2, req, res, next) {
       const fn = this.handle;
@@ -20821,9 +20821,9 @@ var require_layer = __commonJS({
         next(err);
       }
     };
-    Layer.prototype.match = function match(path7) {
+    Layer.prototype.match = function match(path6) {
       let match2;
-      if (path7 != null) {
+      if (path6 != null) {
         if (this.slash) {
           this.params = {};
           this.path = "";
@@ -20831,7 +20831,7 @@ var require_layer = __commonJS({
         }
         let i = 0;
         while (!match2 && i < this.matchers.length) {
-          match2 = this.matchers[i](path7);
+          match2 = this.matchers[i](path6);
           i++;
         }
       }
@@ -20859,13 +20859,13 @@ var require_layer = __commonJS({
         throw err;
       }
     }
-    function loosen(path7) {
-      if (path7 instanceof RegExp || path7 === "/") {
-        return path7;
+    function loosen(path6) {
+      if (path6 instanceof RegExp || path6 === "/") {
+        return path6;
       }
-      return Array.isArray(path7) ? path7.map(function(p2) {
+      return Array.isArray(path6) ? path6.map(function(p2) {
         return loosen(p2);
-      }) : String(path7).replace(TRAILING_SLASH_REGEXP, "");
+      }) : String(path6).replace(TRAILING_SLASH_REGEXP, "");
     }
   }
 });
@@ -20881,9 +20881,9 @@ var require_route = __commonJS({
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
     module.exports = Route;
-    function Route(path7) {
-      debug("new %o", path7);
-      this.path = path7;
+    function Route(path6) {
+      debug("new %o", path6);
+      this.path = path6;
       this.stack = [];
       this.methods = /* @__PURE__ */ Object.create(null);
     }
@@ -21091,8 +21091,8 @@ var require_router = __commonJS({
         if (++sync > 100) {
           return setImmediate(next, err);
         }
-        const path7 = getPathname(req);
-        if (path7 == null) {
+        const path6 = getPathname(req);
+        if (path6 == null) {
           return done(layerError);
         }
         let layer;
@@ -21100,7 +21100,7 @@ var require_router = __commonJS({
         let route;
         while (match !== true && idx < stack.length) {
           layer = stack[idx++];
-          match = matchLayer(layer, path7);
+          match = matchLayer(layer, path6);
           route = layer.route;
           if (typeof match !== "boolean") {
             layerError = layerError || match;
@@ -21138,18 +21138,18 @@ var require_router = __commonJS({
           } else if (route) {
             layer.handleRequest(req, res, next);
           } else {
-            trimPrefix(layer, layerError, layerPath, path7);
+            trimPrefix(layer, layerError, layerPath, path6);
           }
           sync = 0;
         });
       }
-      function trimPrefix(layer, layerError, layerPath, path7) {
+      function trimPrefix(layer, layerError, layerPath, path6) {
         if (layerPath.length !== 0) {
-          if (layerPath !== path7.substring(0, layerPath.length)) {
+          if (layerPath !== path6.substring(0, layerPath.length)) {
             next(layerError);
             return;
           }
-          const c = path7[layerPath.length];
+          const c = path6[layerPath.length];
           if (c && c !== "/") {
             next(layerError);
             return;
@@ -21173,7 +21173,7 @@ var require_router = __commonJS({
     };
     Router2.prototype.use = function use(handler) {
       let offset = 0;
-      let path7 = "/";
+      let path6 = "/";
       if (typeof handler !== "function") {
         let arg = handler;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -21181,7 +21181,7 @@ var require_router = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path7 = handler;
+          path6 = handler;
         }
       }
       const callbacks = flatten.call(slice.call(arguments, offset), Infinity);
@@ -21193,8 +21193,8 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("argument handler must be a function");
         }
-        debug("use %o %s", path7, fn.name || "<anonymous>");
-        const layer = new Layer(path7, {
+        debug("use %o %s", path6, fn.name || "<anonymous>");
+        const layer = new Layer(path6, {
           sensitive: this.caseSensitive,
           strict: false,
           end: false
@@ -21204,9 +21204,9 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router2.prototype.route = function route(path7) {
-      const route2 = new Route(path7);
-      const layer = new Layer(path7, {
+    Router2.prototype.route = function route(path6) {
+      const route2 = new Route(path6);
+      const layer = new Layer(path6, {
         sensitive: this.caseSensitive,
         strict: this.strict,
         end: true
@@ -21219,8 +21219,8 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router2.prototype[method] = function(path7) {
-        const route = this.route(path7);
+      Router2.prototype[method] = function(path6) {
+        const route = this.route(path6);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
@@ -21249,9 +21249,9 @@ var require_router = __commonJS({
       const fqdnIndex = url2.substring(0, pathLength).indexOf("://");
       return fqdnIndex !== -1 ? url2.substring(0, url2.indexOf("/", 3 + fqdnIndex)) : void 0;
     }
-    function matchLayer(layer, path7) {
+    function matchLayer(layer, path6) {
       try {
-        return layer.match(path7);
+        return layer.match(path6);
       } catch (err) {
         return err;
       }
@@ -21479,7 +21479,7 @@ var require_application = __commonJS({
     };
     app2.use = function use(fn) {
       var offset = 0;
-      var path7 = "/";
+      var path6 = "/";
       if (typeof fn !== "function") {
         var arg = fn;
         while (Array.isArray(arg) && arg.length !== 0) {
@@ -21487,7 +21487,7 @@ var require_application = __commonJS({
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path7 = fn;
+          path6 = fn;
         }
       }
       var fns = flatten.call(slice.call(arguments, offset), Infinity);
@@ -21497,12 +21497,12 @@ var require_application = __commonJS({
       var router = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router.use(path7, fn2);
+          return router.use(path6, fn2);
         }
-        debug(".use app under %s", path7);
-        fn2.mountpath = path7;
+        debug(".use app under %s", path6);
+        fn2.mountpath = path6;
         fn2.parent = this;
-        router.use(path7, function mounted_app(req, res, next) {
+        router.use(path6, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -21514,8 +21514,8 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path7) {
-      return this.router.route(path7);
+    app2.route = function route(path6) {
+      return this.router.route(path6);
     };
     app2.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
@@ -21558,7 +21558,7 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path7() {
+    app2.path = function path6() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
     app2.enabled = function enabled(setting) {
@@ -21574,17 +21574,17 @@ var require_application = __commonJS({
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path7) {
+      app2[method] = function(path6) {
         if (method === "get" && arguments.length === 1) {
-          return this.set(path7);
+          return this.set(path6);
         }
-        var route = this.route(path7);
+        var route = this.route(path6);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
       };
     });
-    app2.all = function all3(path7) {
-      var route = this.route(path7);
+    app2.all = function all3(path6) {
+      var route = this.route(path6);
       var args = slice.call(arguments, 1);
       for (var i = 0; i < methods.length; i++) {
         route[methods[i]].apply(route, args);
@@ -22569,7 +22569,7 @@ var require_request = __commonJS({
       var subdomains2 = !isIP(hostname) ? hostname.split(".").reverse() : [hostname];
       return subdomains2.slice(offset);
     });
-    defineGetter(req, "path", function path7() {
+    defineGetter(req, "path", function path6() {
       return parse2(this).pathname;
     });
     defineGetter(req, "host", function host() {
@@ -22780,8 +22780,8 @@ var require_content_disposition = __commonJS({
       this.type = type;
       this.parameters = parameters;
     }
-    function basename(path7) {
-      const normalized2 = path7.replaceAll("\\", "/");
+    function basename(path6) {
+      const normalized2 = path6.replaceAll("\\", "/");
       let end = normalized2.length;
       while (end > 0 && normalized2[end - 1] === "/") {
         end--;
@@ -23022,32 +23022,32 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs9 = __require("fs");
+    var fs8 = __require("fs");
     var mime = require_mime_types();
     var ms = require_ms();
     var onFinished = require_on_finished();
     var parseRange = require_range_parser();
-    var path7 = __require("path");
+    var path6 = __require("path");
     var statuses = require_statuses();
     var Stream2 = __require("stream");
     var util6 = __require("util");
-    var extname = path7.extname;
-    var join = path7.join;
-    var normalize = path7.normalize;
-    var resolve3 = path7.resolve;
-    var sep = path7.sep;
+    var extname = path6.extname;
+    var join = path6.join;
+    var normalize = path6.normalize;
+    var resolve3 = path6.resolve;
+    var sep = path6.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
     module.exports = send;
-    function send(req, path8, options) {
-      return new SendStream(req, path8, options);
+    function send(req, path7, options) {
+      return new SendStream(req, path7, options);
     }
-    function SendStream(req, path8, options) {
+    function SendStream(req, path7, options) {
       Stream2.call(this);
       var opts = options || {};
       this.options = opts;
-      this.path = path8;
+      this.path = path7;
       this.req = req;
       this._acceptRanges = opts.acceptRanges !== void 0 ? Boolean(opts.acceptRanges) : true;
       this._cacheControl = opts.cacheControl !== void 0 ? Boolean(opts.cacheControl) : true;
@@ -23161,10 +23161,10 @@ var require_send = __commonJS({
       var lastModified = this.res.getHeader("Last-Modified");
       return parseHttpDate(lastModified) <= parseHttpDate(ifRange);
     };
-    SendStream.prototype.redirect = function redirect(path8) {
+    SendStream.prototype.redirect = function redirect(path7) {
       var res = this.res;
       if (hasListeners(this, "directory")) {
-        this.emit("directory", res, path8);
+        this.emit("directory", res, path7);
         return;
       }
       if (this.hasTrailingSlash()) {
@@ -23184,38 +23184,38 @@ var require_send = __commonJS({
     SendStream.prototype.pipe = function pipe(res) {
       var root = this._root;
       this.res = res;
-      var path8 = decode2(this.path);
-      if (path8 === -1) {
+      var path7 = decode2(this.path);
+      if (path7 === -1) {
         this.error(400);
         return res;
       }
-      if (~path8.indexOf("\0")) {
+      if (~path7.indexOf("\0")) {
         this.error(400);
         return res;
       }
       var parts;
       if (root !== null) {
-        if (path8) {
-          path8 = normalize("." + sep + path8);
+        if (path7) {
+          path7 = normalize("." + sep + path7);
         }
-        if (UP_PATH_REGEXP.test(path8)) {
-          debug('malicious path "%s"', path8);
+        if (UP_PATH_REGEXP.test(path7)) {
+          debug('malicious path "%s"', path7);
           this.error(403);
           return res;
         }
-        parts = path8.split(sep);
-        path8 = normalize(join(root, path8));
+        parts = path7.split(sep);
+        path7 = normalize(join(root, path7));
       } else {
-        if (UP_PATH_REGEXP.test(path8)) {
-          debug('malicious path "%s"', path8);
+        if (UP_PATH_REGEXP.test(path7)) {
+          debug('malicious path "%s"', path7);
           this.error(403);
           return res;
         }
-        parts = normalize(path8).split(sep);
-        path8 = resolve3(path8);
+        parts = normalize(path7).split(sep);
+        path7 = resolve3(path7);
       }
       if (containsDotFile(parts)) {
-        debug('%s dotfile "%s"', this._dotfiles, path8);
+        debug('%s dotfile "%s"', this._dotfiles, path7);
         switch (this._dotfiles) {
           case "allow":
             break;
@@ -23229,13 +23229,13 @@ var require_send = __commonJS({
         }
       }
       if (this._index.length && this.hasTrailingSlash()) {
-        this.sendIndex(path8);
+        this.sendIndex(path7);
         return res;
       }
-      this.sendFile(path8);
+      this.sendFile(path7);
       return res;
     };
-    SendStream.prototype.send = function send2(path8, stat) {
+    SendStream.prototype.send = function send2(path7, stat) {
       var len = stat.size;
       var options = this.options;
       var opts = {};
@@ -23247,9 +23247,9 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path8);
-      this.setHeader(path8, stat);
-      this.type(path8);
+      debug('pipe "%s"', path7);
+      this.setHeader(path7, stat);
+      this.type(path7);
       if (this.isConditionalGET()) {
         if (this.isPreconditionFailure()) {
           this.error(412);
@@ -23298,30 +23298,30 @@ var require_send = __commonJS({
         res.end();
         return;
       }
-      this.stream(path8, opts);
+      this.stream(path7, opts);
     };
-    SendStream.prototype.sendFile = function sendFile(path8) {
+    SendStream.prototype.sendFile = function sendFile(path7) {
       var i = 0;
       var self2 = this;
-      debug('stat "%s"', path8);
-      fs9.stat(path8, function onstat(err, stat) {
-        var pathEndsWithSep = path8[path8.length - 1] === sep;
-        if (err && err.code === "ENOENT" && !extname(path8) && !pathEndsWithSep) {
+      debug('stat "%s"', path7);
+      fs8.stat(path7, function onstat(err, stat) {
+        var pathEndsWithSep = path7[path7.length - 1] === sep;
+        if (err && err.code === "ENOENT" && !extname(path7) && !pathEndsWithSep) {
           return next(err);
         }
         if (err) return self2.onStatError(err);
-        if (stat.isDirectory()) return self2.redirect(path8);
+        if (stat.isDirectory()) return self2.redirect(path7);
         if (pathEndsWithSep) return self2.error(404);
-        self2.emit("file", path8, stat);
-        self2.send(path8, stat);
+        self2.emit("file", path7, stat);
+        self2.send(path7, stat);
       });
       function next(err) {
         if (self2._extensions.length <= i) {
           return err ? self2.onStatError(err) : self2.error(404);
         }
-        var p2 = path8 + "." + self2._extensions[i++];
+        var p2 = path7 + "." + self2._extensions[i++];
         debug('stat "%s"', p2);
-        fs9.stat(p2, function(err2, stat) {
+        fs8.stat(p2, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self2.emit("file", p2, stat);
@@ -23329,7 +23329,7 @@ var require_send = __commonJS({
         });
       }
     };
-    SendStream.prototype.sendIndex = function sendIndex(path8) {
+    SendStream.prototype.sendIndex = function sendIndex(path7) {
       var i = -1;
       var self2 = this;
       function next(err) {
@@ -23337,9 +23337,9 @@ var require_send = __commonJS({
           if (err) return self2.onStatError(err);
           return self2.error(404);
         }
-        var p2 = join(path8, self2._index[i]);
+        var p2 = join(path7, self2._index[i]);
         debug('stat "%s"', p2);
-        fs9.stat(p2, function(err2, stat) {
+        fs8.stat(p2, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self2.emit("file", p2, stat);
@@ -23348,10 +23348,10 @@ var require_send = __commonJS({
       }
       next();
     };
-    SendStream.prototype.stream = function stream4(path8, options) {
+    SendStream.prototype.stream = function stream4(path7, options) {
       var self2 = this;
       var res = this.res;
-      var stream5 = fs9.createReadStream(path8, options);
+      var stream5 = fs8.createReadStream(path7, options);
       this.emit("stream", stream5);
       stream5.pipe(res);
       function cleanup() {
@@ -23366,17 +23366,17 @@ var require_send = __commonJS({
         self2.emit("end");
       });
     };
-    SendStream.prototype.type = function type(path8) {
+    SendStream.prototype.type = function type(path7) {
       var res = this.res;
       if (res.getHeader("Content-Type")) return;
-      var ext = extname(path8);
+      var ext = extname(path7);
       var type2 = mime.contentType(ext) || "application/octet-stream";
       debug("content-type %s", type2);
       res.setHeader("Content-Type", type2);
     };
-    SendStream.prototype.setHeader = function setHeader(path8, stat) {
+    SendStream.prototype.setHeader = function setHeader(path7, stat) {
       var res = this.res;
-      this.emit("headers", res, path8, stat);
+      this.emit("headers", res, path7, stat);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
         debug("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
@@ -23434,9 +23434,9 @@ var require_send = __commonJS({
       }
       return err instanceof Error ? createError(status, err, { expose: false }) : createError(status, err);
     }
-    function decode2(path8) {
+    function decode2(path7) {
       try {
-        return decodeURIComponent(path8);
+        return decodeURIComponent(path7);
       } catch (err) {
         return -1;
       }
@@ -23580,7 +23580,7 @@ var require_response = __commonJS({
     var http4 = __require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
-    var path7 = __require("node:path");
+    var path6 = __require("node:path");
     var pathIsAbsolute = __require("node:path").isAbsolute;
     var statuses = require_statuses();
     var sign2 = require_cookie_signature().sign;
@@ -23589,8 +23589,8 @@ var require_response = __commonJS({
     var setCharset = require_utils3().setCharset;
     var cookie = require_cookie();
     var send = require_send();
-    var extname = path7.extname;
-    var resolve3 = path7.resolve;
+    var extname = path6.extname;
+    var resolve3 = path6.resolve;
     var vary = require_vary();
     var { Buffer: Buffer2 } = __require("node:buffer");
     var res = Object.create(http4.ServerResponse.prototype);
@@ -23736,26 +23736,26 @@ var require_response = __commonJS({
       this.type("txt");
       return this.send(body);
     };
-    res.sendFile = function sendFile(path8, options, callback) {
+    res.sendFile = function sendFile(path7, options, callback) {
       var done = callback;
       var req = this.req;
       var res2 = this;
       var next = req.next;
       var opts = options || {};
-      if (!path8) {
+      if (!path7) {
         throw new TypeError("path argument is required to res.sendFile");
       }
-      if (typeof path8 !== "string") {
+      if (typeof path7 !== "string") {
         throw new TypeError("path must be a string to res.sendFile");
       }
       if (typeof options === "function") {
         done = options;
         opts = {};
       }
-      if (!opts.root && !pathIsAbsolute(path8)) {
+      if (!opts.root && !pathIsAbsolute(path7)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
-      var pathname = encodeURI(path8);
+      var pathname = encodeURI(path7);
       opts.etag = this.app.enabled("etag");
       var file = send(req, pathname, opts);
       sendfile(res2, file, opts, function(err) {
@@ -23766,7 +23766,7 @@ var require_response = __commonJS({
         }
       });
     };
-    res.download = function download(path8, filename, options, callback) {
+    res.download = function download(path7, filename, options, callback) {
       var done = callback;
       var name2 = filename;
       var opts = options || null;
@@ -23783,7 +23783,7 @@ var require_response = __commonJS({
         opts = filename;
       }
       var headers = {
-        "Content-Disposition": contentDisposition(name2 || path8)
+        "Content-Disposition": contentDisposition(name2 || path7)
       };
       if (opts && opts.headers) {
         var keys = Object.keys(opts.headers);
@@ -23796,7 +23796,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve3(path8) : path8;
+      var fullPath = !opts.root ? resolve3(path7) : path7;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -24079,11 +24079,11 @@ var require_serve_static = __commonJS({
         }
         var forwardError = !fallthrough;
         var originalUrl = parseUrl2.original(req);
-        var path7 = parseUrl2(req).pathname;
-        if (path7 === "/" && originalUrl.pathname.substr(-1) !== "/") {
-          path7 = "";
+        var path6 = parseUrl2(req).pathname;
+        if (path6 === "/" && originalUrl.pathname.substr(-1) !== "/") {
+          path6 = "";
         }
-        var stream4 = send(req, path7, opts);
+        var stream4 = send(req, path6, opts);
         stream4.on("directory", onDirectory);
         if (setHeaders) {
           stream4.on("headers", setHeaders);
@@ -24471,8 +24471,8 @@ var require_lib3 = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports, module) {
-    var fs9 = __require("fs");
-    var path7 = __require("path");
+    var fs8 = __require("fs");
+    var path6 = __require("path");
     var os4 = __require("os");
     var crypto17 = __require("crypto");
     var TIPS = [
@@ -24603,7 +24603,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs9.existsSync(filepath)) {
+            if (fs8.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -24611,15 +24611,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path7.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path6.resolve(process.cwd(), ".env.vault");
       }
-      if (fs9.existsSync(possibleVaultPath)) {
+      if (fs8.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path7.join(os4.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path6.join(os4.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -24636,7 +24636,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path7.resolve(process.cwd(), ".env");
+      const dotenvPath = path6.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -24664,13 +24664,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path8 of optionPaths) {
+      for (const path7 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs9.readFileSync(path8, { encoding }));
+          const parsed = DotenvModule.parse(fs8.readFileSync(path7, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`failed to load ${path8} ${e.message}`);
+            _debug(`failed to load ${path7} ${e.message}`);
           }
           lastError = e;
         }
@@ -24683,7 +24683,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path7.relative(process.cwd(), filePath);
+            const relative = path6.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -37447,11 +37447,11 @@ var require_mime_types2 = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path7) {
-      if (!path7 || typeof path7 !== "string") {
+    function lookup(path6) {
+      if (!path6 || typeof path6 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path7).toLowerCase().substr(1);
+      var extension2 = extname("x." + path6).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -37753,11 +37753,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util6 = __require("util");
-    var path7 = __require("path");
+    var path6 = __require("path");
     var http4 = __require("http");
     var https8 = __require("https");
     var parseUrl2 = __require("url").parse;
-    var fs9 = __require("fs");
+    var fs8 = __require("fs");
     var Stream2 = __require("stream").Stream;
     var crypto17 = __require("crypto");
     var mime = require_mime_types2();
@@ -37827,7 +37827,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs9.stat(value.path, function(err, stat) {
+          fs8.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -37884,11 +37884,11 @@ var require_form_data = __commonJS({
     FormData3.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path7.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path6.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path7.basename(options.filename || value && (value.name || value.path));
+        filename = path6.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn2(value, "httpVersion")) {
-        filename = path7.basename(value.client._httpMessage.path || "");
+        filename = path6.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + escapeHeaderParam(filename) + '"';
@@ -39058,15 +39058,15 @@ var require_follow_redirects = __commonJS({
 
 // src/server/standalone.ts
 var import_express3 = __toESM(require_express2(), 1);
-import path6 from "path";
-import fs8 from "fs";
+import path5 from "path";
+import fs7 from "fs";
 
 // src/server/index.ts
 var import_express2 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_dotenv2 = __toESM(require_main(), 1);
-import fs7 from "fs";
-import path5 from "path";
+import fs6 from "fs";
+import path4 from "path";
 
 // node_modules/bcryptjs/index.js
 import nodeCrypto from "crypto";
@@ -47195,11 +47195,11 @@ var Cookies = class {
   getPath(pathname) {
     const pathParts = (pathname || "/").split("/");
     pathParts.pop();
-    const path7 = pathParts.join("/").trim();
-    if (path7.charAt(0) !== "/") {
+    const path6 = pathParts.join("/").trim();
+    if (path6.charAt(0) !== "/") {
       return "/";
     }
-    return path7;
+    return path6;
   }
 };
 var cookies_default = Cookies;
@@ -59564,7 +59564,7 @@ async function getFlutterwaveSecretKey() {
   }
   return (process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim();
 }
-function callFlutterwaveApi(path7, method = "GET", data) {
+function callFlutterwaveApi(path6, method = "GET", data) {
   return new Promise(async (resolve3, reject) => {
     try {
       const secretKey = await getFlutterwaveSecretKey();
@@ -59573,7 +59573,7 @@ function callFlutterwaveApi(path7, method = "GET", data) {
         {
           hostname: "api.flutterwave.com",
           port: 443,
-          path: path7,
+          path: path6,
           method,
           headers: {
             "Content-Type": "application/json",
@@ -64853,9 +64853,9 @@ function isVisitable(thing) {
 function removeBrackets(key) {
   return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
 }
-function renderKey(path7, key, dots) {
-  if (!path7) return key;
-  return path7.concat(key).map(function each(token, i) {
+function renderKey(path6, key, dots) {
+  if (!path6) return key;
+  return path6.concat(key).map(function each(token, i) {
     token = removeBrackets(token);
     return !dots && i ? "[" + token + "]" : token;
   }).join(dots ? "." : "");
@@ -64936,13 +64936,13 @@ function toFormData(obj, formData, options) {
       return currentValue;
     });
   }
-  function defaultVisitor(value, key, path7) {
+  function defaultVisitor(value, key, path6) {
     let arr = value;
     if (utils_default.isReactNative(formData) && utils_default.isReactNativeBlob(value)) {
-      formData.append(renderKey(path7, key, dots), convertValue(value));
+      formData.append(renderKey(path6, key, dots), convertValue(value));
       return false;
     }
-    if (value && !path7 && typeof value === "object") {
+    if (value && !path6 && typeof value === "object") {
       if (utils_default.endsWith(key, "{}")) {
         key = metaTokens ? key : key.slice(0, -2);
         value = stringifyWithDepthLimit(value, 1);
@@ -64961,7 +64961,7 @@ function toFormData(obj, formData, options) {
     if (isVisitable(value)) {
       return true;
     }
-    formData.append(renderKey(path7, key, dots), convertValue(value));
+    formData.append(renderKey(path6, key, dots), convertValue(value));
     return false;
   }
   const exposedHelpers = Object.assign(predicates, {
@@ -64969,17 +64969,17 @@ function toFormData(obj, formData, options) {
     convertValue,
     isVisitable
   });
-  function build(value, path7, depth = 0) {
+  function build(value, path6, depth = 0) {
     if (utils_default.isUndefined(value)) return;
     throwIfMaxDepthExceeded(depth);
     if (stack.indexOf(value) !== -1) {
-      throw new Error("Circular reference detected in " + path7.join("."));
+      throw new Error("Circular reference detected in " + path6.join("."));
     }
     stack.push(value);
     utils_default.forEach(value, function each(el, key) {
-      const result = !(utils_default.isUndefined(el) || el === null) && visitor.call(formData, el, utils_default.isString(key) ? key.trim() : key, path7, exposedHelpers);
+      const result = !(utils_default.isUndefined(el) || el === null) && visitor.call(formData, el, utils_default.isString(key) ? key.trim() : key, path6, exposedHelpers);
       if (result === true) {
-        build(el, path7 ? path7.concat(key) : [key], depth + 1);
+        build(el, path6 ? path6.concat(key) : [key], depth + 1);
       }
     });
     stack.pop();
@@ -65264,7 +65264,7 @@ var platform_default = {
 // node_modules/axios/lib/helpers/toURLEncodedForm.js
 function toURLEncodedForm(data, options) {
   return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
-    visitor: function(value, key, path7, helpers) {
+    visitor: function(value, key, path6, helpers) {
       if (platform_default.isNode && utils_default.isBuffer(value)) {
         this.append(key, value.toString("base64"));
         return false;
@@ -65286,14 +65286,14 @@ function throwIfDepthExceeded(index) {
   }
 }
 function parsePropPath(name2) {
-  const path7 = [];
+  const path6 = [];
   const pattern = /[^.[\]]+|\[([^.[\]]*)]/g;
   let match;
   while ((match = pattern.exec(name2)) !== null) {
-    throwIfDepthExceeded(path7.length);
-    path7.push(match[0] === "[]" ? "" : match[1] || match[0]);
+    throwIfDepthExceeded(path6.length);
+    path6.push(match[0] === "[]" ? "" : match[1] || match[0]);
   }
-  return path7;
+  return path6;
 }
 function arrayToObject(arr) {
   const obj = {};
@@ -65308,12 +65308,12 @@ function arrayToObject(arr) {
   return obj;
 }
 function formDataToJSON(formData) {
-  function buildPath(path7, value, target, index) {
+  function buildPath(path6, value, target, index) {
     throwIfDepthExceeded(index);
-    let name2 = path7[index++];
+    let name2 = path6[index++];
     if (name2 === "__proto__") return true;
     const isNumericKey = Number.isFinite(+name2);
-    const isLast = index >= path7.length;
+    const isLast = index >= path6.length;
     name2 = !name2 && utils_default.isArray(target) ? target.length : name2;
     if (isLast) {
       if (utils_default.hasOwnProp(target, name2)) {
@@ -65326,7 +65326,7 @@ function formDataToJSON(formData) {
     if (!utils_default.hasOwnProp(target, name2) || !utils_default.isObject(target[name2])) {
       target[name2] = [];
     }
-    const result = buildPath(path7, value, target[name2], index);
+    const result = buildPath(path6, value, target[name2], index);
     if (result && utils_default.isArray(target[name2])) {
       target[name2] = arrayToObject(target[name2]);
     }
@@ -67230,9 +67230,9 @@ var http_default = isHttpAdapterSupported && function httpAdapter(config) {
       auth = urlUsername + ":" + urlPassword;
     }
     auth && headers.delete("authorization");
-    let path7;
+    let path6;
     try {
-      path7 = buildURL(
+      path6 = buildURL(
         parsed.pathname + parsed.search,
         own2("params"),
         own2("paramsSerializer")
@@ -67254,7 +67254,7 @@ var http_default = isHttpAdapterSupported && function httpAdapter(config) {
       http2Options = Object.assign(/* @__PURE__ */ Object.create(null), http2Options, { lookup });
     }
     const options = Object.assign(/* @__PURE__ */ Object.create(null), {
-      path: path7,
+      path: path6,
       method,
       headers: toByteStringHeaderObject(headers),
       agents: { http: httpAgent, https: httpsAgent },
@@ -67670,14 +67670,14 @@ var isURLSameOrigin_default = platform_default.hasStandardBrowserEnv ? /* @__PUR
 var cookies_default2 = platform_default.hasStandardBrowserEnv ? (
   // Standard browser envs support document.cookie
   {
-    write(name2, value, expires, path7, domain, secure, sameSite) {
+    write(name2, value, expires, path6, domain, secure, sameSite) {
       if (typeof document === "undefined") return;
       const cookie = [`${name2}=${encodeURIComponent(value)}`];
       if (utils_default.isNumber(expires)) {
         cookie.push(`expires=${new Date(expires).toUTCString()}`);
       }
-      if (utils_default.isString(path7)) {
-        cookie.push(`path=${path7}`);
+      if (utils_default.isString(path6)) {
+        cookie.push(`path=${path6}`);
       }
       if (utils_default.isString(domain)) {
         cookie.push(`domain=${domain}`);
@@ -69538,8 +69538,459 @@ var CoolifyAdapter = class {
   }
 };
 
+// src/server/db/initCloudDb.ts
+var INITIAL_CLOUD_PLANS = [
+  {
+    id: "free-trial",
+    name: "Free Developer Trial",
+    slug: "free-trial",
+    description: "Full unconstrained testing access for 2 months. Build, launch, and experiment without limits.",
+    price_rwf: 0,
+    billing_cycle: "trial",
+    is_trial: true,
+    trial_duration_days: 60,
+    max_apps: -1,
+    vcpu_limit: -1,
+    ram_mb: 1024,
+    storage_gb: 1,
+    max_databases: 3,
+    custom_domains_allowed: 0,
+    has_free_ssl: true,
+    has_backups: false,
+    has_priority_support: false,
+    is_active: true,
+    sort_order: 1
+  },
+  {
+    id: "starter",
+    name: "Starter Cloud",
+    slug: "starter",
+    description: "Perfect for small sites, hobby projects, and lightweight web APIs.",
+    price_rwf: 1500,
+    billing_cycle: "monthly",
+    is_trial: false,
+    trial_duration_days: 0,
+    max_apps: 1,
+    vcpu_limit: 0.5,
+    ram_mb: 512,
+    storage_gb: 5,
+    max_databases: 1,
+    custom_domains_allowed: 1,
+    has_free_ssl: true,
+    has_backups: false,
+    has_priority_support: false,
+    is_active: true,
+    sort_order: 2
+  },
+  {
+    id: "basic",
+    name: "Basic Cloud",
+    slug: "basic",
+    description: "Ideal for freelance projects, growing websites, and client prototypes.",
+    price_rwf: 3e3,
+    billing_cycle: "monthly",
+    is_trial: false,
+    trial_duration_days: 0,
+    max_apps: 3,
+    vcpu_limit: 1,
+    ram_mb: 1024,
+    storage_gb: 15,
+    max_databases: 2,
+    custom_domains_allowed: 3,
+    has_free_ssl: true,
+    has_backups: true,
+    has_priority_support: false,
+    is_active: true,
+    sort_order: 3
+  },
+  {
+    id: "pro",
+    name: "Pro Cloud",
+    slug: "pro",
+    description: "Built for production web apps, e-commerce, and high-traffic APIs with automated backups.",
+    price_rwf: 4500,
+    billing_cycle: "monthly",
+    is_trial: false,
+    trial_duration_days: 0,
+    max_apps: 8,
+    vcpu_limit: 2,
+    ram_mb: 2048,
+    storage_gb: 35,
+    max_databases: 5,
+    custom_domains_allowed: -1,
+    has_free_ssl: true,
+    has_backups: true,
+    has_priority_support: false,
+    is_active: true,
+    sort_order: 4
+  },
+  {
+    id: "business",
+    name: "Business Cloud",
+    slug: "business",
+    description: "Maximum power with priority support, dedicated scaling, and unlimited deployments.",
+    price_rwf: 8e3,
+    billing_cycle: "monthly",
+    is_trial: false,
+    trial_duration_days: 0,
+    max_apps: -1,
+    vcpu_limit: 4,
+    ram_mb: 4096,
+    storage_gb: 80,
+    max_databases: -1,
+    custom_domains_allowed: -1,
+    has_free_ssl: true,
+    has_backups: true,
+    has_priority_support: true,
+    is_active: true,
+    sort_order: 5
+  }
+];
+var DDL_STATEMENTS = [
+  // 1. wallet_manual_deposits
+  `CREATE TABLE IF NOT EXISTS wallet_manual_deposits (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    user_email VARCHAR(255),
+    user_name VARCHAR(255),
+    amount NUMERIC(15,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'RWF',
+    payment_method VARCHAR(50) DEFAULT 'MTN_MOMO',
+    sender_phone VARCHAR(50) NOT NULL,
+    transaction_reference VARCHAR(255) NOT NULL,
+    proof_image_url TEXT,
+    notes TEXT,
+    status VARCHAR(50) DEFAULT 'pending',
+    admin_id VARCHAR(255),
+    admin_notes TEXT,
+    rejection_reason TEXT,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_manual_deposits_status ON wallet_manual_deposits(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_manual_deposits_user ON wallet_manual_deposits(user_id)`,
+  // 2. cloud_plans
+  `CREATE TABLE IF NOT EXISTS cloud_plans (
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    price_rwf NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    billing_cycle VARCHAR(50) DEFAULT 'monthly',
+    is_trial BOOLEAN DEFAULT false,
+    trial_duration_days INT DEFAULT 60,
+    max_apps INT DEFAULT 1,
+    vcpu_limit NUMERIC(5,2) DEFAULT 1.0,
+    ram_mb INT DEFAULT 1024,
+    storage_gb INT DEFAULT 5,
+    max_databases INT DEFAULT 1,
+    custom_domains_allowed INT DEFAULT 1,
+    has_free_ssl BOOLEAN DEFAULT true,
+    has_backups BOOLEAN DEFAULT false,
+    has_priority_support BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // 3. cloud_servers
+  `CREATE TABLE IF NOT EXISTS cloud_servers (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    provider VARCHAR(100) DEFAULT 'Ubuntu VPS',
+    public_ip VARCHAR(100) NOT NULL,
+    ssh_port INT DEFAULT 22,
+    region VARCHAR(100) DEFAULT 'Europe / Germany',
+    os VARCHAR(100) DEFAULT 'Ubuntu 22.04 LTS',
+    deployment_engine VARCHAR(100) DEFAULT 'coolify',
+    coolify_api_url VARCHAR(500),
+    coolify_api_token_encrypted TEXT,
+    cpu_cores INT DEFAULT 4,
+    ram_total_mb INT DEFAULT 8192,
+    disk_total_gb INT DEFAULT 160,
+    cpu_usage_percent NUMERIC(5,2) DEFAULT 0.00,
+    ram_usage_mb INT DEFAULT 0,
+    disk_usage_gb INT DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'healthy',
+    is_maintenance BOOLEAN DEFAULT false,
+    is_enabled_for_deployments BOOLEAN DEFAULT true,
+    hosted_apps_count INT DEFAULT 0,
+    last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // 4. cloud_subscriptions
+  `CREATE TABLE IF NOT EXISTS cloud_subscriptions (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    plan_id VARCHAR(100) REFERENCES cloud_plans(id),
+    status VARCHAR(50) DEFAULT 'active',
+    is_trial BOOLEAN DEFAULT false,
+    trial_end_date TIMESTAMP WITH TIME ZONE,
+    current_period_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    current_period_end TIMESTAMP WITH TIME ZONE NOT NULL,
+    auto_renew BOOLEAN DEFAULT true,
+    last_payment_tx_id VARCHAR(255),
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_cloud_sub_user ON cloud_subscriptions(user_id)`,
+  // cloud_user_meta
+  `CREATE TABLE IF NOT EXISTS cloud_user_meta (
+    user_id VARCHAR(255) PRIMARY KEY,
+    trial_used BOOLEAN DEFAULT false,
+    trial_started_at TIMESTAMP WITH TIME ZONE,
+    preferred_currency VARCHAR(10) DEFAULT 'RWF',
+    country VARCHAR(100) DEFAULT 'Rwanda',
+    country_code VARCHAR(10) DEFAULT 'RW',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // 5. cloud_projects
+  `CREATE TABLE IF NOT EXISTS cloud_projects (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_cloud_proj_user ON cloud_projects(user_id)`,
+  // 6. cloud_deployments
+  `CREATE TABLE IF NOT EXISTS cloud_deployments (
+    id VARCHAR(255) PRIMARY KEY,
+    project_id VARCHAR(255),
+    user_id VARCHAR(255) NOT NULL,
+    server_id VARCHAR(255),
+    name VARCHAR(255) NOT NULL,
+    framework VARCHAR(100) DEFAULT 'nodejs',
+    source_type VARCHAR(50) NOT NULL,
+    git_repo_url VARCHAR(500),
+    git_branch VARCHAR(100) DEFAULT 'main',
+    git_commit_hash VARCHAR(100),
+    zip_storage_path VARCHAR(500),
+    zip_original_name VARCHAR(255),
+    zip_size_bytes BIGINT,
+    build_command TEXT,
+    start_command TEXT,
+    internal_port INT DEFAULT 3000,
+    exposed_port INT,
+    env_variables TEXT,
+    status VARCHAR(50) DEFAULT 'running',
+    coolify_app_uuid VARCHAR(255),
+    container_id VARCHAR(255),
+    live_url VARCHAR(500),
+    assigned_subdomain VARCHAR(255),
+    cpu_limit NUMERIC(5,2),
+    ram_limit_mb INT,
+    last_deployed_at TIMESTAMP WITH TIME ZONE,
+    last_logs TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_cloud_dep_user ON cloud_deployments(user_id)`,
+  // 7. cloud_databases
+  `CREATE TABLE IF NOT EXISTS cloud_databases (
+    id VARCHAR(255) PRIMARY KEY,
+    project_id VARCHAR(255),
+    user_id VARCHAR(255) NOT NULL,
+    server_id VARCHAR(255),
+    name VARCHAR(255) NOT NULL,
+    engine VARCHAR(50) NOT NULL,
+    version VARCHAR(50) DEFAULT 'latest',
+    db_name VARCHAR(100) NOT NULL,
+    db_user VARCHAR(100) NOT NULL,
+    db_password_encrypted TEXT NOT NULL,
+    internal_port INT NOT NULL,
+    host_port INT,
+    connection_uri_masked TEXT,
+    coolify_db_uuid VARCHAR(255),
+    container_id VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'running',
+    storage_used_mb INT DEFAULT 0,
+    last_backup_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_cloud_db_user ON cloud_databases(user_id)`,
+  // 8. cloud_domains
+  `CREATE TABLE IF NOT EXISTS cloud_domains (
+    id VARCHAR(255) PRIMARY KEY,
+    deployment_id VARCHAR(255),
+    user_id VARCHAR(255) NOT NULL,
+    domain_name VARCHAR(255) UNIQUE NOT NULL,
+    is_custom BOOLEAN DEFAULT true,
+    verification_token VARCHAR(255) NOT NULL,
+    dns_verified BOOLEAN DEFAULT false,
+    ssl_status VARCHAR(50) DEFAULT 'active',
+    ssl_issuer VARCHAR(100) DEFAULT 'Let''s Encrypt',
+    ssl_expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // 9. cloud_tickets & messages
+  `CREATE TABLE IF NOT EXISTS cloud_tickets (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    department VARCHAR(100) DEFAULT 'Technical Support',
+    priority VARCHAR(50) DEFAULT 'normal',
+    status VARCHAR(50) DEFAULT 'open',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS cloud_ticket_messages (
+    id VARCHAR(255) PRIMARY KEY,
+    ticket_id VARCHAR(255),
+    sender_id VARCHAR(255) NOT NULL,
+    sender_name VARCHAR(255) NOT NULL,
+    sender_role VARCHAR(50) DEFAULT 'customer',
+    message TEXT NOT NULL,
+    attachment_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+  // 10. cloud_audit_logs
+  `CREATE TABLE IF NOT EXISTS cloud_audit_logs (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255),
+    actor_name VARCHAR(255),
+    actor_role VARCHAR(50),
+    action VARCHAR(100) NOT NULL,
+    target_type VARCHAR(100),
+    target_id VARCHAR(255),
+    ip_address VARCHAR(100),
+    details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`
+];
+async function initCloudDb() {
+  try {
+    for (const stmt of DDL_STATEMENTS) {
+      try {
+        await query(stmt);
+      } catch (err) {
+        console.warn("DDL statement warning:", err.message);
+      }
+    }
+    const alterStatements = [
+      `ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS proof_image_url TEXT`,
+      `ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS rejection_reason TEXT`,
+      `ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS admin_id VARCHAR(255)`,
+      `ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE`,
+      `ALTER TABLE cloud_plans ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT false`,
+      `ALTER TABLE cloud_plans ADD COLUMN IF NOT EXISTS trial_duration_days INT DEFAULT 60`,
+      `ALTER TABLE cloud_plans ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0`,
+      `ALTER TABLE cloud_subscriptions ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT false`,
+      `ALTER TABLE cloud_subscriptions ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMP WITH TIME ZONE`,
+      `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS coolify_api_url VARCHAR(500)`,
+      `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS coolify_api_token_encrypted TEXT`,
+      `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS is_enabled_for_deployments BOOLEAN DEFAULT true`
+    ];
+    for (const alter of alterStatements) {
+      try {
+        await query(alter);
+      } catch {
+      }
+    }
+    for (const plan of INITIAL_CLOUD_PLANS) {
+      await query(
+        `INSERT INTO cloud_plans (
+          id, name, slug, description, price_rwf, billing_cycle, is_trial, trial_duration_days,
+          max_apps, vcpu_limit, ram_mb, storage_gb, max_databases, custom_domains_allowed,
+          has_free_ssl, has_backups, has_priority_support, is_active, sort_order
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+        ) ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          price_rwf = EXCLUDED.price_rwf,
+          is_trial = EXCLUDED.is_trial,
+          trial_duration_days = EXCLUDED.trial_duration_days,
+          max_apps = EXCLUDED.max_apps,
+          vcpu_limit = EXCLUDED.vcpu_limit,
+          ram_mb = EXCLUDED.ram_mb,
+          storage_gb = EXCLUDED.storage_gb,
+          max_databases = EXCLUDED.max_databases,
+          custom_domains_allowed = EXCLUDED.custom_domains_allowed,
+          has_free_ssl = EXCLUDED.has_free_ssl,
+          has_backups = EXCLUDED.has_backups,
+          has_priority_support = EXCLUDED.has_priority_support,
+          sort_order = EXCLUDED.sort_order,
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          plan.id,
+          plan.name,
+          plan.slug,
+          plan.description,
+          plan.price_rwf,
+          plan.billing_cycle,
+          plan.is_trial,
+          plan.trial_duration_days,
+          plan.max_apps,
+          plan.vcpu_limit,
+          plan.ram_mb,
+          plan.storage_gb,
+          plan.max_databases,
+          plan.custom_domains_allowed,
+          plan.has_free_ssl,
+          plan.has_backups,
+          plan.has_priority_support,
+          plan.is_active,
+          plan.sort_order
+        ]
+      );
+    }
+    const serverCheck = await query("SELECT id FROM cloud_servers LIMIT 1");
+    if (serverCheck.rowCount === 0) {
+      await query(
+        `INSERT INTO cloud_servers (
+          id, name, provider, public_ip, ssh_port, region, os, deployment_engine,
+          cpu_cores, ram_total_mb, disk_total_gb, status, is_maintenance, is_enabled_for_deployments, hosted_apps_count
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+        ) ON CONFLICT (id) DO NOTHING`,
+        [
+          "srv-primary-01",
+          "Primary Production VPS Node (Ubuntu)",
+          "NebeluRw Cloud Infrastructure",
+          "127.0.0.1",
+          22,
+          "Germany (Frankfurt / Nuremberg)",
+          "Ubuntu 22.04 LTS (Jammy)",
+          "coolify",
+          4,
+          8192,
+          160,
+          "healthy",
+          false,
+          true,
+          0
+        ]
+      );
+    }
+    console.log("\u2601\uFE0F [Benix Cloud] Database schema and initial plans verified successfully!");
+  } catch (error2) {
+    console.error("\u274C [Benix Cloud] Database initialization error:", error2.message);
+  }
+}
+
 // src/server/routes/cloudRoutes.ts
 var cloudRouter = (0, import_express.Router)();
+var isCloudDbReady = false;
+cloudRouter.use(async (req, res, next) => {
+  if (!isCloudDbReady) {
+    try {
+      await initCloudDb();
+      isCloudDbReady = true;
+    } catch (e) {
+      console.warn("Auto cloud db init warning:", e?.message);
+    }
+  }
+  next();
+});
 cloudRouter.get("/plans", async (req, res) => {
   try {
     const result = await query(
@@ -70201,237 +70652,6 @@ cloudRouter.put("/admin/plans/:id", authenticateToken, requireAdminRole, async (
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// src/server/db/initCloudDb.ts
-import fs6 from "fs";
-import path4 from "path";
-var INITIAL_CLOUD_PLANS = [
-  {
-    id: "free-trial",
-    name: "Free Developer Trial",
-    slug: "free-trial",
-    description: "Full unconstrained testing access for 2 months. Build, launch, and experiment without limits.",
-    price_rwf: 0,
-    billing_cycle: "trial",
-    is_trial: true,
-    trial_duration_days: 60,
-    max_apps: -1,
-    // Unlimited access
-    vcpu_limit: -1,
-    // Unlimited CPU
-    ram_mb: 1024,
-    storage_gb: 1,
-    // 1 GB SSD
-    max_databases: 3,
-    // 3 managed databases
-    custom_domains_allowed: 0,
-    has_free_ssl: true,
-    has_backups: false,
-    has_priority_support: false,
-    is_active: true,
-    sort_order: 1
-  },
-  {
-    id: "starter",
-    name: "Starter Cloud",
-    slug: "starter",
-    description: "Perfect for small sites, hobby projects, and lightweight web APIs.",
-    price_rwf: 1500,
-    billing_cycle: "monthly",
-    is_trial: false,
-    trial_duration_days: 0,
-    max_apps: 1,
-    vcpu_limit: 0.5,
-    ram_mb: 512,
-    storage_gb: 5,
-    max_databases: 1,
-    custom_domains_allowed: 1,
-    has_free_ssl: true,
-    has_backups: false,
-    has_priority_support: false,
-    is_active: true,
-    sort_order: 2
-  },
-  {
-    id: "basic",
-    name: "Basic Cloud",
-    slug: "basic",
-    description: "Ideal for freelance projects, growing websites, and client prototypes.",
-    price_rwf: 3e3,
-    billing_cycle: "monthly",
-    is_trial: false,
-    trial_duration_days: 0,
-    max_apps: 3,
-    vcpu_limit: 1,
-    ram_mb: 1024,
-    storage_gb: 15,
-    max_databases: 2,
-    custom_domains_allowed: 3,
-    has_free_ssl: true,
-    has_backups: true,
-    has_priority_support: false,
-    is_active: true,
-    sort_order: 3
-  },
-  {
-    id: "pro",
-    name: "Pro Cloud",
-    slug: "pro",
-    description: "Built for production web apps, e-commerce, and high-traffic APIs with automated backups.",
-    price_rwf: 4500,
-    billing_cycle: "monthly",
-    is_trial: false,
-    trial_duration_days: 0,
-    max_apps: 8,
-    vcpu_limit: 2,
-    ram_mb: 2048,
-    storage_gb: 35,
-    max_databases: 5,
-    custom_domains_allowed: -1,
-    // Unlimited
-    has_free_ssl: true,
-    has_backups: true,
-    has_priority_support: false,
-    is_active: true,
-    sort_order: 4
-  },
-  {
-    id: "business",
-    name: "Business Cloud",
-    slug: "business",
-    description: "Maximum power with priority support, dedicated scaling, and unlimited deployments.",
-    price_rwf: 8e3,
-    billing_cycle: "monthly",
-    is_trial: false,
-    trial_duration_days: 0,
-    max_apps: -1,
-    // Unlimited
-    vcpu_limit: 4,
-    ram_mb: 4096,
-    storage_gb: 80,
-    max_databases: -1,
-    // Unlimited
-    custom_domains_allowed: -1,
-    // Unlimited
-    has_free_ssl: true,
-    has_backups: true,
-    has_priority_support: true,
-    is_active: true,
-    sort_order: 5
-  }
-];
-async function initCloudDb() {
-  console.log("\u2601\uFE0F [Benix Cloud] Verifying and initializing cloud infrastructure schema...");
-  try {
-    const schemaPath = path4.join(process.cwd(), "src", "server", "db", "cloud_schema.sql");
-    let schemaSql = "";
-    if (fs6.existsSync(schemaPath)) {
-      schemaSql = fs6.readFileSync(schemaPath, "utf-8");
-    }
-    if (schemaSql) {
-      await query(schemaSql);
-    }
-    await query(`
-      ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS proof_image_url TEXT;
-      ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
-      ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS admin_id VARCHAR(255);
-      ALTER TABLE wallet_manual_deposits ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
-
-      ALTER TABLE cloud_plans ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT false;
-      ALTER TABLE cloud_plans ADD COLUMN IF NOT EXISTS trial_duration_days INT DEFAULT 60;
-      ALTER TABLE cloud_plans ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
-
-      ALTER TABLE cloud_subscriptions ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT false;
-      ALTER TABLE cloud_subscriptions ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMP WITH TIME ZONE;
-      
-      ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS coolify_api_url VARCHAR(500);
-      ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS coolify_api_token_encrypted TEXT;
-      ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS is_enabled_for_deployments BOOLEAN DEFAULT true;
-    `).catch((err) => {
-      console.warn("\u2601\uFE0F [Benix Cloud] Schema alter migration warning:", err.message);
-    });
-    for (const plan of INITIAL_CLOUD_PLANS) {
-      await query(
-        `INSERT INTO cloud_plans (
-          id, name, slug, description, price_rwf, billing_cycle, is_trial, trial_duration_days,
-          max_apps, vcpu_limit, ram_mb, storage_gb, max_databases, custom_domains_allowed,
-          has_free_ssl, has_backups, has_priority_support, is_active, sort_order
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
-        ) ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          price_rwf = EXCLUDED.price_rwf,
-          is_trial = EXCLUDED.is_trial,
-          trial_duration_days = EXCLUDED.trial_duration_days,
-          max_apps = EXCLUDED.max_apps,
-          vcpu_limit = EXCLUDED.vcpu_limit,
-          ram_mb = EXCLUDED.ram_mb,
-          storage_gb = EXCLUDED.storage_gb,
-          max_databases = EXCLUDED.max_databases,
-          custom_domains_allowed = EXCLUDED.custom_domains_allowed,
-          has_free_ssl = EXCLUDED.has_free_ssl,
-          has_backups = EXCLUDED.has_backups,
-          has_priority_support = EXCLUDED.has_priority_support,
-          sort_order = EXCLUDED.sort_order,
-          updated_at = CURRENT_TIMESTAMP`,
-        [
-          plan.id,
-          plan.name,
-          plan.slug,
-          plan.description,
-          plan.price_rwf,
-          plan.billing_cycle,
-          plan.is_trial,
-          plan.trial_duration_days,
-          plan.max_apps,
-          plan.vcpu_limit,
-          plan.ram_mb,
-          plan.storage_gb,
-          plan.max_databases,
-          plan.custom_domains_allowed,
-          plan.has_free_ssl,
-          plan.has_backups,
-          plan.has_priority_support,
-          plan.is_active,
-          plan.sort_order
-        ]
-      );
-    }
-    const serverCheck = await query("SELECT id FROM cloud_servers LIMIT 1");
-    if (serverCheck.rowCount === 0) {
-      await query(
-        `INSERT INTO cloud_servers (
-          id, name, provider, public_ip, ssh_port, region, os, deployment_engine,
-          cpu_cores, ram_total_mb, disk_total_gb, status, is_maintenance, is_enabled_for_deployments, hosted_apps_count
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-        ) ON CONFLICT (id) DO NOTHING`,
-        [
-          "srv-primary-01",
-          "Primary Production VPS Node (Ubuntu)",
-          "NebeluRw Cloud Infrastructure",
-          "127.0.0.1",
-          // Default placeholder until admin registers live IP
-          22,
-          "Germany (Frankfurt / Nuremberg)",
-          "Ubuntu 22.04 LTS (Jammy)",
-          "coolify",
-          4,
-          8192,
-          160,
-          "healthy",
-          false,
-          true,
-          0
-        ]
-      );
-    }
-    console.log("\u2705 [Benix Cloud] Database schema and initial plans verified successfully!");
-  } catch (error2) {
-    console.error("\u274C [Benix Cloud] Error during database initialization:", error2.message);
-  }
-}
 
 // src/server/index.ts
 import_dotenv2.default.config();
@@ -73802,27 +74022,27 @@ app.get("/api/videos/stream/:fileId", async (req, res) => {
 var streamLocalChunkedMedia = (req, res) => {
   const filename = req.params.filename || req.params[0];
   if (!filename) return res.status(400).send("Filename required");
-  const safeName = path5.basename(filename);
+  const safeName = path4.basename(filename);
   const possibleDirs = [
-    path5.join(process.cwd(), "public", "uploads"),
-    path5.join(process.cwd(), "uploads"),
-    path5.join(process.cwd(), "public", "uploads", "media")
+    path4.join(process.cwd(), "public", "uploads"),
+    path4.join(process.cwd(), "uploads"),
+    path4.join(process.cwd(), "public", "uploads", "media")
   ];
   let filePath = "";
   for (const dir of possibleDirs) {
-    const candidate = path5.join(dir, safeName);
-    if (fs7.existsSync(candidate)) {
+    const candidate = path4.join(dir, safeName);
+    if (fs6.existsSync(candidate)) {
       filePath = candidate;
       break;
     }
   }
-  if (!filePath || !fs7.existsSync(filePath)) {
+  if (!filePath || !fs6.existsSync(filePath)) {
     return res.status(404).send("Media file not found");
   }
-  const stat = fs7.statSync(filePath);
+  const stat = fs6.statSync(filePath);
   const fileSize = stat.size;
   const range = req.headers.range;
-  const ext = path5.extname(filePath).toLowerCase();
+  const ext = path4.extname(filePath).toLowerCase();
   const mimeMap = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
@@ -73845,7 +74065,7 @@ var streamLocalChunkedMedia = (req, res) => {
     const requestedEnd = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
     const end = Math.min(requestedEnd, start + chunkSizeLimit - 1, fileSize - 1);
     const chunksize = end - start + 1;
-    const file = fs7.createReadStream(filePath, { start, end });
+    const file = fs6.createReadStream(filePath, { start, end });
     res.writeHead(206, {
       "Content-Range": `bytes ${start}-${end}/${fileSize}`,
       "Accept-Ranges": "bytes",
@@ -73858,7 +74078,7 @@ var streamLocalChunkedMedia = (req, res) => {
   } else {
     if (ext === ".mp4" || ext === ".webm" || ext === ".mp3" || ext === ".m4a") {
       const initialChunkSize = Math.min(fileSize, 512 * 1024);
-      const file = fs7.createReadStream(filePath, { start: 0, end: initialChunkSize - 1 });
+      const file = fs6.createReadStream(filePath, { start: 0, end: initialChunkSize - 1 });
       res.writeHead(206, {
         "Content-Range": `bytes 0-${initialChunkSize - 1}/${fileSize}`,
         "Accept-Ranges": "bytes",
@@ -73874,7 +74094,7 @@ var streamLocalChunkedMedia = (req, res) => {
         "Accept-Ranges": "bytes",
         "Cache-Control": "public, max-age=86400"
       });
-      fs7.createReadStream(filePath).pipe(res);
+      fs6.createReadStream(filePath).pipe(res);
     }
   }
 };
@@ -73893,11 +74113,11 @@ app.post("/api/upload/article-media", authenticateToken, async (req, res) => {
     const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
     const buffer = Buffer.from(matches[2], "base64");
     const cleanName = `article_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const uploadsDir = path5.join(process.cwd(), "public", "uploads");
-    if (!fs7.existsSync(uploadsDir)) {
-      fs7.mkdirSync(uploadsDir, { recursive: true });
+    const uploadsDir = path4.join(process.cwd(), "public", "uploads");
+    if (!fs6.existsSync(uploadsDir)) {
+      fs6.mkdirSync(uploadsDir, { recursive: true });
     }
-    fs7.writeFileSync(path5.join(uploadsDir, cleanName), buffer);
+    fs6.writeFileSync(path4.join(uploadsDir, cleanName), buffer);
     const mediaUrl = `/uploads/${cleanName}`;
     return res.json({
       success: true,
@@ -80724,12 +80944,12 @@ var index_default = app;
 
 // src/server/standalone.ts
 var possibleDistDirs = [
-  path6.resolve(process.cwd(), "dist"),
-  path6.resolve(__dirname, "dist"),
-  path6.resolve(__dirname, "..", "dist"),
-  path6.resolve(__dirname, "../..", "dist")
+  path5.resolve(process.cwd(), "dist"),
+  path5.resolve(__dirname, "dist"),
+  path5.resolve(__dirname, "..", "dist"),
+  path5.resolve(__dirname, "../..", "dist")
 ];
-var distDir = possibleDistDirs.find((d) => fs8.existsSync(path6.join(d, "index.html"))) || possibleDistDirs[0];
+var distDir = possibleDistDirs.find((d) => fs7.existsSync(path5.join(d, "index.html"))) || possibleDistDirs[0];
 index_default.use(import_express3.default.static(distDir, {
   maxAge: "1d",
   index: false
@@ -80741,8 +80961,8 @@ index_default.use((req, res, next) => {
   if (req.path.startsWith("/api") || req.path.startsWith("/robots.txt") || req.path.startsWith("/sitemap.xml")) {
     return next();
   }
-  const indexPath = path6.join(distDir, "index.html");
-  if (fs8.existsSync(indexPath)) {
+  const indexPath = path5.join(distDir, "index.html");
+  if (fs7.existsSync(indexPath)) {
     return res.sendFile(indexPath);
   }
   return next();

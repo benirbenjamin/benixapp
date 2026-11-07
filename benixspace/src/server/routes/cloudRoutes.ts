@@ -5,8 +5,23 @@ import { authenticateToken, requireAdminRole, AuthenticatedRequest } from '../au
 import { CloudBillingService } from '../services/cloud/cloudBillingService';
 import { CoolifyAdapter } from '../services/cloud/coolifyAdapter';
 import { WalletService } from '../services/walletService';
+import { initCloudDb } from '../db/initCloudDb';
 
 export const cloudRouter = Router();
+
+// Auto-initialize Cloud & Manual Deposit DB schema on cold start
+let isCloudDbReady = false;
+cloudRouter.use(async (req, res, next) => {
+  if (!isCloudDbReady) {
+    try {
+      await initCloudDb();
+      isCloudDbReady = true;
+    } catch (e: any) {
+      console.warn('Auto cloud db init warning:', e?.message);
+    }
+  }
+  next();
+});
 
 // =========================================================================
 // 1. PUBLIC & PLAN CATALOG ENDPOINTS

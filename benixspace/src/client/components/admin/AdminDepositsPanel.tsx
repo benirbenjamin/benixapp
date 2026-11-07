@@ -464,6 +464,20 @@ export const AdminDepositsPanel: React.FC = () => {
               )}
             </div>
 
+            {/* Uploaded Payment Screenshot Proof */}
+            {detailsDeposit.proof_image_url && (
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-slate-300 block">Uploaded Payment Screenshot / Proof:</span>
+                <div className="max-h-64 overflow-auto rounded-xl border border-slate-800 bg-black/60 flex items-center justify-center p-2">
+                  <img
+                    src={detailsDeposit.proof_image_url}
+                    alt="Payment Proof"
+                    className="max-h-60 w-auto object-contain rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Modal Actions */}
             <div className="flex items-center justify-between pt-2">
               <button
