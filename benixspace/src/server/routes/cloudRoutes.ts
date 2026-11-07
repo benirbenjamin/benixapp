@@ -549,7 +549,7 @@ cloudRouter.post('/wallet/manual-deposit', authenticateToken, async (req: Authen
     }
 
     // Fetch user details
-    const userRes = await query('SELECT name, email FROM users WHERE id = $1', [userId]);
+    const userRes = await query('SELECT name, email FROM core_users WHERE id = $1', [userId]);
     const userName = userRes.rows[0]?.name || 'BenixSpace User';
     const userEmail = userRes.rows[0]?.email || '';
 

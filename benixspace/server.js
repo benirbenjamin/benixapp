@@ -70392,7 +70392,7 @@ cloudRouter.post("/wallet/manual-deposit", authenticateToken, async (req, res) =
         error: "This MTN MoMo transaction reference code has already been submitted for verification."
       });
     }
-    const userRes = await query("SELECT name, email FROM users WHERE id = $1", [userId]);
+    const userRes = await query("SELECT name, email FROM core_users WHERE id = $1", [userId]);
     const userName = userRes.rows[0]?.name || "BenixSpace User";
     const userEmail = userRes.rows[0]?.email || "";
     const depositId = "dep-manual-" + crypto15.randomUUID();
