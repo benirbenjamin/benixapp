@@ -261,6 +261,12 @@ export const App: React.FC = () => {
                   }
                 />
 
+                {/* Standalone Independent App Hosting Viewers (Zero Shell / No Navbar / Fullscreen) */}
+                <Route path="/apps/:appName/*" element={<AppLiveViewPage />} />
+                <Route path="/apps/:appName" element={<AppLiveViewPage />} />
+                <Route path="/live/:deploymentId/*" element={<AppLiveViewPage />} />
+                <Route path="/live/:deploymentId" element={<AppLiveViewPage />} />
+
                 {/* Public Super-App Routes (Wrapped with Unified Navbar, Footer, and BottomNav) */}
                 <Route
                   path="*"
@@ -301,8 +307,6 @@ export const App: React.FC = () => {
                           <Route path="/calc" element={<EasyCalcPage />} />
                           <Route path="/calculators" element={<EasyCalcPage />} />
                           <Route path="/cloud" element={<CloudLandingPage />} />
-                          <Route path="/apps/:appName" element={<AppLiveViewPage />} />
-                          <Route path="/live/:deploymentId" element={<AppLiveViewPage />} />
                           <Route
                             path="/cloud/dashboard"
                             element={
