@@ -124,16 +124,34 @@ cloudRouter.post('/trial/activate', authenticateToken, async (req: Authenticated
 });
 
 /**
+ * Preview subscription / upgrade pricing, pro-rated unused balance credit, and wallet sufficiency
+ */
+cloudRouter.post('/subscribe/preview', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    const { planId, months = 1 } = req.body;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!planId) return res.status(400).json({ error: 'Plan ID is required' });
+
+    const preview = await CloudBillingService.calculateUpgradePreview(userId, planId, Number(months) || 1);
+    return res.json({ success: true, ...preview });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * Subscribe to a paid cloud plan using BenixSpace Central Wallet
+ * Supports multi-month prepaid duration and pro-rated credit for days left on current plan
  */
 cloudRouter.post('/subscribe', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user?.id;
-    const { planId } = req.body;
+    const { planId, months = 1 } = req.body;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     if (!planId) return res.status(400).json({ error: 'Plan ID is required' });
 
-    const result = await CloudBillingService.subscribeWithWallet(userId, planId);
+    const result = await CloudBillingService.subscribeWithWallet(userId, planId, Number(months) || 1);
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });

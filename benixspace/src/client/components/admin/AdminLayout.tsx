@@ -6,7 +6,7 @@ import { NotificationTray } from '../modals/NotificationTray';
 import {
   LayoutDashboard, Layers, FileText, BarChart3, SearchCheck, ArrowUpRight,
   Settings, LogOut, Menu, X, ShieldCheck, Users, UserCheck,
-  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2, Bell
+  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2, Bell, Server
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -37,6 +37,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { name: 'Dashboard Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Users & Permissions', path: '/admin/users', icon: Users },
     { name: 'Withdrawals & Payouts', path: '/admin#withdrawals', icon: ArrowUpRight, badge: 'Payouts' },
+    { name: 'Benix Cloud & VPS', path: '/cloud/admin', icon: Server, badge: 'Cloud' },
     { name: 'Project Portfolio', path: '/admin/projects', icon: Layers },
     { name: 'Blog Articles CMS', path: '/admin/blog', icon: FileText },
     { name: 'Visitor Analytics', path: '/admin/analytics', icon: BarChart3 },
@@ -60,6 +61,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const isActive = (path: string) => {
     if (path.includes('#')) {
       return location.pathname === '/admin' && location.hash === path.substring(path.indexOf('#'));
+    }
+    if (path === '/cloud/admin') {
+      return location.pathname === '/cloud/admin';
     }
     if (path === '/admin') {
       return location.pathname === '/admin' && !location.hash;

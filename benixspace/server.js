@@ -63609,29 +63609,143 @@ var CloudBillingService = class {
     });
   }
   /**
-   * Subscribe to a paid cloud plan using BenixSpace Central Wallet balance
+   * Calculate upgrade preview, remaining pro-rated credit, and multi-month pricing
    */
-  static async subscribeWithWallet(userId, planId) {
-    const planRes = await query("SELECT * FROM cloud_plans WHERE id = $1 AND is_active = true", [planId]);
+  static async calculateUpgradePreview(userId, targetPlanId, durationMonths = 1) {
+    const months = Math.max(1, Math.round(Number(durationMonths) || 1));
+    const durationDays = months === 12 ? 365 : months === 24 ? 730 : months * 30;
+    const planRes = await query("SELECT * FROM cloud_plans WHERE id = $1 AND is_active = true", [targetPlanId]);
     if (planRes.rowCount === 0) {
-      throw new Error("Selected cloud hosting plan not found or is currently unavailable.");
+      throw new Error("Target cloud hosting plan not found or is currently unavailable.");
     }
-    const plan = planRes.rows[0];
-    const price = Number(plan.price_rwf);
-    if (price <= 0) {
-      return await this.activateFreeTrial(userId);
-    }
-    const debitResult = await WalletService.debit(
-      userId,
-      price,
-      "cloud",
-      "hosting_plan_subscription",
-      `Benix Cloud Plan: ${plan.name} (${price.toLocaleString()} RWF/mo)`,
-      `tx_cloud_${Date.now()}_${userId.slice(0, 5)}`,
-      { planId: plan.id, planName: plan.name, priceRwf: price }
+    const targetPlan = planRes.rows[0];
+    const monthlyPrice = Number(targetPlan.price_rwf);
+    const rawTotal = monthlyPrice * months;
+    const currentSubRes = await query(
+      `SELECT s.*, p.name as plan_name, p.price_rwf
+       FROM cloud_subscriptions s
+       JOIN cloud_plans p ON s.plan_id = p.id
+       WHERE s.user_id = $1 AND s.status IN ('active', 'trialing')
+       ORDER BY s.created_at DESC
+       LIMIT 1`,
+      [userId]
     );
+    let currentSubInfo = null;
+    let unusedCredit = 0;
+    let isExtension = false;
+    if (currentSubRes.rowCount > 0) {
+      const cur = currentSubRes.rows[0];
+      const isPaid = !cur.is_trial && Number(cur.price_rwf) > 0;
+      const now = /* @__PURE__ */ new Date();
+      const endDate = new Date(cur.current_period_end);
+      const msRemaining = endDate.getTime() - now.getTime();
+      const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1e3 * 60 * 60 * 24)));
+      const isSamePlan = cur.plan_id === targetPlanId;
+      if (isSamePlan && isPaid && daysRemaining > 0) {
+        isExtension = true;
+        unusedCredit = 0;
+        currentSubInfo = {
+          id: cur.id,
+          planId: cur.plan_id,
+          planName: cur.plan_name,
+          priceRwf: Number(cur.price_rwf),
+          daysRemaining,
+          dailyRate: Math.round(Number(cur.price_rwf) / 30),
+          unusedCredit: 0,
+          currentPeriodEnd: cur.current_period_end,
+          isSamePlan: true
+        };
+      } else if (!isSamePlan && isPaid && daysRemaining > 0) {
+        const curMonthlyPrice = Number(cur.price_rwf);
+        const dailyRate = curMonthlyPrice / 30;
+        unusedCredit = Math.round(dailyRate * daysRemaining);
+        if (unusedCredit < 0) unusedCredit = 0;
+        currentSubInfo = {
+          id: cur.id,
+          planId: cur.plan_id,
+          planName: cur.plan_name,
+          priceRwf: curMonthlyPrice,
+          daysRemaining,
+          dailyRate: Math.round(dailyRate),
+          unusedCredit,
+          currentPeriodEnd: cur.current_period_end,
+          isSamePlan: false
+        };
+      }
+    }
+    const netPayable = Math.max(0, rawTotal - unusedCredit);
+    const wallet = await WalletService.getOrCreateWallet(userId);
+    const walletBalance = Number(wallet.balance || 0);
+    return {
+      targetPlan: {
+        id: targetPlan.id,
+        name: targetPlan.name,
+        priceRwf: monthlyPrice,
+        isTrial: Boolean(targetPlan.is_trial),
+        trialDurationDays: targetPlan.trial_duration_days
+      },
+      durationMonths: months,
+      durationDays,
+      monthlyPrice,
+      rawTotal,
+      currentSubscription: currentSubInfo,
+      isExtension,
+      unusedCredit,
+      netPayable,
+      walletBalance,
+      hasSufficientBalance: walletBalance >= netPayable
+    };
+  }
+  /**
+   * Subscribe to a paid cloud plan using BenixSpace Central Wallet balance
+   * Supports multi-month payment and pro-rated credit for unused days from previous plan.
+   */
+  static async subscribeWithWallet(userId, planId, durationMonths = 1) {
+    const months = Math.max(1, Math.round(Number(durationMonths) || 1));
+    const preview = await this.calculateUpgradePreview(userId, planId, months);
+    if (preview.targetPlan.isTrial || preview.targetPlan.priceRwf <= 0) {
+      const trialRes = await this.activateFreeTrial(userId);
+      return {
+        success: true,
+        message: trialRes.message,
+        subscription: trialRes.subscription,
+        breakdown: { months: 1, rawTotal: 0, unusedCredit: 0, netCharged: 0 }
+      };
+    }
+    if (preview.walletBalance < preview.netPayable) {
+      throw new Error(
+        `Insufficient wallet balance. You have ${preview.walletBalance.toLocaleString()} RWF, but ${preview.netPayable.toLocaleString()} RWF is required for ${months} month(s) of ${preview.targetPlan.name} (Credit applied: ${preview.unusedCredit.toLocaleString()} RWF). Please top up your wallet.`
+      );
+    }
+    let txId = `tx_cloud_credit_${Date.now()}`;
+    if (preview.netPayable > 0) {
+      const debitResult = await WalletService.debit(
+        userId,
+        preview.netPayable,
+        "cloud",
+        "hosting_plan_subscription",
+        `Benix Cloud: ${preview.targetPlan.name} for ${months} mo (Gross: ${preview.rawTotal.toLocaleString()} RWF, Credit: -${preview.unusedCredit.toLocaleString()} RWF)`,
+        `tx_cloud_${Date.now()}_${userId.slice(0, 5)}`,
+        {
+          planId: preview.targetPlan.id,
+          planName: preview.targetPlan.name,
+          months,
+          rawTotal: preview.rawTotal,
+          unusedCredit: preview.unusedCredit,
+          netPayable: preview.netPayable
+        }
+      );
+      txId = debitResult.transactionId;
+    }
+    const now = /* @__PURE__ */ new Date();
+    let periodEndMs = now.getTime() + preview.durationDays * 24 * 60 * 60 * 1e3;
+    if (preview.isExtension && preview.currentSubscription?.currentPeriodEnd) {
+      const prevEnd = new Date(preview.currentSubscription.currentPeriodEnd).getTime();
+      const baseMs = Math.max(now.getTime(), prevEnd);
+      periodEndMs = baseMs + preview.durationDays * 24 * 60 * 60 * 1e3;
+    }
     const subId = "csub-" + crypto13.randomUUID();
-    const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3);
+    const periodEnd = new Date(periodEndMs);
     const sub = await withTransaction(async (client) => {
       await client.query("UPDATE cloud_subscriptions SET status = 'cancelled' WHERE user_id = $1", [userId]);
       const inserted = await client.query(
@@ -63640,15 +63754,22 @@ var CloudBillingService = class {
         ) VALUES (
           $1, $2, $3, 'active', false, CURRENT_TIMESTAMP, $4, true, $5
         ) RETURNING *`,
-        [subId, userId, plan.id, periodEnd.toISOString(), debitResult.transactionId]
+        [subId, userId, preview.targetPlan.id, periodEnd.toISOString(), txId]
       );
       return inserted.rows[0];
     });
+    const creditMsg = preview.unusedCredit > 0 ? ` (Pro-rated credit of ${preview.unusedCredit.toLocaleString()} RWF applied from your remaining days on ${preview.currentSubscription?.planName})` : "";
     return {
       success: true,
-      message: `\u{1F389} Successfully subscribed to ${plan.name}! Your hosting resources are now active.`,
-      transactionId: debitResult.transactionId,
-      subscription: sub
+      message: `\u{1F389} Successfully subscribed to ${preview.targetPlan.name} for ${months} month(s)!${creditMsg}`,
+      transactionId: txId,
+      subscription: sub,
+      breakdown: {
+        months,
+        rawTotal: preview.rawTotal,
+        unusedCredit: preview.unusedCredit,
+        netCharged: preview.netPayable
+      }
     };
   }
   /**
@@ -70062,13 +70183,25 @@ cloudRouter.post("/trial/activate", authenticateToken, async (req, res) => {
     return res.status(400).json({ success: false, error: err.message });
   }
 });
+cloudRouter.post("/subscribe/preview", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { planId, months = 1 } = req.body;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!planId) return res.status(400).json({ error: "Plan ID is required" });
+    const preview = await CloudBillingService.calculateUpgradePreview(userId, planId, Number(months) || 1);
+    return res.json({ success: true, ...preview });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
 cloudRouter.post("/subscribe", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { planId } = req.body;
+    const { planId, months = 1 } = req.body;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (!planId) return res.status(400).json({ error: "Plan ID is required" });
-    const result = await CloudBillingService.subscribeWithWallet(userId, planId);
+    const result = await CloudBillingService.subscribeWithWallet(userId, planId, Number(months) || 1);
     return res.json(result);
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });

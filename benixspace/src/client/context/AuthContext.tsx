@@ -495,6 +495,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('benix_auth_token');
     localStorage.removeItem('benix_user');
     localStorage.removeItem('benix_wallet');
+    localStorage.removeItem('benix_admin_token');
   };
 
   const updatePreferences = async (modules: string[], layout?: any) => {

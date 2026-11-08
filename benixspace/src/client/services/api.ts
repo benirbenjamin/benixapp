@@ -11,6 +11,9 @@ export function setAuthToken(token: string) {
 
 export function removeAuthToken() {
   localStorage.removeItem('benix_admin_token');
+  localStorage.removeItem('benix_auth_token');
+  localStorage.removeItem('benix_user');
+  localStorage.removeItem('benix_wallet');
 }
 
 // ================= INITIAL SEED DATA FOR LOCAL HYBRID STORAGE ================= //

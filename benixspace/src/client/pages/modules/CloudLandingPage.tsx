@@ -189,7 +189,7 @@ export const CloudLandingPage: React.FC = () => {
               Transparent Hosting Plans. No Surprises.
             </h2>
             <p className="text-slate-400 text-sm sm:text-base">
-              Begin with our <strong>Free 2-Month Trial</strong> or choose a plan that suits your production needs. Paid subscriptions deduct directly from your central BenixSpace Wallet balance.
+              Begin with our <strong>Free 2-Month Trial</strong> or choose a plan that suits your production needs. Pay flexibly for 1, 2, 3, 6, 8, 12, 24, or custom months via your <strong>BenixSpace Wallet</strong> with instant pro-rated upgrade credits.
             </p>
 
             {/* Currency Selector */}
@@ -250,7 +250,7 @@ export const CloudLandingPage: React.FC = () => {
                           {formatPrice(plan.price_rwf)}
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
-                          {isTrial ? `${plan.trial_duration_days} days trial duration` : '/month, billed via wallet'}
+                          {isTrial ? `${plan.trial_duration_days} days trial duration` : '/month • Pay 1, 3, 6, 12, 24+ mos'}
                         </div>
                       </div>
 

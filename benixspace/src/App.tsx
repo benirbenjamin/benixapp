@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './client/context/ThemeContext';
-import { AuthProvider } from './client/context/AuthContext';
+import { AuthProvider, useAuth } from './client/context/AuthContext';
 import { LanguageProvider } from './client/context/LanguageContext';
 import { SidebarProvider } from './client/context/SidebarContext';
 import { Navbar } from './client/components/layout/Navbar';
@@ -118,7 +118,14 @@ export const App: React.FC = () => {
                 {/* Benix Cloud Standalone Console & Auth Routes */}
                 <Route path="/cloud/login" element={<CloudLoginPage />} />
                 <Route path="/cloud/register" element={<CloudRegisterPage />} />
-                <Route path="/cloud/dashboard" element={<CloudDashboardPage />} />
+                <Route
+                  path="/cloud/dashboard"
+                  element={
+                    <ProtectedCustomerRoute>
+                      <CloudDashboardPage />
+                    </ProtectedCustomerRoute>
+                  }
+                />
                 <Route
                   path="/cloud/admin"
                   element={

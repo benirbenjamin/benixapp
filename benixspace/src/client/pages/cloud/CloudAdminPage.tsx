@@ -1,3 +1,4 @@
+import { AdminLayout } from '../../components/admin/AdminLayout';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -188,36 +189,37 @@ export const CloudAdminPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-white/5 bg-slate-950/60 px-4 sm:px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/cloud/dashboard"
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
-            title="Back to Customer Workspace"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Server className="w-5 h-5 text-blue-400" />
-            <h1 className="font-extrabold text-base tracking-tight text-white">
+    <AdminLayout>
+      <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6">
+        {/* Cloud Admin Header Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-black uppercase tracking-wider">
+                Control Plane & VPS Hub
+              </span>
+            </div>
+            <h1 className="text-2xl font-black text-white mt-1">
               Benix Cloud Administrator Infrastructure
             </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Manage connected Coolify VPS nodes, review pending MTN MoMo wallet deposits, and adjust hosting tiers.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchAdminData}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-bold flex items-center gap-1.5 transition border border-slate-700"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
-        <button
-          onClick={fetchAdminData}
-          className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs text-slate-300 font-semibold flex items-center gap-1.5"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
-      </header>
-
-      {/* Tabs */}
-      <div className="border-b border-white/5 bg-slate-950/20 px-4 sm:px-8 flex items-center gap-2">
+        {/* Tabs */}
+        <div className="border-b border-slate-800 flex items-center gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('deposits')}
           className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 ${
@@ -626,6 +628,7 @@ export const CloudAdminPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AdminLayout>
   );
 };

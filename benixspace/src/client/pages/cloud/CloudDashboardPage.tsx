@@ -33,16 +33,27 @@ import {
   FileText,
   Camera,
   Image,
-  Trash2
+  Trash2,
+  Calendar,
+  X,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getAuthToken } from '../../services/api';
+import { getAuthToken, removeAuthToken } from '../../services/api';
 
 export const CloudDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialPlan = searchParams.get('plan');
   const token = getAuthToken();
+  const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
+  const handleLogout = () => {
+    logout();
+    removeAuthToken();
+    navigate('/cloud/login');
+  };
 
   const [activeTab, setActiveTab] = useState<'overview' | 'deployments' | 'databases' | 'domains' | 'billing' | 'deposits'>('overview');
   const [loading, setLoading] = useState(true);
@@ -60,6 +71,15 @@ export const CloudDashboardPage: React.FC = () => {
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState<any>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Subscription & Upgrade Modal State
+  const [selectedPlanForSubscribe, setSelectedPlanForSubscribe] = useState<any | null>(null);
+  const [selectedMonths, setSelectedMonths] = useState<number>(1);
+  const [customMonthsInput, setCustomMonthsInput] = useState<string>('');
+  const [isCustomMonths, setIsCustomMonths] = useState<boolean>(false);
+  const [subscribePreview, setSubscribePreview] = useState<any | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
+  const [subscribing, setSubscribing] = useState<boolean>(false);
 
   // Deploy Form State
   const [deployName, setDeployName] = useState('');
@@ -154,16 +174,30 @@ export const CloudDashboardPage: React.FC = () => {
     fetchCloudData();
   }, [token]);
 
+  const DURATION_PRESETS = [
+    { months: 1, label: '1 Month' },
+    { months: 2, label: '2 Months' },
+    { months: 3, label: '3 Months' },
+    { months: 6, label: '6 Months' },
+    { months: 8, label: '8 Months' },
+    { months: 10, label: '10 Months' },
+    { months: 12, label: '12 Mos (1 Yr)' },
+    { months: 24, label: '24 Mos (2 Yrs)' }
+  ];
+
   // Handle plan selection from landing page url
   useEffect(() => {
-    if (initialPlan && data && !data.subscription) {
+    if (initialPlan && data && plans.length > 0) {
       if (initialPlan === 'free-trial') {
-        handleActivateTrial();
+        if (!data.subscription) handleActivateTrial();
       } else {
-        handleSubscribePlan(initialPlan);
+        const target = plans.find((p) => p.id === initialPlan);
+        if (target) {
+          openSubscribeModal(target);
+        }
       }
     }
-  }, [initialPlan, data]);
+  }, [initialPlan, data, plans]);
 
   const handleActivateTrial = async () => {
     try {
@@ -189,23 +223,72 @@ export const CloudDashboardPage: React.FC = () => {
     }
   };
 
-  const handleSubscribePlan = async (planId: string) => {
+  const openSubscribeModal = async (plan: any) => {
+    if (plan.is_trial) {
+      handleActivateTrial();
+      return;
+    }
+    setSelectedPlanForSubscribe(plan);
+    setSelectedMonths(1);
+    setIsCustomMonths(false);
+    setCustomMonthsInput('');
+    await fetchSubscribePreview(plan.id, 1);
+  };
+
+  const fetchSubscribePreview = async (planId: string, months: number) => {
     try {
-      setLoading(true);
+      setLoadingPreview(true);
+      const res = await fetch('/api/cloud/subscribe/preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({ planId, months })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSubscribePreview(json);
+      }
+    } catch (err) {
+      console.error('Failed to load subscription preview:', err);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleDurationChange = (months: number, isCustom = false) => {
+    const validMonths = Math.max(1, months);
+    setSelectedMonths(validMonths);
+    setIsCustomMonths(isCustom);
+    if (selectedPlanForSubscribe) {
+      fetchSubscribePreview(selectedPlanForSubscribe.id, validMonths);
+    }
+  };
+
+  const handleConfirmSubscribe = async () => {
+    if (!selectedPlanForSubscribe) return;
+    try {
+      setSubscribing(true);
       const res = await fetch('/api/cloud/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getAuthToken()}`
         },
-        body: JSON.stringify({ planId })
+        body: JSON.stringify({
+          planId: selectedPlanForSubscribe.id,
+          months: selectedMonths
+        })
       });
       const json = await res.json();
       if (json.success) {
         alert(json.message);
+        setSelectedPlanForSubscribe(null);
         await fetchCloudData();
       } else {
         if (json.error && json.error.includes('Insufficient wallet balance')) {
+          setSelectedPlanForSubscribe(null);
           setShowTopUpModal(true);
         }
         alert(json.error || 'Subscription failed.');
@@ -213,7 +296,7 @@ export const CloudDashboardPage: React.FC = () => {
     } catch (err: any) {
       alert(err.message);
     } finally {
-      setLoading(false);
+      setSubscribing(false);
     }
   };
 
@@ -433,13 +516,30 @@ export const CloudDashboardPage: React.FC = () => {
             </button>
           </div>
 
-          <Link
-            to="/cloud/admin"
-            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 transition-colors flex items-center gap-1.5"
-          >
-            <Server className="w-3.5 h-3.5 text-blue-400" />
-            <span className="hidden sm:inline">Admin VPS Hub</span>
-          </Link>
+          {isAdmin && (
+            <Link
+              to="/cloud/admin"
+              className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-xs font-semibold text-blue-300 transition-colors flex items-center gap-1.5"
+            >
+              <Server className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden sm:inline">Admin VPS Hub</span>
+            </Link>
+          )}
+
+          {/* Customer Profile & Logout */}
+          <div className="flex items-center gap-2 pl-2 border-l border-white/10">
+            <div className="hidden sm:flex flex-col items-end text-xs">
+              <span className="font-bold text-white truncate max-w-[130px]">{user?.name || user?.email}</span>
+              <span className="text-[10px] text-slate-400 capitalize">{user?.role || 'Customer'}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Log Out from Benix Cloud"
+              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -461,11 +561,24 @@ export const CloudDashboardPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="bg-slate-900/60 border-b border-white/5 px-4 py-2 flex items-center justify-between text-xs text-slate-300">
-            <span>
-              Active Plan: <strong>{sub.planName}</strong> ({sub.planPriceRwf.toLocaleString()} RWF/mo)
-            </span>
-            <span className="text-emerald-400 font-semibold">● Healthy & Active</span>
+          <div className="bg-slate-900/60 border-b border-white/5 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
+            <div className="flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span>
+                Active Plan: <strong className="text-white">{sub.planName}</strong> ({sub.planPriceRwf.toLocaleString()} RWF/mo)
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-blue-300">
+                <strong>{Math.max(0, Math.ceil((new Date(sub.currentPeriodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days</strong> remaining
+              </span>
+              <span className="text-emerald-400 font-semibold ml-2">● Healthy & Active</span>
+            </div>
+            <button
+              onClick={() => setActiveTab('billing')}
+              className="px-3 py-1 rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40 text-xs font-bold transition-all"
+            >
+              Upgrade / Extend Duration
+            </button>
           </div>
         )
       ) : (
@@ -890,15 +1003,20 @@ export const CloudDashboardPage: React.FC = () => {
                     </div>
 
                     <button
-                      disabled={isCurrent}
-                      onClick={() => handleSubscribePlan(p.id)}
+                      onClick={() => openSubscribeModal(p)}
                       className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
                         isCurrent
-                          ? 'bg-white/10 text-slate-400 cursor-default'
+                          ? 'bg-blue-600/20 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40'
                           : 'bg-blue-600 hover:bg-blue-500 text-white shadow'
                       }`}
                     >
-                      {isCurrent ? 'Current Plan' : isTrial ? 'Activate Free Trial' : 'Subscribe With Wallet'}
+                      {isCurrent
+                        ? 'Extend Subscription'
+                        : isTrial
+                        ? 'Activate Free Trial'
+                        : sub
+                        ? 'Upgrade / Switch Tier'
+                        : 'Subscribe With Wallet'}
                     </button>
                   </div>
                 );
@@ -1396,6 +1514,222 @@ export const CloudDashboardPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUBSCRIBE & PLAN UPGRADE MODAL */}
+      {selectedPlanForSubscribe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            {/* Close button */}
+            <button
+              onClick={() => setSelectedPlanForSubscribe(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {sub?.planId === selectedPlanForSubscribe.id
+                    ? `Extend ${selectedPlanForSubscribe.name}`
+                    : `Subscribe / Upgrade to ${selectedPlanForSubscribe.name}`}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {selectedPlanForSubscribe.price_rwf.toLocaleString()} RWF / month • Debited from Central Wallet
+                </p>
+              </div>
+            </div>
+
+            {/* Choose Duration */}
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">
+                Choose Payment Duration:
+              </label>
+              <div className="grid grid-cols-4 gap-2 mb-2.5">
+                {DURATION_PRESETS.map((preset) => {
+                  const isSelected = !isCustomMonths && selectedMonths === preset.months;
+                  return (
+                    <button
+                      key={preset.months}
+                      type="button"
+                      onClick={() => handleDurationChange(preset.months, false)}
+                      className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all border ${
+                        isSelected
+                          ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20'
+                          : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Months Toggle & Input */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomMonths(true);
+                    const m = parseInt(customMonthsInput) || 4;
+                    setSelectedMonths(m);
+                    fetchSubscribePreview(selectedPlanForSubscribe.id, m);
+                  }}
+                  className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition-all ${
+                    isCustomMonths
+                      ? 'bg-blue-600 border-blue-400 text-white'
+                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Custom Months
+                </button>
+
+                {isCustomMonths && (
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="120"
+                      value={customMonthsInput}
+                      placeholder="e.g. 5, 18, 36"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomMonthsInput(val);
+                        const m = Math.max(1, parseInt(val) || 1);
+                        setSelectedMonths(m);
+                        fetchSubscribePreview(selectedPlanForSubscribe.id, m);
+                      }}
+                      className="w-full bg-slate-950 border border-blue-500/50 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-slate-400 whitespace-nowrap">months</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pricing & Pro-Ration Breakdown */}
+            {loadingPreview ? (
+              <div className="py-8 text-center text-xs text-slate-400 animate-pulse">
+                Calculating pricing & pro-rated credit...
+              </div>
+            ) : subscribePreview ? (
+              <div className="space-y-3 mb-6">
+                {/* Pro-Rated Upgrade Credit Box */}
+                {subscribePreview.unusedCredit > 0 && (
+                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 text-xs space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold text-emerald-400">
+                      <Sparkles className="w-4 h-4 shrink-0" />
+                      <span>Pro-Rated Plan Upgrade Credit Applied!</span>
+                    </div>
+                    <p className="text-slate-300">
+                      You have <strong>{subscribePreview.currentSubscription?.daysRemaining} days remaining</strong> on your current <strong>{subscribePreview.currentSubscription?.planName}</strong> plan (@ ~{subscribePreview.currentSubscription?.dailyRate} RWF/day).
+                    </p>
+                    <div className="flex justify-between items-center text-emerald-300 font-semibold pt-1 border-t border-emerald-500/20">
+                      <span>Unused days credit:</span>
+                      <span>-{subscribePreview.unusedCredit.toLocaleString()} RWF</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Extension Notice */}
+                {subscribePreview.isExtension && (
+                  <div className="bg-blue-950/40 border border-blue-500/40 rounded-2xl p-3 text-xs text-blue-300 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 shrink-0" />
+                    <span>
+                      Plan Extension: Your current period will be extended by <strong>{subscribePreview.durationMonths} month(s)</strong> without losing your remaining days.
+                    </span>
+                  </div>
+                )}
+
+                {/* Breakdown summary */}
+                <div className="bg-slate-950 border border-white/5 rounded-2xl p-4 space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-400">
+                    <span>Selected Tier:</span>
+                    <span className="font-semibold text-white">{subscribePreview.targetPlan.name}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Duration:</span>
+                    <span className="font-semibold text-white">
+                      {subscribePreview.durationMonths} Month{subscribePreview.durationMonths > 1 ? 's' : ''} ({subscribePreview.durationDays} days)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Base Cost ({subscribePreview.monthlyPrice.toLocaleString()} × {subscribePreview.durationMonths}):</span>
+                    <span className="font-semibold text-white">{subscribePreview.rawTotal.toLocaleString()} RWF</span>
+                  </div>
+
+                  {subscribePreview.unusedCredit > 0 && (
+                    <div className="flex justify-between text-emerald-400 font-semibold">
+                      <span>Unused Credit Discount:</span>
+                      <span>-{subscribePreview.unusedCredit.toLocaleString()} RWF</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-white/10 flex justify-between items-baseline">
+                    <span className="font-bold text-white text-sm">Total Net Amount:</span>
+                    <span className="text-xl font-black text-blue-400">
+                      {subscribePreview.netPayable.toLocaleString()} RWF
+                    </span>
+                  </div>
+                </div>
+
+                {/* Wallet Balance Status */}
+                <div className="flex items-center justify-between text-xs px-1">
+                  <span className="text-slate-400">
+                    Your Wallet Balance: <strong className="text-white">{subscribePreview.walletBalance.toLocaleString()} RWF</strong>
+                  </span>
+                  {subscribePreview.hasSufficientBalance ? (
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                      ✓ Sufficient Funds
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 font-semibold flex items-center gap-1">
+                      ⚠ Short by {(subscribePreview.netPayable - subscribePreview.walletBalance).toLocaleString()} RWF
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedPlanForSubscribe(null)}
+                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+
+              {subscribePreview?.hasSufficientBalance ? (
+                <button
+                  type="button"
+                  disabled={subscribing || loadingPreview}
+                  onClick={handleConfirmSubscribe}
+                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                >
+                  {subscribing ? 'Processing...' : `Confirm & Pay ${subscribePreview?.netPayable.toLocaleString()} RWF`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPlanForSubscribe(null);
+                    setShowTopUpModal(true);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-500/20"
+                >
+                  + Top Up Wallet (MTN MoMo)
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
