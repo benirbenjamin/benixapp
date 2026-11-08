@@ -161,14 +161,6 @@ export const App: React.FC = () => {
                 <Route path="/cloud/login" element={<CloudLoginPage />} />
                 <Route path="/cloud/register" element={<CloudRegisterPage />} />
                 <Route
-                  path="/cloud/dashboard"
-                  element={
-                    <ProtectedCustomerRoute>
-                      <CloudDashboardPage />
-                    </ProtectedCustomerRoute>
-                  }
-                />
-                <Route
                   path="/cloud/admin"
                   element={
                     <ProtectedAdminRoute>
@@ -308,6 +300,14 @@ export const App: React.FC = () => {
                           <Route path="/calc" element={<EasyCalcPage />} />
                           <Route path="/calculators" element={<EasyCalcPage />} />
                           <Route path="/cloud" element={<CloudLandingPage />} />
+                          <Route
+                            path="/cloud/dashboard"
+                            element={
+                              <ProtectedCustomerRoute>
+                                <CloudDashboardPage />
+                              </ProtectedCustomerRoute>
+                            }
+                          />
 
                           {/* Core Platform Pages */}
                           <Route path="/projects" element={<ProjectsPage />} />

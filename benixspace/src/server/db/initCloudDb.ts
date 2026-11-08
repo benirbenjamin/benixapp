@@ -363,7 +363,11 @@ export async function initCloudDb(): Promise<void> {
       `ALTER TABLE cloud_subscriptions ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMP WITH TIME ZONE`,
       `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS coolify_api_url VARCHAR(500)`,
       `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS coolify_api_token_encrypted TEXT`,
-      `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS is_enabled_for_deployments BOOLEAN DEFAULT true`
+      `ALTER TABLE cloud_servers ADD COLUMN IF NOT EXISTS is_enabled_for_deployments BOOLEAN DEFAULT true`,
+      `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(255)`,
+      `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS root_dir VARCHAR(255) DEFAULT '/'`,
+      `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS env_variables TEXT`,
+      `ALTER TABLE cloud_databases ADD COLUMN IF NOT EXISTS schema_name VARCHAR(255)`
     ];
 
     for (const alter of alterStatements) {
