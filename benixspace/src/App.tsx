@@ -71,11 +71,53 @@ import { getAuthToken } from './client/services/api';
 import { RouteAnalyticsTracker } from './client/analytics/tracker';
 import { ScrollToTop } from './client/components/common/ScrollToTop';
 
-const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const ProtectedCustomerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
   const token = getAuthToken();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0B0E14] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!token && !user) {
+    return <Navigate to="/cloud/login?redirect=%2Fcloud%2Fdashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const token = getAuthToken();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0B0E14] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   if (!token) {
     return <Navigate to="/admin/login" replace />;
   }
+
+  const role = user?.role;
+  const adminToken = localStorage.getItem('benix_admin_token');
+
+  // Non-admin customers redirected to customer dashboard
+  if (user && role !== 'admin' && role !== 'superadmin') {
+    return <Navigate to="/cloud/dashboard" replace />;
+  }
+
+  if (!adminToken && role !== 'admin' && role !== 'superadmin') {
+    return <Navigate to="/admin/login" replace />;
+  }
+
   return <>{children}</>;
 };
 
