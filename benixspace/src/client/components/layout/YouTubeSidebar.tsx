@@ -107,7 +107,7 @@ export const YouTubeSidebar: React.FC = () => {
     },
     {
       id: 'cloud',
-      name: 'Benix Cloud VPS',
+      name: 'Hosting Services',
       icon: Cloud,
       route: '/cloud',
       badge: 'Free 2 Mo',

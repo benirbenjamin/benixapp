@@ -592,7 +592,7 @@ export const Navbar: React.FC = () => {
                     <Cloud className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col">
-                    <span>Benix Cloud VPS</span>
+                    <span>Hosting Services</span>
                     <span className="text-[10px] text-sky-400 font-semibold">Free 2-Month Trial</span>
                   </div>
                 </button>

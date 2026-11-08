@@ -37,7 +37,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { name: 'Dashboard Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Users & Permissions', path: '/admin/users', icon: Users },
     { name: 'Withdrawals & Payouts', path: '/admin#withdrawals', icon: ArrowUpRight, badge: 'Payouts' },
-    { name: 'Benix Cloud & VPS', path: '/cloud/admin', icon: Server, badge: 'Cloud' },
+    { name: 'Hosting Services', path: '/cloud/admin', icon: Server, badge: 'Hosting' },
     { name: 'Project Portfolio', path: '/admin/projects', icon: Layers },
     { name: 'Blog Articles CMS', path: '/admin/blog', icon: FileText },
     { name: 'Visitor Analytics', path: '/admin/analytics', icon: BarChart3 },
