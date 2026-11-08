@@ -120,6 +120,18 @@ export const CloudDashboardPage: React.FC = () => {
   const [deploying, setDeploying] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
 
+  // GitHub Integration & Auto-Sync State
+  const [githubAccount, setGithubAccount] = useState<{ username: string; avatarUrl: string; email: string; connectedAt: string } | null>(null);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [showGithubModal, setShowGithubModal] = useState(false);
+  const [githubPatInput, setGithubPatInput] = useState('');
+  const [connectingGithub, setConnectingGithub] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [userRepos, setUserRepos] = useState<any[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [repoBranches, setRepoBranches] = useState<string[]>([]);
+  const [syncingWebhookId, setSyncingWebhookId] = useState<string | null>(null);
+
   // GitHub Inspection State
   const [inspectingRepo, setInspectingRepo] = useState(false);
   const [inspectedRepo, setInspectedRepo] = useState<any | null>(null);
@@ -184,6 +196,15 @@ export const CloudDashboardPage: React.FC = () => {
       if (dbsRes.success) setDatabases(dbsRes.databases);
       if (domsRes.success) setDomains(domsRes.domains);
       if (depositsRes.success) setMyDeposits(depositsRes.deposits);
+
+      try {
+        const ghRes = await fetch('/api/cloud/github/status', { headers }).then(r => r.json());
+        if (ghRes && ghRes.success && ghRes.connected) {
+          setGithubAccount(ghRes.account);
+        } else {
+          setGithubAccount(null);
+        }
+      } catch {}
     } catch (err) {
       console.warn('Error fetching cloud data:', err);
     } finally {
@@ -223,6 +244,111 @@ export const CloudDashboardPage: React.FC = () => {
       }
     }
   }, [initialPlan, data, plans]);
+
+  // Fetch user repositories from connected GitHub account
+  const fetchUserRepos = async () => {
+    setLoadingRepos(true);
+    try {
+      const res = await fetch('/api/cloud/github/repos', {
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.repos)) {
+        setUserRepos(json.repos);
+      }
+    } catch {} finally {
+      setLoadingRepos(false);
+    }
+  };
+
+  // Connect GitHub via Personal Access Token
+  const handleConnectGithubToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!githubPatInput.trim()) return;
+    setConnectingGithub(true);
+    setGithubError(null);
+    try {
+      const res = await fetch('/api/cloud/github/connect-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({ token: githubPatInput.trim() })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setGithubAccount(json.account);
+        setShowGithubModal(false);
+        setGithubPatInput('');
+        fetchUserRepos();
+      } else {
+        setGithubError(json.error || 'Failed to connect GitHub account.');
+      }
+    } catch (err: any) {
+      setGithubError(err.message || 'Network error.');
+    } finally {
+      setConnectingGithub(false);
+    }
+  };
+
+  // Disconnect GitHub
+  const handleDisconnectGithub = async () => {
+    if (!window.confirm('Disconnect your GitHub account?')) return;
+    try {
+      await fetch('/api/cloud/github/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      setGithubAccount(null);
+      setUserRepos([]);
+    } catch {}
+  };
+
+  // Select a repo from dropdown
+  const handleSelectRepo = async (repo: any) => {
+    setDeployGitUrl(repo.htmlUrl);
+    if (!deployName) {
+      setDeployName(repo.name);
+    }
+    setDeployBranch(repo.defaultBranch || 'main');
+
+    // Fetch branches for selected repo
+    try {
+      const bRes = await fetch(`/api/cloud/github/branches?repo=${encodeURIComponent(repo.fullName)}`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const bJson = await bRes.json();
+      if (bJson.success && Array.isArray(bJson.branches)) {
+        setRepoBranches(bJson.branches);
+      }
+    } catch {}
+
+    // Inspect repository
+    await handleInspectGithubRepo(repo.htmlUrl);
+  };
+
+  // Auto-install / re-install webhook on deployment
+  const handleSyncWebhook = async (depId: string) => {
+    setSyncingWebhookId(depId);
+    try {
+      const res = await fetch(`/api/cloud/deployments/${depId}/sync-webhook`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(json.message || 'GitHub webhook installed successfully!');
+        await fetchCloudData();
+      } else {
+        alert(json.error || 'Failed to install GitHub webhook.');
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSyncingWebhookId(null);
+    }
+  };
 
   // Live GitHub Inspector Function
   const handleInspectGithubRepo = async (urlToInspect?: string) => {
@@ -922,6 +1048,67 @@ export const CloudDashboardPage: React.FC = () => {
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* GITHUB AUTO-SYNC STATUS CARD */}
+            <div className="bg-[#121620] border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white">
+                  <GithubIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-white">GitHub Account & Auto-Sync</h3>
+                    {githubAccount ? (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Connected</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold">
+                        Not Connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {githubAccount ? (
+                      <span>Connected as <strong>@{githubAccount.username}</strong>. Automatic push-to-deploy webhooks are enabled.</span>
+                    ) : (
+                      <span>Connect your GitHub account to enable zero-config auto-sync and select repositories directly.</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {githubAccount ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowDeployModal(true);
+                        fetchUserRepos();
+                      }}
+                      className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Deploy from GitHub</span>
+                    </button>
+                    <button
+                      onClick={handleDisconnectGithub}
+                      className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-400 hover:text-white transition"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setShowGithubModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-bold text-white transition flex items-center gap-2 shadow"
+                  >
+                    <GithubIcon className="w-4 h-4" />
+                    <span>Connect GitHub Account</span>
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-5">
                 <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
@@ -1119,20 +1306,37 @@ export const CloudDashboardPage: React.FC = () => {
                       </div>
 
                       <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex items-center justify-between text-xs">
-                        <span className="text-slate-400 truncate mr-2 font-mono">{dep.live_url}</span>
+                        <span className="text-slate-400 truncate mr-2 font-mono">
+                          {dep.live_url || `https://benix.space/apps/${dep.name}`}
+                        </span>
                         <a
-                          href={dep.live_url}
+                          href={dep.live_url || `https://benix.space/apps/${dep.name}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-sky-400 hover:text-sky-300 font-bold shrink-0 flex items-center gap-1"
                         >
-                          <span>Open</span>
+                          <span>Open App</span>
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
 
-                      {/* Meta badges: Commit & Env count */}
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                      {/* Meta badges: Commit, Auto-Sync & Env count */}
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                        {dep.auto_sync_enabled ? (
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-[10px] text-purple-300 font-bold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                            <span>Auto-Sync Active</span>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSyncWebhook(dep.id)}
+                            disabled={syncingWebhookId === dep.id}
+                            className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 flex items-center gap-1"
+                          >
+                            <GithubIcon className="w-2.5 h-2.5 text-slate-400" />
+                            <span>{syncingWebhookId === dep.id ? 'Installing...' : 'Enable Auto-Sync'}</span>
+                          </button>
+                        )}
                         {dep.git_commit_hash && (
                           <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 font-mono text-[10px]">
                             #{dep.git_commit_hash}

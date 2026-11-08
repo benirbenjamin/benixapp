@@ -50,6 +50,7 @@ import { CloudLandingPage } from './client/pages/modules/CloudLandingPage';
 import { CloudLoginPage, CloudRegisterPage } from './client/pages/cloud/CloudAuthPages';
 import { CloudDashboardPage } from './client/pages/cloud/CloudDashboardPage';
 import { CloudAdminPage } from './client/pages/cloud/CloudAdminPage';
+import { AppLiveViewPage } from './client/pages/cloud/AppLiveViewPage';
 import { MessagesPage } from './client/pages/MessagesPage';
 import { CreatorStudioPage } from './client/pages/CreatorStudioPage';
 import { AdvertisePage } from './client/pages/AdvertisePage';
@@ -300,6 +301,8 @@ export const App: React.FC = () => {
                           <Route path="/calc" element={<EasyCalcPage />} />
                           <Route path="/calculators" element={<EasyCalcPage />} />
                           <Route path="/cloud" element={<CloudLandingPage />} />
+                          <Route path="/apps/:appName" element={<AppLiveViewPage />} />
+                          <Route path="/live/:deploymentId" element={<AppLiveViewPage />} />
                           <Route
                             path="/cloud/dashboard"
                             element={

@@ -224,6 +224,389 @@ cloudRouter.get('/deployments', authenticateToken, async (req: AuthenticatedRequ
 });
 
 // =========================================================================
+// GITHUB ACCOUNT CONNECTION, REPO SYNC & AUTOMATIC WEBHOOKS
+// =========================================================================
+
+/**
+ * Helper to install a push webhook on a GitHub repository using user's access token
+ */
+async function installGithubWebhookOnRepo(
+  token: string,
+  owner: string,
+  repo: string,
+  deploymentId: string,
+  webhookSecret: string
+): Promise<{ success: boolean; hookId?: string; error?: string }> {
+  try {
+    const webhookUrl = `https://benix.space/api/cloud/webhooks/github?deploymentId=${deploymentId}`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      'User-Agent': 'BenixSpace-Cloud',
+      Accept: 'application/vnd.github+json'
+    };
+
+    // 1. Check if a Benix webhook already exists on this repository
+    try {
+      const listRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/hooks?per_page=100`, { headers });
+      if (listRes.ok) {
+        const hooks = await listRes.json();
+        if (Array.isArray(hooks)) {
+          const existing = hooks.find((h: any) => h.config?.url && h.config.url.includes('/api/cloud/webhooks/github'));
+          if (existing) {
+            // Update the existing webhook with new deploymentId and secret
+            const updateRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/hooks/${existing.id}`, {
+              method: 'PATCH',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                active: true,
+                events: ['push'],
+                config: {
+                  url: webhookUrl,
+                  content_type: 'json',
+                  secret: webhookSecret,
+                  insecure_ssl: '0'
+                }
+              })
+            });
+            if (updateRes.ok) {
+              return { success: true, hookId: String(existing.id) };
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // 2. Create new webhook on GitHub repository
+    const createRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/hooks`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'web',
+        active: true,
+        events: ['push'],
+        config: {
+          url: webhookUrl,
+          content_type: 'json',
+          secret: webhookSecret,
+          insecure_ssl: '0'
+        }
+      })
+    });
+
+    if (createRes.ok) {
+      const data = await createRes.json();
+      return { success: true, hookId: String(data.id) };
+    }
+
+    const errBody = await createRes.text();
+    return { success: false, error: `GitHub API error (${createRes.status}): ${errBody}` };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Get current user's connected GitHub account status
+ */
+cloudRouter.get('/github/status', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const result = await query(
+      'SELECT github_user_id, github_username, github_avatar_url, github_email, connected_at FROM cloud_github_accounts WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.json({ success: true, connected: false, account: null });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      success: true,
+      connected: true,
+      account: {
+        githubUserId: row.github_user_id,
+        username: row.github_username,
+        avatarUrl: row.github_avatar_url,
+        email: row.github_email,
+        connectedAt: row.connected_at
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Connect GitHub account via Personal Access Token (PAT) with repo & admin:repo_hook scopes
+ */
+cloudRouter.post('/github/connect-token', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const token = String(req.body.token || '').trim();
+    if (!token) return res.status(400).json({ error: 'GitHub personal access token is required' });
+
+    // Validate token against GitHub API
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'BenixSpace-Cloud',
+        Accept: 'application/vnd.github+json'
+      }
+    });
+
+    if (!userRes.ok) {
+      return res.status(400).json({
+        error: 'Invalid GitHub token. Please make sure the token is active with "repo" and "admin:repo_hook" scopes.'
+      });
+    }
+
+    const ghUser = await userRes.json();
+
+    await query(
+      `INSERT INTO cloud_github_accounts (
+        user_id, github_user_id, github_username, github_avatar_url, github_email, access_token, token_type, scope, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'bearer', 'repo,admin:repo_hook', CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id) DO UPDATE SET
+        github_user_id = EXCLUDED.github_user_id,
+        github_username = EXCLUDED.github_username,
+        github_avatar_url = EXCLUDED.github_avatar_url,
+        github_email = EXCLUDED.github_email,
+        access_token = EXCLUDED.access_token,
+        updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        String(ghUser.id),
+        ghUser.login,
+        ghUser.avatar_url,
+        ghUser.email || null,
+        token
+      ]
+    );
+
+    return res.json({
+      success: true,
+      message: `🎉 GitHub account connected successfully as @${ghUser.login}!`,
+      account: {
+        githubUserId: String(ghUser.id),
+        username: ghUser.login,
+        avatarUrl: ghUser.avatar_url,
+        email: ghUser.email
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Disconnect GitHub account
+ */
+cloudRouter.post('/github/disconnect', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    await query('DELETE FROM cloud_github_accounts WHERE user_id = $1', [userId]);
+    return res.json({ success: true, message: 'GitHub account disconnected successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * List repositories of connected GitHub user
+ */
+cloudRouter.get('/github/repos', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const ghRes = await query('SELECT access_token FROM cloud_github_accounts WHERE user_id = $1', [userId]);
+    if (ghRes.rowCount === 0) {
+      return res.status(400).json({ error: 'No GitHub account connected. Please connect your GitHub account.' });
+    }
+
+    const token = ghRes.rows[0].access_token;
+    const reposRes = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100&type=all', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'BenixSpace-Cloud',
+        Accept: 'application/vnd.github+json'
+      }
+    });
+
+    if (!reposRes.ok) {
+      if (reposRes.status === 401) {
+        return res.status(401).json({ error: 'GitHub session expired. Please reconnect your GitHub account.' });
+      }
+      return res.status(400).json({ error: `GitHub error: ${reposRes.statusText}` });
+    }
+
+    const list = await reposRes.json();
+    if (!Array.isArray(list)) return res.json({ success: true, repos: [] });
+
+    const formatted = list.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      fullName: r.full_name,
+      private: Boolean(r.private),
+      defaultBranch: r.default_branch || 'main',
+      htmlUrl: r.html_url,
+      cloneUrl: r.clone_url,
+      description: r.description || '',
+      language: r.language || 'Code',
+      updatedAt: r.updated_at
+    }));
+
+    return res.json({ success: true, repos: formatted });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * List branches for a GitHub repository
+ */
+cloudRouter.get('/github/branches', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    const rawRepo = String(req.query.repo || '').trim();
+    if (!rawRepo) return res.status(400).json({ error: 'Repo parameter is required' });
+
+    const match = rawRepo.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || rawRepo.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+    if (!match) return res.status(400).json({ error: 'Invalid repo name' });
+
+    const owner = match[1];
+    const repo = match[2].replace(/\.git$/, '');
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'BenixSpace-Cloud',
+      Accept: 'application/vnd.github+json'
+    };
+
+    if (userId) {
+      const ghRes = await query('SELECT access_token FROM cloud_github_accounts WHERE user_id = $1', [userId]);
+      if (ghRes.rowCount > 0) {
+        headers.Authorization = `Bearer ${ghRes.rows[0].access_token}`;
+      }
+    }
+
+    const branchesRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, { headers });
+    if (!branchesRes.ok) {
+      return res.status(400).json({ error: `Could not fetch branches: ${branchesRes.statusText}` });
+    }
+
+    const list = await branchesRes.json();
+    const branches = Array.isArray(list) ? list.map((b: any) => b.name) : ['main'];
+
+    return res.json({ success: true, branches });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Auto-install / re-install push webhook on GitHub repo for a deployment
+ */
+cloudRouter.post('/deployments/:id/sync-webhook', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    const depId = req.params.id;
+
+    const depRes = await query('SELECT * FROM cloud_deployments WHERE id = $1 AND user_id = $2', [depId, userId]);
+    if (depRes.rowCount === 0) return res.status(404).json({ error: 'Deployment not found' });
+    const dep = depRes.rows[0];
+
+    if (dep.source_type !== 'github' || !dep.git_repo_url) {
+      return res.status(400).json({ error: 'Deployment is not linked to a GitHub repository' });
+    }
+
+    const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+    if (!match) return res.status(400).json({ error: 'Invalid GitHub repository URL' });
+
+    const owner = match[1];
+    const repo = match[2].replace(/\.git$/, '');
+
+    const ghRes = await query('SELECT access_token FROM cloud_github_accounts WHERE user_id = $1', [userId]);
+    if (ghRes.rowCount === 0) {
+      return res.status(400).json({ error: 'Please connect your GitHub account first in the dashboard to install auto-sync webhooks.' });
+    }
+
+    const token = ghRes.rows[0].access_token;
+    const secret = dep.webhook_secret || crypto.randomBytes(16).toString('hex');
+
+    const hookResult = await installGithubWebhookOnRepo(token, owner, repo, dep.id, secret);
+    if (!hookResult.success) {
+      return res.status(400).json({ error: hookResult.error || 'Failed to install webhook on GitHub' });
+    }
+
+    const now = new Date().toISOString();
+    const logs = `${dep.last_logs || ''}\n[${now}] 🔗 [GitHub Auto-Sync] Webhook automatically installed on GitHub (${owner}/${repo})! Push-to-deploy is active.`;
+
+    await query(
+      `UPDATE cloud_deployments 
+       SET github_webhook_id = $1, auto_sync_enabled = true, webhook_secret = $2, last_logs = $3, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $4`,
+      [hookResult.hookId, secret, logs, depId]
+    );
+
+    return res.json({
+      success: true,
+      message: `🎉 GitHub webhook successfully installed on "${owner}/${repo}"! Automatic sync on push is active.`,
+      hookId: hookResult.hookId
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Public route to load deployment for live preview / apps runner (e.g. benix.space/apps/:appName)
+ */
+cloudRouter.get('/deployments/by-name/:name', async (req, res) => {
+  try {
+    const rawName = String(req.params.name || '').trim();
+    const depRes = await query(
+      "SELECT * FROM cloud_deployments WHERE (LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+      [rawName, `${rawName.toLowerCase()}%`]
+    );
+
+    if (depRes.rowCount === 0) {
+      return res.status(404).json({ success: false, error: `Application "${rawName}" not found or has been stopped.` });
+    }
+
+    const dep = depRes.rows[0];
+    return res.json({
+      success: true,
+      deployment: {
+        id: dep.id,
+        name: dep.name,
+        framework: dep.framework,
+        sourceType: dep.source_type,
+        gitRepoUrl: dep.git_repo_url,
+        gitBranch: dep.git_branch,
+        gitCommitHash: dep.git_commit_hash,
+        internalPort: dep.internal_port,
+        status: dep.status,
+        liveUrl: dep.live_url,
+        assignedSubdomain: dep.assigned_subdomain,
+        lastDeployedAt: dep.last_deployed_at,
+        lastLogs: dep.last_logs,
+        autoSyncEnabled: dep.auto_sync_enabled
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+// =========================================================================
 // GITHUB REPO INSPECTION & AUTO-SYNC WEBHOOKS
 // =========================================================================
 
@@ -493,9 +876,36 @@ cloudRouter.post('/deployments', authenticateToken, async (req: AuthenticatedReq
 
     const deploymentId = 'cdep-' + crypto.randomUUID();
     const webhookSecret = crypto.randomBytes(16).toString('hex');
-    const subdomain = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.apps.benix.space`;
+    const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const subdomain = `${safeName}.apps.benix.space`;
+    const directLiveUrl = `https://benix.space/apps/${safeName}`;
     const envCount = Object.keys(envVariables || {}).length;
     const now = new Date().toISOString();
+
+    let githubWebhookId: string | null = null;
+    let autoSyncEnabled = true;
+
+    // Automatic zero-config webhook installation if GitHub account is connected!
+    if (sourceType === 'github' && gitRepoUrl) {
+      const match = gitRepoUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || gitRepoUrl.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+      if (match) {
+        const owner = match[1];
+        const repo = match[2].replace(/\.git$/, '');
+        try {
+          const ghAccountRes = await query('SELECT access_token FROM cloud_github_accounts WHERE user_id = $1', [userId]);
+          if (ghAccountRes.rowCount > 0) {
+            const token = ghAccountRes.rows[0].access_token;
+            const hookRes = await installGithubWebhookOnRepo(token, owner, repo, deploymentId, webhookSecret);
+            if (hookRes.success && hookRes.hookId) {
+              githubWebhookId = hookRes.hookId;
+              autoSyncEnabled = true;
+            }
+          }
+        } catch (e: any) {
+          console.warn('Auto webhook install warning:', e.message);
+        }
+      }
+    }
 
     const initialLogs = `[${now}] 🚀 [Benix Cloud Pipeline] Initializing build container for ${name}...\n` +
       `[${now}] 📂 Source: ${sourceType === 'github' ? gitRepoUrl + ' (' + gitBranch + ')' : 'ZIP Archive'}\n` +
@@ -538,14 +948,21 @@ cloudRouter.post('/deployments', authenticateToken, async (req: AuthenticatedReq
         Number(internalPort),
         coolifyApp.appUuid,
         coolifyApp.containerId,
-        coolifyApp.liveUrl || `https://${subdomain}`,
+        directLiveUrl,
         subdomain,
-        initialLogs,
+        initialLogs + (githubWebhookId ? `\n[${now}] 🔗 [GitHub Auto-Sync] Webhook automatically installed on GitHub repo! Continuous deployment active.` : `\n[${now}] ℹ️ [GitHub Auto-Sync] Connect GitHub in Dashboard to enable zero-config auto-sync.`),
         envString,
         webhookSecret,
         rootDir || '/'
       ]
     );
+
+    if (githubWebhookId) {
+      await query(
+        'UPDATE cloud_deployments SET github_webhook_id = $1, auto_sync_enabled = true WHERE id = $2',
+        [githubWebhookId, deploymentId]
+      );
+    }
 
     if (server) {
       await query('UPDATE cloud_servers SET hosted_apps_count = hosted_apps_count + 1 WHERE id = $1', [server.id]);
@@ -982,17 +1399,25 @@ cloudRouter.post('/domains/:id/verify', authenticateToken, async (req: Authentic
     let foundRecords: string[] = [];
 
     try {
+      // 1. Resolve CNAME records (must point to cloud.benix.space or benix.space)
       try {
         const cnames = await dns.resolveCname(clean);
         foundRecords.push(...cnames);
-        verified = cnames.some(c => c.toLowerCase().includes('benix.space'));
+        verified = cnames.some(c => {
+          const lower = c.toLowerCase().replace(/\.$/, '');
+          return lower === 'cloud.benix.space' || lower === 'benix.space' || lower.endsWith('.benix.space');
+        });
       } catch {}
 
+      // 2. If no valid CNAME, resolve A-records and strictly match against benix.space or Vercel IPs
       if (!verified) {
         try {
           const ips = await dns.resolve4(clean);
           foundRecords.push(...ips);
-          verified = ips.length > 0;
+          const targetIps = await dns.resolve4('cloud.benix.space').catch(() => []);
+          const apexTargetIps = await dns.resolve4('benix.space').catch(() => []);
+          const validIps = Array.from(new Set([...targetIps, ...apexTargetIps, '76.76.21.21']));
+          verified = ips.some(ip => validIps.includes(ip));
         } catch {}
       }
     } catch {}
@@ -1005,12 +1430,13 @@ cloudRouter.post('/domains/:id/verify', authenticateToken, async (req: Authentic
         message: `🎉 DNS successfully verified for [${clean}]! Let's Encrypt TLS 1.3 certificate active.`
       });
     } else {
+      await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [domId]);
       return res.json({
         success: false,
         verified: false,
-        found: foundRecords.length > 0 ? foundRecords.join(', ') : 'No CNAME / A records detected',
-        expected: 'cloud.benix.space',
-        message: `DNS records for "${clean}" have not propagated yet. Please ensure you have added a CNAME record pointing to "cloud.benix.space" in your domain registrar (Cloudflare, Namecheap, GoDaddy). Changes may take up to 15 minutes to propagate.`
+        found: foundRecords.length > 0 ? foundRecords.join(', ') : 'No CNAME or A records detected',
+        expected: 'cloud.benix.space (or A-record to 76.76.21.21)',
+        message: `DNS verification failed for "${clean}". Current resolution: [${foundRecords.join(', ') || 'None'}]. Required: CNAME record pointing to "cloud.benix.space" or A-record pointing to 76.76.21.21. Please update your DNS records at your registrar.`
       });
     }
   } catch (err: any) {
@@ -1359,7 +1785,9 @@ cloudRouter.put('/admin/plans/:id', authenticateToken, requireAdminRole, async (
     const planId = req.params.id;
     const {
       name,
+      description,
       priceRwf,
+      billingCycle,
       trialDurationDays,
       maxApps,
       vcpuLimit,
@@ -1367,26 +1795,36 @@ cloudRouter.put('/admin/plans/:id', authenticateToken, requireAdminRole, async (
       storageGb,
       maxDatabases,
       customDomainsAllowed,
+      hasFreeSsl,
+      hasBackups,
+      hasPrioritySupport,
       isActive
     } = req.body;
 
     const updated = await query(
       `UPDATE cloud_plans SET
         name = COALESCE($1, name),
-        price_rwf = COALESCE($2, price_rwf),
-        trial_duration_days = COALESCE($3, trial_duration_days),
-        max_apps = COALESCE($4, max_apps),
-        vcpu_limit = COALESCE($5, vcpu_limit),
-        ram_mb = COALESCE($6, ram_mb),
-        storage_gb = COALESCE($7, storage_gb),
-        max_databases = COALESCE($8, max_databases),
-        custom_domains_allowed = COALESCE($9, custom_domains_allowed),
-        is_active = COALESCE($10, is_active),
+        description = COALESCE($2, description),
+        price_rwf = COALESCE($3, price_rwf),
+        billing_cycle = COALESCE($4, billing_cycle),
+        trial_duration_days = COALESCE($5, trial_duration_days),
+        max_apps = COALESCE($6, max_apps),
+        vcpu_limit = COALESCE($7, vcpu_limit),
+        ram_mb = COALESCE($8, ram_mb),
+        storage_gb = COALESCE($9, storage_gb),
+        max_databases = COALESCE($10, max_databases),
+        custom_domains_allowed = COALESCE($11, custom_domains_allowed),
+        has_free_ssl = COALESCE($12, has_free_ssl),
+        has_backups = COALESCE($13, has_backups),
+        has_priority_support = COALESCE($14, has_priority_support),
+        is_active = COALESCE($15, is_active),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $11 RETURNING *`,
+       WHERE id = $16 RETURNING *`,
       [
         name,
+        description,
         priceRwf !== undefined ? Number(priceRwf) : null,
+        billingCycle,
         trialDurationDays !== undefined ? Number(trialDurationDays) : null,
         maxApps !== undefined ? Number(maxApps) : null,
         vcpuLimit !== undefined ? Number(vcpuLimit) : null,
@@ -1394,6 +1832,9 @@ cloudRouter.put('/admin/plans/:id', authenticateToken, requireAdminRole, async (
         storageGb !== undefined ? Number(storageGb) : null,
         maxDatabases !== undefined ? Number(maxDatabases) : null,
         customDomainsAllowed !== undefined ? Number(customDomainsAllowed) : null,
+        hasFreeSsl !== undefined ? Boolean(hasFreeSsl) : null,
+        hasBackups !== undefined ? Boolean(hasBackups) : null,
+        hasPrioritySupport !== undefined ? Boolean(hasPrioritySupport) : null,
         isActive !== undefined ? Boolean(isActive) : null,
         planId
       ]
@@ -1404,6 +1845,19 @@ cloudRouter.put('/admin/plans/:id', authenticateToken, requireAdminRole, async (
       message: 'Plan configuration updated successfully!',
       plan: updated.rows[0]
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Delete a server from registry (Admin only)
+ */
+cloudRouter.delete('/admin/servers/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const srvId = req.params.id;
+    await query('DELETE FROM cloud_servers WHERE id = $1', [srvId]);
+    return res.json({ success: true, message: 'Server removed from cluster.' });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

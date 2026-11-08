@@ -39,12 +39,61 @@ export const CloudAdminPage: React.FC = () => {
   const [serverCoolifyToken, setServerCoolifyToken] = useState('');
   const [addingServer, setAddingServer] = useState(false);
 
-  // Edit Plan Modal
+  // Edit Plan Modal with Full Attributes
   const [editingPlan, setEditingPlan] = useState<any>(null);
+  const [planName, setPlanName] = useState<string>('');
+  const [planDescription, setPlanDescription] = useState<string>('');
   const [planPrice, setPlanPrice] = useState<number>(0);
+  const [planBillingCycle, setPlanBillingCycle] = useState<string>('monthly');
   const [planTrialDays, setPlanTrialDays] = useState<number>(60);
+  const [planMaxApps, setPlanMaxApps] = useState<number>(1);
+  const [planVcpuLimit, setPlanVcpuLimit] = useState<number>(1.0);
+  const [planRamMb, setPlanRamMb] = useState<number>(1024);
   const [planStorageGb, setPlanStorageGb] = useState<number>(5);
+  const [planMaxDatabases, setPlanMaxDatabases] = useState<number>(1);
+  const [planCustomDomains, setPlanCustomDomains] = useState<number>(1);
+  const [planFreeSsl, setPlanFreeSsl] = useState<boolean>(true);
+  const [planBackups, setPlanBackups] = useState<boolean>(false);
+  const [planPrioritySupport, setPlanPrioritySupport] = useState<boolean>(false);
+  const [planIsActive, setPlanIsActive] = useState<boolean>(true);
   const [savingPlan, setSavingPlan] = useState(false);
+
+  const handleOpenEditPlan = (plan: any) => {
+    setEditingPlan(plan);
+    setPlanName(plan.name || '');
+    setPlanDescription(plan.description || '');
+    setPlanPrice(Number(plan.price_rwf) || 0);
+    setPlanBillingCycle(plan.billing_cycle || (plan.is_trial ? 'trial' : 'monthly'));
+    setPlanTrialDays(Number(plan.trial_duration_days) || 60);
+    setPlanMaxApps(Number(plan.max_apps) ?? 1);
+    setPlanVcpuLimit(Number(plan.vcpu_limit) ?? 1.0);
+    setPlanRamMb(Number(plan.ram_mb) || 1024);
+    setPlanStorageGb(Number(plan.storage_gb) || 5);
+    setPlanMaxDatabases(Number(plan.max_databases) ?? 1);
+    setPlanCustomDomains(Number(plan.custom_domains_allowed) ?? 1);
+    setPlanFreeSsl(Boolean(plan.has_free_ssl));
+    setPlanBackups(Boolean(plan.has_backups));
+    setPlanPrioritySupport(Boolean(plan.has_priority_support));
+    setPlanIsActive(plan.is_active !== false);
+  };
+
+  const handleDeleteServer = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove server "${name}" from registry?`)) return;
+    try {
+      const res = await fetch(`/api/cloud/admin/servers/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        await fetchAdminData();
+      } else {
+        alert(json.error || 'Failed to delete server');
+      }
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
 
   const fetchAdminData = async () => {
     try {
@@ -169,9 +218,21 @@ export const CloudAdminPage: React.FC = () => {
           Authorization: `Bearer ${getAuthToken()}`
         },
         body: JSON.stringify({
+          name: planName,
+          description: planDescription,
           priceRwf: planPrice,
+          billingCycle: planBillingCycle,
           trialDurationDays: planTrialDays,
-          storageGb: planStorageGb
+          maxApps: planMaxApps,
+          vcpuLimit: planVcpuLimit,
+          ramMb: planRamMb,
+          storageGb: planStorageGb,
+          maxDatabases: planMaxDatabases,
+          customDomainsAllowed: planCustomDomains,
+          hasFreeSsl: planFreeSsl,
+          hasBackups: planBackups,
+          hasPrioritySupport: planPrioritySupport,
+          isActive: planIsActive
         })
       });
       const json = await res.json();
@@ -351,6 +412,24 @@ export const CloudAdminPage: React.FC = () => {
               </button>
             </div>
 
+            {servers.length === 0 ? (
+              <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                  <Server className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-base text-white">Cloud-Native Serverless Runtime Active</h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Applications and PostgreSQL databases run directly on Benix Cloud's managed high-availability cloud infrastructure. No dummy or local servers needed.
+                </p>
+                <button
+                  onClick={() => setShowAddServerModal(true)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-white font-semibold inline-flex items-center gap-2"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Connect Real VPS Server</span>
+                </button>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {servers.map((srv) => (
                 <div key={srv.id} className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 space-y-4">
@@ -364,9 +443,18 @@ export const CloudAdminPage: React.FC = () => {
                         <div className="text-[11px] text-slate-400">{srv.region} • IP: {srv.public_ip}</div>
                       </div>
                     </div>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
-                      ● {srv.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
+                        ● {srv.status}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteServer(srv.id, srv.name)}
+                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                        title="Delete Server"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 pt-2 text-center text-xs">
@@ -391,6 +479,7 @@ export const CloudAdminPage: React.FC = () => {
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -531,69 +620,201 @@ export const CloudAdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* EDIT PLAN MODAL */}
+      {/* EDIT PLAN MODAL WITH COMPLETE ATTRIBUTES */}
       {editingPlan && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#121620] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-base text-white">Edit Plan: {editingPlan.name}</h3>
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#121620] border border-white/10 rounded-2xl p-6 max-w-2xl w-full shadow-2xl my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+              <div>
+                <h3 className="font-bold text-base text-white">Edit Plan: {editingPlan.name}</h3>
+                <p className="text-xs text-slate-400">Configure pricing, quotas, hardware allocations, and feature flags.</p>
+              </div>
               <button onClick={() => setEditingPlan(null)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <form onSubmit={handleSavePlan} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Price (RWF)</label>
-                <input
-                  type="number"
-                  required
-                  value={planPrice}
-                  onChange={(e) => setPlanPrice(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {editingPlan.is_trial && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Trial Duration (Days)</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Plan Display Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={planName}
+                    onChange={(e) => setPlanName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Price (RWF)</label>
                   <input
                     type="number"
                     required
-                    min={7}
-                    max={365}
-                    value={planTrialDays}
-                    onChange={(e) => setPlanTrialDays(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                    value={planPrice}
+                    onChange={(e) => setPlanPrice(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                   />
                 </div>
-              )}
+              </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">SSD Storage Allowance (GB)</label>
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  value={planStorageGb}
-                  onChange={(e) => setPlanStorageGb(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500"
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Plan Description</label>
+                <textarea
+                  rows={2}
+                  value={planDescription}
+                  onChange={(e) => setPlanDescription(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 resize-none"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingPlan(null)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-400"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingPlan}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white disabled:opacity-50"
-                >
-                  {savingPlan ? 'Saving...' : 'Save Plan Changes'}
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Billing Cycle</label>
+                  <select
+                    value={planBillingCycle}
+                    onChange={(e) => setPlanBillingCycle(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="trial">Trial</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Trial Days (If Trial)</label>
+                  <input
+                    type="number"
+                    value={planTrialDays}
+                    onChange={(e) => setPlanTrialDays(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Max Apps (-1 = Unlimited)</label>
+                  <input
+                    type="number"
+                    value={planMaxApps}
+                    onChange={(e) => setPlanMaxApps(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">vCPU Limit</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={planVcpuLimit}
+                    onChange={(e) => setPlanVcpuLimit(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">RAM (MB)</label>
+                  <input
+                    type="number"
+                    value={planRamMb}
+                    onChange={(e) => setPlanRamMb(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Storage (GB)</label>
+                  <input
+                    type="number"
+                    value={planStorageGb}
+                    onChange={(e) => setPlanStorageGb(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Max DBs (-1 = Unltd)</label>
+                  <input
+                    type="number"
+                    value={planMaxDatabases}
+                    onChange={(e) => setPlanMaxDatabases(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Custom Domains (-1 = Unltd)</label>
+                  <input
+                    type="number"
+                    value={planCustomDomains}
+                    onChange={(e) => setPlanCustomDomains(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-col justify-end space-y-2 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={planFreeSsl}
+                      onChange={(e) => setPlanFreeSsl(e.target.checked)}
+                      className="rounded accent-purple-500"
+                    />
+                    <span>Include Free Let's Encrypt SSL</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={planBackups}
+                      onChange={(e) => setPlanBackups(e.target.checked)}
+                      className="rounded accent-purple-500"
+                    />
+                    <span>Automated Daily Backups</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={planPrioritySupport}
+                      onChange={(e) => setPlanPrioritySupport(e.target.checked)}
+                      className="rounded accent-purple-500"
+                    />
+                    <span>Priority 24/7 SLA Support</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between border-t border-white/10">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={planIsActive}
+                    onChange={(e) => setPlanIsActive(e.target.checked)}
+                    className="rounded accent-purple-500"
+                  />
+                  <span>Active & Published in Pricing Catalog</span>
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPlan(null)}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingPlan}
+                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold text-xs text-white disabled:opacity-50"
+                  >
+                    {savingPlan ? 'Saving...' : 'Save All Plan Changes'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

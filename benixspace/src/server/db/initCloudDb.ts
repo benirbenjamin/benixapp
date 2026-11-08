@@ -336,6 +336,20 @@ const DDL_STATEMENTS = [
     ip_address VARCHAR(100),
     details JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // 11. cloud_github_accounts
+  `CREATE TABLE IF NOT EXISTS cloud_github_accounts (
+    user_id VARCHAR(255) PRIMARY KEY,
+    github_user_id VARCHAR(100),
+    github_username VARCHAR(255) NOT NULL,
+    github_avatar_url TEXT,
+    github_email VARCHAR(255),
+    access_token TEXT NOT NULL,
+    token_type VARCHAR(50) DEFAULT 'bearer',
+    scope TEXT,
+    connected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   )`
 ];
 
@@ -367,6 +381,8 @@ export async function initCloudDb(): Promise<void> {
       `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(255)`,
       `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS root_dir VARCHAR(255) DEFAULT '/'`,
       `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS env_variables TEXT`,
+      `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS github_webhook_id VARCHAR(100)`,
+      `ALTER TABLE cloud_deployments ADD COLUMN IF NOT EXISTS auto_sync_enabled BOOLEAN DEFAULT true`,
       `ALTER TABLE cloud_databases ADD COLUMN IF NOT EXISTS schema_name VARCHAR(255)`
     ];
 
@@ -426,35 +442,12 @@ export async function initCloudDb(): Promise<void> {
       );
     }
 
-    // 4. Seed initial Primary Server record
-    const serverCheck = await query('SELECT id FROM cloud_servers LIMIT 1');
-    if (serverCheck.rowCount === 0) {
-      await query(
-        `INSERT INTO cloud_servers (
-          id, name, provider, public_ip, ssh_port, region, os, deployment_engine,
-          cpu_cores, ram_total_mb, disk_total_gb, status, is_maintenance, is_enabled_for_deployments, hosted_apps_count
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-        ) ON CONFLICT (id) DO NOTHING`,
-        [
-          'srv-primary-01',
-          'Primary Production VPS Node (Ubuntu)',
-          'NebeluRw Cloud Infrastructure',
-          '127.0.0.1',
-          22,
-          'Germany (Frankfurt / Nuremberg)',
-          'Ubuntu 22.04 LTS (Jammy)',
-          'coolify',
-          4,
-          8192,
-          160,
-          'healthy',
-          false,
-          true,
-          0
-        ]
-      );
-    }
+    // 4. Clean up any legacy dummy 127.0.0.1 VPS records and reset unverified domains
+    try {
+      await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");
+      await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending' WHERE domain_name = 'voxify.space'");
+      await query("UPDATE cloud_deployments SET live_url = 'https://benix.space/apps/' || name WHERE live_url LIKE '%.apps.benix.space%'");
+    } catch {}
 
     console.log('☁️ [Benix Cloud] Database schema and initial plans verified successfully!');
   } catch (error: any) {
