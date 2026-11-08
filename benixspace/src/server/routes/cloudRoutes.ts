@@ -776,10 +776,12 @@ cloudRouter.get('/deployments/by-name/:name/raw-app', async (req, res) => {
 /**
  * Asset proxy for deployed web applications (styles, scripts, icons, images)
  */
-cloudRouter.get('/deployments/by-name/:name/assets/*', async (req, res) => {
+cloudRouter.get('/deployments/by-name/:name/assets/{*assetPath}', async (req, res) => {
   try {
     const rawName = String(req.params.name || '').trim();
-    const assetPath = req.params[0] || '';
+    const assetPath = Array.isArray(req.params.assetPath)
+      ? req.params.assetPath.join('/')
+      : String(req.params.assetPath || '');
 
     const depRes = await query(
       "SELECT * FROM cloud_deployments WHERE (LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
@@ -839,9 +841,11 @@ cloudRouter.get('/deployments/by-name/:name/assets/*', async (req, res) => {
 /**
  * Serverless Backend API Gateway for deployed apps (Postgres inspector, backup export, stats)
  */
-cloudRouter.all('/deployments/by-name/:name/api/*', async (req, res) => {
+cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res) => {
   try {
-    const apiSubpath = req.params[0] || '';
+    const apiSubpath = Array.isArray(req.params.apiSubpath)
+      ? req.params.apiSubpath.join('/')
+      : String(req.params.apiSubpath || '');
 
     // Handle openlinks stats
     if (apiSubpath === 'stats') {
