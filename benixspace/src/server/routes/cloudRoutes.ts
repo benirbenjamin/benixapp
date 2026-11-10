@@ -971,24 +971,76 @@ cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res)
         const { Client } = await import('pg');
         const client = new Client({
           connectionString: uri,
-          ssl: { rejectUnauthorized: false }
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 15000
         });
         await client.connect();
 
+        let dbName = 'postgresql_db';
+        let userName = 'postgres';
+        let pgVersion = 'PostgreSQL';
+        try {
+          const infoRes = await client.query('SELECT current_database() as db_name, current_user as user_name, version();');
+          if (infoRes.rows[0]) {
+            dbName = infoRes.rows[0].db_name || dbName;
+            userName = infoRes.rows[0].user_name || userName;
+            pgVersion = infoRes.rows[0].version || pgVersion;
+          }
+        } catch {}
+
+        let schemas: string[] = ['public'];
+        try {
+          const schemasRes = await client.query(`
+            SELECT schema_name 
+            FROM information_schema.schemata 
+            WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            ORDER BY schema_name;
+          `);
+          if (schemasRes.rows.length > 0) {
+            schemas = schemasRes.rows.map((r: any) => r.schema_name);
+          }
+        } catch {}
+
         const tablesRes = await client.query(`
-          SELECT table_name, (
-            SELECT count(*) FROM information_schema.columns c WHERE c.table_name = t.table_name
-          ) as column_count
-          FROM information_schema.tables t
-          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-          ORDER BY table_name;
+          SELECT 
+            n.nspname AS table_schema,
+            c.relname AS table_name,
+            COALESCE(s.n_live_tup, GREATEST(c.reltuples::bigint, 0)) AS row_count,
+            (SELECT count(*) FROM information_schema.columns col WHERE col.table_schema = n.nspname AND col.table_name = c.relname) AS column_count
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          LEFT JOIN pg_stat_user_tables s ON s.schemaname = n.nspname AND s.relname = c.relname
+          WHERE n.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            AND c.relkind = 'r'
+          ORDER BY n.nspname, c.relname;
         `);
+
+        let totalRows = 0;
+        const tables = tablesRes.rows.map((t: any) => {
+          const rowCount = Math.max(0, parseInt(t.row_count, 10) || 0);
+          totalRows += rowCount;
+          return {
+            schema: t.table_schema,
+            name: t.table_name,
+            table_name: t.table_name,
+            fullName: `${t.table_schema}.${t.table_name}`,
+            rowCount,
+            columnCount: parseInt(t.column_count, 10) || 0,
+            column_count: parseInt(t.column_count, 10) || 0
+          };
+        });
 
         await client.end();
         return res.json({
           success: true,
-          tables: tablesRes.rows,
-          tableCount: tablesRes.rowCount
+          database: dbName,
+          user: userName,
+          version: pgVersion,
+          schemas,
+          totalTables: tables.length,
+          tableCount: tables.length,
+          totalRows,
+          tables
         });
       } catch (dbErr: any) {
         return res.status(400).json({

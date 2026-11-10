@@ -75894,19 +75894,19 @@ var getCloudAssetMimeType = (pathOrExt) => {
       return "application/octet-stream";
   }
 };
-cloudRouter.get("/deployments/by-name/:name/raw-app", async (req, res) => {
+cloudRouter.get(["/deployments/by-name/:name/raw-app", "/deployments/:id/raw-app"], async (req, res) => {
   try {
-    const rawName = String(req.params.name || "").trim();
+    const rawParam = String(req.params.name || req.params.id || "").trim();
     const depRes = await query(
-      "SELECT * FROM cloud_deployments WHERE (LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
-      [rawName, `${rawName.toLowerCase()}%`]
+      "SELECT * FROM cloud_deployments WHERE (id::text = $1 OR LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+      [rawParam, `${rawParam.toLowerCase()}%`]
     );
     if (depRes.rowCount === 0) {
       return res.status(404).send(`
         <!DOCTYPE html>
         <html>
         <head><title>App Not Found</title><style>body{background:#0b0e14;color:#f3f4f6;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}</style></head>
-        <body><div style="text-align:center;"><h2>Application "${rawName}" Not Found</h2><p style="color:#94a3b8;">This app is either not deployed or has been stopped.</p></div></body>
+        <body><div style="text-align:center;"><h2>Application "${rawParam}" Not Found</h2><p style="color:#94a3b8;">This app is either not deployed or has been stopped.</p></div></body>
         </html>
       `);
     }
@@ -76079,8 +76079,120 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
         status: "online"
       });
     }
+    if (apiSubpath === "tools") {
+      return res.json({
+        platform: "BenixSpaceTools",
+        domain: "tools.benix.space",
+        version: "1.0.0",
+        tools: [
+          {
+            id: "postgres-dumper",
+            title: "PostgreSQL Database to SQL Downloader",
+            slug: "postgres-to-sql",
+            category: "Database Tools",
+            status: "active",
+            badge: "Popular",
+            description: "Connect to any PostgreSQL database via connection URL and download a complete .sql backup file."
+          },
+          {
+            id: "openlinks",
+            title: "OpenLinks - Multi-URL Opener & Screen Grid Visualizer",
+            slug: "open-links",
+            category: "Web & Traffic Tools",
+            status: "active",
+            badge: "Grid Opener",
+            description: "Multi-URL launcher with responsive screen-fit grid layout (10 tabs = 5x2, 20 tabs = 5x4)."
+          }
+        ]
+      });
+    }
     if (apiSubpath === "links/history") {
       return res.json({ success: true, history: [] });
+    }
+    if (apiSubpath === "links/open" || apiSubpath === "open-link" || apiSubpath === "open-links") {
+      const { links, urls, link, tabsCount, tabCount } = req.body || {};
+      let rawList = [];
+      if (Array.isArray(links)) rawList = links;
+      else if (typeof links === "string") rawList = links.split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
+      else if (Array.isArray(urls)) rawList = urls;
+      else if (typeof urls === "string") rawList = urls.split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean);
+      else if (link) rawList = [String(link).trim()];
+      const normalizedUrls = rawList.map((u) => /^https?:\/\//i.test(u) ? u : `https://${u}`);
+      const count = Math.max(1, Math.min(parseInt(tabsCount || tabCount, 10) || normalizedUrls.length || 1, 100));
+      let cols = 1;
+      let rows = 1;
+      if (count === 1) {
+        cols = 1;
+        rows = 1;
+      } else if (count === 2) {
+        cols = 2;
+        rows = 1;
+      } else if (count === 3) {
+        cols = 3;
+        rows = 1;
+      } else if (count === 4) {
+        cols = 2;
+        rows = 2;
+      } else if (count <= 6) {
+        cols = 3;
+        rows = 2;
+      } else if (count <= 8) {
+        cols = 4;
+        rows = 2;
+      } else if (count === 9) {
+        cols = 3;
+        rows = 3;
+      } else if (count === 10) {
+        cols = 5;
+        rows = 2;
+      } else if (count <= 12) {
+        cols = 4;
+        rows = 3;
+      } else if (count <= 16) {
+        cols = 4;
+        rows = 4;
+      } else if (count === 20) {
+        cols = 5;
+        rows = 4;
+      } else if (count <= 25) {
+        cols = 5;
+        rows = 5;
+      } else {
+        cols = Math.ceil(Math.sqrt(count * 1.5));
+        rows = Math.ceil(count / cols);
+      }
+      const tabs = [];
+      const cellWPct = Math.floor(100 / cols);
+      const cellHPct = Math.floor(100 / rows);
+      for (let i = 0; i < count; i++) {
+        const u = normalizedUrls.length > 0 ? normalizedUrls[i % normalizedUrls.length] : "https://benix.space";
+        const colIdx = i % cols;
+        const rowIdx = Math.floor(i / cols);
+        tabs.push({
+          tabIndex: i + 1,
+          url: u,
+          position: {
+            type: "grid",
+            col: colIdx,
+            row: rowIdx,
+            cols,
+            rows,
+            leftPct: Math.round(colIdx * cellWPct),
+            topPct: Math.round(rowIdx * cellHPct),
+            widthPct: cellWPct,
+            heightPct: cellHPct
+          }
+        });
+      }
+      return res.json({
+        success: true,
+        message: `Configured ${count} screen grid tabs (${cols} cols x ${rows} rows). Tabs remain open permanently.`,
+        tabsCount: count,
+        totalLinks: normalizedUrls.length,
+        gridDimensions: { cols, rows },
+        links: tabs,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
     }
     if (apiSubpath === "database/inspect") {
       const { connectionString: connectionString2, connectionUrl } = req.body || {};
@@ -76092,22 +76204,73 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
         const { Client: Client2 } = await Promise.resolve().then(() => (init_esm(), esm_exports));
         const client = new Client2({
           connectionString: uri,
-          ssl: { rejectUnauthorized: false }
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 15e3
         });
         await client.connect();
+        let dbName = "postgresql_db";
+        let userName = "postgres";
+        let pgVersion = "PostgreSQL";
+        try {
+          const infoRes = await client.query("SELECT current_database() as db_name, current_user as user_name, version();");
+          if (infoRes.rows[0]) {
+            dbName = infoRes.rows[0].db_name || dbName;
+            userName = infoRes.rows[0].user_name || userName;
+            pgVersion = infoRes.rows[0].version || pgVersion;
+          }
+        } catch {
+        }
+        let schemas = ["public"];
+        try {
+          const schemasRes = await client.query(`
+            SELECT schema_name 
+            FROM information_schema.schemata 
+            WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            ORDER BY schema_name;
+          `);
+          if (schemasRes.rows.length > 0) {
+            schemas = schemasRes.rows.map((r) => r.schema_name);
+          }
+        } catch {
+        }
         const tablesRes = await client.query(`
-          SELECT table_name, (
-            SELECT count(*) FROM information_schema.columns c WHERE c.table_name = t.table_name
-          ) as column_count
-          FROM information_schema.tables t
-          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-          ORDER BY table_name;
+          SELECT 
+            n.nspname AS table_schema,
+            c.relname AS table_name,
+            COALESCE(s.n_live_tup, GREATEST(c.reltuples::bigint, 0)) AS row_count,
+            (SELECT count(*) FROM information_schema.columns col WHERE col.table_schema = n.nspname AND col.table_name = c.relname) AS column_count
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          LEFT JOIN pg_stat_user_tables s ON s.schemaname = n.nspname AND s.relname = c.relname
+          WHERE n.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            AND c.relkind = 'r'
+          ORDER BY n.nspname, c.relname;
         `);
+        let totalRows = 0;
+        const tables = tablesRes.rows.map((t) => {
+          const rowCount = Math.max(0, parseInt(t.row_count, 10) || 0);
+          totalRows += rowCount;
+          return {
+            schema: t.table_schema,
+            name: t.table_name,
+            table_name: t.table_name,
+            fullName: `${t.table_schema}.${t.table_name}`,
+            rowCount,
+            columnCount: parseInt(t.column_count, 10) || 0,
+            column_count: parseInt(t.column_count, 10) || 0
+          };
+        });
         await client.end();
         return res.json({
           success: true,
-          tables: tablesRes.rows,
-          tableCount: tablesRes.rowCount
+          database: dbName,
+          user: userName,
+          version: pgVersion,
+          schemas,
+          totalTables: tables.length,
+          tableCount: tables.length,
+          totalRows,
+          tables
         });
       } catch (dbErr) {
         return res.status(400).json({
@@ -76186,9 +76349,19 @@ ${colDefs.join(",\n")}
           }
         }
         await client.end();
+        const fileName = `backup_${Date.now()}.sql`;
+        const downloadDataUri = `data:application/sql;charset=utf-8,${encodeURIComponent(sqlDump)}`;
+        const sizeKb = Math.max(1, Math.round(Buffer.byteLength(sqlDump, "utf8") / 1024));
         return res.json({
           success: true,
-          filename: `backup_${Date.now()}.sql`,
+          token: `dump_${Date.now()}`,
+          fileName,
+          filename: fileName,
+          fileSize: `${sizeKb} KB`,
+          fileSizeBytes: Buffer.byteLength(sqlDump, "utf8"),
+          totalTables: tablesRes.rowCount,
+          totalRows: 0,
+          downloadUrl: downloadDataUri,
           sql: sqlDump,
           stats: {
             tablesExported: tablesRes.rowCount,
