@@ -27,7 +27,7 @@ import { SearchService } from './services/searchService';
 import { EmailService } from './services/emailService';
 import { checkInappropriateLanguage, checkKundaContactPolicy, checkContactModeration } from './utils/moderation';
 import realVideosData from '../client/config/realVideos.json';
-import { cloudRouter } from './routes/cloudRoutes';
+import { cloudRouter, renderDeploymentRawAppHandler, serveDeploymentAssetHandler } from './routes/cloudRoutes';
 import { initCloudDb } from './db/initCloudDb';
 
 dotenv.config();
@@ -73,6 +73,101 @@ app.use((req, res, next) => {
   } else if (req.body && typeof req.body === 'object') {
     (req as any)._body = true;
   }
+  next();
+});
+
+// =========================================================================
+// CUSTOM DOMAIN & APPLICATION SUBDOMAIN EDGE ROUTER
+// Routes requests by incoming Host header (e.g. voxify.space -> connected app)
+// =========================================================================
+app.use(async (req, res, next) => {
+  const host = (req.headers.host || '').split(':')[0].toLowerCase();
+
+  const isCoreHost =
+    !host ||
+    host === 'benix.space' ||
+    host === 'www.benix.space' ||
+    host === 'cloud.benix.space' ||
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.endsWith('.vercel.app');
+
+  if (!isCoreHost) {
+    try {
+      let targetDeployment: any = null;
+
+      // 1. Check custom domains in cloud_domains
+      const domRes = await query(
+        `SELECT d.*, cd.id as dep_id, cd.name, cd.framework, cd.source_type, cd.git_repo_url, cd.git_branch, cd.internal_port, cd.status
+         FROM cloud_domains d
+         LEFT JOIN cloud_deployments cd ON d.deployment_id = cd.id
+         WHERE LOWER(d.domain_name) = LOWER($1)
+         ORDER BY d.created_at DESC LIMIT 1`,
+        [host]
+      );
+
+      if (domRes.rowCount > 0) {
+        const row = domRes.rows[0];
+        if (row.name && row.status !== 'deleted') {
+          targetDeployment = row;
+        } else {
+          // Fallback to latest active deployment for this user or overall
+          const fb = await query(
+            `SELECT * FROM cloud_deployments WHERE (user_id = $1 OR status = 'running') AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
+            [row.user_id]
+          );
+          if (fb.rowCount > 0) targetDeployment = fb.rows[0];
+        }
+      } else if (host.endsWith('.apps.benix.space')) {
+        const sub = host.replace('.apps.benix.space', '').toLowerCase();
+        const subRes = await query(
+          `SELECT * FROM cloud_deployments WHERE LOWER(name) = LOWER($1) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
+          [sub]
+        );
+        if (subRes.rowCount > 0) targetDeployment = subRes.rows[0];
+      }
+
+      if (targetDeployment) {
+        // Normalize path
+        let cleanPath = req.path;
+        if (cleanPath.startsWith('/api/') && !cleanPath.startsWith('/api/health') && !cleanPath.startsWith('/api/cloud')) {
+          cleanPath = cleanPath.slice(4);
+        }
+
+        // Handle asset requests: /css/*, /js/*, /assets/*, or file extensions
+        const isAsset =
+          cleanPath.startsWith('/assets/') ||
+          cleanPath.startsWith('/css/') ||
+          cleanPath.startsWith('/js/') ||
+          /\.(css|js|json|png|jpg|jpeg|svg|ico|gif|webp|woff|woff2|ttf)$/i.test(cleanPath);
+
+        if (isAsset) {
+          let assetSubpath = cleanPath;
+          if (assetSubpath.startsWith('/assets/')) {
+            assetSubpath = assetSubpath.replace(/^\/assets\//, '');
+          } else if (assetSubpath.startsWith('/')) {
+            assetSubpath = assetSubpath.slice(1);
+          }
+          return await serveDeploymentAssetHandler(targetDeployment, assetSubpath, res);
+        }
+
+        // Handle app-specific API calls: /api/* or /stats or /database/*
+        if (cleanPath.startsWith('/api/') || cleanPath === '/stats' || cleanPath.startsWith('/database/') || cleanPath === '/export-pg') {
+          const apiPath = cleanPath.startsWith('/api/') ? cleanPath : '/api' + cleanPath;
+          req.url = `/api/cloud/deployments/by-name/${encodeURIComponent(targetDeployment.name)}` + apiPath;
+          return next();
+        }
+
+        // Serve real raw application HTML for GET / and any SPA client routes!
+        if (req.method === 'GET') {
+          return await renderDeploymentRawAppHandler(targetDeployment, res, true);
+        }
+      }
+    } catch (e: any) {
+      console.warn('Custom domain routing exception:', e?.message);
+    }
+  }
+
   next();
 });
 

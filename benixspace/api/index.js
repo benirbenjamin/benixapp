@@ -75823,6 +75823,64 @@ cloudRouter.post("/deployments/:id/sync-webhook", authenticateToken, async (req,
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+cloudRouter.post("/deployments/:id/manual-sync", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const depId = req.params.id;
+    const depRes = await query(
+      "SELECT * FROM cloud_deployments WHERE id = $1 AND (user_id = $2 OR $3 = true)",
+      [depId, userId, req.user?.role === "admin"]
+    );
+    if (depRes.rowCount === 0) return res.status(404).json({ error: "Deployment not found" });
+    const dep = depRes.rows[0];
+    if (dep.source_type !== "github" || !dep.git_repo_url) {
+      return res.status(400).json({ error: "This deployment is not linked to a GitHub repository" });
+    }
+    const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+    if (!match) return res.status(400).json({ error: "Invalid GitHub repository URL" });
+    const owner = match[1];
+    const repo = match[2].replace(/\.git$/, "");
+    const branch = dep.git_branch || "main";
+    let token = "";
+    const ghRes = await query("SELECT access_token FROM cloud_github_accounts WHERE user_id = $1", [userId]);
+    if (ghRes.rowCount > 0) token = ghRes.rows[0].access_token;
+    const headers = {
+      "User-Agent": "BenixSpace-Cloud-Sync",
+      Accept: "application/vnd.github.v3+json"
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    let commitHash = dep.git_commit_hash || "latest";
+    let commitMessage = "Manual synchronization";
+    let commitAuthor = "GitHub";
+    try {
+      const commitRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${branch}`, { headers });
+      if (commitRes.ok) {
+        const commitData = await commitRes.json();
+        commitHash = (commitData.sha || "").substring(0, 7) || commitHash;
+        commitMessage = (commitData.commit?.message || "").split("\n")[0] || commitMessage;
+        commitAuthor = commitData.commit?.author?.name || commitData.author?.login || "GitHub";
+      }
+    } catch {
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const newLogs = `${dep.last_logs || ""}
+[${now}] \u{1F504} [Manual Sync] Pulled latest commit #${commitHash} ("${commitMessage}") from ${owner}/${repo} (${branch}) by ${commitAuthor}. Application updated and live!`;
+    await query(
+      `UPDATE cloud_deployments
+       SET git_commit_hash = $1, last_logs = $2, last_deployed_at = CURRENT_TIMESTAMP, status = 'running', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [commitHash, newLogs, depId]
+    );
+    return res.json({
+      success: true,
+      message: `\u{1F389} Successfully synchronized "${dep.name}" with commit #${commitHash}: "${commitMessage}"!`,
+      commitHash,
+      commitMessage
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 cloudRouter.get("/deployments/by-name/:name", async (req, res) => {
   try {
     const rawName = String(req.params.name || "").trim();
@@ -75894,6 +75952,147 @@ var getCloudAssetMimeType = (pathOrExt) => {
       return "application/octet-stream";
   }
 };
+async function renderDeploymentRawAppHandler(dep, res, isCustomDomain = false) {
+  if (dep.source_type === "github" && dep.git_repo_url) {
+    const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+    if (match) {
+      const owner = match[1];
+      const repo = match[2].replace(/\.git$/, "");
+      const branch = dep.git_branch || "main";
+      const candidateFiles = [
+        "public/index.html",
+        "index.html",
+        "dist/index.html",
+        "build/index.html",
+        "public/app.html"
+      ];
+      let htmlContent = "";
+      let foundPath = "";
+      for (const candidate of candidateFiles) {
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${candidate}`;
+        try {
+          const rawRes = await fetch(rawUrl, {
+            headers: { "User-Agent": "BenixSpace-Live-Runner" }
+          });
+          if (rawRes.ok) {
+            htmlContent = await rawRes.text();
+            foundPath = candidate;
+            break;
+          }
+        } catch {
+        }
+      }
+      if (htmlContent) {
+        const appNameEnc = encodeURIComponent(dep.name);
+        const baseHref = isCustomDomain ? "/assets/" : `/api/cloud/deployments/by-name/${appNameEnc}/assets/`;
+        const appBase = isCustomDomain ? "" : `/api/cloud/deployments/by-name/${appNameEnc}`;
+        const injection = `
+          <base href="${baseHref}" />
+          <script>
+            (function() {
+              const appBase = '${appBase}';
+              const origFetch = window.fetch;
+              window.fetch = function(url, options) {
+                if (typeof url === 'string') {
+                  if (url.startsWith('/api/') && appBase) {
+                    url = appBase + url;
+                  } else if ((url.startsWith('/css/') || url.startsWith('/js/')) && appBase) {
+                    url = appBase + '/assets' + url;
+                  }
+                }
+                return origFetch.call(this, url, options);
+              };
+              const origOpen = XMLHttpRequest.prototype.open;
+              XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                if (typeof url === 'string') {
+                  if (url.startsWith('/api/') && appBase) {
+                    url = appBase + url;
+                  } else if ((url.startsWith('/css/') || url.startsWith('/js/')) && appBase) {
+                    url = appBase + '/assets' + url;
+                  }
+                }
+                return origOpen.call(this, method, url, ...args);
+              };
+            })();
+          </script>
+        `;
+        let processedHtml = htmlContent.replace(/href="\/css\//gi, 'href="css/').replace(/href="\/favicon/gi, 'href="favicon').replace(/src="\/js\//gi, 'src="js/').replace(/src="\/app\.js/gi, 'src="app.js').replace(/src="\/assets\//gi, 'src="assets/').replace(/href="\/style/gi, 'href="style');
+        if (processedHtml.includes("<head>")) {
+          processedHtml = processedHtml.replace("<head>", "<head>" + injection);
+        } else if (processedHtml.includes("<head ")) {
+          processedHtml = processedHtml.replace(/<head[^>]*>/, "$&" + injection);
+        } else {
+          processedHtml = injection + processedHtml;
+        }
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache");
+        return res.send(processedHtml);
+      }
+    }
+  }
+  return res.status(200).send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>${dep.name} - Benix Cloud</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-6 font-sans">
+      <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-4 shadow-2xl">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
+          \u2713
+        </div>
+        <h1 class="text-xl font-bold">${dep.name} is Live</h1>
+        <p class="text-xs text-slate-400">NodeJS Application is running on Benix Cloud Edge (Port ${dep.internal_port || 3e3}).</p>
+        <div class="p-3 bg-black/40 rounded-xl border border-white/5 text-left font-mono text-xs text-slate-300">
+          <div>Framework: ${dep.framework}</div>
+          <div>Runtime Status: ${dep.status}</div>
+          <div>Branch: ${dep.git_branch || "main"}</div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+}
+async function serveDeploymentAssetHandler(dep, assetPath, res) {
+  if (dep.source_type === "github" && dep.git_repo_url) {
+    const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+    if (match) {
+      const owner = match[1];
+      const repo = match[2].replace(/\.git$/, "");
+      const branch = dep.git_branch || "main";
+      const possiblePaths = [
+        `public/${assetPath}`,
+        assetPath,
+        `dist/${assetPath}`,
+        `build/${assetPath}`
+      ];
+      for (const candidate of possiblePaths) {
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${candidate}`;
+        try {
+          const fetchRes = await fetch(rawUrl, {
+            headers: { "User-Agent": "BenixSpace-Live-Runner" }
+          });
+          if (fetchRes.ok) {
+            const contentType = getCloudAssetMimeType(assetPath);
+            res.setHeader("Content-Type", contentType);
+            res.setHeader("Cache-Control", "public, max-age=120");
+            if (contentType.startsWith("text/") || contentType.includes("javascript") || contentType.includes("json")) {
+              const text = await fetchRes.text();
+              return res.send(text);
+            } else {
+              const buffer = Buffer.from(await fetchRes.arrayBuffer());
+              return res.send(buffer);
+            }
+          }
+        } catch {
+        }
+      }
+    }
+  }
+  return res.status(404).send(`Asset "${assetPath}" not found`);
+}
 cloudRouter.get(["/deployments/by-name/:name/raw-app", "/deployments/:id/raw-app"], async (req, res) => {
   try {
     const rawParam = String(req.params.name || req.params.id || "").trim();
@@ -75910,159 +76109,23 @@ cloudRouter.get(["/deployments/by-name/:name/raw-app", "/deployments/:id/raw-app
         </html>
       `);
     }
-    const dep = depRes.rows[0];
-    if (dep.source_type === "github" && dep.git_repo_url) {
-      const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
-      if (match) {
-        const owner = match[1];
-        const repo = match[2].replace(/\.git$/, "");
-        const branch = dep.git_branch || "main";
-        const candidateFiles = [
-          "public/index.html",
-          "index.html",
-          "dist/index.html",
-          "build/index.html",
-          "public/app.html"
-        ];
-        let htmlContent = "";
-        let foundPath = "";
-        for (const candidate of candidateFiles) {
-          const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${candidate}`;
-          try {
-            const rawRes = await fetch(rawUrl, {
-              headers: { "User-Agent": "BenixSpace-Live-Runner" }
-            });
-            if (rawRes.ok) {
-              htmlContent = await rawRes.text();
-              foundPath = candidate;
-              break;
-            }
-          } catch {
-          }
-        }
-        if (htmlContent) {
-          const appNameEnc = encodeURIComponent(dep.name);
-          const baseHref = `/api/cloud/deployments/by-name/${appNameEnc}/assets/`;
-          const injection = `
-            <base href="${baseHref}" />
-            <script>
-              (function() {
-                const appBase = '/api/cloud/deployments/by-name/' + encodeURIComponent('${dep.name}');
-                const origFetch = window.fetch;
-                window.fetch = function(url, options) {
-                  if (typeof url === 'string') {
-                    if (url.startsWith('/api/')) {
-                      url = appBase + url;
-                    } else if (url.startsWith('/css/') || url.startsWith('/js/')) {
-                      url = appBase + '/assets' + url;
-                    }
-                  }
-                  return origFetch.call(this, url, options);
-                };
-                const origOpen = XMLHttpRequest.prototype.open;
-                XMLHttpRequest.prototype.open = function(method, url, ...args) {
-                  if (typeof url === 'string') {
-                    if (url.startsWith('/api/')) {
-                      url = appBase + url;
-                    } else if (url.startsWith('/css/') || url.startsWith('/js/')) {
-                      url = appBase + '/assets' + url;
-                    }
-                  }
-                  return origOpen.call(this, method, url, ...args);
-                };
-              })();
-            </script>
-          `;
-          let processedHtml = htmlContent.replace(/href="\/css\//gi, 'href="css/').replace(/href="\/favicon/gi, 'href="favicon').replace(/src="\/js\//gi, 'src="js/').replace(/src="\/app\.js/gi, 'src="app.js').replace(/src="\/assets\//gi, 'src="assets/').replace(/href="\/style/gi, 'href="style');
-          if (processedHtml.includes("<head>")) {
-            processedHtml = processedHtml.replace("<head>", "<head>" + injection);
-          } else if (processedHtml.includes("<head ")) {
-            processedHtml = processedHtml.replace(/<head[^>]*>/, "$&" + injection);
-          } else {
-            processedHtml = injection + processedHtml;
-          }
-          res.setHeader("Content-Type", "text/html; charset=utf-8");
-          res.setHeader("Cache-Control", "no-cache");
-          return res.send(processedHtml);
-        }
-      }
-    }
-    return res.status(200).send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${dep.name} - Benix Cloud</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-6 font-sans">
-        <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-4 shadow-2xl">
-          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
-            \u2713
-          </div>
-          <h1 class="text-xl font-bold">${dep.name} is Live</h1>
-          <p class="text-xs text-slate-400">NodeJS Application is running on Benix Cloud Edge (Port ${dep.internal_port || 3e3}).</p>
-          <div class="p-3 bg-black/40 rounded-xl border border-white/5 text-left font-mono text-xs text-slate-300">
-            <div>Framework: ${dep.framework}</div>
-            <div>Runtime Status: ${dep.status}</div>
-            <div>Branch: ${dep.git_branch || "main"}</div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
+    return await renderDeploymentRawAppHandler(depRes.rows[0], res, false);
   } catch (err) {
     return res.status(500).send("Application gateway error: " + err.message);
   }
 });
-cloudRouter.get("/deployments/by-name/:name/assets/{*assetPath}", async (req, res) => {
+cloudRouter.get(["/deployments/by-name/:name/assets/{*assetPath}", "/deployments/:id/assets/{*assetPath}"], async (req, res) => {
   try {
-    const rawName = String(req.params.name || "").trim();
+    const rawParam = String(req.params.name || req.params.id || "").trim();
     const assetPath = Array.isArray(req.params.assetPath) ? req.params.assetPath.join("/") : String(req.params.assetPath || "");
     const depRes = await query(
-      "SELECT * FROM cloud_deployments WHERE (LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
-      [rawName, `${rawName.toLowerCase()}%`]
+      "SELECT * FROM cloud_deployments WHERE (id::text = $1 OR LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+      [rawParam, `${rawParam.toLowerCase()}%`]
     );
     if (depRes.rowCount === 0) {
       return res.status(404).send("Application not found");
     }
-    const dep = depRes.rows[0];
-    if (dep.source_type === "github" && dep.git_repo_url) {
-      const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
-      if (match) {
-        const owner = match[1];
-        const repo = match[2].replace(/\.git$/, "");
-        const branch = dep.git_branch || "main";
-        const possiblePaths = [
-          `public/${assetPath}`,
-          assetPath,
-          `dist/${assetPath}`,
-          `build/${assetPath}`
-        ];
-        for (const candidate of possiblePaths) {
-          const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${candidate}`;
-          try {
-            const fetchRes = await fetch(rawUrl, {
-              headers: { "User-Agent": "BenixSpace-Live-Runner" }
-            });
-            if (fetchRes.ok) {
-              const contentType = getCloudAssetMimeType(assetPath);
-              res.setHeader("Content-Type", contentType);
-              res.setHeader("Cache-Control", "public, max-age=120");
-              if (contentType.startsWith("text/") || contentType.includes("javascript") || contentType.includes("json")) {
-                const text = await fetchRes.text();
-                return res.send(text);
-              } else {
-                const buffer = Buffer.from(await fetchRes.arrayBuffer());
-                return res.send(buffer);
-              }
-            }
-          } catch {
-          }
-        }
-      }
-    }
-    return res.status(404).send(`Asset "${assetPath}" not found`);
+    return await serveDeploymentAssetHandler(depRes.rows[0], assetPath, res);
   } catch (err) {
     return res.status(500).send("Error loading asset: " + err.message);
   }
@@ -77525,6 +77588,69 @@ app.use((req, res, next) => {
     }
   } else if (req.body && typeof req.body === "object") {
     req._body = true;
+  }
+  next();
+});
+app.use(async (req, res, next) => {
+  const host = (req.headers.host || "").split(":")[0].toLowerCase();
+  const isCoreHost = !host || host === "benix.space" || host === "www.benix.space" || host === "cloud.benix.space" || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app");
+  if (!isCoreHost) {
+    try {
+      let targetDeployment = null;
+      const domRes = await query(
+        `SELECT d.*, cd.id as dep_id, cd.name, cd.framework, cd.source_type, cd.git_repo_url, cd.git_branch, cd.internal_port, cd.status
+         FROM cloud_domains d
+         LEFT JOIN cloud_deployments cd ON d.deployment_id = cd.id
+         WHERE LOWER(d.domain_name) = LOWER($1)
+         ORDER BY d.created_at DESC LIMIT 1`,
+        [host]
+      );
+      if (domRes.rowCount > 0) {
+        const row = domRes.rows[0];
+        if (row.name && row.status !== "deleted") {
+          targetDeployment = row;
+        } else {
+          const fb = await query(
+            `SELECT * FROM cloud_deployments WHERE (user_id = $1 OR status = 'running') AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
+            [row.user_id]
+          );
+          if (fb.rowCount > 0) targetDeployment = fb.rows[0];
+        }
+      } else if (host.endsWith(".apps.benix.space")) {
+        const sub = host.replace(".apps.benix.space", "").toLowerCase();
+        const subRes = await query(
+          `SELECT * FROM cloud_deployments WHERE LOWER(name) = LOWER($1) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
+          [sub]
+        );
+        if (subRes.rowCount > 0) targetDeployment = subRes.rows[0];
+      }
+      if (targetDeployment) {
+        let cleanPath = req.path;
+        if (cleanPath.startsWith("/api/") && !cleanPath.startsWith("/api/health") && !cleanPath.startsWith("/api/cloud")) {
+          cleanPath = cleanPath.slice(4);
+        }
+        const isAsset = cleanPath.startsWith("/assets/") || cleanPath.startsWith("/css/") || cleanPath.startsWith("/js/") || /\.(css|js|json|png|jpg|jpeg|svg|ico|gif|webp|woff|woff2|ttf)$/i.test(cleanPath);
+        if (isAsset) {
+          let assetSubpath = cleanPath;
+          if (assetSubpath.startsWith("/assets/")) {
+            assetSubpath = assetSubpath.replace(/^\/assets\//, "");
+          } else if (assetSubpath.startsWith("/")) {
+            assetSubpath = assetSubpath.slice(1);
+          }
+          return await serveDeploymentAssetHandler(targetDeployment, assetSubpath, res);
+        }
+        if (cleanPath.startsWith("/api/") || cleanPath === "/stats" || cleanPath.startsWith("/database/") || cleanPath === "/export-pg") {
+          const apiPath = cleanPath.startsWith("/api/") ? cleanPath : "/api" + cleanPath;
+          req.url = `/api/cloud/deployments/by-name/${encodeURIComponent(targetDeployment.name)}` + apiPath;
+          return next();
+        }
+        if (req.method === "GET") {
+          return await renderDeploymentRawAppHandler(targetDeployment, res, true);
+        }
+      }
+    } catch (e) {
+      console.warn("Custom domain routing exception:", e?.message);
+    }
   }
   next();
 });

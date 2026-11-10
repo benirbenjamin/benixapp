@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { RotateCw, AlertCircle, ArrowLeft } from 'lucide-react';
+import { RotateCw, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
+import { getAuthToken } from '../../services/api';
 
 export const AppLiveViewPage: React.FC = () => {
   const { appName, deploymentId } = useParams<{ appName?: string; deploymentId?: string }>();
@@ -8,6 +9,7 @@ export const AppLiveViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [deployment, setDeployment] = useState<any>(null);
   const [iframeKey, setIframeKey] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchApp = async () => {
     setLoading(true);
@@ -30,6 +32,27 @@ export const AppLiveViewPage: React.FC = () => {
       setError(err.message || 'Failed to connect to application runtime.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncRepo = async () => {
+    if (!deployment?.id) return;
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/cloud/deployments/${deployment.id}/manual-sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIframeKey((k) => k + 1);
+      } else {
+        alert(data.error || 'Failed to sync latest changes.');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Sync error.');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -111,6 +134,14 @@ export const AppLiveViewPage: React.FC = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
             <span>benix.space</span>
           </Link>
+          <button
+            onClick={handleSyncRepo}
+            disabled={syncing}
+            className="p-1 text-slate-400 hover:text-sky-400 rounded-full hover:bg-white/10 transition"
+            title="Sync Latest GitHub Commits & Reload"
+          >
+            <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin text-sky-400' : ''}`} />
+          </button>
           <button
             onClick={() => setIframeKey((k) => k + 1)}
             className="p-1 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition"
