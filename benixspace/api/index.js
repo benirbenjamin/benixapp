@@ -76285,21 +76285,85 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
       if (!uri) {
         return res.status(400).json({ success: false, error: "Database connection URL is required" });
       }
+      const client = new (await Promise.resolve().then(() => (init_esm(), esm_exports))).Client({
+        connectionString: uri,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 15e3
+      });
+      client.on("error", (err) => {
+        console.warn("[CloudRoutes export pg client error]", err?.message);
+      });
+      const escapeSqlVal = (val) => {
+        if (val === null || val === void 0) return "NULL";
+        if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
+        if (typeof val === "number") return isFinite(val) ? String(val) : "NULL";
+        if (val instanceof Date) return `'${val.toISOString()}'`;
+        if (Buffer.isBuffer(val)) return `E'\\\\x${val.toString("hex")}'`;
+        if (Array.isArray(val)) {
+          const elems = val.map((v2) => {
+            if (v2 === null) return "NULL";
+            if (typeof v2 === "number" || typeof v2 === "boolean") return String(v2);
+            return `"${String(v2).replace(/"/g, '\\"')}"`;
+          });
+          return `ARRAY[${elems.join(",")}]`;
+        }
+        if (typeof val === "object") {
+          const json = JSON.stringify(val);
+          return `'${json.replace(/'/g, "''")}'::jsonb`;
+        }
+        return `'${String(val).replace(/'/g, "''")}'`;
+      };
       try {
-        const { Client: Client2 } = await Promise.resolve().then(() => (init_esm(), esm_exports));
-        const client = new Client2({
-          connectionString: uri,
-          ssl: { rejectUnauthorized: false }
-        });
         await client.connect();
-        const tablesRes = await client.query(`
-          SELECT table_name 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        let dbName = "database";
+        try {
+          const infoRes = await client.query("SELECT current_database() as db_name");
+          if (infoRes.rows[0]?.db_name) dbName = infoRes.rows[0].db_name;
+        } catch {
+        }
+        const allColsRes = await client.query(`
+          SELECT 
+            n.nspname AS schema_name,
+            c.relname AS table_name,
+            a.attname AS column_name,
+            pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+            a.attnotnull AS not_null,
+            pg_catalog.pg_get_expr(d.adbin, d.adrelid) AS default_value,
+            COALESCE(s.n_live_tup, GREATEST(c.reltuples::bigint, 0)) AS row_count
+          FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+          JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+          LEFT JOIN pg_catalog.pg_attrdef d ON (a.attrelid, a.attnum) = (d.adrelid, d.adnum)
+          LEFT JOIN pg_catalog.pg_stat_user_tables s ON s.schemaname = n.nspname AND s.relname = c.relname
+          WHERE n.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            AND c.relkind = 'r' 
+            AND a.attnum > 0 
+            AND NOT a.attisdropped
+          ORDER BY n.nspname, c.relname, a.attnum;
         `);
+        const tablesMap = /* @__PURE__ */ new Map();
+        for (const row of allColsRes.rows) {
+          const fullKey = `"${row.schema_name}"."${row.table_name}"`;
+          if (Array.isArray(selectedTables) && selectedTables.length > 0) {
+            if (!selectedTables.includes(row.table_name) && !selectedTables.includes(fullKey)) {
+              continue;
+            }
+          }
+          if (!tablesMap.has(fullKey)) {
+            tablesMap.set(fullKey, {
+              schema: row.schema_name,
+              table: row.table_name,
+              rowCount: Math.max(0, parseInt(row.row_count, 10) || 0),
+              cols: []
+            });
+          }
+          tablesMap.get(fullKey).cols.push(row);
+        }
         let sqlDump = `-- ==========================================================
 `;
         sqlDump += `-- Benix Space Cloud Database Backup
+`;
+        sqlDump += `-- Source Database: ${dbName}
 `;
         sqlDump += `-- Generated: ${(/* @__PURE__ */ new Date()).toISOString()}
 `;
@@ -76308,48 +76372,67 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
         sqlDump += `-- ==========================================================
 
 `;
-        for (const row of tablesRes.rows) {
-          const tName = row.table_name;
-          if (Array.isArray(selectedTables) && selectedTables.length > 0 && !selectedTables.includes(tName)) {
-            continue;
-          }
-          sqlDump += `-- Table: ${tName}
+        sqlDump += `SET statement_timeout = 0;
 `;
-          sqlDump += `DROP TABLE IF EXISTS "${tName}" CASCADE;
+        sqlDump += `SET client_encoding = 'UTF8';
 `;
-          const colsRes = await client.query(`
-            SELECT column_name, data_type, is_nullable, column_default
-            FROM information_schema.columns
-            WHERE table_name = $1 AND table_schema = 'public'
-            ORDER BY ordinal_position;
-          `, [tName]);
-          const colDefs = colsRes.rows.map((c) => {
-            let def = `  "${c.column_name}" ${c.data_type.toUpperCase()}`;
-            if (c.is_nullable === "NO") def += " NOT NULL";
-            if (c.column_default) def += ` DEFAULT ${c.column_default}`;
+        sqlDump += `SET standard_conforming_strings = on;
+
+`;
+        const discoveredSchemas = /* @__PURE__ */ new Set();
+        for (const t of tablesMap.values()) {
+          if (t.schema !== "public") discoveredSchemas.add(t.schema);
+        }
+        for (const s of discoveredSchemas) {
+          sqlDump += `CREATE SCHEMA IF NOT EXISTS "${s}";
+`;
+        }
+        if (discoveredSchemas.size > 0) sqlDump += "\n";
+        for (const [key, t] of tablesMap.entries()) {
+          sqlDump += `-- Table: ${key}
+`;
+          sqlDump += `DROP TABLE IF EXISTS ${key} CASCADE;
+`;
+          const colDefs = t.cols.map((col) => {
+            let def = `  "${col.column_name}" ${col.data_type}`;
+            if (col.not_null) def += " NOT NULL";
+            if (col.default_value) def += ` DEFAULT ${col.default_value}`;
             return def;
           });
-          sqlDump += `CREATE TABLE "${tName}" (
+          sqlDump += `CREATE TABLE ${key} (
 ${colDefs.join(",\n")}
 );
 
 `;
+        }
+        let totalRecords = 0;
+        for (const [key, t] of tablesMap.entries()) {
           try {
-            const dataRes = await client.query(`SELECT * FROM "${tName}" LIMIT 100;`);
-            if (dataRes.rows.length > 0) {
-              for (const r of dataRes.rows) {
-                const keys = Object.keys(r);
-                const vals = Object.values(r).map((v2) => v2 === null ? "NULL" : `'${String(v2).replace(/'/g, "''")}'`);
-                sqlDump += `INSERT INTO "${tName}" ("${keys.join('", "')}") VALUES (${vals.join(", ")});
+            const dataRes = await client.query(`SELECT * FROM ${key} LIMIT 1000;`);
+            const count = dataRes.rows.length;
+            totalRecords += count;
+            if (count > 0) {
+              sqlDump += `-- Data for ${key} (${count} rows)
+`;
+              const cols = Object.keys(dataRes.rows[0]);
+              const quotedCols = cols.map((c) => `"${c}"`).join(", ");
+              for (let b2 = 0; b2 < dataRes.rows.length; b2 += 50) {
+                const batch = dataRes.rows.slice(b2, b2 + 50);
+                const tuples = batch.map((r) => `(${cols.map((c) => escapeSqlVal(r[c])).join(", ")})`);
+                sqlDump += `INSERT INTO ${key} (${quotedCols}) VALUES 
+${tuples.join(",\n")};
 `;
               }
               sqlDump += "\n";
             }
-          } catch {
+          } catch (rowErr) {
+            sqlDump += `-- Error exporting data for ${key}: ${rowErr.message}
+
+`;
           }
         }
-        await client.end();
-        const fileName = `backup_${Date.now()}.sql`;
+        const sanitizedDb = dbName.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const fileName = `backup_${sanitizedDb}_${Date.now()}.sql`;
         const downloadDataUri = `data:application/sql;charset=utf-8,${encodeURIComponent(sqlDump)}`;
         const sizeKb = Math.max(1, Math.round(Buffer.byteLength(sqlDump, "utf8") / 1024));
         return res.json({
@@ -76359,20 +76442,26 @@ ${colDefs.join(",\n")}
           filename: fileName,
           fileSize: `${sizeKb} KB`,
           fileSizeBytes: Buffer.byteLength(sqlDump, "utf8"),
-          totalTables: tablesRes.rowCount,
-          totalRows: 0,
+          totalTables: tablesMap.size,
+          totalRows: totalRecords,
           downloadUrl: downloadDataUri,
           sql: sqlDump,
           stats: {
-            tablesExported: tablesRes.rowCount,
+            tablesExported: tablesMap.size,
+            totalRecords,
             timestamp: (/* @__PURE__ */ new Date()).toISOString()
           }
         });
       } catch (exportErr) {
         return res.status(400).json({
           success: false,
-          error: `Failed to export SQL: ${exportErr.message}`
+          error: `Failed to export SQL: ${exportErr?.message || exportErr}`
         });
+      } finally {
+        try {
+          await client.end();
+        } catch {
+        }
       }
     }
     return res.json({
