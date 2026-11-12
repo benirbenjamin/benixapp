@@ -96,14 +96,16 @@ app.use(async (req, res, next) => {
     try {
       let targetDeployment: any = null;
 
-      // 1. Check custom domains in cloud_domains
+      // 1. Check custom domains in cloud_domains (supports both apex and www.)
+      const hostWithoutWww = host.replace(/^www\./, '');
+      const hostWithWww = 'www.' + hostWithoutWww;
       const domRes = await query(
         `SELECT d.*, cd.id as dep_id, cd.name, cd.framework, cd.source_type, cd.git_repo_url, cd.git_branch, cd.internal_port, cd.status
          FROM cloud_domains d
          LEFT JOIN cloud_deployments cd ON d.deployment_id = cd.id
-         WHERE LOWER(d.domain_name) = LOWER($1)
+         WHERE (LOWER(d.domain_name) = LOWER($1) OR LOWER(d.domain_name) = LOWER($2))
          ORDER BY d.created_at DESC LIMIT 1`,
-        [host]
+        [hostWithoutWww, hostWithWww]
       );
 
       if (domRes.rowCount > 0) {

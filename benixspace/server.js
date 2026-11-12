@@ -77208,10 +77208,16 @@ cloudRouter.post("/domains/:id/verify", authenticateToken, async (req, res) => {
     }
     if (verified) {
       await query("UPDATE cloud_domains SET dns_verified = true, ssl_status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [domId]);
+      if (dom.deployment_id) {
+        await query(
+          "UPDATE cloud_deployments SET live_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+          [`https://${clean}`, dom.deployment_id]
+        );
+      }
       return res.json({
         success: true,
         verified: true,
-        message: `\u{1F389} DNS successfully verified for [${clean}]! Let's Encrypt TLS 1.3 certificate active.`
+        message: `\u{1F389} DNS successfully verified for [${clean}]! Let's Encrypt TLS 1.3 certificate active. Primary app URL is now https://${clean}`
       });
     } else {
       await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [domId]);
@@ -77247,6 +77253,14 @@ cloudRouter.delete("/domains/:id", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id;
     const domId = req.params.id;
+    const domRes = await query("SELECT * FROM cloud_domains WHERE id = $1 AND user_id = $2", [domId, userId]);
+    if (domRes.rowCount > 0 && domRes.rows[0].deployment_id) {
+      const depId = domRes.rows[0].deployment_id;
+      const depRes = await query("SELECT name FROM cloud_deployments WHERE id = $1", [depId]);
+      if (depRes.rowCount > 0 && depRes.rows[0].name) {
+        await query("UPDATE cloud_deployments SET live_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", [`https://benix.space/apps/${depRes.rows[0].name}`, depId]);
+      }
+    }
     await query("DELETE FROM cloud_domains WHERE id = $1 AND user_id = $2", [domId, userId]);
     return res.json({ success: true, message: "Custom domain removed successfully." });
   } catch (err) {
@@ -77607,13 +77621,15 @@ app.use(async (req, res, next) => {
   if (!isCoreHost) {
     try {
       let targetDeployment = null;
+      const hostWithoutWww = host.replace(/^www\./, "");
+      const hostWithWww = "www." + hostWithoutWww;
       const domRes = await query(
         `SELECT d.*, cd.id as dep_id, cd.name, cd.framework, cd.source_type, cd.git_repo_url, cd.git_branch, cd.internal_port, cd.status
          FROM cloud_domains d
          LEFT JOIN cloud_deployments cd ON d.deployment_id = cd.id
-         WHERE LOWER(d.domain_name) = LOWER($1)
+         WHERE (LOWER(d.domain_name) = LOWER($1) OR LOWER(d.domain_name) = LOWER($2))
          ORDER BY d.created_at DESC LIMIT 1`,
-        [host]
+        [hostWithoutWww, hostWithWww]
       );
       if (domRes.rowCount > 0) {
         const row = domRes.rows[0];

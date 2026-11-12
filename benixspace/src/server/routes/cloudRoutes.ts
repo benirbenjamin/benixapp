@@ -2142,10 +2142,16 @@ cloudRouter.post('/domains/:id/verify', authenticateToken, async (req: Authentic
 
     if (verified) {
       await query("UPDATE cloud_domains SET dns_verified = true, ssl_status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [domId]);
+      if (dom.deployment_id) {
+        await query(
+          "UPDATE cloud_deployments SET live_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+          [`https://${clean}`, dom.deployment_id]
+        );
+      }
       return res.json({
         success: true,
         verified: true,
-        message: `🎉 DNS successfully verified for [${clean}]! Let's Encrypt TLS 1.3 certificate active.`
+        message: `🎉 DNS successfully verified for [${clean}]! Let's Encrypt TLS 1.3 certificate active. Primary app URL is now https://${clean}`
       });
     } else {
       await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [domId]);
@@ -2192,6 +2198,15 @@ cloudRouter.delete('/domains/:id', authenticateToken, async (req: AuthenticatedR
   try {
     const userId = req.user?.id;
     const domId = req.params.id;
+
+    const domRes = await query('SELECT * FROM cloud_domains WHERE id = $1 AND user_id = $2', [domId, userId]);
+    if (domRes.rowCount > 0 && domRes.rows[0].deployment_id) {
+      const depId = domRes.rows[0].deployment_id;
+      const depRes = await query('SELECT name FROM cloud_deployments WHERE id = $1', [depId]);
+      if (depRes.rowCount > 0 && depRes.rows[0].name) {
+        await query('UPDATE cloud_deployments SET live_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [`https://benix.space/apps/${depRes.rows[0].name}`, depId]);
+      }
+    }
 
     await query('DELETE FROM cloud_domains WHERE id = $1 AND user_id = $2', [domId, userId]);
     return res.json({ success: true, message: 'Custom domain removed successfully.' });

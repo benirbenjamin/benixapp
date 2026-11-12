@@ -1300,6 +1300,9 @@ export const CloudDashboardPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {deployments.map((dep) => {
                   const envCount = dep.env_variables ? Object.keys(typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables || '{}') : dep.env_variables).length : 0;
+                  const linkedDomain = domains.find((d) => d.deployment_id === dep.id && d.dns_verified);
+                  const effectiveLiveUrl = linkedDomain ? `https://${linkedDomain.domain_name}` : (dep.live_url || `https://benix.space/apps/${dep.name}`);
+
                   return (
                     <div key={dep.id} className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 space-y-4">
                       <div className="flex items-center justify-between">
@@ -1308,7 +1311,15 @@ export const CloudDashboardPage: React.FC = () => {
                             <Cloud className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="font-bold text-sm text-white">{dep.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-sm text-white">{dep.name}</h4>
+                              {linkedDomain && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                                  <Globe className="w-2.5 h-2.5" />
+                                  <span>{linkedDomain.domain_name}</span>
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[11px] text-slate-400 uppercase">
                               {dep.framework} • Port {dep.internal_port} • Branch: {dep.git_branch || 'main'}
                             </div>
@@ -1330,10 +1341,10 @@ export const CloudDashboardPage: React.FC = () => {
 
                       <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex items-center justify-between text-xs">
                         <span className="text-slate-400 truncate mr-2 font-mono">
-                          {dep.live_url || `https://benix.space/apps/${dep.name}`}
+                          {effectiveLiveUrl}
                         </span>
                         <a
-                          href={dep.live_url || `https://benix.space/apps/${dep.name}`}
+                          href={effectiveLiveUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="text-sky-400 hover:text-sky-300 font-bold shrink-0 flex items-center gap-1"
@@ -1624,13 +1635,13 @@ export const CloudDashboardPage: React.FC = () => {
                 <span>How to Connect Your Domain (DNS Records Setup)</span>
               </div>
               <p className="text-xs text-slate-400">
-                To route your custom domain to your Benix Cloud application, open your domain registrar (such as Cloudflare, Namecheap, GoDaddy) and add this DNS record:
+                To route your custom domain to your Benix Cloud application, configure the records below in your domain registrar (Namecheap, GoDaddy, cPanel, or Cloudflare):
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border border-white/10 rounded-xl overflow-hidden">
                   <thead className="bg-white/5 text-slate-300">
                     <tr>
-                      <th className="p-2.5 font-bold">Type</th>
+                      <th className="p-2.5 font-bold">Record Type</th>
                       <th className="p-2.5 font-bold">Name / Host</th>
                       <th className="p-2.5 font-bold">Target / Points To</th>
                       <th className="p-2.5 font-bold">TTL</th>
@@ -1638,13 +1649,28 @@ export const CloudDashboardPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-white/5 text-slate-400 font-mono">
                     <tr>
+                      <td className="p-2.5 text-emerald-400 font-bold">A Record</td>
+                      <td className="p-2.5">@ <span className="text-[10px] text-slate-500 font-sans">(Root Apex, e.g. voxify.space)</span></td>
+                      <td className="p-2.5 text-white font-bold flex items-center justify-between">
+                        <span>216.198.79.1</span>
+                        <button
+                          onClick={() => copyToClipboard('216.198.79.1')}
+                          className="ml-2 p-1 hover:text-emerald-400"
+                          title="Copy Server IP"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </td>
+                      <td className="p-2.5">300s (Automatic)</td>
+                    </tr>
+                    <tr>
                       <td className="p-2.5 text-sky-400 font-bold">CNAME</td>
-                      <td className="p-2.5">@ (or subdomain: api, app, www)</td>
+                      <td className="p-2.5">www <span className="text-[10px] text-slate-500 font-sans">(or subdomains: app, api)</span></td>
                       <td className="p-2.5 text-white font-bold flex items-center justify-between">
                         <span>cloud.benix.space</span>
                         <button
                           onClick={() => copyToClipboard('cloud.benix.space')}
-                          className="ml-2 p-1 hover:text-white"
+                          className="ml-2 p-1 hover:text-sky-300"
                           title="Copy target"
                         >
                           <Copy className="w-3 h-3" />
@@ -1654,6 +1680,11 @@ export const CloudDashboardPage: React.FC = () => {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div className="p-3 bg-white/[0.03] border border-white/5 rounded-xl text-[11px] text-slate-400 leading-relaxed space-y-1">
+                <div><strong className="text-white">cPanel / Registrar Notice:</strong> Standard DNS registrars require an <span className="text-emerald-400 font-semibold">A Record</span> for the root apex (<code>@</code>) and a <span className="text-sky-400 font-semibold">CNAME</span> for <code>www</code>.</div>
+                <div><strong className="text-white">Cloudflare Notice:</strong> If your DNS is managed on Cloudflare, you can use a CNAME for <code>@</code> pointing to <code>cloud.benix.space</code> thanks to automatic CNAME Flattening.</div>
               </div>
             </div>
 
