@@ -51507,6 +51507,13 @@ function requireAdminRole(req, res, next) {
   }
   next();
 }
+function requireStaffRole(req, res, next) {
+  const allowed = ["superadmin", "admin", "manager", "editor", "moderator"];
+  if (!req.user || !allowed.includes(req.user.role)) {
+    return res.status(403).json({ error: "Access denied. Staff privileges (Manager/Editor/Admin) required." });
+  }
+  next();
+}
 
 // src/server/services/walletService.ts
 import crypto2 from "crypto";
@@ -77153,20 +77160,27 @@ cloudRouter.post("/domains", authenticateToken, async (req, res) => {
     if (!deploymentId || !domainName) {
       return res.status(400).json({ error: "Deployment ID and Domain Name are required" });
     }
-    const cleanDomain = domainName.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const cleanDomain = domainName.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "").trim();
+    if (!cleanDomain || !cleanDomain.includes(".")) {
+      return res.status(400).json({ error: "Please enter a valid domain name (e.g. yoursite.com or app.yoursite.com)" });
+    }
     const verifyToken2 = "benix-verify-" + crypto15.randomBytes(8).toString("hex");
     const domId = "cdom-" + crypto15.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_domains (
         id, deployment_id, user_id, domain_name, verification_token, dns_verified, ssl_status
       ) VALUES ($1, $2, $3, $4, $5, false, 'pending')
-       ON CONFLICT (domain_name) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+       ON CONFLICT (domain_name) DO UPDATE SET
+        deployment_id = EXCLUDED.deployment_id,
+        user_id = EXCLUDED.user_id,
+        verification_token = EXCLUDED.verification_token,
+        updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [domId, deploymentId, userId, cleanDomain, verifyToken2]
     );
     return res.json({
       success: true,
-      message: `Custom domain [${cleanDomain}] added! Please configure your DNS CNAME record pointing to cloud.benix.space.`,
+      message: `Custom domain [${cleanDomain}] attached successfully! Please configure your DNS CNAME record pointing to cloud.benix.space.`,
       domain: inserted.rows[0]
     });
   } catch (err) {
@@ -77345,7 +77359,7 @@ cloudRouter.get("/wallet/manual-deposits/my", authenticateToken, async (req, res
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.get("/admin/deposits/pending", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.get("/admin/deposits/pending", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const result = await query(
       "SELECT * FROM wallet_manual_deposits WHERE status = 'pending' ORDER BY created_at ASC"
@@ -77355,7 +77369,7 @@ cloudRouter.get("/admin/deposits/pending", authenticateToken, requireAdminRole, 
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.post("/admin/deposits/:id/approve", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.post("/admin/deposits/:id/approve", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const adminId = req.user?.id;
     const depositId = req.params.id;
@@ -77403,7 +77417,7 @@ cloudRouter.post("/admin/deposits/:id/approve", authenticateToken, requireAdminR
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.post("/admin/deposits/:id/reject", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.post("/admin/deposits/:id/reject", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const adminId = req.user?.id;
     const depositId = req.params.id;
@@ -77441,7 +77455,7 @@ cloudRouter.post("/admin/deposits/:id/reject", authenticateToken, requireAdminRo
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.get("/admin/servers", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.get("/admin/servers", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const serversRes = await query("SELECT * FROM cloud_servers ORDER BY created_at ASC");
     return res.json({ success: true, servers: serversRes.rows });
@@ -77449,7 +77463,7 @@ cloudRouter.get("/admin/servers", authenticateToken, requireAdminRole, async (re
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.post("/admin/servers", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.post("/admin/servers", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const {
       name: name2,
@@ -77497,7 +77511,7 @@ cloudRouter.post("/admin/servers", authenticateToken, requireAdminRole, async (r
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.put("/admin/plans/:id", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.put("/admin/plans/:id", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const planId = req.params.id;
     const {
@@ -77537,17 +77551,17 @@ cloudRouter.put("/admin/plans/:id", authenticateToken, requireAdminRole, async (
         updated_at = CURRENT_TIMESTAMP
        WHERE id = $16 RETURNING *`,
       [
-        name2,
-        description,
-        priceRwf !== void 0 ? Number(priceRwf) : null,
-        billingCycle,
-        trialDurationDays !== void 0 ? Number(trialDurationDays) : null,
-        maxApps !== void 0 ? Number(maxApps) : null,
-        vcpuLimit !== void 0 ? Number(vcpuLimit) : null,
-        ramMb !== void 0 ? Number(ramMb) : null,
-        storageGb !== void 0 ? Number(storageGb) : null,
-        maxDatabases !== void 0 ? Number(maxDatabases) : null,
-        customDomainsAllowed !== void 0 ? Number(customDomainsAllowed) : null,
+        name2 ? String(name2).trim() : null,
+        description !== void 0 ? String(description) : null,
+        priceRwf !== void 0 && priceRwf !== null && priceRwf !== "" ? Number(priceRwf) : null,
+        billingCycle ? String(billingCycle) : null,
+        trialDurationDays !== void 0 && trialDurationDays !== null && trialDurationDays !== "" ? Number(trialDurationDays) : null,
+        maxApps !== void 0 && maxApps !== null && maxApps !== "" ? Number(maxApps) : null,
+        vcpuLimit !== void 0 && vcpuLimit !== null && vcpuLimit !== "" ? Number(vcpuLimit) : null,
+        ramMb !== void 0 && ramMb !== null && ramMb !== "" ? Number(ramMb) : null,
+        storageGb !== void 0 && storageGb !== null && storageGb !== "" ? Number(storageGb) : null,
+        maxDatabases !== void 0 && maxDatabases !== null && maxDatabases !== "" ? Number(maxDatabases) : null,
+        customDomainsAllowed !== void 0 && customDomainsAllowed !== null && customDomainsAllowed !== "" ? Number(customDomainsAllowed) : null,
         hasFreeSsl !== void 0 ? Boolean(hasFreeSsl) : null,
         hasBackups !== void 0 ? Boolean(hasBackups) : null,
         hasPrioritySupport !== void 0 ? Boolean(hasPrioritySupport) : null,
@@ -77564,7 +77578,7 @@ cloudRouter.put("/admin/plans/:id", authenticateToken, requireAdminRole, async (
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-cloudRouter.delete("/admin/servers/:id", authenticateToken, requireAdminRole, async (req, res) => {
+cloudRouter.delete("/admin/servers/:id", authenticateToken, requireStaffRole, async (req, res) => {
   try {
     const srvId = req.params.id;
     await query("DELETE FROM cloud_servers WHERE id = $1", [srvId]);

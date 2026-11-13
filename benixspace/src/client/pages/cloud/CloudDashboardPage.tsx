@@ -853,6 +853,14 @@ export const CloudDashboardPage: React.FC = () => {
     setAddingDomain(true);
 
     try {
+      const clean = domainName
+        .toLowerCase()
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/.*$/, '')
+        .replace(/:\d+$/, '')
+        .trim();
+
       const res = await fetch('/api/cloud/domains', {
         method: 'POST',
         headers: {
@@ -861,7 +869,7 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({
           deploymentId: domainDepId,
-          domainName
+          domainName: clean
         })
       });
 
@@ -870,6 +878,7 @@ export const CloudDashboardPage: React.FC = () => {
         setShowDomainModal(false);
         setDomainName('');
         setDomainDepId('');
+        alert(json.message || 'Custom domain attached successfully!');
         await fetchCloudData();
         setActiveTab('domains');
       } else {
@@ -1850,6 +1859,10 @@ export const CloudDashboardPage: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                          <span>{p.custom_domains_allowed === -1 ? 'Unlimited Custom / Addon Domains' : `${p.custom_domains_allowed ?? 1} Custom / Addon Domain(s)`}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                           <span>Free Let's Encrypt TLS SSL</span>
                         </div>
                       </div>
@@ -2782,6 +2795,26 @@ export const CloudDashboardPage: React.FC = () => {
                 <p className="text-xs text-slate-400">Choose prepaid billing period with automatic pro-rated upgrade credit.</p>
               </div>
               <button onClick={() => setSelectedPlanForSubscribe(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            {/* Plan Specifications Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-white/[0.03] border border-white/10 rounded-xl text-center text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 block">Applications</span>
+                <span className="font-bold text-white">{selectedPlanForSubscribe.max_apps === -1 ? 'Unlimited' : selectedPlanForSubscribe.max_apps}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Databases</span>
+                <span className="font-bold text-white">{selectedPlanForSubscribe.max_databases === -1 ? 'Unlimited' : selectedPlanForSubscribe.max_databases}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Storage</span>
+                <span className="font-bold text-white">{selectedPlanForSubscribe.storage_gb} GB</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Addon Domains</span>
+                <span className="font-bold text-white">{selectedPlanForSubscribe.custom_domains_allowed === -1 ? 'Unlimited' : (selectedPlanForSubscribe.custom_domains_allowed ?? 1)}</span>
+              </div>
             </div>
 
             {!selectedPlanForSubscribe.is_trial && (

@@ -504,7 +504,7 @@ export const CloudAdminPage: React.FC = () => {
                       )}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">
-                      Price: <strong className="text-white">{p.price_rwf === 0 ? 'FREE' : `${p.price_rwf.toLocaleString()} RWF/mo`}</strong> • Storage: <strong className="text-white">{p.storage_gb} GB</strong> • Max DBs: <strong className="text-white">{p.max_databases === -1 ? 'Unlimited' : p.max_databases}</strong>
+                      Price: <strong className="text-white">{p.price_rwf === 0 ? 'FREE' : `${p.price_rwf.toLocaleString()} RWF/mo`}</strong> • Storage: <strong className="text-white">{p.storage_gb} GB</strong> • Max DBs: <strong className="text-white">{p.max_databases === -1 ? 'Unlimited' : p.max_databases}</strong> • Addon Domains: <strong className="text-white">{p.custom_domains_allowed === -1 ? 'Unlimited' : (p.custom_domains_allowed ?? 1)}</strong>
                     </div>
                     {p.is_trial && (
                       <div className="text-xs text-purple-300 mt-0.5">
@@ -514,12 +514,7 @@ export const CloudAdminPage: React.FC = () => {
                   </div>
 
                   <button
-                    onClick={() => {
-                      setEditingPlan(p);
-                      setPlanPrice(p.price_rwf);
-                      setPlanTrialDays(p.trial_duration_days || 60);
-                      setPlanStorageGb(p.storage_gb);
-                    }}
+                    onClick={() => handleOpenEditPlan(p)}
                     className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300 flex items-center gap-1.5 shrink-0"
                   >
                     <Edit2 className="w-3.5 h-3.5 text-blue-400" />
