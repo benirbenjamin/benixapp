@@ -130,21 +130,31 @@ app.use(async (req, res, next) => {
       }
 
       if (targetDeployment) {
-        // Normalize path
-        let cleanPath = req.path;
-        if (cleanPath.startsWith('/api/') && !cleanPath.startsWith('/api/health') && !cleanPath.startsWith('/api/cloud')) {
-          cleanPath = cleanPath.slice(4);
+        const rawPath = req.path;
+
+        // 1. App-specific API calls: /api/* (except core /api/health and /api/cloud) or /stats or /database/*
+        const isCoreApi = rawPath.startsWith('/api/health') || rawPath.startsWith('/api/cloud');
+        const isAppApi =
+          (rawPath.startsWith('/api/') && !isCoreApi) ||
+          rawPath === '/stats' ||
+          rawPath.startsWith('/database/') ||
+          rawPath === '/export-pg';
+
+        if (isAppApi) {
+          const apiPath = rawPath.startsWith('/api/') ? rawPath : '/api' + rawPath;
+          req.url = `/api/cloud/deployments/by-name/${encodeURIComponent(targetDeployment.name)}` + apiPath;
+          return next();
         }
 
-        // Handle asset requests: /css/*, /js/*, /assets/*, or file extensions
+        // 2. Handle asset requests: /assets/*, /css/*, /js/*, or file extensions
         const isAsset =
-          cleanPath.startsWith('/assets/') ||
-          cleanPath.startsWith('/css/') ||
-          cleanPath.startsWith('/js/') ||
-          /\.(css|js|json|png|jpg|jpeg|svg|ico|gif|webp|woff|woff2|ttf)$/i.test(cleanPath);
+          rawPath.startsWith('/assets/') ||
+          rawPath.startsWith('/css/') ||
+          rawPath.startsWith('/js/') ||
+          /\.(css|js|json|png|jpg|jpeg|svg|ico|gif|webp|woff|woff2|ttf|map)$/i.test(rawPath);
 
         if (isAsset) {
-          let assetSubpath = cleanPath;
+          let assetSubpath = rawPath;
           if (assetSubpath.startsWith('/assets/')) {
             assetSubpath = assetSubpath.replace(/^\/assets\//, '');
           } else if (assetSubpath.startsWith('/')) {
@@ -153,14 +163,7 @@ app.use(async (req, res, next) => {
           return await serveDeploymentAssetHandler(targetDeployment, assetSubpath, res);
         }
 
-        // Handle app-specific API calls: /api/* or /stats or /database/*
-        if (cleanPath.startsWith('/api/') || cleanPath === '/stats' || cleanPath.startsWith('/database/') || cleanPath === '/export-pg') {
-          const apiPath = cleanPath.startsWith('/api/') ? cleanPath : '/api' + cleanPath;
-          req.url = `/api/cloud/deployments/by-name/${encodeURIComponent(targetDeployment.name)}` + apiPath;
-          return next();
-        }
-
-        // Serve real raw application HTML for GET / and any SPA client routes!
+        // 3. Serve real raw application HTML for GET / and any SPA client routes!
         if (req.method === 'GET') {
           return await renderDeploymentRawAppHandler(targetDeployment, res, true);
         }
