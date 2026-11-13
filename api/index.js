@@ -75976,10 +75976,15 @@ async function renderDeploymentRawAppHandler(dep, res, isCustomDomain = false) {
       let htmlContent = "";
       let foundPath = "";
       for (const candidate of candidateFiles) {
-        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${candidate}`;
+        const commitOrBranch = dep.git_commit_hash || branch;
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${commitOrBranch}/${candidate}`;
         try {
           const rawRes = await fetch(rawUrl, {
-            headers: { "User-Agent": "BenixSpace-Live-Runner" }
+            headers: {
+              "User-Agent": "BenixSpace-Live-Runner",
+              "Cache-Control": "no-cache, no-store",
+              "Pragma": "no-cache"
+            }
           });
           if (rawRes.ok) {
             htmlContent = await rawRes.text();
@@ -76076,15 +76081,20 @@ async function serveDeploymentAssetHandler(dep, assetPath, res) {
         `build/${assetPath}`
       ];
       for (const candidate of possiblePaths) {
-        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${candidate}`;
+        const commitOrBranch = dep.git_commit_hash || branch;
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${commitOrBranch}/${candidate}`;
         try {
           const fetchRes = await fetch(rawUrl, {
-            headers: { "User-Agent": "BenixSpace-Live-Runner" }
+            headers: {
+              "User-Agent": "BenixSpace-Live-Runner",
+              "Cache-Control": "no-cache, no-store",
+              "Pragma": "no-cache"
+            }
           });
           if (fetchRes.ok) {
             const contentType = getCloudAssetMimeType(assetPath);
             res.setHeader("Content-Type", contentType);
-            res.setHeader("Cache-Control", "public, max-age=120");
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
             if (contentType.startsWith("text/") || contentType.includes("javascript") || contentType.includes("json")) {
               const text = await fetchRes.text();
               return res.send(text);
@@ -76932,8 +76942,25 @@ cloudRouter.delete("/deployments/:id", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id;
     const depId = req.params.id;
-    await query("UPDATE cloud_deployments SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND user_id = $2", [depId, userId]);
-    return res.json({ success: true, message: "Application deleted successfully." });
+    const depRes = await query(
+      "SELECT * FROM cloud_deployments WHERE id = $1 AND (user_id = $2 OR $3 = true)",
+      [depId, userId, req.user?.role === "admin" || req.user?.role === "superadmin"]
+    );
+    if (depRes.rowCount === 0) {
+      return res.status(404).json({ error: "Deployment not found" });
+    }
+    const dep = depRes.rows[0];
+    await query(
+      `UPDATE cloud_deployments
+       SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
+       WHERE (id = $1 OR (LOWER(name) = LOWER($2) AND user_id = $3))`,
+      [depId, dep.name, dep.user_id]
+    );
+    await query(
+      "UPDATE cloud_domains SET deployment_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE deployment_id = $1",
+      [depId]
+    );
+    return res.json({ success: true, message: `Application "${dep.name}" deleted and stopped successfully.` });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -77639,9 +77666,9 @@ app.use(async (req, res, next) => {
         const row = domRes.rows[0];
         if (row.name && row.status !== "deleted") {
           targetDeployment = row;
-        } else {
+        } else if (row.user_id) {
           const fb = await query(
-            `SELECT * FROM cloud_deployments WHERE (user_id = $1 OR status = 'running') AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
+            `SELECT * FROM cloud_deployments WHERE user_id = $1 AND status = 'running' ORDER BY created_at DESC LIMIT 1`,
             [row.user_id]
           );
           if (fb.rowCount > 0) targetDeployment = fb.rows[0];

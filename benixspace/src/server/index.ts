@@ -112,10 +112,10 @@ app.use(async (req, res, next) => {
         const row = domRes.rows[0];
         if (row.name && row.status !== 'deleted') {
           targetDeployment = row;
-        } else {
-          // Fallback to latest active deployment for this user or overall
+        } else if (row.user_id) {
+          // Fallback only to another running deployment owned by the same user
           const fb = await query(
-            `SELECT * FROM cloud_deployments WHERE (user_id = $1 OR status = 'running') AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
+            `SELECT * FROM cloud_deployments WHERE user_id = $1 AND status = 'running' ORDER BY created_at DESC LIMIT 1`,
             [row.user_id]
           );
           if (fb.rowCount > 0) targetDeployment = fb.rows[0];
