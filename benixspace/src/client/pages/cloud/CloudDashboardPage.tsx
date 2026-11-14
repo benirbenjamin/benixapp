@@ -1310,7 +1310,8 @@ export const CloudDashboardPage: React.FC = () => {
                 {deployments.map((dep) => {
                   const envCount = dep.env_variables ? Object.keys(typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables || '{}') : dep.env_variables).length : 0;
                   const linkedDomain = domains.find((d) => d.deployment_id === dep.id && d.dns_verified);
-                  const effectiveLiveUrl = linkedDomain ? `https://${linkedDomain.domain_name}` : (dep.live_url || `https://benix.space/apps/${dep.name}`);
+                  const safeName = (dep.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+                  const effectiveLiveUrl = linkedDomain ? `https://${linkedDomain.domain_name}` : (dep.live_url || `https://${safeName}.apps.benix.space`);
 
                   return (
                     <div key={dep.id} className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 space-y-4">

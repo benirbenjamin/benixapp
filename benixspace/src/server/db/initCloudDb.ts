@@ -446,7 +446,12 @@ export async function initCloudDb(): Promise<void> {
     try {
       await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");
       await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending' WHERE domain_name = 'voxify.space'");
-      await query("UPDATE cloud_deployments SET live_url = 'https://benix.space/apps/' || name WHERE live_url LIKE '%.apps.benix.space%'");
+      await query(`
+        UPDATE cloud_deployments 
+        SET live_url = 'https://' || LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) || '.apps.benix.space',
+            assigned_subdomain = LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) || '.apps.benix.space'
+        WHERE live_url LIKE '%/apps/%' OR live_url IS NULL OR live_url NOT LIKE '%.apps.benix.space%'
+      `);
     } catch {}
 
     console.log('☁️ [Benix Cloud] Database schema and initial plans verified successfully!');

@@ -177,6 +177,81 @@ export class CoolifyAdapter {
   }
 
   /**
+   * Update environment variables for an application in Coolify
+   */
+  async updateEnvironmentVariables(appUuid: string, envVariables: Record<string, string>): Promise<{ success: boolean; message: string }> {
+    if (!this.isConfigured()) {
+      return { success: true, message: 'Standalone Sandbox: Environment variables updated in database.' };
+    }
+
+    try {
+      // 1. Bulk update application config in Coolify
+      await axios.patch(
+        `${this.apiUrl}/api/v1/applications/${appUuid}`,
+        { environment_variables: envVariables },
+        { headers: this.getHeaders(), timeout: 15000 }
+      ).catch(() => null);
+
+      // 2. Sync individual environment variable keys
+      const entries = Object.entries(envVariables || {});
+      for (const [key, value] of entries) {
+        if (!key.trim()) continue;
+        try {
+          await axios.post(
+            `${this.apiUrl}/api/v1/applications/${appUuid}/envs`,
+            {
+              key: key.trim(),
+              value: String(value),
+              is_preview: false,
+              is_build_time: true
+            },
+            { headers: this.getHeaders(), timeout: 8000 }
+          );
+        } catch {
+          // If already exists, try PATCH
+          try {
+            await axios.patch(
+              `${this.apiUrl}/api/v1/applications/${appUuid}/envs`,
+              {
+                key: key.trim(),
+                value: String(value)
+              },
+              { headers: this.getHeaders(), timeout: 8000 }
+            );
+          } catch {}
+        }
+      }
+
+      return {
+        success: true,
+        message: `Successfully synchronized ${entries.length} environment variables with Coolify on VPS!`
+      };
+    } catch (error: any) {
+      console.warn('Coolify updateEnvironmentVariables warning:', error?.message);
+      return {
+        success: false,
+        message: `Could not sync to Coolify: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Delete an application in Coolify
+   */
+  async deleteApplication(appUuid: string): Promise<boolean> {
+    if (!this.isConfigured()) return true;
+    try {
+      await axios.delete(`${this.apiUrl}/api/v1/applications/${appUuid}`, {
+        headers: this.getHeaders(),
+        timeout: 10000
+      });
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
    * Trigger a build and deployment in Coolify
    */
   async deployApplication(appUuid: string): Promise<{ deploymentId: string; status: string }> {

@@ -638,7 +638,7 @@ cloudRouter.post('/deployments/:id/manual-sync', authenticateToken, async (req: 
 });
 
 /**
- * Public route to load deployment for live preview / apps runner (e.g. benix.space/apps/:appName)
+ * Public route to load deployment for live preview / apps runner (e.g. appName.apps.benix.space)
  */
 cloudRouter.get('/deployments/by-name/:name', async (req, res) => {
   try {
@@ -747,10 +747,25 @@ export async function renderDeploymentRawAppHandler(dep: any, res: any, isCustom
         const baseHref = isCustomDomain ? '/assets/' : `/api/cloud/deployments/by-name/${appNameEnc}/assets/`;
         const appBase = isCustomDomain ? '' : `/api/cloud/deployments/by-name/${appNameEnc}`;
 
+        let envMap: Record<string, string> = {};
+        if (dep.env_variables) {
+          try {
+            envMap = typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables) : dep.env_variables;
+          } catch {}
+        }
+
         const injection = `
           <base href="${baseHref}" />
-          <script>
+          <script id="__BENIX_CLOUD_ENV__">
             (function() {
+              const cloudEnv = ${JSON.stringify(envMap)};
+              window.process = window.process || {};
+              window.process.env = Object.assign({}, window.process.env || {}, cloudEnv);
+              window.ENV = Object.assign({}, window.ENV || {}, cloudEnv);
+              window.__ENV__ = Object.assign({}, window.__ENV__ || {}, cloudEnv);
+              if (cloudEnv.DATABASE_URL) {
+                window.DATABASE_URL = cloudEnv.DATABASE_URL;
+              }
               const appBase = '${appBase}';
               const origFetch = window.fetch;
               window.fetch = function(url, options) {
@@ -786,6 +801,14 @@ export async function renderDeploymentRawAppHandler(dep: any, res: any, isCustom
           .replace(/src="\/app\.js/gi, 'src="app.js')
           .replace(/src="\/assets\//gi, 'src="assets/')
           .replace(/href="\/style/gi, 'href="style');
+
+        // Substitute template placeholders (%VAR% and $VAR) with environment variables
+        for (const [envKey, envVal] of Object.entries(envMap)) {
+          if (envKey && typeof envVal === 'string') {
+            processedHtml = processedHtml.split(`%${envKey}%`).join(envVal);
+            processedHtml = processedHtml.split(`$${envKey}`).join(envVal);
+          }
+        }
 
         if (processedHtml.includes('<head>')) {
           processedHtml = processedHtml.replace('<head>', '<head>' + injection);
@@ -833,6 +856,30 @@ export async function renderDeploymentRawAppHandler(dep: any, res: any, isCustom
  * Asset proxy handler for deployed web applications (styles, scripts, icons, images)
  */
 export async function serveDeploymentAssetHandler(dep: any, assetPath: string, res: any): Promise<any> {
+  const cleanAssetPath = (assetPath || '').trim().replace(/^\/+/, '');
+
+  let envMap: Record<string, string> = {};
+  if (dep.env_variables) {
+    try {
+      envMap = typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables) : dep.env_variables;
+    } catch {}
+  }
+
+  // Virtual .env file for deployed apps
+  if (cleanAssetPath === '.env' || cleanAssetPath === '.env.local' || cleanAssetPath === 'env') {
+    const envLines = Object.entries(envMap).map(([k, v]) => `${k}=${v}`).join('\n');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.send(envLines);
+  }
+
+  // Virtual env.json file for deployed apps
+  if (cleanAssetPath === 'env.json' || cleanAssetPath === '.env.json') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.json(envMap);
+  }
+
   if (dep.source_type === 'github' && dep.git_repo_url) {
     const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
     if (match) {
@@ -936,9 +983,109 @@ cloudRouter.get(['/deployments/by-name/:name/assets/{*assetPath}', '/deployments
  */
 cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res) => {
   try {
+    const rawDepName = String(req.params.name || '').trim();
     const apiSubpath = Array.isArray(req.params.apiSubpath)
       ? req.params.apiSubpath.join('/')
       : String(req.params.apiSubpath || '');
+
+    const depRes = await query(
+      "SELECT * FROM cloud_deployments WHERE (id::text = $1 OR LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+      [rawDepName, `${rawDepName.toLowerCase()}%`]
+    );
+    const dep = depRes.rowCount > 0 ? depRes.rows[0] : null;
+
+    let envMap: Record<string, string> = {};
+    if (dep && dep.env_variables) {
+      try {
+        envMap = typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables) : dep.env_variables;
+      } catch {}
+    }
+
+    // Return app environment variables (GET /api/env or /api/config)
+    if (apiSubpath === 'env' || apiSubpath === 'config/env') {
+      return res.json({
+        success: true,
+        env: envMap,
+        deployment: dep ? { id: dep.id, name: dep.name, status: dep.status } : null
+      });
+    }
+
+    // Database status / ping using application's configured DATABASE_URL
+    if (apiSubpath === 'db/status' || apiSubpath === 'db/ping') {
+      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      if (!dbUrl) {
+        return res.status(400).json({
+          success: false,
+          connected: false,
+          error: 'DATABASE_URL environment variable is not configured for this application.'
+        });
+      }
+      try {
+        const { Client } = await import('pg');
+        const client = new Client({
+          connectionString: dbUrl,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 10000
+        });
+        await client.connect();
+        const testRes = await client.query('SELECT 1 as live_status, version(), current_database();');
+        await client.end();
+        return res.json({
+          success: true,
+          connected: true,
+          database: testRes.rows[0]?.current_database,
+          version: testRes.rows[0]?.version,
+          message: 'Database connection verified successfully.'
+        });
+      } catch (dbErr: any) {
+        return res.status(400).json({
+          success: false,
+          connected: false,
+          error: `Database connection failed: ${dbErr.message}`
+        });
+      }
+    }
+
+    // Database query execution proxy using application's DATABASE_URL
+    if (apiSubpath === 'db/query' || apiSubpath === 'query') {
+      const { sql, query: sqlText, params } = req.body || {};
+      const statement = sql || sqlText;
+      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      if (!dbUrl) {
+        return res.status(400).json({
+          success: false,
+          error: 'DATABASE_URL environment variable is not configured for this application.'
+        });
+      }
+      if (!statement) {
+        return res.status(400).json({
+          success: false,
+          error: 'SQL statement (sql or query) is required in request body.'
+        });
+      }
+      try {
+        const { Client } = await import('pg');
+        const client = new Client({
+          connectionString: dbUrl,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 15000
+        });
+        await client.connect();
+        const queryRes = await client.query(statement, Array.isArray(params) ? params : []);
+        await client.end();
+        return res.json({
+          success: true,
+          rowCount: queryRes.rowCount,
+          rows: queryRes.rows,
+          fields: queryRes.fields?.map((f: any) => f.name) || []
+        });
+      } catch (qErr: any) {
+        return res.status(400).json({
+          success: false,
+          error: `SQL query execution failed: ${qErr.message}`
+        });
+      }
+    }
 
     // Handle openlinks stats
     if (apiSubpath === 'stats') {
@@ -1606,7 +1753,7 @@ cloudRouter.post('/deployments', authenticateToken, async (req: AuthenticatedReq
     const webhookSecret = crypto.randomBytes(16).toString('hex');
     const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const subdomain = `${safeName}.apps.benix.space`;
-    const directLiveUrl = `https://benix.space/apps/${safeName}`;
+    const directLiveUrl = `https://${safeName}.apps.benix.space`;
     const envCount = Object.keys(envVariables || {}).length;
     const now = new Date().toISOString();
 
@@ -1725,21 +1872,46 @@ cloudRouter.put('/deployments/:id/settings', authenticateToken, async (req: Auth
     const updatedStartCmd = startCommand !== undefined ? startCommand : current.start_command;
     const updatedPort = internalPort ? Number(internalPort) : current.internal_port;
     const updatedRootDir = rootDir !== undefined ? rootDir : (current.root_dir || '/');
-    const updatedEnv = envVariables ? JSON.stringify(envVariables) : current.env_variables;
+    const updatedEnv = envVariables ? (typeof envVariables === 'string' ? envVariables : JSON.stringify(envVariables)) : current.env_variables;
+
+    const safeName = updatedName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const subdomain = `${safeName}.apps.benix.space`;
+    const liveUrl = `https://${safeName}.apps.benix.space`;
 
     const now = new Date().toISOString();
-    const envCount = envVariables ? Object.keys(envVariables).length : (current.env_variables ? Object.keys(JSON.parse(current.env_variables || '{}')).length : 0);
+    const parsedEnv = typeof envVariables === 'object' && envVariables ? envVariables : (updatedEnv ? JSON.parse(updatedEnv) : {});
+    const envCount = Object.keys(parsedEnv).length;
     const updatedLogs = `${current.last_logs || ''}\n` +
       `[${now}] ⚙️ [Settings Updated] Configuration and ${envCount} environment variable(s) updated by user.\n` +
       `[${now}] 🔄 Redeploying container with new runtime settings...`;
+
+    // For VPS / Coolify integration: Sync environment variables and trigger rebuild if Coolify is connected
+    if (current.coolify_app_uuid && current.server_id) {
+      try {
+        const srvRes = await query('SELECT * FROM cloud_servers WHERE id = $1', [current.server_id]);
+        if (srvRes.rowCount > 0 && srvRes.rows[0].coolify_api_url && srvRes.rows[0].coolify_api_token_encrypted) {
+          const adapter = new CoolifyAdapter({
+            apiUrl: srvRes.rows[0].coolify_api_url,
+            apiToken: srvRes.rows[0].coolify_api_token_encrypted
+          });
+          if (typeof parsedEnv === 'object') {
+            await adapter.updateEnvironmentVariables(current.coolify_app_uuid, parsedEnv);
+          }
+          await adapter.deployApplication(current.coolify_app_uuid);
+        }
+      } catch (coolifyErr: any) {
+        console.warn('[Coolify Sync Warning on settings update]:', coolifyErr.message);
+      }
+    }
 
     const result = await query(
       `UPDATE cloud_deployments
        SET name = $1, git_branch = $2, build_command = $3, start_command = $4,
            internal_port = $5, root_dir = $6, env_variables = $7, last_logs = $8,
+           live_url = $9, assigned_subdomain = $10,
            status = 'running', last_deployed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9 AND user_id = $10 RETURNING *`,
-      [updatedName, updatedBranch, updatedBuildCmd, updatedStartCmd, updatedPort, updatedRootDir, updatedEnv, updatedLogs, depId, userId]
+       WHERE id = $11 AND user_id = $12 RETURNING *`,
+      [updatedName, updatedBranch, updatedBuildCmd, updatedStartCmd, updatedPort, updatedRootDir, updatedEnv, updatedLogs, liveUrl, subdomain, depId, userId]
     );
 
     return res.json({
@@ -1774,6 +1946,22 @@ cloudRouter.post('/deployments/:id/redeploy', authenticateToken, async (req: Aut
       `[${now}] 🚀 Service reloaded on port ${dep.internal_port}.\n` +
       `[${now}] ✅ Redeploy completed successfully. Status: RUNNING.`;
 
+    // For VPS / Coolify integration: Trigger container rebuild in Coolify
+    if (dep.coolify_app_uuid && dep.server_id) {
+      try {
+        const srvRes = await query('SELECT * FROM cloud_servers WHERE id = $1', [dep.server_id]);
+        if (srvRes.rowCount > 0 && srvRes.rows[0].coolify_api_url && srvRes.rows[0].coolify_api_token_encrypted) {
+          const adapter = new CoolifyAdapter({
+            apiUrl: srvRes.rows[0].coolify_api_url,
+            apiToken: srvRes.rows[0].coolify_api_token_encrypted
+          });
+          await adapter.deployApplication(dep.coolify_app_uuid);
+        }
+      } catch (coolifyErr: any) {
+        console.warn('[Coolify Redeploy Warning]:', coolifyErr.message);
+      }
+    }
+
     const result = await query(
       `UPDATE cloud_deployments
        SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, updated_at = CURRENT_TIMESTAMP
@@ -1805,6 +1993,22 @@ cloudRouter.delete('/deployments/:id', authenticateToken, async (req: Authentica
       return res.status(404).json({ error: 'Deployment not found' });
     }
     const dep = depRes.rows[0];
+
+    // For VPS / Coolify integration: Delete container and service in Coolify
+    if (dep.coolify_app_uuid && dep.server_id) {
+      try {
+        const srvRes = await query('SELECT * FROM cloud_servers WHERE id = $1', [dep.server_id]);
+        if (srvRes.rowCount > 0 && srvRes.rows[0].coolify_api_url && srvRes.rows[0].coolify_api_token_encrypted) {
+          const adapter = new CoolifyAdapter({
+            apiUrl: srvRes.rows[0].coolify_api_url,
+            apiToken: srvRes.rows[0].coolify_api_token_encrypted
+          });
+          await adapter.deleteApplication(dep.coolify_app_uuid);
+        }
+      } catch (coolifyErr: any) {
+        console.warn('[Coolify Delete Warning]:', coolifyErr.message);
+      }
+    }
 
     // 2. Mark this deployment (and any duplicate/orphaned copies with the same name) as deleted
     await query(
@@ -2263,7 +2467,8 @@ cloudRouter.delete('/domains/:id', authenticateToken, async (req: AuthenticatedR
       const depId = domRes.rows[0].deployment_id;
       const depRes = await query('SELECT name FROM cloud_deployments WHERE id = $1', [depId]);
       if (depRes.rowCount > 0 && depRes.rows[0].name) {
-        await query('UPDATE cloud_deployments SET live_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [`https://benix.space/apps/${depRes.rows[0].name}`, depId]);
+        const safeName = depRes.rows[0].name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        await query('UPDATE cloud_deployments SET live_url = $1, assigned_subdomain = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3', [`https://${safeName}.apps.benix.space`, `${safeName}.apps.benix.space`, depId]);
       }
     }
 

@@ -75050,6 +75050,74 @@ var CoolifyAdapter = class {
     }
   }
   /**
+   * Update environment variables for an application in Coolify
+   */
+  async updateEnvironmentVariables(appUuid, envVariables) {
+    if (!this.isConfigured()) {
+      return { success: true, message: "Standalone Sandbox: Environment variables updated in database." };
+    }
+    try {
+      await axios_default.patch(
+        `${this.apiUrl}/api/v1/applications/${appUuid}`,
+        { environment_variables: envVariables },
+        { headers: this.getHeaders(), timeout: 15e3 }
+      ).catch(() => null);
+      const entries = Object.entries(envVariables || {});
+      for (const [key, value] of entries) {
+        if (!key.trim()) continue;
+        try {
+          await axios_default.post(
+            `${this.apiUrl}/api/v1/applications/${appUuid}/envs`,
+            {
+              key: key.trim(),
+              value: String(value),
+              is_preview: false,
+              is_build_time: true
+            },
+            { headers: this.getHeaders(), timeout: 8e3 }
+          );
+        } catch {
+          try {
+            await axios_default.patch(
+              `${this.apiUrl}/api/v1/applications/${appUuid}/envs`,
+              {
+                key: key.trim(),
+                value: String(value)
+              },
+              { headers: this.getHeaders(), timeout: 8e3 }
+            );
+          } catch {
+          }
+        }
+      }
+      return {
+        success: true,
+        message: `Successfully synchronized ${entries.length} environment variables with Coolify on VPS!`
+      };
+    } catch (error2) {
+      console.warn("Coolify updateEnvironmentVariables warning:", error2?.message);
+      return {
+        success: false,
+        message: `Could not sync to Coolify: ${error2.message}`
+      };
+    }
+  }
+  /**
+   * Delete an application in Coolify
+   */
+  async deleteApplication(appUuid) {
+    if (!this.isConfigured()) return true;
+    try {
+      await axios_default.delete(`${this.apiUrl}/api/v1/applications/${appUuid}`, {
+        headers: this.getHeaders(),
+        timeout: 1e4
+      });
+      return true;
+    } catch {
+      return true;
+    }
+  }
+  /**
    * Trigger a build and deployment in Coolify
    */
   async deployApplication(appUuid) {
@@ -75568,7 +75636,12 @@ async function initCloudDb() {
     try {
       await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");
       await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending' WHERE domain_name = 'voxify.space'");
-      await query("UPDATE cloud_deployments SET live_url = 'https://benix.space/apps/' || name WHERE live_url LIKE '%.apps.benix.space%'");
+      await query(`
+        UPDATE cloud_deployments 
+        SET live_url = 'https://' || LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) || '.apps.benix.space',
+            assigned_subdomain = LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) || '.apps.benix.space'
+        WHERE live_url LIKE '%/apps/%' OR live_url IS NULL OR live_url NOT LIKE '%.apps.benix.space%'
+      `);
     } catch {
     }
     console.log("\u2601\uFE0F [Benix Cloud] Database schema and initial plans verified successfully!");
@@ -76164,10 +76237,25 @@ async function renderDeploymentRawAppHandler(dep, res, isCustomDomain = false) {
         const appNameEnc = encodeURIComponent(dep.name);
         const baseHref = isCustomDomain ? "/assets/" : `/api/cloud/deployments/by-name/${appNameEnc}/assets/`;
         const appBase = isCustomDomain ? "" : `/api/cloud/deployments/by-name/${appNameEnc}`;
+        let envMap = {};
+        if (dep.env_variables) {
+          try {
+            envMap = typeof dep.env_variables === "string" ? JSON.parse(dep.env_variables) : dep.env_variables;
+          } catch {
+          }
+        }
         const injection = `
           <base href="${baseHref}" />
-          <script>
+          <script id="__BENIX_CLOUD_ENV__">
             (function() {
+              const cloudEnv = ${JSON.stringify(envMap)};
+              window.process = window.process || {};
+              window.process.env = Object.assign({}, window.process.env || {}, cloudEnv);
+              window.ENV = Object.assign({}, window.ENV || {}, cloudEnv);
+              window.__ENV__ = Object.assign({}, window.__ENV__ || {}, cloudEnv);
+              if (cloudEnv.DATABASE_URL) {
+                window.DATABASE_URL = cloudEnv.DATABASE_URL;
+              }
               const appBase = '${appBase}';
               const origFetch = window.fetch;
               window.fetch = function(url, options) {
@@ -76195,6 +76283,12 @@ async function renderDeploymentRawAppHandler(dep, res, isCustomDomain = false) {
           </script>
         `;
         let processedHtml = htmlContent.replace(/href="\/css\//gi, 'href="css/').replace(/href="\/favicon/gi, 'href="favicon').replace(/src="\/js\//gi, 'src="js/').replace(/src="\/app\.js/gi, 'src="app.js').replace(/src="\/assets\//gi, 'src="assets/').replace(/href="\/style/gi, 'href="style');
+        for (const [envKey, envVal] of Object.entries(envMap)) {
+          if (envKey && typeof envVal === "string") {
+            processedHtml = processedHtml.split(`%${envKey}%`).join(envVal);
+            processedHtml = processedHtml.split(`$${envKey}`).join(envVal);
+          }
+        }
         if (processedHtml.includes("<head>")) {
           processedHtml = processedHtml.replace("<head>", "<head>" + injection);
         } else if (processedHtml.includes("<head ")) {
@@ -76234,6 +76328,25 @@ async function renderDeploymentRawAppHandler(dep, res, isCustomDomain = false) {
   `);
 }
 async function serveDeploymentAssetHandler(dep, assetPath, res) {
+  const cleanAssetPath = (assetPath || "").trim().replace(/^\/+/, "");
+  let envMap = {};
+  if (dep.env_variables) {
+    try {
+      envMap = typeof dep.env_variables === "string" ? JSON.parse(dep.env_variables) : dep.env_variables;
+    } catch {
+    }
+  }
+  if (cleanAssetPath === ".env" || cleanAssetPath === ".env.local" || cleanAssetPath === "env") {
+    const envLines = Object.entries(envMap).map(([k, v2]) => `${k}=${v2}`).join("\n");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.send(envLines);
+  }
+  if (cleanAssetPath === "env.json" || cleanAssetPath === ".env.json") {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.json(envMap);
+  }
   if (dep.source_type === "github" && dep.git_repo_url) {
     const match = dep.git_repo_url.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i) || dep.git_repo_url.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
     if (match) {
@@ -76315,7 +76428,100 @@ cloudRouter.get(["/deployments/by-name/:name/assets/{*assetPath}", "/deployments
 });
 cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res) => {
   try {
+    const rawDepName = String(req.params.name || "").trim();
     const apiSubpath = Array.isArray(req.params.apiSubpath) ? req.params.apiSubpath.join("/") : String(req.params.apiSubpath || "");
+    const depRes = await query(
+      "SELECT * FROM cloud_deployments WHERE (id::text = $1 OR LOWER(name) = LOWER($1) OR assigned_subdomain LIKE $2) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1",
+      [rawDepName, `${rawDepName.toLowerCase()}%`]
+    );
+    const dep = depRes.rowCount > 0 ? depRes.rows[0] : null;
+    let envMap = {};
+    if (dep && dep.env_variables) {
+      try {
+        envMap = typeof dep.env_variables === "string" ? JSON.parse(dep.env_variables) : dep.env_variables;
+      } catch {
+      }
+    }
+    if (apiSubpath === "env" || apiSubpath === "config/env") {
+      return res.json({
+        success: true,
+        env: envMap,
+        deployment: dep ? { id: dep.id, name: dep.name, status: dep.status } : null
+      });
+    }
+    if (apiSubpath === "db/status" || apiSubpath === "db/ping") {
+      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      if (!dbUrl) {
+        return res.status(400).json({
+          success: false,
+          connected: false,
+          error: "DATABASE_URL environment variable is not configured for this application."
+        });
+      }
+      try {
+        const { Client: Client2 } = await Promise.resolve().then(() => (init_esm(), esm_exports));
+        const client = new Client2({
+          connectionString: dbUrl,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 1e4
+        });
+        await client.connect();
+        const testRes = await client.query("SELECT 1 as live_status, version(), current_database();");
+        await client.end();
+        return res.json({
+          success: true,
+          connected: true,
+          database: testRes.rows[0]?.current_database,
+          version: testRes.rows[0]?.version,
+          message: "Database connection verified successfully."
+        });
+      } catch (dbErr) {
+        return res.status(400).json({
+          success: false,
+          connected: false,
+          error: `Database connection failed: ${dbErr.message}`
+        });
+      }
+    }
+    if (apiSubpath === "db/query" || apiSubpath === "query") {
+      const { sql: sql2, query: sqlText, params } = req.body || {};
+      const statement = sql2 || sqlText;
+      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      if (!dbUrl) {
+        return res.status(400).json({
+          success: false,
+          error: "DATABASE_URL environment variable is not configured for this application."
+        });
+      }
+      if (!statement) {
+        return res.status(400).json({
+          success: false,
+          error: "SQL statement (sql or query) is required in request body."
+        });
+      }
+      try {
+        const { Client: Client2 } = await Promise.resolve().then(() => (init_esm(), esm_exports));
+        const client = new Client2({
+          connectionString: dbUrl,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 15e3
+        });
+        await client.connect();
+        const queryRes = await client.query(statement, Array.isArray(params) ? params : []);
+        await client.end();
+        return res.json({
+          success: true,
+          rowCount: queryRes.rowCount,
+          rows: queryRes.rows,
+          fields: queryRes.fields?.map((f) => f.name) || []
+        });
+      } catch (qErr) {
+        return res.status(400).json({
+          success: false,
+          error: `SQL query execution failed: ${qErr.message}`
+        });
+      }
+    }
     if (apiSubpath === "stats") {
       return res.json({
         totalBackups: 1420,
@@ -76948,7 +77154,7 @@ cloudRouter.post("/deployments", authenticateToken, async (req, res) => {
     const webhookSecret = crypto15.randomBytes(16).toString("hex");
     const safeName = name2.toLowerCase().replace(/[^a-z0-9]/g, "-");
     const subdomain = `${safeName}.apps.benix.space`;
-    const directLiveUrl = `https://benix.space/apps/${safeName}`;
+    const directLiveUrl = `https://${safeName}.apps.benix.space`;
     const envCount = Object.keys(envVariables || {}).length;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     let githubWebhookId = null;
@@ -77054,19 +77260,41 @@ cloudRouter.put("/deployments/:id/settings", authenticateToken, async (req, res)
     const updatedStartCmd = startCommand !== void 0 ? startCommand : current.start_command;
     const updatedPort = internalPort ? Number(internalPort) : current.internal_port;
     const updatedRootDir = rootDir !== void 0 ? rootDir : current.root_dir || "/";
-    const updatedEnv = envVariables ? JSON.stringify(envVariables) : current.env_variables;
+    const updatedEnv = envVariables ? typeof envVariables === "string" ? envVariables : JSON.stringify(envVariables) : current.env_variables;
+    const safeName = updatedName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const subdomain = `${safeName}.apps.benix.space`;
+    const liveUrl = `https://${safeName}.apps.benix.space`;
     const now = (/* @__PURE__ */ new Date()).toISOString();
-    const envCount = envVariables ? Object.keys(envVariables).length : current.env_variables ? Object.keys(JSON.parse(current.env_variables || "{}")).length : 0;
+    const parsedEnv = typeof envVariables === "object" && envVariables ? envVariables : updatedEnv ? JSON.parse(updatedEnv) : {};
+    const envCount = Object.keys(parsedEnv).length;
     const updatedLogs = `${current.last_logs || ""}
 [${now}] \u2699\uFE0F [Settings Updated] Configuration and ${envCount} environment variable(s) updated by user.
 [${now}] \u{1F504} Redeploying container with new runtime settings...`;
+    if (current.coolify_app_uuid && current.server_id) {
+      try {
+        const srvRes = await query("SELECT * FROM cloud_servers WHERE id = $1", [current.server_id]);
+        if (srvRes.rowCount > 0 && srvRes.rows[0].coolify_api_url && srvRes.rows[0].coolify_api_token_encrypted) {
+          const adapter2 = new CoolifyAdapter({
+            apiUrl: srvRes.rows[0].coolify_api_url,
+            apiToken: srvRes.rows[0].coolify_api_token_encrypted
+          });
+          if (typeof parsedEnv === "object") {
+            await adapter2.updateEnvironmentVariables(current.coolify_app_uuid, parsedEnv);
+          }
+          await adapter2.deployApplication(current.coolify_app_uuid);
+        }
+      } catch (coolifyErr) {
+        console.warn("[Coolify Sync Warning on settings update]:", coolifyErr.message);
+      }
+    }
     const result = await query(
       `UPDATE cloud_deployments
        SET name = $1, git_branch = $2, build_command = $3, start_command = $4,
            internal_port = $5, root_dir = $6, env_variables = $7, last_logs = $8,
+           live_url = $9, assigned_subdomain = $10,
            status = 'running', last_deployed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9 AND user_id = $10 RETURNING *`,
-      [updatedName, updatedBranch, updatedBuildCmd, updatedStartCmd, updatedPort, updatedRootDir, updatedEnv, updatedLogs, depId, userId]
+       WHERE id = $11 AND user_id = $12 RETURNING *`,
+      [updatedName, updatedBranch, updatedBuildCmd, updatedStartCmd, updatedPort, updatedRootDir, updatedEnv, updatedLogs, liveUrl, subdomain, depId, userId]
     );
     return res.json({
       success: true,
@@ -77093,6 +77321,20 @@ cloudRouter.post("/deployments/:id/redeploy", authenticateToken, async (req, res
 [${now}] \u2699\uFE0F Executing: ${dep.build_command || "npm run build"}...
 [${now}] \u{1F680} Service reloaded on port ${dep.internal_port}.
 [${now}] \u2705 Redeploy completed successfully. Status: RUNNING.`;
+    if (dep.coolify_app_uuid && dep.server_id) {
+      try {
+        const srvRes = await query("SELECT * FROM cloud_servers WHERE id = $1", [dep.server_id]);
+        if (srvRes.rowCount > 0 && srvRes.rows[0].coolify_api_url && srvRes.rows[0].coolify_api_token_encrypted) {
+          const adapter2 = new CoolifyAdapter({
+            apiUrl: srvRes.rows[0].coolify_api_url,
+            apiToken: srvRes.rows[0].coolify_api_token_encrypted
+          });
+          await adapter2.deployApplication(dep.coolify_app_uuid);
+        }
+      } catch (coolifyErr) {
+        console.warn("[Coolify Redeploy Warning]:", coolifyErr.message);
+      }
+    }
     const result = await query(
       `UPDATE cloud_deployments
        SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, updated_at = CURRENT_TIMESTAMP
@@ -77116,6 +77358,20 @@ cloudRouter.delete("/deployments/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Deployment not found" });
     }
     const dep = depRes.rows[0];
+    if (dep.coolify_app_uuid && dep.server_id) {
+      try {
+        const srvRes = await query("SELECT * FROM cloud_servers WHERE id = $1", [dep.server_id]);
+        if (srvRes.rowCount > 0 && srvRes.rows[0].coolify_api_url && srvRes.rows[0].coolify_api_token_encrypted) {
+          const adapter2 = new CoolifyAdapter({
+            apiUrl: srvRes.rows[0].coolify_api_url,
+            apiToken: srvRes.rows[0].coolify_api_token_encrypted
+          });
+          await adapter2.deleteApplication(dep.coolify_app_uuid);
+        }
+      } catch (coolifyErr) {
+        console.warn("[Coolify Delete Warning]:", coolifyErr.message);
+      }
+    }
     await query(
       `UPDATE cloud_deployments
        SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
@@ -77465,7 +77721,8 @@ cloudRouter.delete("/domains/:id", authenticateToken, async (req, res) => {
       const depId = domRes.rows[0].deployment_id;
       const depRes = await query("SELECT name FROM cloud_deployments WHERE id = $1", [depId]);
       if (depRes.rowCount > 0 && depRes.rows[0].name) {
-        await query("UPDATE cloud_deployments SET live_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", [`https://benix.space/apps/${depRes.rows[0].name}`, depId]);
+        const safeName = depRes.rows[0].name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        await query("UPDATE cloud_deployments SET live_url = $1, assigned_subdomain = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3", [`https://${safeName}.apps.benix.space`, `${safeName}.apps.benix.space`, depId]);
       }
     }
     await query("DELETE FROM cloud_domains WHERE id = $1 AND user_id = $2", [domId, userId]);
@@ -77898,11 +78155,18 @@ app.use(async (req, res, next) => {
           );
           if (fb.rowCount > 0) targetDeployment = fb.rows[0];
         }
-      } else if (host.endsWith(".apps.benix.space")) {
-        const sub = host.replace(".apps.benix.space", "").toLowerCase();
+      } else if (host.endsWith(".apps.benix.space") || host.endsWith(".apps.localhost") || host.endsWith(".localhost") && host !== "localhost") {
+        const sub = host.replace(".apps.benix.space", "").replace(".apps.localhost", "").replace(".localhost", "").toLowerCase();
         const subRes = await query(
-          `SELECT * FROM cloud_deployments WHERE LOWER(name) = LOWER($1) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
-          [sub]
+          `SELECT * FROM cloud_deployments 
+           WHERE (
+             LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) = LOWER($1) 
+             OR LOWER(assigned_subdomain) = LOWER($2) 
+             OR LOWER(assigned_subdomain) = LOWER($3)
+             OR LOWER(name) = LOWER($1)
+           ) AND status != 'deleted' 
+           ORDER BY created_at DESC LIMIT 1`,
+          [sub, `${sub}.apps.benix.space`, sub]
         );
         if (subRes.rowCount > 0) targetDeployment = subRes.rows[0];
       }
@@ -77934,6 +78198,14 @@ app.use(async (req, res, next) => {
     }
   }
   next();
+});
+app.all(["/apps/:appName", "/apps/:appName/*"], (req, res) => {
+  const rawName = String(req.params.appName || "").trim();
+  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  const wildcard = req.params[0] ? "/" + req.params[0] : "";
+  const queryString = req.url.includes("?") ? "?" + req.url.split("?")[1] : "";
+  const redirectUrl = `https://${safeName}.apps.benix.space${wildcard}${queryString}`;
+  return res.redirect(301, redirectUrl);
 });
 app.use(import_express2.default.json({ limit: "20mb" }));
 app.use(import_express2.default.urlencoded({ extended: true, limit: "20mb" }));

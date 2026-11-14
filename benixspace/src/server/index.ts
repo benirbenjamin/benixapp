@@ -191,11 +191,27 @@ app.use(async (req, res, next) => {
           );
           if (fb.rowCount > 0) targetDeployment = fb.rows[0];
         }
-      } else if (host.endsWith('.apps.benix.space')) {
-        const sub = host.replace('.apps.benix.space', '').toLowerCase();
+      } else if (
+        host.endsWith('.apps.benix.space') ||
+        host.endsWith('.apps.localhost') ||
+        (host.endsWith('.localhost') && host !== 'localhost')
+      ) {
+        const sub = host
+          .replace('.apps.benix.space', '')
+          .replace('.apps.localhost', '')
+          .replace('.localhost', '')
+          .toLowerCase();
+
         const subRes = await query(
-          `SELECT * FROM cloud_deployments WHERE LOWER(name) = LOWER($1) AND status != 'deleted' ORDER BY created_at DESC LIMIT 1`,
-          [sub]
+          `SELECT * FROM cloud_deployments 
+           WHERE (
+             LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) = LOWER($1) 
+             OR LOWER(assigned_subdomain) = LOWER($2) 
+             OR LOWER(assigned_subdomain) = LOWER($3)
+             OR LOWER(name) = LOWER($1)
+           ) AND status != 'deleted' 
+           ORDER BY created_at DESC LIMIT 1`,
+          [sub, `${sub}.apps.benix.space`, sub]
         );
         if (subRes.rowCount > 0) targetDeployment = subRes.rows[0];
       }
@@ -245,6 +261,16 @@ app.use(async (req, res, next) => {
   }
 
   next();
+});
+
+// Redirect legacy /apps/:appName paths to https://${safeName}.apps.benix.space
+app.all(['/apps/:appName', '/apps/:appName/*'], (req, res) => {
+  const rawName = String(req.params.appName || '').trim();
+  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const wildcard = (req.params as any)[0] ? '/' + (req.params as any)[0] : '';
+  const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+  const redirectUrl = `https://${safeName}.apps.benix.space${wildcard}${queryString}`;
+  return res.redirect(301, redirectUrl);
 });
 
 app.use(express.json({ limit: '20mb' }));
