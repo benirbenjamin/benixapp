@@ -19,7 +19,10 @@ import {
   Smartphone,
   Percent,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  Zap,
+  Sliders,
+  Sparkles
 } from 'lucide-react';
 import { getAuthToken } from '../../services/api';
 
@@ -70,9 +73,13 @@ export const AdminWithdrawalsPanel: React.FC = () => {
   const [search, setSearch] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Fee configuration state
+  // Fee and Auto-Withdrawal configuration state
   const [feePercent, setFeePercent] = useState<number>(3);
-  const [savingFee, setSavingFee] = useState<boolean>(false);
+  const [autoWithdrawEnabled, setAutoWithdrawEnabled] = useState<boolean>(true);
+  const [autoWithdrawMaxAmount, setAutoWithdrawMaxAmount] = useState<number>(50000);
+  const [autoWithdrawBuffer, setAutoWithdrawBuffer] = useState<number>(1000);
+  const [savingSettings, setSavingSettings] = useState<boolean>(false);
+  const [batchRunning, setBatchRunning] = useState<boolean>(false);
 
   // Approve Modal State (Supports Partial Payout & Flutterwave Direct Transfer)
   const [approveModal, setApproveModal] = useState<WithdrawalRecord | null>(null);
@@ -80,6 +87,7 @@ export const AdminWithdrawalsPanel: React.FC = () => {
   const [modalFeePercent, setModalFeePercent] = useState<number>(3);
   const [sendViaFlutterwave, setSendViaFlutterwave] = useState<boolean>(true);
   const [approvalNote, setApprovalNote] = useState<string>('');
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Reject Modal State
   const [rejectModal, setRejectModal] = useState<WithdrawalRecord | null>(null);
@@ -102,9 +110,20 @@ export const AdminWithdrawalsPanel: React.FC = () => {
       if (data.kpi) {
         setStats(data.kpi);
       }
-      if (data.settings?.defaultFeePercent !== undefined) {
-        setFeePercent(Number(data.settings.defaultFeePercent));
-        setModalFeePercent(Number(data.settings.defaultFeePercent));
+      if (data.settings) {
+        if (data.settings.defaultFeePercent !== undefined) {
+          setFeePercent(Number(data.settings.defaultFeePercent));
+          setModalFeePercent(Number(data.settings.defaultFeePercent));
+        }
+        if (data.settings.autoWithdrawEnabled !== undefined) {
+          setAutoWithdrawEnabled(Boolean(data.settings.autoWithdrawEnabled));
+        }
+        if (data.settings.autoWithdrawMaxAmount !== undefined) {
+          setAutoWithdrawMaxAmount(Number(data.settings.autoWithdrawMaxAmount));
+        }
+        if (data.settings.autoWithdrawBuffer !== undefined) {
+          setAutoWithdrawBuffer(Number(data.settings.autoWithdrawBuffer));
+        }
       }
     } catch (err: any) {
       console.error('Failed to load withdrawals:', err);
@@ -117,8 +136,8 @@ export const AdminWithdrawalsPanel: React.FC = () => {
     fetchWithdrawals();
   }, []);
 
-  const handleSaveFee = async () => {
-    setSavingFee(true);
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
     try {
       const token = getAuthToken();
       const res = await fetch('/api/admin/withdrawals/settings', {
@@ -127,19 +146,53 @@ export const AdminWithdrawalsPanel: React.FC = () => {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ feePercent })
+        body: JSON.stringify({
+          feePercent,
+          autoWithdrawEnabled,
+          autoWithdrawMaxAmount,
+          autoWithdrawBuffer
+        })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setStatusMessage({ type: 'success', text: `Admin fee updated to ${feePercent}% successfully!` });
+        setStatusMessage({ type: 'success', text: `Withdrawal settings & auto-payout rules updated successfully!` });
       } else {
-        setStatusMessage({ type: 'error', text: data.error || 'Failed to update fee percentage' });
+        setStatusMessage({ type: 'error', text: data.error || 'Failed to update withdrawal settings' });
       }
     } catch (e: any) {
       setStatusMessage({ type: 'error', text: e.message || 'Network error' });
     } finally {
-      setSavingFee(false);
+      setSavingSettings(false);
       setTimeout(() => setStatusMessage(null), 4000);
+    }
+  };
+
+  const handleRunAutoProcess = async () => {
+    setBatchRunning(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/admin/withdrawals/auto-process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatusMessage({
+          type: data.processed > 0 ? 'success' : 'warning',
+          text: `Auto-Payout check finished: ${data.processed} withdrawal(s) automatically processed.${data.failed > 0 ? ` (${data.failed} pending due to balance limit or IP restriction)` : ''}`
+        });
+        fetchWithdrawals();
+      } else {
+        setStatusMessage({ type: 'error', text: data.error || 'Failed to run batch auto-process.' });
+      }
+    } catch (e: any) {
+      setStatusMessage({ type: 'error', text: e.message || 'Error processing batch auto-withdrawals' });
+    } finally {
+      setBatchRunning(false);
+      setTimeout(() => setStatusMessage(null), 6000);
     }
   };
 
@@ -149,19 +202,23 @@ export const AdminWithdrawalsPanel: React.FC = () => {
     setModalFeePercent(feePercent);
     setSendViaFlutterwave(true);
     setApprovalNote('');
+    setModalError(null);
   };
 
-  const handleApproveSubmit = async () => {
+  const handleApproveSubmit = async (overrideSendViaFlw?: boolean) => {
     if (!approveModal) return;
     const reqAmount = Number(approveModal.amount);
     const appAmount = parseFloat(approvedAmount);
 
     if (!appAmount || appAmount <= 0 || appAmount > reqAmount) {
-      alert(`Approved amount must be between 1 and ${reqAmount.toLocaleString()} RWF.`);
+      setModalError(`Approved amount must be between 1 and ${reqAmount.toLocaleString()} RWF.`);
       return;
     }
 
+    const effectiveSendViaFlw = overrideSendViaFlw !== undefined ? overrideSendViaFlw : sendViaFlutterwave;
+
     setActionLoading(approveModal.id);
+    setModalError(null);
     try {
       const token = getAuthToken();
       const res = await fetch(`/api/admin/withdrawals/${encodeURIComponent(approveModal.id)}/approve`, {
@@ -173,7 +230,7 @@ export const AdminWithdrawalsPanel: React.FC = () => {
         body: JSON.stringify({
           approvedAmount: appAmount,
           feePercent: modalFeePercent,
-          sendViaFlutterwave,
+          sendViaFlutterwave: effectiveSendViaFlw,
           note: approvalNote
         })
       });
@@ -185,17 +242,14 @@ export const AdminWithdrawalsPanel: React.FC = () => {
           text: `Withdrawal #${approveModal.id} approved! Sent ${Number(data.netAmount).toLocaleString()} RWF (Fee: ${Number(data.feeDeducted).toLocaleString()} RWF)${data.refundedToUser ? ` • ${Number(data.refundedToUser).toLocaleString()} RWF refunded for partial approval` : ''}.`
         });
         setApproveModal(null);
+        setModalError(null);
         fetchWithdrawals();
       } else {
-        // Highlighting topup warning if Flutterwave balance is low
-        const isTopupNeeded = data?.error && (data.error.includes('Flutterwave account needs topup') || data.error.includes('topup') || data.error.includes('Insufficient funds'));
-        setStatusMessage({
-          type: isTopupNeeded ? 'warning' : 'error',
-          text: data.error || 'Failed to approve withdrawal.'
-        });
+        const errText = data?.error || 'Failed to approve withdrawal.';
+        setModalError(errText);
       }
     } catch (err: any) {
-      setStatusMessage({ type: 'error', text: err.message || 'Error communicating with server' });
+      setModalError(err.message || 'Error communicating with server');
     } finally {
       setActionLoading(null);
       setTimeout(() => setStatusMessage(null), 8000);
@@ -278,6 +332,7 @@ export const AdminWithdrawalsPanel: React.FC = () => {
   const modalFeeDeducted = Math.round(modalApprovedNum * (modalFeePercent / 100));
   const modalNetReceived = Math.max(0, modalApprovedNum - modalFeeDeducted);
   const modalRefundRemaining = approveModal ? Math.max(0, Number(approveModal.amount) - modalApprovedNum) : 0;
+  const pendingCount = withdrawals.filter((w) => (w.status || '').toLowerCase() === 'pending').length;
 
   return (
     <div className="space-y-6">
@@ -328,30 +383,23 @@ export const AdminWithdrawalsPanel: React.FC = () => {
             </div>
           </div>
 
-          {/* Admin Percentage Fee Input Bar */}
-          <div className="flex items-center gap-2.5 bg-[#0B0E14] border border-slate-700/80 p-2 rounded-2xl self-start lg:self-auto">
-            <div className="flex items-center gap-1.5 px-2">
-              <Percent className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-extrabold text-slate-300 whitespace-nowrap">Platform Fee:</span>
-            </div>
-            <div className="relative">
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                max="50"
-                value={feePercent}
-                onChange={(e) => setFeePercent(parseFloat(e.target.value) || 0)}
-                className="w-20 px-3 py-1.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white font-black text-sm text-center focus:outline-none focus:border-amber-400"
-              />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-            </div>
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
             <button
-              onClick={handleSaveFee}
-              disabled={savingFee}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition shadow-md disabled:opacity-50"
+              onClick={handleRunAutoProcess}
+              disabled={batchRunning || pendingCount === 0}
+              className="px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition shadow-lg flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {savingFee ? 'Saving...' : 'Set Fee %'}
+              <Zap className={`w-4 h-4 ${batchRunning ? 'animate-spin' : 'text-slate-950'}`} />
+              <span>{batchRunning ? 'Processing Auto-Payouts...' : `Auto-Payout Pending (${pendingCount})`}</span>
+            </button>
+            <button
+              onClick={handleSaveSettings}
+              disabled={savingSettings}
+              className="px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs transition shadow-lg flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>{savingSettings ? 'Saving...' : 'Save Settings'}</span>
             </button>
           </div>
         </div>
@@ -415,18 +463,107 @@ export const AdminWithdrawalsPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Flutterwave Live Balance Strip */}
-        <div className="p-3.5 rounded-2xl bg-[#0B0E14] border border-blue-500/30 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-extrabold text-white">Flutterwave Payout Balance:</span>
-            <span className="text-sm font-black text-emerald-400">
-              {Number(stats.flutterwaveBalance || 0).toLocaleString()} {stats.flutterwaveCurrency || 'RWF'}
-            </span>
+        {/* FLUTTERWAVE BALANCE & AUTO-WITHDRAWAL SETTINGS HUB */}
+        <div className="p-4 rounded-2xl bg-[#0B0E14] border border-blue-500/30 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <span className={`w-3 h-3 rounded-full ${Number(stats.flutterwaveBalance || 0) >= 1500 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-300">Flutterwave Balance:</span>
+                  <span className="text-base font-black text-emerald-400">
+                    {Number(stats.flutterwaveBalance || 0).toLocaleString()} {stats.flutterwaveCurrency || 'RWF'}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    Number(stats.flutterwaveBalance || 0) >= 1500
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  }`}>
+                    {Number(stats.flutterwaveBalance || 0) >= 1500 ? 'Sufficient for Auto-Payout' : 'Low Balance (Top Up for Auto-Payout)'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Flutterwave debits this live balance when sending payouts via MTN / Airtel Mobile Money.
+                </p>
+              </div>
+            </div>
+
+            <a
+              href="https://dashboard.flutterwave.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 bg-sky-500/10 px-3 py-1.5 rounded-xl border border-sky-500/20 transition"
+            >
+              <span>Flutterwave Dashboard & IP Whitelist</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
           </div>
-          <span className="text-[11px] text-slate-400">
-            If balance is low when approving, top up on your Flutterwave dashboard to execute payouts.
-          </span>
+
+          {/* Auto-Withdrawal Config Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
+            {/* Auto Withdraw Toggle */}
+            <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#161D2E] border border-slate-700/80 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoWithdrawEnabled}
+                onChange={(e) => setAutoWithdrawEnabled(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-0"
+              />
+              <div className="text-xs">
+                <span className="font-bold text-white block">Auto-Withdrawal Active</span>
+                <span className="text-[10px] text-slate-400">Instant payout if balance sufficient</span>
+              </div>
+            </label>
+
+            {/* Platform Fee % */}
+            <div className="p-2.5 rounded-xl bg-[#161D2E] border border-slate-700/80 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300">Platform Fee:</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="50"
+                  value={feePercent}
+                  onChange={(e) => setFeePercent(parseFloat(e.target.value) || 0)}
+                  className="w-14 px-2 py-1 rounded-lg bg-[#0B0E14] border border-slate-700 text-white font-black text-xs text-center focus:outline-none focus:border-amber-400"
+                />
+                <span className="text-xs font-bold text-slate-400">%</span>
+              </div>
+            </div>
+
+            {/* Max Auto-Withdrawal Limit */}
+            <div className="p-2.5 rounded-xl bg-[#161D2E] border border-slate-700/80 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300">Max Auto-Payout:</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  step="1000"
+                  min="500"
+                  value={autoWithdrawMaxAmount}
+                  onChange={(e) => setAutoWithdrawMaxAmount(parseFloat(e.target.value) || 0)}
+                  className="w-20 px-2 py-1 rounded-lg bg-[#0B0E14] border border-slate-700 text-white font-black text-xs text-center focus:outline-none focus:border-emerald-400"
+                />
+                <span className="text-[10px] font-bold text-slate-400">RWF</span>
+              </div>
+            </div>
+
+            {/* Safety Buffer */}
+            <div className="p-2.5 rounded-xl bg-[#161D2E] border border-slate-700/80 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300">Safety Buffer:</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  step="500"
+                  min="0"
+                  value={autoWithdrawBuffer}
+                  onChange={(e) => setAutoWithdrawBuffer(parseFloat(e.target.value) || 0)}
+                  className="w-16 px-2 py-1 rounded-lg bg-[#0B0E14] border border-slate-700 text-white font-black text-xs text-center focus:outline-none focus:border-blue-400"
+                />
+                <span className="text-[10px] font-bold text-slate-400">RWF</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -764,6 +901,34 @@ export const AdminWithdrawalsPanel: React.FC = () => {
               />
             </div>
 
+            {/* Modal Error Alert with Direct Fallback Action */}
+            {modalError && (
+              <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs space-y-2.5 animate-in fade-in duration-200">
+                <div className="flex items-start gap-2 text-rose-300">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
+                  <span className="font-bold leading-relaxed">{modalError}</span>
+                </div>
+                {sendViaFlutterwave && (
+                  <div className="pt-2 border-t border-rose-500/20 flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] text-slate-300">
+                      Paid user via MoMo phone (*182#) or bank manually?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSendViaFlutterwave(false);
+                        handleApproveSubmit(false);
+                      }}
+                      disabled={actionLoading === approveModal.id}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs whitespace-nowrap transition shadow"
+                    >
+                      Approve as Manual Payout
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
@@ -773,7 +938,7 @@ export const AdminWithdrawalsPanel: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={handleApproveSubmit}
+                onClick={() => handleApproveSubmit()}
                 disabled={actionLoading === approveModal.id}
                 className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition shadow-lg flex items-center gap-1.5 disabled:opacity-50"
               >

@@ -1548,6 +1548,32 @@ app.post('/api/wallet/withdraw', authenticateToken, async (req: AuthenticatedReq
       accountDetails
     );
 
+    // Check if auto-withdrawal can immediately disburse funds via Flutterwave
+    let autoWithdrawResult: any = null;
+    try {
+      autoWithdrawResult = await WithdrawalService.tryAutoWithdraw(result.withdrawalId);
+    } catch (autoErr: any) {
+      console.warn('[AutoWithdraw Trigger Warning]:', autoErr?.message);
+    }
+
+    if (autoWithdrawResult?.autoApproved) {
+      createNotification({
+        userId: req.user!.id,
+        title: 'Withdrawal Auto-Approved & Sent! ⚡',
+        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent directly via Flutterwave to your ${payoutMethod}!`,
+        type: 'withdrawal',
+        actionUrl: '/dashboard#wallet',
+        metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId, autoApproved: true }
+      }).catch(() => {});
+
+      return res.json({
+        success: true,
+        autoApproved: true,
+        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent to your ${payoutMethod}!`,
+        withdrawalId: result.withdrawalId
+      });
+    }
+
     const userEmail = req.user!.email;
     const adminEmail = process.env.SUPERADMIN_EMAIL || 'benirabok@gmail.com';
     const accountDetailsStr = typeof accountDetails === 'string' ? accountDetails : JSON.stringify(accountDetails);
@@ -1700,12 +1726,31 @@ app.post('/api/admin/withdrawals/:id/reject', authenticateToken, requireAdminRol
 });
 
 /**
- * Admin: Update default withdrawal fee percentage
+ * Admin: Update withdrawal fee and auto-withdrawal settings
  */
 app.post('/api/admin/withdrawals/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    await WithdrawalService.saveFeePercent(Number(req.body.feePercent));
-    return res.json({ success: true, feePercent: Number(req.body.feePercent) });
+    const { feePercent, autoWithdrawEnabled, autoWithdrawMaxAmount, autoWithdrawBuffer } = req.body;
+    await WithdrawalService.saveWithdrawalSettings({
+      feePercent: feePercent !== undefined ? Number(feePercent) : undefined,
+      autoWithdrawEnabled: autoWithdrawEnabled !== undefined ? Boolean(autoWithdrawEnabled) : undefined,
+      autoWithdrawMaxAmount: autoWithdrawMaxAmount !== undefined ? Number(autoWithdrawMaxAmount) : undefined,
+      autoWithdrawBuffer: autoWithdrawBuffer !== undefined ? Number(autoWithdrawBuffer) : undefined
+    });
+    const updated = await WithdrawalService.getAutoWithdrawSettings();
+    return res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Batch process pending withdrawals with auto-withdrawal logic against live balance
+ */
+app.post('/api/admin/withdrawals/auto-process', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await WithdrawalService.processBatchAutoWithdrawals();
+    return res.json({ success: true, ...result });
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
   }

@@ -151,6 +151,9 @@ export class WithdrawalService {
 
     const feeStr = await getSystemSetting('withdrawal_fee_percent', '3');
     const defaultFeePercent = parseFloat(feeStr || '3') || 3;
+    const autoEnabledStr = await getSystemSetting('auto_withdraw_enabled', 'true');
+    const autoWithdrawMaxAmount = parseFloat(await getSystemSetting('auto_withdraw_max_amount', '50000') || '50000') || 50000;
+    const autoWithdrawBuffer = parseFloat(await getSystemSetting('auto_withdraw_buffer', '1000') || '1000') || 1000;
 
     return {
       withdrawals: listRes.rows,
@@ -163,7 +166,10 @@ export class WithdrawalService {
         flutterwaveCurrency: flwCurrency
       },
       settings: {
-        defaultFeePercent
+        defaultFeePercent,
+        autoWithdrawEnabled: autoEnabledStr === 'true',
+        autoWithdrawMaxAmount,
+        autoWithdrawBuffer
       }
     };
   }
@@ -202,21 +208,37 @@ export class WithdrawalService {
       let accDetails: any = {};
       try {
         accDetails = typeof w.account_details === 'string' ? JSON.parse(w.account_details) : w.account_details || {};
-      } catch {}
+      } catch {
+        if (typeof w.account_details === 'string') {
+          accDetails = { phone: w.account_details };
+        }
+      }
 
-      const recipientNumber = String(accDetails.accountNumber || accDetails.phone || '').trim();
+      let recipientNumber = String(accDetails.accountNumber || accDetails.phone || accDetails.number || '').trim();
       if (!recipientNumber) {
         throw new Error('Recipient account number/phone is missing in withdrawal details.');
       }
 
-      // Check balance first
+      // Format recipient phone number for Rwanda MoMo (e.g. 0783987223 -> 250783987223)
+      const digitsOnly = recipientNumber.replace(/\D/g, '');
+      let formattedPhone = recipientNumber;
+      if (digitsOnly.startsWith('07') && digitsOnly.length === 10) {
+        formattedPhone = '250' + digitsOnly.slice(1);
+      } else if (digitsOnly.startsWith('2507') && digitsOnly.length === 12) {
+        formattedPhone = digitsOnly;
+      } else if (digitsOnly.length === 9 && digitsOnly.startsWith('7')) {
+        formattedPhone = '250' + digitsOnly;
+      }
+
+      // Check balance first (include 500 RWF standard Flutterwave transfer fee)
       try {
         const balRes = await callFlutterwaveApi('/v3/balances');
         if (balRes?.data && Array.isArray(balRes.data)) {
           const rwfItem = balRes.data.find((b: any) => b.currency === 'RWF') || balRes.data[0];
           const available = rwfItem ? Number(rwfItem.available_balance || 0) : 0;
-          if (available < netAmount) {
-            throw new Error(`Flutterwave account needs topup to approve this withdrawal. (Available: ${available.toLocaleString()} RWF, Needed: ${netAmount.toLocaleString()} RWF)`);
+          const totalNeeded = netAmount + 500;
+          if (available < totalNeeded) {
+            throw new Error(`Flutterwave account needs topup to approve this withdrawal. (Available: ${available.toLocaleString()} RWF, Needed: ${totalNeeded.toLocaleString()} RWF with transfer fee)`);
           }
         }
       } catch (balErr: any) {
@@ -225,21 +247,34 @@ export class WithdrawalService {
 
       // Initiate Flutterwave Transfer
       const transferPayload = {
-        account_bank: w.payout_method === 'BANK' ? 'MPS' : 'MPS',
-        account_number: recipientNumber,
+        account_bank: 'MPS',
+        account_number: formattedPhone,
         amount: netAmount,
         narration: `BenixSpace Withdrawal #${id}`,
         currency: 'RWF',
         reference: `flw_tx_${id}_${Date.now()}`,
-        debit_currency: 'RWF'
+        debit_currency: 'RWF',
+        meta: [
+          {
+            beneficiary_country: 'RW',
+            account_number: formattedPhone,
+            bank_name: 'Mobile Money',
+            routing_number: 'MPS',
+            sender: 'BenixSpace',
+            sender_country: 'RW'
+          }
+        ]
       };
 
       const flwResult = await callFlutterwaveApi('/v3/transfers', 'POST', transferPayload);
 
       if (flwResult?.status !== 'success') {
         const errMsg = flwResult?.message || '';
-        if (errMsg.toLowerCase().includes('insufficient') || errMsg.toLowerCase().includes('balance')) {
-          throw new Error('Flutterwave account needs topup to approve this withdrawal.');
+        if (errMsg.toLowerCase().includes('ip whitelisting') || errMsg.toLowerCase().includes('whitelisting')) {
+          throw new Error('Flutterwave Transfer Blocked: IP Whitelisting is required by Flutterwave. Add server IP in Flutterwave Dashboard -> Settings -> Whitelisted IPs, or uncheck "Send via Flutterwave" to record manual payout.');
+        }
+        if (errMsg.toLowerCase().includes('insufficient') || errMsg.toLowerCase().includes('balance') || errMsg.toLowerCase().includes('funds')) {
+          throw new Error('Flutterwave account needs topup to approve this withdrawal. Live RWF balance is insufficient to cover amount and transfer fee.');
         }
         throw new Error(flwResult?.message || 'Flutterwave transfer failed. Please verify credentials or top up.');
       }
@@ -434,5 +469,152 @@ export class WithdrawalService {
   static async saveFeePercent(percent: number): Promise<void> {
     const val = Math.max(0, Math.min(50, Number(percent) || 0));
     await setSystemSetting('withdrawal_fee_percent', String(val));
+  }
+
+  /**
+   * Get auto-withdrawal settings & live Flutterwave balance
+   */
+  static async getAutoWithdrawSettings(): Promise<{
+    autoWithdrawEnabled: boolean;
+    autoWithdrawMaxAmount: number;
+    autoWithdrawBuffer: number;
+    defaultFeePercent: number;
+    flutterwaveBalance: number;
+    flutterwaveCurrency: string;
+  }> {
+    const feeStr = await getSystemSetting('withdrawal_fee_percent', '3');
+    const autoEnabledStr = await getSystemSetting('auto_withdraw_enabled', 'true');
+    const maxAmountStr = await getSystemSetting('auto_withdraw_max_amount', '50000');
+    const bufferStr = await getSystemSetting('auto_withdraw_buffer', '1000');
+
+    let flwBal = 0;
+    let flwCurrency = 'RWF';
+    try {
+      const flwRes = await callFlutterwaveApi('/v3/balances');
+      if (flwRes?.data && Array.isArray(flwRes.data)) {
+        const rwfItem = flwRes.data.find((b: any) => b.currency === 'RWF') || flwRes.data[0];
+        if (rwfItem) {
+          flwBal = Number(rwfItem.available_balance || rwfItem.ledger_balance || 0);
+          flwCurrency = rwfItem.currency || 'RWF';
+        }
+      }
+    } catch {}
+
+    return {
+      autoWithdrawEnabled: autoEnabledStr === 'true',
+      autoWithdrawMaxAmount: parseFloat(maxAmountStr || '50000') || 50000,
+      autoWithdrawBuffer: parseFloat(bufferStr || '1000') || 1000,
+      defaultFeePercent: parseFloat(feeStr || '3') || 3,
+      flutterwaveBalance: flwBal,
+      flutterwaveCurrency: flwCurrency
+    };
+  }
+
+  /**
+   * Save auto-withdrawal and fee settings
+   */
+  static async saveWithdrawalSettings(settings: {
+    feePercent?: number;
+    autoWithdrawEnabled?: boolean;
+    autoWithdrawMaxAmount?: number;
+    autoWithdrawBuffer?: number;
+  }): Promise<void> {
+    if (settings.feePercent !== undefined) {
+      await setSystemSetting('withdrawal_fee_percent', String(Math.max(0, Math.min(50, Number(settings.feePercent)))));
+    }
+    if (settings.autoWithdrawEnabled !== undefined) {
+      await setSystemSetting('auto_withdraw_enabled', settings.autoWithdrawEnabled ? 'true' : 'false');
+    }
+    if (settings.autoWithdrawMaxAmount !== undefined) {
+      await setSystemSetting('auto_withdraw_max_amount', String(Math.max(100, Number(settings.autoWithdrawMaxAmount))));
+    }
+    if (settings.autoWithdrawBuffer !== undefined) {
+      await setSystemSetting('auto_withdraw_buffer', String(Math.max(0, Number(settings.autoWithdrawBuffer))));
+    }
+  }
+
+  /**
+   * Attempt auto-withdrawal for a single withdrawal request if balance is sufficient
+   */
+  static async tryAutoWithdraw(withdrawalId: string): Promise<{
+    autoApproved: boolean;
+    reason?: string;
+    details?: any;
+  }> {
+    try {
+      const settings = await this.getAutoWithdrawSettings();
+      if (!settings.autoWithdrawEnabled) {
+        return { autoApproved: false, reason: 'Auto-withdrawal is disabled' };
+      }
+
+      const wRes = await query('SELECT * FROM core_withdrawals WHERE id = $1', [withdrawalId]);
+      if (wRes.rowCount === 0) return { autoApproved: false, reason: 'Withdrawal not found' };
+      const w = wRes.rows[0];
+      if (w.status !== 'PENDING') return { autoApproved: false, reason: `Withdrawal status is ${w.status}` };
+
+      const amount = Number(w.amount);
+      if (amount > settings.autoWithdrawMaxAmount) {
+        return {
+          autoApproved: false,
+          reason: `Amount (${amount.toLocaleString()} RWF) exceeds maximum auto-approval limit (${settings.autoWithdrawMaxAmount.toLocaleString()} RWF)`
+        };
+      }
+
+      // Check balance: Flutterwave balance must cover net payout + fee (est 500 RWF) + safety buffer
+      const feeRate = settings.defaultFeePercent;
+      const feeDeducted = Math.round(amount * (feeRate / 100));
+      const netAmount = Math.max(0, amount - feeDeducted);
+      const totalNeeded = netAmount + 500 + settings.autoWithdrawBuffer;
+
+      if (settings.flutterwaveBalance < totalNeeded) {
+        return {
+          autoApproved: false,
+          reason: `Flutterwave balance (${settings.flutterwaveBalance.toLocaleString()} RWF) insufficient for auto-withdrawal (needed: ${totalNeeded.toLocaleString()} RWF)`
+        };
+      }
+
+      // Execute approval with Flutterwave transfer
+      const approvalResult = await this.approveWithdrawal(
+        withdrawalId,
+        amount,
+        feeRate,
+        true,
+        'Auto-approved via Flutterwave Transfer'
+      );
+
+      return { autoApproved: true, details: approvalResult };
+    } catch (err: any) {
+      console.warn(`[AutoWithdraw] Failed to auto-withdraw #${withdrawalId}:`, err.message);
+      return { autoApproved: false, reason: err.message };
+    }
+  }
+
+  /**
+   * Process all pending withdrawals eligible for auto-approval against live balance
+   */
+  static async processBatchAutoWithdrawals(): Promise<{
+    processed: number;
+    failed: number;
+    results: any[];
+  }> {
+    const pendingRes = await query(
+      "SELECT id, amount, payout_method FROM core_withdrawals WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT 20"
+    );
+
+    let processed = 0;
+    let failed = 0;
+    const results: any[] = [];
+
+    for (const w of pendingRes.rows) {
+      const res = await this.tryAutoWithdraw(w.id);
+      results.push({ id: w.id, amount: w.amount, ...res });
+      if (res.autoApproved) {
+        processed++;
+      } else {
+        failed++;
+      }
+    }
+
+    return { processed, failed, results };
   }
 }
