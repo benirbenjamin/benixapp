@@ -33,3 +33,8 @@ sql/
 push_all_incremental.ps1
 
 *.exe
+
+# Credentials and test payloads
+*-payload.json
+*payload*.json
+*-credentials.json

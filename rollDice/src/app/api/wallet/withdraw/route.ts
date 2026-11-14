@@ -58,25 +58,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Bank/Mobile details are required' }, { status: 400 });
     }
 
-    // Check user wallet balance
-    const userRows = await dbQuery(`SELECT wallet_balance FROM users WHERE id = ?`, [user.id]);
-    const currentBalance = Number(userRows[0]?.wallet_balance || 0);
+    // 1. Atomic wallet balance deduction to prevent overdraft race conditions
+    const deductRes = await dbExecute(
+      `UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ? AND wallet_balance >= ?`,
+      [withdrawAmount, user.id, withdrawAmount]
+    );
 
-    if (currentBalance < withdrawAmount) {
+    if ((deductRes as any)?.affectedRows === 0) {
       return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 });
     }
 
     const txId = 'tx_wth_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const flwRef = 'WTH_REF_' + Date.now();
 
-    // 1. Store user's last withdraw method & account for future prefill
+    // 2. Store user's last withdraw method & account for future prefill
     await dbExecute(
       `UPDATE users SET last_withdraw_method = ?, last_withdraw_account = ? WHERE id = ?`,
       [account_bank, account_number, user.id]
     );
-
-    // 2. Deduct user wallet balance (balance lock)
-    await dbExecute(`UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?`, [withdrawAmount, user.id]);
 
     let withdrawalStatus = 'PENDING';
     let flutterwaveResMessage = '';

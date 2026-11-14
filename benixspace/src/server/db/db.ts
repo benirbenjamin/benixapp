@@ -3,24 +3,23 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Central Target Neon PostgreSQL Database
-const NEON_DEFAULT =
-  'postgresql://neondb_owner:npg_j9q1UhnxgTrl@ep-soft-hill-b4t6y52i-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
-
 const rawConn =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL ||
-  process.env.POSTGRES_URL_NON_POOLING ||
-  NEON_DEFAULT;
+  process.env.POSTGRES_URL_NON_POOLING;
+
+if (!rawConn) {
+  console.error('🔴 [DATABASE_CONFIG_ERROR]: DATABASE_URL is not defined in environment variables. Please configure DATABASE_URL in .env');
+}
 
 // Strip channel_binding if present
-const connectionString = rawConn.replace(/&?channel_binding=[^&]+/g, '').replace(/\?&/, '?');
+const connectionString = (rawConn || '').replace(/&?channel_binding=[^&]+/g, '').replace(/\?&/, '?');
 
 export const hasValidDbConfig = !!connectionString;
 export const dbEngine: 'postgres' | 'mysql' = 'postgres';
 
 // High-speed Neon HTTP SQL client: connects via HTTPS, immune to TCP/WebSocket timeouts on serverless
-const sql = neon(connectionString);
+const sql = neon(connectionString || 'postgresql://localhost:5432/placeholder');
 
 /**
  * Universal Database Query Wrapper

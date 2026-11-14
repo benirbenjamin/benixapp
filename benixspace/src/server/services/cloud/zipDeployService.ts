@@ -35,7 +35,8 @@ export class ZipDeployService {
    * Verify zip entry relative path to prevent Zip Slip vulnerability
    */
   static isSafeEntryPath(entryPath: string, destinationDir: string): boolean {
-    const resolvedPath = path.resolve(destinationDir, entryPath);
-    return resolvedPath.startsWith(path.resolve(destinationDir));
+    const dest = path.resolve(destinationDir);
+    const resolvedPath = path.resolve(dest, entryPath);
+    return resolvedPath === dest || resolvedPath.startsWith(dest + path.sep);
   }
 }

@@ -31,16 +31,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check user balance
-    const userRows = await dbQuery(`SELECT wallet_balance FROM users WHERE id = ?`, [user.id]);
-    const currentBalance = Number(userRows[0]?.wallet_balance || 0);
+    // Atomic stake deduction to prevent race condition balance overdraft
+    const deductRes = await dbExecute(
+      `UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ? AND wallet_balance >= ?`,
+      [stakeAmount, user.id, stakeAmount]
+    );
 
-    if (currentBalance < stakeAmount) {
+    if ((deductRes as any)?.affectedRows === 0) {
       return NextResponse.json({ error: 'Insufficient wallet balance for this stake' }, { status: 400 });
     }
-
-    // Deduct stake from wallet
-    await dbExecute(`UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?`, [stakeAmount, user.id]);
 
     const roomId = 'pve_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
 

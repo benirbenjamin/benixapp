@@ -13,6 +13,7 @@ import {
   authenticateToken,
   authenticateAdmin,
   requireAdminRole,
+  requireStaffRole,
   requireSuperAdminRole,
   AuthenticatedRequest,
   verifyToken
@@ -35,7 +36,77 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// ==================== HTTP SECURITY HEADERS ==================== //
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// ==================== SAFE CORS POLICY ==================== //
+const allowedOrigins = [
+  'https://benix.space',
+  'https://www.benix.space',
+  'https://cloud.benix.space'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.benix.space') ||
+      origin.endsWith('.vercel.app') ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true
+}));
+
+// ==================== IN-MEMORY RATE LIMITER ==================== //
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+const ipRateLimits = new Map<string, RateLimitEntry>();
+
+function createRateLimiter(maxRequests: number, windowMs: number) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    const key = `${req.path}:${ip}`;
+    const now = Date.now();
+    const entry = ipRateLimits.get(key);
+
+    if (!entry || now > entry.resetAt) {
+      ipRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (entry.count >= maxRequests) {
+      const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+      res.setHeader('Retry-After', retryAfterSec);
+      return res.status(429).json({
+        error: 'Too many attempts. Please wait before trying again.',
+        retryAfter: retryAfterSec
+      });
+    }
+
+    entry.count++;
+    next();
+  };
+}
+
+const authRateLimiter = createRateLimiter(20, 15 * 60 * 1000); // 20 requests per 15 min
+const otpDispatchRateLimiter = createRateLimiter(6, 15 * 60 * 1000); // 6 requests per 15 min
 
 // Timezone formatter for Rwanda (CAT, UTC+2) to avoid any 2-hour discrepancy
 export function formatRwandaTime(d: string | number | Date = new Date()): string {
@@ -192,6 +263,41 @@ app.get('/api/health', (req, res) => {
 // Initialize Benix Cloud Database Schema & Plans
 initCloudDb().catch((err) => console.warn('Cloud DB auto-init warning:', err.message));
 
+// Ensure Default Superadmin Account Exists with Secure Bcrypt Hash
+export async function ensureSuperAdminUser() {
+  const adminEmail = (process.env.SUPERADMIN_EMAIL || process.env.DEFAULT_ADMIN_EMAIL || 'admin@benix.space').trim().toLowerCase();
+  const adminPass = process.env.SUPERADMIN_PASSWORD || process.env.DEFAULT_ADMIN_PASSWORD;
+  if (!adminPass) return;
+
+  try {
+    const existing = await query('SELECT id, password_hash, role FROM core_users WHERE LOWER(email) = $1', [adminEmail]);
+    if (existing.rowCount === 0) {
+      const pwdHash = await hashPassword(adminPass);
+      await query(
+        `INSERT INTO core_users (id, email, password_hash, name, role, is_verified, referral_code, selected_modules, app_profiles)
+         VALUES ($1, $2, $3, $4, 'superadmin', true, 'BENIX-SUPERADMIN', $5, $6)
+         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+        [
+          'user-superadmin-benir',
+          adminEmail,
+          pwdHash,
+          'Benir Benjamin (Super Admin)',
+          JSON.stringify(['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']),
+          JSON.stringify({ kunda: { completed: true }, voxify: { completed: true }, marketplace: { completed: true }, tv: { completed: true }, radio: { completed: true }, games: { completed: true }, calc: { completed: true } })
+        ]
+      );
+      console.log('✓ Superadmin user securely initialized in core_users');
+    } else if (!existing.rows[0].password_hash) {
+      const pwdHash = await hashPassword(adminPass);
+      await query('UPDATE core_users SET password_hash = $1, role = $2 WHERE id = $3', [pwdHash, 'superadmin', existing.rows[0].id]);
+      console.log('✓ Superadmin password hash updated in core_users');
+    }
+  } catch (err: any) {
+    console.warn('Superadmin user verification notice:', err?.message);
+  }
+}
+ensureSuperAdminUser().catch((err) => console.warn('Superadmin auto-setup warning:', err.message));
+
 // Benix Cloud & Manual Wallet Deposits Engine
 app.use('/api/cloud', cloudRouter);
 app.use('/api', cloudRouter);
@@ -305,7 +411,7 @@ app.get('/api/auth/check-availability', async (req, res) => {
 /**
  * Dispatch 6-Digit Email Verification Code for Registration
  */
-app.post('/api/auth/send-verification', async (req, res) => {
+app.post('/api/auth/send-verification', otpDispatchRateLimiter, async (req, res) => {
   try {
     const { email, name } = req.body;
     if (!email) {
@@ -351,7 +457,7 @@ app.post('/api/auth/send-verification', async (req, res) => {
 /**
  * Send Passwordless Login Code (OTP) to User Email
  */
-app.post('/api/auth/send-login-otp', async (req, res) => {
+app.post('/api/auth/send-login-otp', otpDispatchRateLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -399,7 +505,7 @@ app.post('/api/auth/send-login-otp', async (req, res) => {
 /**
  * Verify Passwordless Login Code (OTP) & Log In Instantly
  */
-app.post('/api/auth/verify-login-otp', async (req, res) => {
+app.post('/api/auth/verify-login-otp', authRateLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -409,9 +515,7 @@ app.post('/api/auth/verify-login-otp', async (req, res) => {
     const cleanCode = String(code).trim();
 
     const stored = loginOtpCodes.get(cleanEmail);
-    const isSuper = cleanEmail === 'benirabok@gmail.com' || cleanEmail === 'admin@benix.space';
-    const isValid = (stored && stored.code === cleanCode && Date.now() < stored.expiresAt) ||
-      (isSuper && (cleanCode === '120226' || cleanCode === '120219'));
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
 
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid or expired login code. Please check your inbox or request a new one.' });
@@ -419,6 +523,7 @@ app.post('/api/auth/verify-login-otp', async (req, res) => {
 
     loginOtpCodes.delete(cleanEmail);
 
+    const isSuper = cleanEmail === (process.env.SUPERADMIN_EMAIL || 'benirange@gmail.com').toLowerCase();
     if (isSuper) {
       const token = generateToken({ id: 'user-superadmin-benir', email: cleanEmail, role: 'superadmin' });
       return res.json({
@@ -493,7 +598,7 @@ app.post('/api/auth/verify-login-otp', async (req, res) => {
 /**
  * Verify Account with 6-Digit Code and Activate (Log In)
  */
-app.post('/api/auth/verify-account', async (req, res) => {
+app.post('/api/auth/verify-account', authRateLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -503,9 +608,7 @@ app.post('/api/auth/verify-account', async (req, res) => {
     const cleanCode = String(code).trim();
 
     const stored = verificationCodes.get(cleanEmail);
-    const isSuper = cleanEmail === 'benirabok@gmail.com' || cleanEmail === 'admin@benix.space';
-    const isValid = (stored && stored.code === cleanCode && Date.now() < stored.expiresAt) ||
-      (isSuper && (cleanCode === '120226' || cleanCode === '120219'));
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
 
     if (!isValid) {
       return res.status(400).json({ error: 'Invalid or expired verification code. Please check your inbox or request a new code.' });
@@ -605,7 +708,7 @@ app.post('/api/auth/resend-verification', async (req, res) => {
 /**
  * 4-Step Registration Wizard
  */
-app.post('/api/auth/register-wizard', async (req, res) => {
+app.post('/api/auth/register-wizard', authRateLimiter, async (req, res) => {
   try {
     const {
       email,
@@ -786,9 +889,9 @@ app.post('/api/auth/register-wizard', async (req, res) => {
 });
 
 /**
- * Universal Login Endpoint (Checks core_users and supports Super Admin fallback)
+ * Universal Login Endpoint (Strict cryptographic authentication against core_users)
  */
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
   try {
     console.log('🔵 [SERVER_LOGIN_ATTEMPT]:', { email: req.body?.email, hasBody: !!req.body });
     const { email, password } = req.body || {};
@@ -799,75 +902,10 @@ app.post('/api/auth/login', async (req, res) => {
 
     const cleanEmail = String(email).trim().toLowerCase();
 
-    // 1. FAST-PATH: Super Admin Credentials Check (Direct and Instant)
-    const isSuperAdminEmail = cleanEmail === 'benirabok@gmail.com' || cleanEmail === 'admin@benix.space';
-    const isSuperAdminPass = password === '1202!birthDATE' || password === 'BenixSpace2026!' || password === 'Admin123!Password';
-
-    if (isSuperAdminEmail && isSuperAdminPass) {
-      let adminRow = await query('SELECT * FROM core_users WHERE LOWER(email) = $1', [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] }));
-      let effectiveId = 'user-superadmin-benir';
-      let effectiveAvatar = null;
-      let effectivePhone = '+250788000000';
-      let effectiveAppProfiles = {
-        kunda: { completed: true },
-        dating: { completed: true },
-        voxify: { completed: true },
-        music: { completed: true },
-        marketplace: { completed: true },
-        tv: { completed: true },
-        videos: { completed: true },
-        radio: { completed: true },
-        games: { completed: true },
-        calc: { completed: true }
-      };
-
-      if (adminRow.rowCount > 0) {
-        effectiveId = adminRow.rows[0].id;
-        effectiveAvatar = adminRow.rows[0].avatar_url || null;
-        effectivePhone = adminRow.rows[0].phone || effectivePhone;
-        try {
-          const parsed = typeof adminRow.rows[0].app_profiles === 'string' ? JSON.parse(adminRow.rows[0].app_profiles) : adminRow.rows[0].app_profiles;
-          if (parsed && typeof parsed === 'object') effectiveAppProfiles = { ...effectiveAppProfiles, ...parsed };
-        } catch {}
-      } else {
-        await query(
-          `INSERT INTO core_users (id, email, name, role, referral_code, is_verified, selected_modules, app_profiles)
-           VALUES ($1, $2, $3, $4, $5, true, $6, $7)
-           ON CONFLICT (email) DO NOTHING`,
-          [
-            effectiveId,
-            cleanEmail,
-            'Benir Benjamin (Super Admin)',
-            'superadmin',
-            'BENIX-SUPERADMIN',
-            JSON.stringify(['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news']),
-            JSON.stringify(effectiveAppProfiles)
-          ]
-        ).catch(() => {});
-      }
-
-      const token = generateToken({ id: effectiveId, email: cleanEmail, role: 'superadmin' });
-      return res.json({
-        token,
-        user: {
-          id: effectiveId,
-          email: cleanEmail,
-          name: 'Benir Benjamin (Super Admin)',
-          role: 'superadmin',
-          avatar_url: effectiveAvatar,
-          phone: effectivePhone,
-          referral_code: 'BENIX-SUPERADMIN',
-          selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
-          app_profiles: effectiveAppProfiles
-        },
-        wallet: { balance: 100000.00, bonus_balance: 5000.00, total_balance: 105000.00, currency: 'RWF' }
-      });
-    }
-
-    // 2. Query core_users with safe error trapping
+    // Query core_users with safe case-insensitive lookup
     let user: any = null;
     try {
-      const userRes = await query('SELECT * FROM core_users WHERE email = $1', [cleanEmail]);
+      const userRes = await query('SELECT * FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
       if (userRes.rowCount > 0) {
         user = userRes.rows[0];
       }
@@ -879,12 +917,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // 3. Verify Password
-    let match = await comparePassword(password, user.password_hash);
-    if (!match && isSuperAdminEmail && isSuperAdminPass) {
-      match = true;
-    }
-
+    // Verify Password Cryptographically
+    const match = await comparePassword(password, user.password_hash || '');
     if (!match) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -1366,35 +1400,59 @@ app.post('/api/wallet/deposit', authenticateToken, async (req: AuthenticatedRequ
 
 app.post('/api/wallet/bet', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { wager, won, multiplier = 1.95 } = req.body;
+    const { wager, prediction, targetPrediction } = req.body;
     const numWager = parseFloat(wager);
     if (!numWager || numWager < 50) {
       return res.status(400).json({ error: 'Minimum bet amount is 50 RWF.' });
     }
+    if (numWager > 50000) {
+      return res.status(400).json({ error: 'Maximum bet amount is 50,000 RWF per roll.' });
+    }
 
-    if (won) {
-      const payout = Math.round(numWager * multiplier);
-      const netProfit = payout - numWager;
-      const result = await WalletService.credit(
+    const cleanPred = String(prediction || targetPrediction || '').toLowerCase().trim();
+    if (cleanPred !== 'high' && cleanPred !== 'low') {
+      return res.status(400).json({ error: 'Please choose either "high" (4-6) or "low" (1-3).' });
+    }
+
+    // 1. Authoritative Server Debit: User MUST have sufficient balance
+    const debitRes = await WalletService.debit(
+      req.user!.id,
+      numWager,
+      'games',
+      'dice_wager',
+      `RollDice Quick Wager: -${numWager.toLocaleString()} RWF (${cleanPred.toUpperCase()})`,
+      `tx_wgr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
+    );
+
+    // 2. Authoritative Server-Side Die Roll (Anti-Cheat: Client cannot fake roll or outcome)
+    const serverDice = Math.floor(Math.random() * 6) + 1;
+    const serverWon = (cleanPred === 'high' && serverDice >= 4) || (cleanPred === 'low' && serverDice <= 3);
+
+    let finalBalance = debitRes.newBalance;
+    let payout = 0;
+
+    // 3. Credit payout only if server-side roll won
+    if (serverWon) {
+      const multiplier = 1.95;
+      payout = Math.round(numWager * multiplier);
+      const creditRes = await WalletService.credit(
         req.user!.id,
-        netProfit,
+        payout,
         'games',
         'dice_win',
-        `RollDice Win: +${payout.toLocaleString()} RWF (${multiplier}x on ${numWager.toLocaleString()} RWF)`,
-        `tx_bet_win_${Date.now()}`
+        `RollDice Win: +${payout.toLocaleString()} RWF (Rolled ${serverDice} on ${cleanPred.toUpperCase()})`,
+        `tx_win_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
       );
-      return res.json({ success: true, newBalance: result.newBalance, won: true, payout });
-    } else {
-      const result = await WalletService.debit(
-        req.user!.id,
-        numWager,
-        'games',
-        'dice_loss',
-        `RollDice Wager: -${numWager.toLocaleString()} RWF`,
-        `tx_bet_loss_${Date.now()}`
-      );
-      return res.json({ success: true, newBalance: result.newBalance, won: false });
+      finalBalance = creditRes.newBalance;
     }
+
+    return res.json({
+      success: true,
+      won: serverWon,
+      dice: serverDice,
+      payout,
+      newBalance: finalBalance
+    });
   } catch (err: any) {
     return res.status(400).json({ error: err.message || 'Bet placement failed.' });
   }
@@ -1973,6 +2031,16 @@ app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
     const event = payload?.event;
     const data = payload?.data;
 
+    // Validate Webhook Signature if secret hash is configured
+    const flwConfig = await getFlutterwaveConfig();
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
+    const incomingSignature = req.headers['verif-hash'];
+
+    if (secretHash && incomingSignature !== secretHash) {
+      console.warn('⚠️ [FLW_WEBHOOK_REJECTED]: Invalid signature header verif-hash');
+      return res.status(401).json({ error: 'Invalid webhook signature.' });
+    }
+
     if (event === 'charge.completed' && data?.status === 'successful') {
       const txRef = data.tx_ref;
       const flwId = data.id;
@@ -2006,27 +2074,37 @@ app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
         return res.status(200).json({ status: 'already_completed' });
       }
 
-      // 3. Server-side verification with Flutterwave API
-      const flwConfig = await getFlutterwaveConfig();
-      const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
-      if (effectiveSecret && flwId) {
-        try {
-          const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
-            headers: {
-              Authorization: `Bearer ${effectiveSecret}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          if (verifyRes.ok) {
-            const vData: any = await verifyRes.json();
-            if (vData?.status !== 'success' || vData?.data?.status !== 'successful') {
-              console.warn('Webhook verification check failed with Flutterwave API:', vData);
-              return res.status(200).json({ status: 'verification_failed' });
-            }
+      // 3. Strict Server-Side Verification with Flutterwave API
+      const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
+      if (!effectiveSecret || !flwId) {
+        console.warn('⚠️ [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID');
+        return res.status(400).json({ error: 'Cannot verify transaction with Flutterwave API' });
+      }
+
+      try {
+        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
+          headers: {
+            Authorization: `Bearer ${effectiveSecret}`,
+            'Content-Type': 'application/json'
           }
-        } catch (vErr: any) {
-          console.warn('Webhook direct verify check error:', vErr.message);
+        });
+        if (!verifyRes.ok) {
+          console.warn('⚠️ [FLW_WEBHOOK_VERIFY_FAILED]: Flutterwave API returned non-OK status', verifyRes.status);
+          return res.status(400).json({ status: 'verification_failed' });
         }
+        const vData: any = await verifyRes.json();
+        if (vData?.status !== 'success' || vData?.data?.status !== 'successful') {
+          console.warn('⚠️ [FLW_WEBHOOK_VERIFY_FAILED]: Webhook verification check failed with Flutterwave API:', vData);
+          return res.status(400).json({ status: 'verification_failed' });
+        }
+
+        if (vData?.data?.tx_ref && vData.data.tx_ref !== txRef) {
+          console.warn('⚠️ [FLW_WEBHOOK_REF_MISMATCH]: Returned tx_ref does not match pending deposit');
+          return res.status(400).json({ status: 'tx_ref_mismatch' });
+        }
+      } catch (vErr: any) {
+        console.error('🔴 [FLW_WEBHOOK_EXCEPTION]: Direct verify check exception:', vErr.message);
+        return res.status(500).json({ status: 'verification_error', error: vErr.message });
       }
 
       const convertedRwf = Number(p.converted_rwf);
@@ -4155,6 +4233,17 @@ const streamLocalChunkedMedia = (req: express.Request, res: express.Response) =>
   const filename = req.params.filename || (req.params as any)[0];
   if (!filename) return res.status(400).send('Filename required');
   const safeName = path.basename(filename);
+
+  // Security: Strictly enforce allowed downloadable media extensions to prevent arbitrary file disclosure
+  const ext = path.extname(safeName).toLowerCase();
+  const allowedExtensions = [
+    '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.m4a', '.aac',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.zip'
+  ];
+  if (!allowedExtensions.includes(ext)) {
+    return res.status(403).send('Forbidden: file type not permitted for download');
+  }
+
   const possibleDirs = [
     path.join(process.cwd(), 'public', 'uploads'),
     path.join(process.cwd(), 'uploads'),
@@ -4164,8 +4253,12 @@ const streamLocalChunkedMedia = (req: express.Request, res: express.Response) =>
   let filePath = '';
   for (const dir of possibleDirs) {
     const candidate = path.join(dir, safeName);
-    if (fs.existsSync(candidate)) {
-      filePath = candidate;
+    const resolvedCandidate = path.resolve(candidate);
+    const resolvedDir = path.resolve(dir);
+
+    // Security: Ensure path cannot escape root uploads directory
+    if (resolvedCandidate.startsWith(resolvedDir + path.sep) && fs.existsSync(resolvedCandidate)) {
+      filePath = resolvedCandidate;
       break;
     }
   }
@@ -4174,11 +4267,12 @@ const streamLocalChunkedMedia = (req: express.Request, res: express.Response) =>
     return res.status(404).send('Media file not found');
   }
 
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
   const stat = fs.statSync(filePath);
   const fileSize = stat.size;
   const range = req.headers.range;
 
-  const ext = path.extname(filePath).toLowerCase();
   const mimeMap: Record<string, string> = {
     '.mp4': 'video/mp4',
     '.webm': 'video/webm',
@@ -7442,10 +7536,10 @@ app.post('/api/admin/settings/flutterwave', authenticateToken, requireAdminRole,
 app.post('/api/admin/settings/flutterwave/test', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const flw = await getFlutterwaveConfig();
-    const pk = flw.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X';
+    const pk = flw.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || '';
     return res.json({
       success: true,
-      message: `Flutterwave gateway credentials verified active. Public Key: ${pk.slice(0, 15)}... (Status: ${flw.enabled ? 'Enabled' : 'Paused'}, Mode: ${flw.isLive ? 'Live Production' : 'Sandbox'})`
+      message: `Flutterwave gateway credentials verified. Public Key: ${pk ? pk.slice(0, 15) + '...' : 'Not configured'} (Status: ${flw.enabled ? 'Enabled' : 'Paused'}, Mode: ${flw.isLive ? 'Live Production' : 'Sandbox'})`
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -7456,13 +7550,13 @@ app.get('/api/settings/public', async (req, res) => {
   try {
     const flw = await getFlutterwaveConfig();
     return res.json({
-      flutterwave_public_key: flw.publicKey,
+      flutterwave_public_key: flw.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || '',
       flutterwave_enabled: flw.enabled !== false
     });
   } catch {
     return res.json({
-      flutterwave_public_key: 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X',
-      flutterwave_enabled: true
+      flutterwave_public_key: process.env.FLUTTERWAVE_PUBLIC_KEY || '',
+      flutterwave_enabled: !!process.env.FLUTTERWAVE_PUBLIC_KEY
     });
   }
 });
@@ -9313,10 +9407,18 @@ const handlePveHold = async (req: AuthenticatedRequest, res: any) => {
       const houseRakeAmount = (totalPot * houseRakePercent) / 100;
       const winnerPayout = totalPot - houseRakeAmount;
 
-      await query(
-        `UPDATE game_rooms SET p1_score = $1, current_accumulated = 0, status = 'COMPLETED', winner_id = $2, rake_amount = $3 WHERE id = $4`,
+      // Atomic update to COMPLETED to prevent double payout race conditions
+      const updateRes = await query(
+        `UPDATE game_rooms 
+         SET p1_score = $1, current_accumulated = 0, status = 'COMPLETED', winner_id = $2, rake_amount = $3 
+         WHERE id = $4 AND status = 'ACTIVE' 
+         RETURNING *`,
         [newP1Score, userId, houseRakeAmount, roomId]
       );
+
+      if (updateRes.rowCount === 0) {
+        return res.status(400).json({ error: 'Game room is no longer active or payout already claimed.' });
+      }
 
       // Safe atomic wallet credit
       const creditResult = await WalletService.credit(
@@ -9541,7 +9643,8 @@ const handleGameRefund = async (req: AuthenticatedRequest, res: any) => {
       roomIdToCancel = req.body?.roomId || null;
     } catch {}
 
-    let sql = `SELECT * FROM game_rooms WHERE (player1_id = $1 OR player2_id = $1) AND status IN ('ACTIVE', 'WAITING')`;
+    // Security: Only allow refunding unplayed rooms (scores must be 0) to prevent abandoning losing games
+    let sql = `SELECT * FROM game_rooms WHERE (player1_id = $1 OR player2_id = $1) AND status IN ('ACTIVE', 'WAITING') AND p1_score = 0 AND p2_score = 0 AND current_accumulated = 0`;
     const params: any[] = [userId];
 
     if (roomIdToCancel) {
@@ -9555,10 +9658,18 @@ const handleGameRefund = async (req: AuthenticatedRequest, res: any) => {
     for (const r of activeRooms.rows) {
       const stake = Number(r.stake || 0);
       if (stake > 0) {
-        await WalletService.credit(userId, stake, 'game', 'refund', 'RollDice Game Cancelled / Refunded', r.id);
-        totalRefunded += stake;
+        // Atomic status update to CANCELLED before crediting wallet to prevent concurrent duplicate refunds
+        const cancelRes = await query(
+          `UPDATE game_rooms SET status = 'CANCELLED' 
+           WHERE id = $1 AND status IN ('ACTIVE', 'WAITING') AND p1_score = 0 AND p2_score = 0 AND current_accumulated = 0 
+           RETURNING *`,
+          [r.id]
+        );
+        if (cancelRes.rowCount > 0) {
+          await WalletService.credit(userId, stake, 'game', 'refund', 'RollDice Game Cancelled / Refunded', r.id);
+          totalRefunded += stake;
+        }
       }
-      await query(`UPDATE game_rooms SET status = 'CANCELLED' WHERE id = $1`, [r.id]);
     }
 
     const curWallet = await WalletService.getOrCreateWallet(userId);
@@ -9876,7 +9987,7 @@ app.get('/api/admin/analytics', authenticateToken, requireAdminRole, async (req,
 });
 
 // Admin All-Apps & Platform Settings Storage
-app.get('/api/admin/settings/all-apps', async (req, res) => {
+app.get('/api/admin/settings/all-apps', authenticateAdmin, async (req, res) => {
   try {
     const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     return res.json({ settings: row.rows[0]?.value || null });
@@ -9970,7 +10081,7 @@ app.post('/api/admin/settings/all-apps', authenticateToken, requireAdminRole, as
 });
 
 // Partner Program Monetization Settings (Synced with AdminSettings Stories & Creator Studio)
-app.get('/api/admin/settings/monetization', async (req, res) => {
+app.get('/api/admin/settings/monetization', authenticateAdmin, async (req, res) => {
   try {
     const minWatchHours = Number(await getSystemSetting('monetization_required_watch_hours', '300')) || 300;
     const minSubscribers = Number(await getSystemSetting('monetization_required_subscribers', '30')) || 30;
@@ -10487,7 +10598,7 @@ app.delete('/api/admin/stations/:id', authenticateToken, requireAdminRole, async
 });
 
 // Station Management: Stream Diagnostic Tester (Integrated from legacy tvapp)
-app.post('/api/admin/stations/test-stream', authenticateToken, async (req, res) => {
+app.post('/api/admin/stations/test-stream', authenticateToken, requireStaffRole, async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'Stream URL is required.' });
 

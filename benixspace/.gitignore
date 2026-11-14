@@ -125,3 +125,8 @@ sql/
 *.sql
 !src/server/db/*.sql
 
+
+# Credentials and test payloads
+*-payload.json
+*payload*.json
+*-credentials.json

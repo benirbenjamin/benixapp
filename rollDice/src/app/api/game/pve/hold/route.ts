@@ -40,11 +40,15 @@ export async function POST(req: Request) {
       const houseRakeAmount = (totalPot * houseRakePercent) / 100;
       const winnerPayout = totalPot - houseRakeAmount;
 
-      // Update room status
-      await dbExecute(
-        `UPDATE game_rooms SET p1_score = ?, current_accumulated = 0, status = 'COMPLETED', winner_id = ?, rake_amount = ? WHERE id = ?`,
+      // Atomic room status update to prevent race-condition duplicate payouts
+      const updateResult = await dbExecute(
+        `UPDATE game_rooms SET p1_score = ?, current_accumulated = 0, status = 'COMPLETED', winner_id = ?, rake_amount = ? WHERE id = ? AND status = 'ACTIVE'`,
         [newP1Score, user.id, houseRakeAmount, roomId]
       );
+
+      if ((updateResult as any)?.affectedRows === 0) {
+        return NextResponse.json({ error: 'Game room is no longer active or payout already processed.' }, { status: 400 });
+      }
 
       // Credit player wallet
       await dbExecute(`UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?`, [winnerPayout, user.id]);

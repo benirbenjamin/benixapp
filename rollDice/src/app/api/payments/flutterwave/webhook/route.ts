@@ -24,8 +24,13 @@ export async function POST(req: Request) {
 
       if (txs.length > 0) {
         const tx = txs[0];
-        if (tx.status !== 'COMPLETED') {
-          await dbExecute(`UPDATE transactions SET status = 'COMPLETED' WHERE id = ?`, [tx.id]);
+        // Atomic status transition to prevent duplicate webhook processing
+        const updateRes = await dbExecute(
+          `UPDATE transactions SET status = 'COMPLETED' WHERE id = ? AND status != 'COMPLETED'`,
+          [tx.id]
+        );
+
+        if ((updateRes as any)?.affectedRows > 0) {
           await dbExecute(`UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?`, [
             amount,
             tx.user_id,

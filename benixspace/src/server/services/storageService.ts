@@ -340,7 +340,9 @@ export class StorageService {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
 
-      const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, '_')}`;
+      const baseName = path.basename(fileName).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeExt = path.extname(fileName).toLowerCase().replace(/[^a-z0-9.]/g, '');
+      const safeName = `${Date.now()}_${baseName}${safeExt}`;
       const targetPath = path.join(uploadsDir, safeName);
       fs.writeFileSync(targetPath, fileBuffer);
 
@@ -358,7 +360,9 @@ export class StorageService {
     // Flawless on Vercel Serverless where local filesystem is read-only
     await this.ensureStoredMediaFilesTable();
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, '_')}`;
+    const baseName = path.basename(fileName).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeExt = path.extname(fileName).toLowerCase().replace(/[^a-z0-9.]/g, '');
+    const safeName = `${Date.now()}_${baseName}${safeExt}`;
     await query(
       `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
        VALUES ($1, $2, $3, $4, $5)

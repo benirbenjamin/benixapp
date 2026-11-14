@@ -51412,10 +51412,12 @@ var export_types = ct.types;
 // src/server/db/db.ts
 var import_dotenv = __toESM(require_main(), 1);
 import_dotenv.default.config();
-var NEON_DEFAULT = "postgresql://neondb_owner:npg_j9q1UhnxgTrl@ep-soft-hill-b4t6y52i-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require";
-var rawConn = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || NEON_DEFAULT;
-var connectionString = rawConn.replace(/&?channel_binding=[^&]+/g, "").replace(/\?&/, "?");
-var sql = ys(connectionString);
+var rawConn = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
+if (!rawConn) {
+  console.error("\u{1F534} [DATABASE_CONFIG_ERROR]: DATABASE_URL is not defined in environment variables. Please configure DATABASE_URL in .env");
+}
+var connectionString = (rawConn || "").replace(/&?channel_binding=[^&]+/g, "").replace(/\?&/, "?");
+var sql = ys(connectionString || "postgresql://localhost:5432/placeholder");
 async function query(text, params) {
   try {
     let normalizedSql = text;
@@ -51446,7 +51448,10 @@ async function withTransaction(callback) {
 
 // src/server/auth/auth.ts
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
-var JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || "benixspace-super-secret-jwt-key-2026-nebelurw";
+var JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || (() => {
+  console.warn("\u26A0\uFE0F [SECURITY WARNING]: Neither JWT_SECRET nor AUTH_SECRET is set in environment. Using a fallback runtime secret. Please set JWT_SECRET in .env for production.");
+  return "benixspace_sec_" + (process.env.NODE_ENV === "production" ? "prod_" : "dev_") + "secure_jwt_2026";
+})();
 function generateToken(user) {
   return import_jsonwebtoken.default.sign(
     { id: String(user.id), email: user.email, role: user.role },
@@ -51483,14 +51488,18 @@ function authenticateToken(req, res, next) {
   if (!token) {
     return res.status(401).json({ error: "Unauthorized. Authentication token required." });
   }
-  const decoded = token.startsWith("admin_token_") ? { id: "user-superadmin-benir", email: "admin@benix.space", role: "superadmin" } : verifyToken(token);
+  const decoded = verifyToken(token);
   if (!decoded) {
     return res.status(401).json({ error: "Invalid or expired authentication token." });
   }
   req.user = decoded;
   next();
 }
-var authenticateAdmin = authenticateToken;
+function authenticateAdmin(req, res, next) {
+  authenticateToken(req, res, () => {
+    requireAdminRole(req, res, next);
+  });
+}
 function requireAdminRole(req, res, next) {
   if (!req.user || req.user.role !== "admin" && req.user.role !== "superadmin") {
     return res.status(403).json({ error: "Access denied. Administrator privileges required." });
@@ -64877,7 +64886,7 @@ async function getFlutterwaveSecretKey() {
     }
   } catch {
   }
-  return (process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim();
+  return (process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
 }
 function callFlutterwaveApi(path5, method = "GET", data) {
   return new Promise(async (resolve3, reject) => {
@@ -66517,7 +66526,9 @@ var StorageService = class {
       if (!fs5.existsSync(uploadsDir)) {
         fs5.mkdirSync(uploadsDir, { recursive: true });
       }
-      const safeName2 = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, "_")}`;
+      const baseName2 = path3.basename(fileName).replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeExt2 = path3.extname(fileName).toLowerCase().replace(/[^a-z0-9.]/g, "");
+      const safeName2 = `${Date.now()}_${baseName2}${safeExt2}`;
       const targetPath = path3.join(uploadsDir, safeName2);
       fs5.writeFileSync(targetPath, fileBuffer);
       return {
@@ -66531,7 +66542,9 @@ var StorageService = class {
     }
     await this.ensureStoredMediaFilesTable();
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9_\.-]/g, "_")}`;
+    const baseName = path3.basename(fileName).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeExt = path3.extname(fileName).toLowerCase().replace(/[^a-z0-9.]/g, "");
+    const safeName = `${Date.now()}_${baseName}${safeExt}`;
     await query(
       `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
        VALUES ($1, $2, $3, $4, $5)
@@ -77168,10 +77181,20 @@ cloudRouter.post("/databases", authenticateToken, async (req, res) => {
     const shortUser = userId.replace(/[^a-z0-9]/g, "").substring(0, 8);
     const schemaName = `app_${safeDb}_${shortUser}`;
     await query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-    const realHost = "ep-soft-hill-b4t6y52i-pooler.c-6.us-east-2.aws.neon.tech";
-    const realPort = 5432;
-    const realDb = "neondb";
-    const realUser = "neondb_owner";
+    let realHost = "localhost";
+    let realPort = 5432;
+    let realDb = "neondb";
+    let realUser = "postgres";
+    try {
+      if (process.env.DATABASE_URL) {
+        const parsed = new URL(process.env.DATABASE_URL);
+        realHost = parsed.hostname || realHost;
+        realPort = Number(parsed.port) || realPort;
+        realDb = parsed.pathname.replace(/^\//, "") || realDb;
+        realUser = parsed.username || realUser;
+      }
+    } catch {
+    }
     const generatedPassword = crypto15.randomBytes(8).toString("hex") + "A1!";
     const realConnUri = `postgresql://${realUser}:${generatedPassword}@${realHost}:${realPort}/${realDb}?options=-c%20search_path%3D${schemaName}&sslmode=require`;
     const dbId = "cdb-" + crypto15.randomUUID();
@@ -77752,7 +77775,56 @@ cloudRouter.delete("/admin/servers/:id", authenticateToken, requireStaffRole, as
 import_dotenv2.default.config();
 var app = (0, import_express2.default)();
 var PORT = process.env.PORT || 3001;
-app.use((0, import_cors.default)());
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+var allowedOrigins = [
+  "https://benix.space",
+  "https://www.benix.space",
+  "https://cloud.benix.space"
+];
+app.use((0, import_cors.default)({
+  origin: (origin2, callback) => {
+    if (!origin2) return callback(null, true);
+    if (allowedOrigins.includes(origin2) || origin2.endsWith(".benix.space") || origin2.endsWith(".vercel.app") || origin2.startsWith("http://localhost:") || origin2.startsWith("http://127.0.0.1:")) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true
+}));
+var ipRateLimits = /* @__PURE__ */ new Map();
+function createRateLimiter(maxRequests, windowMs) {
+  return (req, res, next) => {
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+    const key = `${req.path}:${ip}`;
+    const now = Date.now();
+    const entry = ipRateLimits.get(key);
+    if (!entry || now > entry.resetAt) {
+      ipRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (entry.count >= maxRequests) {
+      const retryAfterSec = Math.ceil((entry.resetAt - now) / 1e3);
+      res.setHeader("Retry-After", retryAfterSec);
+      return res.status(429).json({
+        error: "Too many attempts. Please wait before trying again.",
+        retryAfter: retryAfterSec
+      });
+    }
+    entry.count++;
+    next();
+  };
+}
+var authRateLimiter = createRateLimiter(20, 15 * 60 * 1e3);
+var otpDispatchRateLimiter = createRateLimiter(6, 15 * 60 * 1e3);
 function formatRwandaTime(d = /* @__PURE__ */ new Date()) {
   try {
     return new Date(d).toLocaleTimeString("en-US", {
@@ -77864,6 +77936,38 @@ app.get("/api/health", (req, res) => {
   });
 });
 initCloudDb().catch((err) => console.warn("Cloud DB auto-init warning:", err.message));
+async function ensureSuperAdminUser() {
+  const adminEmail = (process.env.SUPERADMIN_EMAIL || process.env.DEFAULT_ADMIN_EMAIL || "admin@benix.space").trim().toLowerCase();
+  const adminPass = process.env.SUPERADMIN_PASSWORD || process.env.DEFAULT_ADMIN_PASSWORD;
+  if (!adminPass) return;
+  try {
+    const existing = await query("SELECT id, password_hash, role FROM core_users WHERE LOWER(email) = $1", [adminEmail]);
+    if (existing.rowCount === 0) {
+      const pwdHash = await hashPassword(adminPass);
+      await query(
+        `INSERT INTO core_users (id, email, password_hash, name, role, is_verified, referral_code, selected_modules, app_profiles)
+         VALUES ($1, $2, $3, $4, 'superadmin', true, 'BENIX-SUPERADMIN', $5, $6)
+         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+        [
+          "user-superadmin-benir",
+          adminEmail,
+          pwdHash,
+          "Benir Benjamin (Super Admin)",
+          JSON.stringify(["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"]),
+          JSON.stringify({ kunda: { completed: true }, voxify: { completed: true }, marketplace: { completed: true }, tv: { completed: true }, radio: { completed: true }, games: { completed: true }, calc: { completed: true } })
+        ]
+      );
+      console.log("\u2713 Superadmin user securely initialized in core_users");
+    } else if (!existing.rows[0].password_hash) {
+      const pwdHash = await hashPassword(adminPass);
+      await query("UPDATE core_users SET password_hash = $1, role = $2 WHERE id = $3", [pwdHash, "superadmin", existing.rows[0].id]);
+      console.log("\u2713 Superadmin password hash updated in core_users");
+    }
+  } catch (err) {
+    console.warn("Superadmin user verification notice:", err?.message);
+  }
+}
+ensureSuperAdminUser().catch((err) => console.warn("Superadmin auto-setup warning:", err.message));
 app.use("/api/cloud", cloudRouter);
 app.use("/api", cloudRouter);
 var verificationCodes = /* @__PURE__ */ new Map();
@@ -77945,7 +78049,7 @@ app.get("/api/auth/check-availability", async (req, res) => {
     return res.json({ emailAvailable: true, phoneAvailable: true });
   }
 });
-app.post("/api/auth/send-verification", async (req, res) => {
+app.post("/api/auth/send-verification", otpDispatchRateLimiter, async (req, res) => {
   try {
     const { email, name: name2 } = req.body;
     if (!email) {
@@ -77981,7 +78085,7 @@ app.post("/api/auth/send-verification", async (req, res) => {
     return res.status(500).json({ error: err.message || "Failed to dispatch verification email." });
   }
 });
-app.post("/api/auth/send-login-otp", async (req, res) => {
+app.post("/api/auth/send-login-otp", otpDispatchRateLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -78019,7 +78123,7 @@ app.post("/api/auth/send-login-otp", async (req, res) => {
     return res.status(500).json({ error: err.message || "Failed to dispatch login code." });
   }
 });
-app.post("/api/auth/verify-login-otp", async (req, res) => {
+app.post("/api/auth/verify-login-otp", authRateLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -78028,12 +78132,12 @@ app.post("/api/auth/verify-login-otp", async (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanCode = String(code).trim();
     const stored = loginOtpCodes.get(cleanEmail);
-    const isSuper = cleanEmail === "benirabok@gmail.com" || cleanEmail === "admin@benix.space";
-    const isValid = stored && stored.code === cleanCode && Date.now() < stored.expiresAt || isSuper && (cleanCode === "120226" || cleanCode === "120219");
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
     if (!isValid) {
       return res.status(401).json({ error: "Invalid or expired login code. Please check your inbox or request a new one." });
     }
     loginOtpCodes.delete(cleanEmail);
+    const isSuper = cleanEmail === (process.env.SUPERADMIN_EMAIL || "benirange@gmail.com").toLowerCase();
     if (isSuper) {
       const token2 = generateToken({ id: "user-superadmin-benir", email: cleanEmail, role: "superadmin" });
       return res.json({
@@ -78100,7 +78204,7 @@ app.post("/api/auth/verify-login-otp", async (req, res) => {
     return res.status(500).json({ error: err.message || "OTP verification failed." });
   }
 });
-app.post("/api/auth/verify-account", async (req, res) => {
+app.post("/api/auth/verify-account", authRateLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -78109,8 +78213,7 @@ app.post("/api/auth/verify-account", async (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanCode = String(code).trim();
     const stored = verificationCodes.get(cleanEmail);
-    const isSuper = cleanEmail === "benirabok@gmail.com" || cleanEmail === "admin@benix.space";
-    const isValid = stored && stored.code === cleanCode && Date.now() < stored.expiresAt || isSuper && (cleanCode === "120226" || cleanCode === "120219");
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
     if (!isValid) {
       return res.status(400).json({ error: "Invalid or expired verification code. Please check your inbox or request a new code." });
     }
@@ -78192,7 +78295,7 @@ app.post("/api/auth/resend-verification", async (req, res) => {
     return res.status(500).json({ error: err.message || "Failed to resend code." });
   }
 });
-app.post("/api/auth/register-wizard", async (req, res) => {
+app.post("/api/auth/register-wizard", authRateLimiter, async (req, res) => {
   try {
     const {
       email,
@@ -78356,7 +78459,7 @@ app.post("/api/auth/register-wizard", async (req, res) => {
     return res.status(500).json({ error: err.message || "Registration failed." });
   }
 });
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authRateLimiter, async (req, res) => {
   try {
     console.log("\u{1F535} [SERVER_LOGIN_ATTEMPT]:", { email: req.body?.email, hasBody: !!req.body });
     const { email, password } = req.body || {};
@@ -78365,71 +78468,9 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password are required." });
     }
     const cleanEmail = String(email).trim().toLowerCase();
-    const isSuperAdminEmail = cleanEmail === "benirabok@gmail.com" || cleanEmail === "admin@benix.space";
-    const isSuperAdminPass = password === "1202!birthDATE" || password === "BenixSpace2026!" || password === "Admin123!Password";
-    if (isSuperAdminEmail && isSuperAdminPass) {
-      let adminRow = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] }));
-      let effectiveId = "user-superadmin-benir";
-      let effectiveAvatar = null;
-      let effectivePhone = "+250788000000";
-      let effectiveAppProfiles = {
-        kunda: { completed: true },
-        dating: { completed: true },
-        voxify: { completed: true },
-        music: { completed: true },
-        marketplace: { completed: true },
-        tv: { completed: true },
-        videos: { completed: true },
-        radio: { completed: true },
-        games: { completed: true },
-        calc: { completed: true }
-      };
-      if (adminRow.rowCount > 0) {
-        effectiveId = adminRow.rows[0].id;
-        effectiveAvatar = adminRow.rows[0].avatar_url || null;
-        effectivePhone = adminRow.rows[0].phone || effectivePhone;
-        try {
-          const parsed = typeof adminRow.rows[0].app_profiles === "string" ? JSON.parse(adminRow.rows[0].app_profiles) : adminRow.rows[0].app_profiles;
-          if (parsed && typeof parsed === "object") effectiveAppProfiles = { ...effectiveAppProfiles, ...parsed };
-        } catch {
-        }
-      } else {
-        await query(
-          `INSERT INTO core_users (id, email, name, role, referral_code, is_verified, selected_modules, app_profiles)
-           VALUES ($1, $2, $3, $4, $5, true, $6, $7)
-           ON CONFLICT (email) DO NOTHING`,
-          [
-            effectiveId,
-            cleanEmail,
-            "Benir Benjamin (Super Admin)",
-            "superadmin",
-            "BENIX-SUPERADMIN",
-            JSON.stringify(["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"]),
-            JSON.stringify(effectiveAppProfiles)
-          ]
-        ).catch(() => {
-        });
-      }
-      const token2 = generateToken({ id: effectiveId, email: cleanEmail, role: "superadmin" });
-      return res.json({
-        token: token2,
-        user: {
-          id: effectiveId,
-          email: cleanEmail,
-          name: "Benir Benjamin (Super Admin)",
-          role: "superadmin",
-          avatar_url: effectiveAvatar,
-          phone: effectivePhone,
-          referral_code: "BENIX-SUPERADMIN",
-          selected_modules: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
-          app_profiles: effectiveAppProfiles
-        },
-        wallet: { balance: 1e5, bonus_balance: 5e3, total_balance: 105e3, currency: "RWF" }
-      });
-    }
     let user = null;
     try {
-      const userRes = await query("SELECT * FROM core_users WHERE email = $1", [cleanEmail]);
+      const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
       if (userRes.rowCount > 0) {
         user = userRes.rows[0];
       }
@@ -78439,10 +78480,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
-    let match = await comparePassword(password, user.password_hash);
-    if (!match && isSuperAdminEmail && isSuperAdminPass) {
-      match = true;
-    }
+    const match = await comparePassword(password, user.password_hash || "");
     if (!match) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
@@ -78861,34 +78899,50 @@ app.post("/api/wallet/deposit", authenticateToken, async (req, res) => {
 });
 app.post("/api/wallet/bet", authenticateToken, async (req, res) => {
   try {
-    const { wager, won, multiplier = 1.95 } = req.body;
+    const { wager, prediction, targetPrediction } = req.body;
     const numWager = parseFloat(wager);
     if (!numWager || numWager < 50) {
       return res.status(400).json({ error: "Minimum bet amount is 50 RWF." });
     }
-    if (won) {
-      const payout = Math.round(numWager * multiplier);
-      const netProfit = payout - numWager;
-      const result = await WalletService.credit(
+    if (numWager > 5e4) {
+      return res.status(400).json({ error: "Maximum bet amount is 50,000 RWF per roll." });
+    }
+    const cleanPred = String(prediction || targetPrediction || "").toLowerCase().trim();
+    if (cleanPred !== "high" && cleanPred !== "low") {
+      return res.status(400).json({ error: 'Please choose either "high" (4-6) or "low" (1-3).' });
+    }
+    const debitRes = await WalletService.debit(
+      req.user.id,
+      numWager,
+      "games",
+      "dice_wager",
+      `RollDice Quick Wager: -${numWager.toLocaleString()} RWF (${cleanPred.toUpperCase()})`,
+      `tx_wgr_${Date.now()}_${crypto16.randomBytes(3).toString("hex")}`
+    );
+    const serverDice = Math.floor(Math.random() * 6) + 1;
+    const serverWon = cleanPred === "high" && serverDice >= 4 || cleanPred === "low" && serverDice <= 3;
+    let finalBalance = debitRes.newBalance;
+    let payout = 0;
+    if (serverWon) {
+      const multiplier = 1.95;
+      payout = Math.round(numWager * multiplier);
+      const creditRes = await WalletService.credit(
         req.user.id,
-        netProfit,
+        payout,
         "games",
         "dice_win",
-        `RollDice Win: +${payout.toLocaleString()} RWF (${multiplier}x on ${numWager.toLocaleString()} RWF)`,
-        `tx_bet_win_${Date.now()}`
+        `RollDice Win: +${payout.toLocaleString()} RWF (Rolled ${serverDice} on ${cleanPred.toUpperCase()})`,
+        `tx_win_${Date.now()}_${crypto16.randomBytes(3).toString("hex")}`
       );
-      return res.json({ success: true, newBalance: result.newBalance, won: true, payout });
-    } else {
-      const result = await WalletService.debit(
-        req.user.id,
-        numWager,
-        "games",
-        "dice_loss",
-        `RollDice Wager: -${numWager.toLocaleString()} RWF`,
-        `tx_bet_loss_${Date.now()}`
-      );
-      return res.json({ success: true, newBalance: result.newBalance, won: false });
+      finalBalance = creditRes.newBalance;
     }
+    return res.json({
+      success: true,
+      won: serverWon,
+      dice: serverDice,
+      payout,
+      newBalance: finalBalance
+    });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Bet placement failed." });
   }
@@ -79367,6 +79421,13 @@ app.post("/api/wallet/flutterwave/webhook", async (req, res) => {
     const payload = req.body;
     const event = payload?.event;
     const data = payload?.data;
+    const flwConfig = await getFlutterwaveConfig();
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
+    const incomingSignature = req.headers["verif-hash"];
+    if (secretHash && incomingSignature !== secretHash) {
+      console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Invalid signature header verif-hash");
+      return res.status(401).json({ error: "Invalid webhook signature." });
+    }
     if (event === "charge.completed" && data?.status === "successful") {
       const txRef = data.tx_ref;
       const flwId = data.id;
@@ -79391,26 +79452,34 @@ app.post("/api/wallet/flutterwave/webhook", async (req, res) => {
       if (p2.status === "completed") {
         return res.status(200).json({ status: "already_completed" });
       }
-      const flwConfig = await getFlutterwaveConfig();
-      const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
-      if (effectiveSecret && flwId) {
-        try {
-          const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
-            headers: {
-              Authorization: `Bearer ${effectiveSecret}`,
-              "Content-Type": "application/json"
-            }
-          });
-          if (verifyRes.ok) {
-            const vData = await verifyRes.json();
-            if (vData?.status !== "success" || vData?.data?.status !== "successful") {
-              console.warn("Webhook verification check failed with Flutterwave API:", vData);
-              return res.status(200).json({ status: "verification_failed" });
-            }
+      const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
+      if (!effectiveSecret || !flwId) {
+        console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID");
+        return res.status(400).json({ error: "Cannot verify transaction with Flutterwave API" });
+      }
+      try {
+        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
+          headers: {
+            Authorization: `Bearer ${effectiveSecret}`,
+            "Content-Type": "application/json"
           }
-        } catch (vErr) {
-          console.warn("Webhook direct verify check error:", vErr.message);
+        });
+        if (!verifyRes.ok) {
+          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_VERIFY_FAILED]: Flutterwave API returned non-OK status", verifyRes.status);
+          return res.status(400).json({ status: "verification_failed" });
         }
+        const vData = await verifyRes.json();
+        if (vData?.status !== "success" || vData?.data?.status !== "successful") {
+          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_VERIFY_FAILED]: Webhook verification check failed with Flutterwave API:", vData);
+          return res.status(400).json({ status: "verification_failed" });
+        }
+        if (vData?.data?.tx_ref && vData.data.tx_ref !== txRef) {
+          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REF_MISMATCH]: Returned tx_ref does not match pending deposit");
+          return res.status(400).json({ status: "tx_ref_mismatch" });
+        }
+      } catch (vErr) {
+        console.error("\u{1F534} [FLW_WEBHOOK_EXCEPTION]: Direct verify check exception:", vErr.message);
+        return res.status(500).json({ status: "verification_error", error: vErr.message });
       }
       const convertedRwf = Number(p2.converted_rwf);
       const originalAmount = Number(p2.original_amount);
@@ -81220,6 +81289,26 @@ var streamLocalChunkedMedia = (req, res) => {
   const filename = req.params.filename || req.params[0];
   if (!filename) return res.status(400).send("Filename required");
   const safeName = path4.basename(filename);
+  const ext = path4.extname(safeName).toLowerCase();
+  const allowedExtensions = [
+    ".mp4",
+    ".webm",
+    ".ogg",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".pdf",
+    ".zip"
+  ];
+  if (!allowedExtensions.includes(ext)) {
+    return res.status(403).send("Forbidden: file type not permitted for download");
+  }
   const possibleDirs = [
     path4.join(process.cwd(), "public", "uploads"),
     path4.join(process.cwd(), "uploads"),
@@ -81228,18 +81317,20 @@ var streamLocalChunkedMedia = (req, res) => {
   let filePath = "";
   for (const dir of possibleDirs) {
     const candidate = path4.join(dir, safeName);
-    if (fs6.existsSync(candidate)) {
-      filePath = candidate;
+    const resolvedCandidate = path4.resolve(candidate);
+    const resolvedDir = path4.resolve(dir);
+    if (resolvedCandidate.startsWith(resolvedDir + path4.sep) && fs6.existsSync(resolvedCandidate)) {
+      filePath = resolvedCandidate;
       break;
     }
   }
   if (!filePath || !fs6.existsSync(filePath)) {
     return res.status(404).send("Media file not found");
   }
+  res.setHeader("X-Content-Type-Options", "nosniff");
   const stat = fs6.statSync(filePath);
   const fileSize = stat.size;
   const range = req.headers.range;
-  const ext = path4.extname(filePath).toLowerCase();
   const mimeMap = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
@@ -84059,10 +84150,10 @@ app.post("/api/admin/settings/flutterwave", authenticateToken, requireAdminRole,
 app.post("/api/admin/settings/flutterwave/test", authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const flw = await getFlutterwaveConfig();
-    const pk = flw.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X";
+    const pk = flw.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || "";
     return res.json({
       success: true,
-      message: `Flutterwave gateway credentials verified active. Public Key: ${pk.slice(0, 15)}... (Status: ${flw.enabled ? "Enabled" : "Paused"}, Mode: ${flw.isLive ? "Live Production" : "Sandbox"})`
+      message: `Flutterwave gateway credentials verified. Public Key: ${pk ? pk.slice(0, 15) + "..." : "Not configured"} (Status: ${flw.enabled ? "Enabled" : "Paused"}, Mode: ${flw.isLive ? "Live Production" : "Sandbox"})`
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -84072,13 +84163,13 @@ app.get("/api/settings/public", async (req, res) => {
   try {
     const flw = await getFlutterwaveConfig();
     return res.json({
-      flutterwave_public_key: flw.publicKey,
+      flutterwave_public_key: flw.publicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || "",
       flutterwave_enabled: flw.enabled !== false
     });
   } catch {
     return res.json({
-      flutterwave_public_key: "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X",
-      flutterwave_enabled: true
+      flutterwave_public_key: process.env.FLUTTERWAVE_PUBLIC_KEY || "",
+      flutterwave_enabled: !!process.env.FLUTTERWAVE_PUBLIC_KEY
     });
   }
 });
@@ -85553,10 +85644,16 @@ var handlePveHold = async (req, res) => {
       const totalPot = stake * 2;
       const houseRakeAmount = totalPot * houseRakePercent / 100;
       const winnerPayout = totalPot - houseRakeAmount;
-      await query(
-        `UPDATE game_rooms SET p1_score = $1, current_accumulated = 0, status = 'COMPLETED', winner_id = $2, rake_amount = $3 WHERE id = $4`,
+      const updateRes = await query(
+        `UPDATE game_rooms 
+         SET p1_score = $1, current_accumulated = 0, status = 'COMPLETED', winner_id = $2, rake_amount = $3 
+         WHERE id = $4 AND status = 'ACTIVE' 
+         RETURNING *`,
         [newP1Score, userId, houseRakeAmount, roomId]
       );
+      if (updateRes.rowCount === 0) {
+        return res.status(400).json({ error: "Game room is no longer active or payout already claimed." });
+      }
       const creditResult = await WalletService.credit(
         userId,
         winnerPayout,
@@ -85749,7 +85846,7 @@ var handleGameRefund = async (req, res) => {
       roomIdToCancel = req.body?.roomId || null;
     } catch {
     }
-    let sql2 = `SELECT * FROM game_rooms WHERE (player1_id = $1 OR player2_id = $1) AND status IN ('ACTIVE', 'WAITING')`;
+    let sql2 = `SELECT * FROM game_rooms WHERE (player1_id = $1 OR player2_id = $1) AND status IN ('ACTIVE', 'WAITING') AND p1_score = 0 AND p2_score = 0 AND current_accumulated = 0`;
     const params = [userId];
     if (roomIdToCancel) {
       params.push(roomIdToCancel);
@@ -85760,10 +85857,17 @@ var handleGameRefund = async (req, res) => {
     for (const r of activeRooms.rows) {
       const stake = Number(r.stake || 0);
       if (stake > 0) {
-        await WalletService.credit(userId, stake, "game", "refund", "RollDice Game Cancelled / Refunded", r.id);
-        totalRefunded += stake;
+        const cancelRes = await query(
+          `UPDATE game_rooms SET status = 'CANCELLED' 
+           WHERE id = $1 AND status IN ('ACTIVE', 'WAITING') AND p1_score = 0 AND p2_score = 0 AND current_accumulated = 0 
+           RETURNING *`,
+          [r.id]
+        );
+        if (cancelRes.rowCount > 0) {
+          await WalletService.credit(userId, stake, "game", "refund", "RollDice Game Cancelled / Refunded", r.id);
+          totalRefunded += stake;
+        }
       }
-      await query(`UPDATE game_rooms SET status = 'CANCELLED' WHERE id = $1`, [r.id]);
     }
     const curWallet = await WalletService.getOrCreateWallet(userId);
     return res.json({
@@ -86034,7 +86138,7 @@ app.get("/api/admin/analytics", authenticateToken, requireAdminRole, async (req,
     return res.status(500).json({ error: err.message });
   }
 });
-app.get("/api/admin/settings/all-apps", async (req, res) => {
+app.get("/api/admin/settings/all-apps", authenticateAdmin, async (req, res) => {
   try {
     const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     return res.json({ settings: row.rows[0]?.value || null });
@@ -86122,7 +86226,7 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     return res.status(500).json({ error: err.message || "Failed to save settings to database." });
   }
 });
-app.get("/api/admin/settings/monetization", async (req, res) => {
+app.get("/api/admin/settings/monetization", authenticateAdmin, async (req, res) => {
   try {
     const minWatchHours = Number(await getSystemSetting3("monetization_required_watch_hours", "300")) || 300;
     const minSubscribers = Number(await getSystemSetting3("monetization_required_subscribers", "30")) || 30;
@@ -86603,7 +86707,7 @@ app.delete("/api/admin/stations/:id", authenticateToken, requireAdminRole, async
     return res.status(500).json({ error: err.message });
   }
 });
-app.post("/api/admin/stations/test-stream", authenticateToken, async (req, res) => {
+app.post("/api/admin/stations/test-stream", authenticateToken, requireStaffRole, async (req, res) => {
   const { url: url2 } = req.body;
   if (!url2) return res.status(400).json({ error: "Stream URL is required." });
   const startTime = Date.now();

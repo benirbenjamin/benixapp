@@ -140,8 +140,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (err: any) {
-      // Only logout on explicit 401 Unauthorized for regular tokens; never for transient errors
-      if (err.response?.status === 401 && !token.startsWith('admin_token_')) {
+      // Only logout on explicit 401 Unauthorized; never for transient errors
+      if (err.response?.status === 401) {
         logout();
       }
     } finally {
@@ -201,15 +201,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   /**
-   * Login using Axios with safe error parsing, unverified account verification prompt, and instant Super Admin fallback
+   * Login using Axios with safe error parsing and unverified account verification prompt
    */
   const login = async (email: string, pass: string): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = pass.trim();
-
-    // Instant Super Admin Client Fallback if offline/network issue
-    const isSuperAdminEmail = cleanEmail === 'benirabok@gmail.com' || cleanEmail === 'admin@benix.space';
-    const isSuperAdminPass = cleanPass === '1202!birthDATE' || cleanPass === 'BenixSpace2026!' || cleanPass === 'Admin123!Password';
 
     try {
       const response = await apiClient.post('/api/auth/login', {
@@ -254,41 +250,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           requiresVerification: true,
           email: err.response.data.email || cleanEmail
         };
-      }
-
-      // If backend was unreachable or server error, but credentials are Super Admin, allow access:
-      if (isSuperAdminEmail && isSuperAdminPass) {
-        const mockAdminToken = 'admin_token_' + Date.now();
-        const mockAdminUser: User = {
-          id: 'user-superadmin-benir',
-          email: cleanEmail,
-          name: 'Benir Benjamin (Super Admin)',
-          role: 'superadmin',
-          phone: '0783987223',
-          whatsapp: '0783987223',
-          country: 'Rwanda',
-          referral_code: 'BENIX-SUPERADMIN',
-          selected_modules: ['tv', 'radio', 'kunda', 'marketplace', 'voxify', 'games', 'calc'],
-          app_profiles: {
-            kunda: { completed: true },
-            voxify: { completed: true },
-            marketplace: { completed: true },
-            tv: { completed: true },
-            radio: { completed: true },
-            games: { completed: true },
-            calc: { completed: true }
-          }
-        };
-        const mockWallet: Wallet = { balance: 100000.00, currency: 'RWF' };
-
-        setToken(mockAdminToken);
-        setUser(mockAdminUser);
-        setWallet(mockWallet);
-        localStorage.setItem('benix_auth_token', mockAdminToken);
-        localStorage.setItem('benix_admin_token', mockAdminToken);
-        localStorage.setItem('benix_user', JSON.stringify(mockAdminUser));
-        localStorage.setItem('benix_wallet', JSON.stringify(mockWallet));
-        return { success: true };
       }
 
       // Exact error extraction from Axios response

@@ -2,7 +2,10 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response, NextFunction } from 'express';
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || 'benixspace-super-secret-jwt-key-2026-nebelurw';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || (() => {
+  console.warn('⚠️ [SECURITY WARNING]: Neither JWT_SECRET nor AUTH_SECRET is set in environment. Using a fallback runtime secret. Please set JWT_SECRET in .env for production.');
+  return 'benixspace_sec_' + (process.env.NODE_ENV === 'production' ? 'prod_' : 'dev_') + 'secure_jwt_2026';
+})();
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -56,9 +59,7 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
     return res.status(401).json({ error: 'Unauthorized. Authentication token required.' });
   }
 
-  const decoded = token.startsWith('admin_token_')
-    ? { id: 'user-superadmin-benir', email: 'admin@benix.space', role: 'superadmin' }
-    : verifyToken(token);
+  const decoded = verifyToken(token);
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid or expired authentication token.' });
   }
@@ -67,8 +68,12 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
   next();
 }
 
-// Backward-compatible alias
-export const authenticateAdmin = authenticateToken;
+// Authenticate Admin Middleware (Enforces valid token AND Admin/Superadmin Role)
+export function authenticateAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  authenticateToken(req, res, () => {
+    requireAdminRole(req, res, next);
+  });
+}
 
 export function requireAdminRole(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'superadmin')) {

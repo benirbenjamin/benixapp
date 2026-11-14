@@ -37,7 +37,7 @@ async function getFlutterwaveSecretKey(): Promise<string> {
       return String(row.rows[0].secret_key).trim();
     }
   } catch {}
-  return (process.env.FLUTTERWAVE_SECRET_KEY || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X').trim();
+  return (process.env.FLUTTERWAVE_SECRET_KEY || '').trim();
 }
 
 /**

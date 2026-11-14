@@ -59,20 +59,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       if (room.player2_id !== user.id) {
         const stakeAmount = Number(room.stake);
-        const userRows = await dbQuery(`SELECT wallet_balance FROM users WHERE id = ?`, [user.id]);
 
-        if (Number(userRows[0]?.wallet_balance || 0) < stakeAmount) {
+        // Atomic stake deduction to prevent overdraft race condition
+        const deductRes = await dbExecute(
+          `UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ? AND wallet_balance >= ?`,
+          [stakeAmount, user.id, stakeAmount]
+        );
+
+        if ((deductRes as any)?.affectedRows === 0) {
           return NextResponse.json({ error: 'Insufficient wallet balance to join stake room' }, { status: 400 });
         }
 
-        // Deduct stake for player 2
-        await dbExecute(`UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?`, [stakeAmount, user.id]);
-
-        // Update room status
-        await dbExecute(
-          `UPDATE game_rooms SET player2_id = ?, status = 'ACTIVE' WHERE id = ?`,
+        // Atomically claim player 2 slot
+        const claimRes = await dbExecute(
+          `UPDATE game_rooms SET player2_id = ?, status = 'ACTIVE' WHERE id = ? AND status = 'WAITING' AND (player2_id IS NULL OR player2_id = '')`,
           [user.id, roomId]
         );
+
+        if ((claimRes as any)?.affectedRows === 0) {
+          // Refund immediately if slot was claimed by another player concurrently
+          await dbExecute(`UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?`, [stakeAmount, user.id]);
+          return NextResponse.json({ error: 'Room was just joined by another player or is no longer waiting' }, { status: 400 });
+        }
 
         // Record wager transaction
         await dbExecute(
@@ -168,10 +176,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const houseRakeAmount = (totalPot * houseRakePercent) / 100;
         const winnerPayout = totalPot - houseRakeAmount;
 
-        await dbExecute(
-          `UPDATE game_rooms SET p1_score = ?, p2_score = ?, current_accumulated = 0, status = 'COMPLETED', winner_id = ?, rake_amount = ? WHERE id = ?`,
+        // Atomic room status update to prevent race condition duplicate payouts
+        const updateRes = await dbExecute(
+          `UPDATE game_rooms SET p1_score = ?, p2_score = ?, current_accumulated = 0, status = 'COMPLETED', winner_id = ?, rake_amount = ? WHERE id = ? AND status = 'ACTIVE'`,
           [newP1Score, newP2Score, winnerId, houseRakeAmount, roomId]
         );
+
+        if ((updateRes as any)?.affectedRows === 0) {
+          return NextResponse.json({ error: 'Game room is no longer active or payout already processed' }, { status: 400 });
+        }
 
         // Credit winner wallet
         await dbExecute(`UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?`, [winnerPayout, winnerId]);

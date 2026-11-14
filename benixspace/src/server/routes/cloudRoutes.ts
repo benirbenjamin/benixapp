@@ -1910,11 +1910,21 @@ cloudRouter.post('/databases', authenticateToken, async (req: AuthenticatedReque
     // 3. Create real isolated PostgreSQL schema!
     await query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-    // 4. Generate real connection credentials
-    const realHost = 'ep-soft-hill-b4t6y52i-pooler.c-6.us-east-2.aws.neon.tech';
-    const realPort = 5432;
-    const realDb = 'neondb';
-    const realUser = 'neondb_owner';
+    // 4. Generate connection credentials from active database configuration
+    let realHost = 'localhost';
+    let realPort = 5432;
+    let realDb = 'neondb';
+    let realUser = 'postgres';
+    try {
+      if (process.env.DATABASE_URL) {
+        const parsed = new URL(process.env.DATABASE_URL);
+        realHost = parsed.hostname || realHost;
+        realPort = Number(parsed.port) || realPort;
+        realDb = parsed.pathname.replace(/^\//, '') || realDb;
+        realUser = parsed.username || realUser;
+      }
+    } catch {}
+
     const generatedPassword = crypto.randomBytes(8).toString('hex') + 'A1!';
     const realConnUri = `postgresql://${realUser}:${generatedPassword}@${realHost}:${realPort}/${realDb}?options=-c%20search_path%3D${schemaName}&sslmode=require`;
 

@@ -50,52 +50,48 @@ export async function POST(req: Request) {
       });
     }
 
-    // Verify payment status
+    // Verify payment status strictly via Flutterwave API
     let isVerified = false;
+    const targetFlwId = String(flwTransactionId || transactionId || searchRef);
 
-    // 1. Check if client reported successful status from Flutterwave Inline checkout
-    if (status === 'successful' || status === 'completed') {
-      isVerified = true;
-    }
-
-    // 2. Check if simulated / dev mode / test secret key
-    if (isSimulated || !process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLUTTERWAVE_SECRET_KEY.includes('TEST_DEFAULT')) {
-      isVerified = true;
-    }
-
-    // 3. Verify via Flutterwave API if live transaction ID is present
-    if (flwTransactionId && process.env.FLUTTERWAVE_SECRET_KEY && !process.env.FLUTTERWAVE_SECRET_KEY.includes('TEST_DEFAULT')) {
+    if (process.env.FLUTTERWAVE_SECRET_KEY && !process.env.FLUTTERWAVE_SECRET_KEY.includes('TEST_DEFAULT')) {
       try {
-        const verifyRes = await verifyFlutterwaveTransaction(String(flwTransactionId));
+        const verifyRes = await verifyFlutterwaveTransaction(targetFlwId);
         if (
           verifyRes &&
           (verifyRes.status === 'success' || verifyRes.data?.status === 'successful') &&
           Number(verifyRes.data?.amount || 0) >= Number(tx.amount)
         ) {
           isVerified = true;
+        } else {
+          console.warn('Flutterwave API returned unsuccessful status:', verifyRes);
         }
       } catch (verifyErr) {
-        console.warn('Flutterwave API verification call exception:', verifyErr);
-        // If client reported success, accept verified status as fallback
-        if (status === 'successful' || status === 'completed') {
-          isVerified = true;
-        }
+        console.error('Flutterwave API verification call exception:', verifyErr);
+      }
+    } else {
+      // In local dev without live keys, require explicit development check
+      if (process.env.NODE_ENV !== 'production' && isSimulated) {
+        isVerified = true;
       }
     }
 
     if (!isVerified) {
-      await dbExecute(`UPDATE transactions SET status = 'FAILED' WHERE id = ?`, [tx.id]);
-      return NextResponse.json({ error: 'Payment verification failed' }, { status: 400 });
+      return NextResponse.json({ error: 'Payment verification failed. Transaction was not confirmed by gateway.' }, { status: 400 });
     }
 
-    // Payment verified: credit user's wallet atomically
+    // Payment verified: credit user's wallet atomically to prevent double credit
     const depositAmount = Number(tx.amount || 0);
     const finalFlwRef = flwTransactionId || tx_ref || tx.flutterwave_ref;
 
-    await dbExecute(`UPDATE transactions SET status = 'COMPLETED', flutterwave_ref = ? WHERE id = ?`, [
-      finalFlwRef,
-      tx.id,
-    ]);
+    const updateRes = await dbExecute(
+      `UPDATE transactions SET status = 'COMPLETED', flutterwave_ref = ? WHERE id = ? AND status = 'PENDING'`,
+      [finalFlwRef, tx.id]
+    );
+
+    if ((updateRes as any)?.affectedRows === 0) {
+      return NextResponse.json({ error: 'Transaction already processed or no longer pending' }, { status: 400 });
+    }
 
     await dbExecute(`UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?`, [
       depositAmount,

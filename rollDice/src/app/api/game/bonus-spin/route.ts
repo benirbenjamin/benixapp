@@ -66,11 +66,15 @@ export async function POST(req: Request) {
     // Difference between base payout originally credited vs new spin payout
     const payoutDifference = finalPayout - basePayout;
 
-    // Update room status to BONUS_SPIN_CLAIMED to prevent duplicate spins
-    await dbExecute(
-      `UPDATE game_rooms SET status = 'BONUS_SPIN_CLAIMED' WHERE id = ?`,
-      [roomId]
+    // Atomic update room status to BONUS_SPIN_CLAIMED to prevent race-condition duplicate spins
+    const claimRes = await dbExecute(
+      `UPDATE game_rooms SET status = 'BONUS_SPIN_CLAIMED' WHERE id = ? AND winner_id = ? AND status = 'COMPLETED'`,
+      [roomId, user.id]
     );
+
+    if ((claimRes as any)?.affectedRows === 0) {
+      return NextResponse.json({ error: 'Bonus spin already claimed or room not eligible' }, { status: 400 });
+    }
 
     // Adjust user wallet balance
     if (payoutDifference !== 0) {

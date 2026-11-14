@@ -52,49 +52,60 @@ export const GamesPage: React.FC = () => {
     setLastResult(null);
 
     // Roll animation
-    let count = 0;
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => {
       setDiceVal(Math.floor(Math.random() * 6) + 1);
-      count++;
-      if (count > 10) {
+    }, 80);
+
+    try {
+      const token = getAuthToken();
+      if (!token) {
         clearInterval(interval);
-        const finalDice = Math.floor(Math.random() * 6) + 1;
-        setDiceVal(finalDice);
         setIsRolling(false);
-
-        const won = (targetPrediction === 'high' && finalDice >= 4) || (targetPrediction === 'low' && finalDice <= 3);
-        const payout = won ? Math.round(wager * 1.95) : -wager;
-
-        setLastResult({ won, amount: won ? payout : wager, dice: finalDice });
-        setRollHistory((prev) => [
-          { id: Date.now(), dice: finalDice, won, amount: won ? payout : -wager },
-          ...prev.slice(0, 9)
-        ]);
-
-        // Real wallet ledger bet sync
-        try {
-          const token = getAuthToken();
-          if (token) {
-            const res = await fetch('/api/wallet/bet', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              body: JSON.stringify({ wager, won, multiplier: 1.95 })
-            });
-            const data = await res.json();
-            if (data?.newBalance !== undefined) {
-              updateWalletBalance(data.newBalance);
-            } else {
-              refreshMe();
-            }
-          }
-        } catch (e) {
-          console.warn('Bet ledger sync error:', e);
-        }
+        alert('Please login to place bets.');
+        return;
       }
-    }, 100);
+
+      const res = await fetch('/api/wallet/bet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ wager, prediction: targetPrediction })
+      });
+
+      const data = await res.json();
+      clearInterval(interval);
+      setIsRolling(false);
+
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Bet placement failed.');
+        return;
+      }
+
+      const finalDice = data.dice;
+      setDiceVal(finalDice);
+
+      const won = data.won;
+      const payout = data.payout || 0;
+
+      setLastResult({ won, amount: won ? payout : wager, dice: finalDice });
+      setRollHistory((prev) => [
+        { id: Date.now(), dice: finalDice, won, amount: won ? payout : -wager },
+        ...prev.slice(0, 9)
+      ]);
+
+      if (data.newBalance !== undefined) {
+        updateWalletBalance(data.newBalance);
+      } else {
+        refreshMe();
+      }
+    } catch (e: any) {
+      clearInterval(interval);
+      setIsRolling(false);
+      console.warn('Bet placement exception:', e);
+      alert('Network error while placing bet. Please check connection.');
+    }
   };
 
   return (
