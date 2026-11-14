@@ -1012,7 +1012,7 @@ cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res)
 
     // Database status / ping using application's configured DATABASE_URL
     if (apiSubpath === 'db/status' || apiSubpath === 'db/ping') {
-      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      const dbUrl = envMap.DATABASE_URL;
       if (!dbUrl) {
         return res.status(400).json({
           success: false,
@@ -1049,8 +1049,8 @@ cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res)
     // Database query execution proxy using application's DATABASE_URL
     if (apiSubpath === 'db/query' || apiSubpath === 'query') {
       const { sql, query: sqlText, params } = req.body || {};
-      const statement = sql || sqlText;
-      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      const statement = String(sql || sqlText || '').trim();
+      const dbUrl = envMap.DATABASE_URL;
       if (!dbUrl) {
         return res.status(400).json({
           success: false,
@@ -1063,6 +1063,15 @@ cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res)
           error: 'SQL statement (sql or query) is required in request body.'
         });
       }
+
+      // Security check: prohibit destructive DDL / privilege elevation
+      if (/^\s*(DROP|ALTER|TRUNCATE|GRANT|REVOKE|COPY|CREATE\s+USER|CREATE\s+ROLE)/i.test(statement)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Destructive DDL queries (DROP, ALTER, TRUNCATE, GRANT, REVOKE) are prohibited via the client API proxy.'
+        });
+      }
+
       try {
         const { Client } = await import('pg');
         const client = new Client({
@@ -1199,12 +1208,31 @@ cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res)
       });
     }
 
+    // Helper for SSRF protection on database connections
+    const isSafeExternalDbUri = (rawUri: string): boolean => {
+      try {
+        const parsed = new URL(rawUri);
+        const host = (parsed.hostname || '').toLowerCase();
+        if (!host) return false;
+        if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1') return false;
+        if (host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('169.254.')) return false;
+        if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) return false;
+        if (host.endsWith('.local') || host.endsWith('.internal')) return false;
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     // Handle live database inspection
     if (apiSubpath === 'database/inspect') {
       const { connectionString, connectionUrl } = req.body || {};
       const uri = connectionString || connectionUrl;
       if (!uri) {
         return res.status(400).json({ success: false, error: 'Database connection URL is required' });
+      }
+      if (!isSafeExternalDbUri(uri)) {
+        return res.status(400).json({ success: false, error: 'Access to loopback or private network database addresses is forbidden.' });
       }
 
       try {
@@ -1296,6 +1324,9 @@ cloudRouter.all('/deployments/by-name/:name/api/{*apiSubpath}', async (req, res)
       const uri = connectionString || connectionUrl;
       if (!uri) {
         return res.status(400).json({ success: false, error: 'Database connection URL is required' });
+      }
+      if (!isSafeExternalDbUri(uri)) {
+        return res.status(400).json({ success: false, error: 'Access to loopback or private network database addresses is forbidden.' });
       }
 
       const client = new (await import('pg')).Client({

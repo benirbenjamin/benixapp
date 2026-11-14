@@ -76440,7 +76440,7 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
       });
     }
     if (apiSubpath === "db/status" || apiSubpath === "db/ping") {
-      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      const dbUrl = envMap.DATABASE_URL;
       if (!dbUrl) {
         return res.status(400).json({
           success: false,
@@ -76475,8 +76475,8 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
     }
     if (apiSubpath === "db/query" || apiSubpath === "query") {
       const { sql: sql2, query: sqlText, params } = req.body || {};
-      const statement = sql2 || sqlText;
-      const dbUrl = envMap.DATABASE_URL || req.body?.connectionString || req.body?.connectionUrl;
+      const statement = String(sql2 || sqlText || "").trim();
+      const dbUrl = envMap.DATABASE_URL;
       if (!dbUrl) {
         return res.status(400).json({
           success: false,
@@ -76487,6 +76487,12 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
         return res.status(400).json({
           success: false,
           error: "SQL statement (sql or query) is required in request body."
+        });
+      }
+      if (/^\s*(DROP|ALTER|TRUNCATE|GRANT|REVOKE|COPY|CREATE\s+USER|CREATE\s+ROLE)/i.test(statement)) {
+        return res.status(403).json({
+          success: false,
+          error: "Destructive DDL queries (DROP, ALTER, TRUNCATE, GRANT, REVOKE) are prohibited via the client API proxy."
         });
       }
       try {
@@ -76636,11 +76642,28 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       });
     }
+    const isSafeExternalDbUri = (rawUri) => {
+      try {
+        const parsed = new URL(rawUri);
+        const host = (parsed.hostname || "").toLowerCase();
+        if (!host) return false;
+        if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1") return false;
+        if (host.startsWith("10.") || host.startsWith("192.168.") || host.startsWith("169.254.")) return false;
+        if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)) return false;
+        if (host.endsWith(".local") || host.endsWith(".internal")) return false;
+        return true;
+      } catch {
+        return false;
+      }
+    };
     if (apiSubpath === "database/inspect") {
       const { connectionString: connectionString2, connectionUrl } = req.body || {};
       const uri = connectionString2 || connectionUrl;
       if (!uri) {
         return res.status(400).json({ success: false, error: "Database connection URL is required" });
+      }
+      if (!isSafeExternalDbUri(uri)) {
+        return res.status(400).json({ success: false, error: "Access to loopback or private network database addresses is forbidden." });
       }
       try {
         const { Client: Client2 } = await Promise.resolve().then(() => (init_esm(), esm_exports));
@@ -76726,6 +76749,9 @@ cloudRouter.all("/deployments/by-name/:name/api/{*apiSubpath}", async (req, res)
       const uri = connectionString2 || connectionUrl;
       if (!uri) {
         return res.status(400).json({ success: false, error: "Database connection URL is required" });
+      }
+      if (!isSafeExternalDbUri(uri)) {
+        return res.status(400).json({ success: false, error: "Access to loopback or private network database addresses is forbidden." });
       }
       const client = new (await Promise.resolve().then(() => (init_esm(), esm_exports))).Client({
         connectionString: uri,
@@ -78189,13 +78215,17 @@ app.use(async (req, res, next) => {
   }
   next();
 });
-app.all(["/apps/:appName", "/apps/:appName/*"], (req, res) => {
-  const rawName = String(req.params.appName || "").trim();
-  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  const wildcard = req.params[0] ? "/" + req.params[0] : "";
-  const queryString = req.url.includes("?") ? "?" + req.url.split("?")[1] : "";
-  const redirectUrl = `https://${safeName}.apps.benix.space${wildcard}${queryString}`;
-  return res.redirect(301, redirectUrl);
+app.use("/apps", (req, res, next) => {
+  const parts = req.path.split("/").filter(Boolean);
+  if (parts.length > 0) {
+    const rawName = parts[0];
+    const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const remaining = parts.slice(1).join("/");
+    const queryString = req.url.includes("?") ? "?" + req.url.split("?")[1] : "";
+    const redirectUrl = `https://${safeName}.apps.benix.space${remaining ? "/" + remaining : ""}${queryString}`;
+    return res.redirect(301, redirectUrl);
+  }
+  next();
 });
 app.use(import_express2.default.json({ limit: "20mb" }));
 app.use(import_express2.default.urlencoded({ extended: true, limit: "20mb" }));

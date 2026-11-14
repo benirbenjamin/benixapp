@@ -153,6 +153,8 @@ export const CloudDashboardPage: React.FC = () => {
   const [editAppPort, setEditAppPort] = useState(3000);
   const [editAppRootDir, setEditAppRootDir] = useState('/');
   const [editAppEnvVars, setEditAppEnvVars] = useState<{ key: string; value: string }[]>([]);
+  const [editAppEnvInputMode, setEditAppEnvInputMode] = useState<'table' | 'raw'>('raw');
+  const [editAppEnvRawText, setEditAppEnvRawText] = useState('');
   const [savingAppSettings, setSavingAppSettings] = useState(false);
 
   // Database Form State
@@ -618,13 +620,37 @@ export const CloudDashboardPage: React.FC = () => {
     setEditAppRootDir(dep.root_dir || '/');
 
     let parsedEnv: { key: string; value: string }[] = [];
+    let rawText = '';
     if (dep.env_variables) {
       try {
         const obj = typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables) : dep.env_variables;
         parsedEnv = Object.entries(obj).map(([key, value]) => ({ key, value: String(value) }));
+        rawText = Object.entries(obj).map(([k, v]) => `${k}=${v}`).join('\n');
       } catch {}
     }
     setEditAppEnvVars(parsedEnv);
+    setEditAppEnvRawText(rawText);
+    setEditAppEnvInputMode('raw');
+  };
+
+  const handleParseEditRawEnv = (raw: string) => {
+    setEditAppEnvRawText(raw);
+    const lines = raw.split(/\r?\n/);
+    const parsed: { key: string; value: string }[] = [];
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const key = trimmed.substring(0, eqIdx).trim();
+        let val = trimmed.substring(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (key) parsed.push({ key, value: val });
+      }
+    });
+    setEditAppEnvVars(parsed);
   };
 
   // Save App Settings & Environment Variables
@@ -635,9 +661,26 @@ export const CloudDashboardPage: React.FC = () => {
 
     try {
       const envMap: Record<string, string> = {};
-      editAppEnvVars.forEach((ev) => {
-        if (ev.key.trim()) envMap[ev.key.trim()] = ev.value;
-      });
+      if (editAppEnvInputMode === 'raw') {
+        const lines = editAppEnvRawText.split(/\r?\n/);
+        lines.forEach((line) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) return;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx !== -1) {
+            const key = trimmed.substring(0, eqIdx).trim();
+            let val = trimmed.substring(eqIdx + 1).trim();
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.slice(1, -1);
+            }
+            if (key) envMap[key] = val;
+          }
+        });
+      } else {
+        editAppEnvVars.forEach((ev) => {
+          if (ev.key.trim()) envMap[ev.key.trim()] = ev.value;
+        });
+      }
 
       const res = await fetch(`/api/cloud/deployments/${showAppSettingsModal.id}/settings`, {
         method: 'PUT',
@@ -2301,57 +2344,100 @@ export const CloudDashboardPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5 text-sky-400" />
-                    <label className="text-xs font-bold text-white">Environment Variables</label>
+                    <label className="text-xs font-bold text-white">Environment Variables (.env)</label>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditAppEnvVars([...editAppEnvVars, { key: '', value: '' }])}
-                    className="text-xs text-sky-400 hover:underline font-bold flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add Variable</span>
-                  </button>
+                  <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-lg text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditAppEnvRawText(editAppEnvVars.filter((v) => v.key.trim()).map((v) => `${v.key.trim()}=${v.value}`).join('\n'));
+                        setEditAppEnvInputMode('table');
+                      }}
+                      className={`px-2 py-0.5 rounded ${editAppEnvInputMode === 'table' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400'}`}
+                    >
+                      Key-Value
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditAppEnvRawText(editAppEnvVars.filter((v) => v.key.trim()).map((v) => `${v.key.trim()}=${v.value}`).join('\n'));
+                        setEditAppEnvInputMode('raw');
+                      }}
+                      className={`px-2 py-0.5 rounded ${editAppEnvInputMode === 'raw' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400'}`}
+                    >
+                      Raw .env Paste
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  {editAppEnvVars.length === 0 ? (
-                    <div className="text-xs text-slate-500 py-2">No environment variables configured.</div>
-                  ) : (
-                    editAppEnvVars.map((ev, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="KEY"
-                          value={ev.key}
-                          onChange={(e) => {
-                            const updated = [...editAppEnvVars];
-                            updated[idx].key = e.target.value;
-                            setEditAppEnvVars(updated);
-                          }}
-                          className="flex-1 px-2.5 py-1.5 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-white"
-                        />
-                        <input
-                          type="text"
-                          placeholder="value"
-                          value={ev.value}
-                          onChange={(e) => {
-                            const updated = [...editAppEnvVars];
-                            updated[idx].value = e.target.value;
-                            setEditAppEnvVars(updated);
-                          }}
-                          className="flex-1 px-2.5 py-1.5 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setEditAppEnvVars(editAppEnvVars.filter((_, i) => i !== idx))}
-                          className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
+                {editAppEnvInputMode === 'table' ? (
+                  <div className="space-y-2">
+                    {editAppEnvVars.length === 0 ? (
+                      <div className="text-xs text-slate-500 py-2">No environment variables configured.</div>
+                    ) : (
+                      editAppEnvVars.map((ev, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="KEY"
+                            value={ev.key}
+                            onChange={(e) => {
+                              const updated = [...editAppEnvVars];
+                              updated[idx].key = e.target.value;
+                              setEditAppEnvVars(updated);
+                              setEditAppEnvRawText(updated.filter((v) => v.key.trim()).map((v) => `${v.key.trim()}=${v.value}`).join('\n'));
+                            }}
+                            className="flex-1 px-2.5 py-1.5 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-white"
+                          />
+                          <input
+                            type="text"
+                            placeholder="value"
+                            value={ev.value}
+                            onChange={(e) => {
+                              const updated = [...editAppEnvVars];
+                              updated[idx].value = e.target.value;
+                              setEditAppEnvVars(updated);
+                              setEditAppEnvRawText(updated.filter((v) => v.key.trim()).map((v) => `${v.key.trim()}=${v.value}`).join('\n'));
+                            }}
+                            className="flex-1 px-2.5 py-1.5 bg-black/50 border border-white/10 rounded-lg text-xs font-mono text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = editAppEnvVars.filter((_, i) => i !== idx);
+                              setEditAppEnvVars(updated);
+                              setEditAppEnvRawText(updated.filter((v) => v.key.trim()).map((v) => `${v.key.trim()}=${v.value}`).join('\n'));
+                            }}
+                            className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditAppEnvVars([...editAppEnvVars, { key: '', value: '' }])}
+                      className="text-xs text-sky-400 hover:underline font-bold flex items-center gap-1 mt-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Variable</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <textarea
+                      rows={8}
+                      value={editAppEnvRawText}
+                      onChange={(e) => handleParseEditRawEnv(e.target.value)}
+                      placeholder={`NODE_ENV=production\nPORT=3500\nDATABASE_URL=postgresql://...\nJWT_SECRET=xyz`}
+                      className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-sky-500"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Paste or edit all environment variables at once in KEY=VALUE format. Changes will apply immediately on save.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">

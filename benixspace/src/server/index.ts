@@ -264,13 +264,17 @@ app.use(async (req, res, next) => {
 });
 
 // Redirect legacy /apps/:appName paths to https://${safeName}.apps.benix.space
-app.all(['/apps/:appName', '/apps/:appName/*'], (req, res) => {
-  const rawName = String(req.params.appName || '').trim();
-  const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-  const wildcard = (req.params as any)[0] ? '/' + (req.params as any)[0] : '';
-  const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
-  const redirectUrl = `https://${safeName}.apps.benix.space${wildcard}${queryString}`;
-  return res.redirect(301, redirectUrl);
+app.use('/apps', (req, res, next) => {
+  const parts = req.path.split('/').filter(Boolean);
+  if (parts.length > 0) {
+    const rawName = parts[0];
+    const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const remaining = parts.slice(1).join('/');
+    const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+    const redirectUrl = `https://${safeName}.apps.benix.space${remaining ? '/' + remaining : ''}${queryString}`;
+    return res.redirect(301, redirectUrl);
+  }
+  next();
 });
 
 app.use(express.json({ limit: '20mb' }));
