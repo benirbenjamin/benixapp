@@ -42,7 +42,11 @@ import {
   Link2,
   Eye,
   EyeOff,
-  PlayCircle
+  PlayCircle,
+  Table,
+  Edit2,
+  Search,
+  ChevronLeft
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getAuthToken } from '../../services/api';
@@ -97,6 +101,27 @@ export const CloudDashboardPage: React.FC = () => {
   const [executingQuery, setExecutingQuery] = useState(false);
   const [queryOutput, setQueryOutput] = useState<{ columns: string[]; rows: any[]; rowCount: number } | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
+
+  // Database Explorer State
+  const [showDbExplorerModal, setShowDbExplorerModal] = useState<any | null>(null);
+  const [dbTables, setDbTables] = useState<any[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [tableData, setTableData] = useState<{ columns: string[]; rows: any[]; total: number; page: number; limit: number } | null>(null);
+  const [loadingExplorer, setLoadingExplorer] = useState(false);
+  const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [explorerTab, setExplorerTab] = useState<'rows' | 'schema'>('rows');
+  const [showAddRowModal, setShowAddRowModal] = useState(false);
+  const [newRowData, setNewRowData] = useState<Record<string, any>>({});
+  const [editingRow, setEditingRow] = useState<any | null>(null);
+  const [editRowData, setEditRowData] = useState<Record<string, any>>({});
+  const [showCreateTableModal, setShowCreateTableModal] = useState(false);
+  const [newTableName, setNewTableName] = useState('');
+  const [newTableCols, setNewTableCols] = useState<Array<{ name: string; type: string; isPrimaryKey: boolean; isNullable: boolean; defaultValue: string }>>([
+    { name: 'id', type: 'SERIAL', isPrimaryKey: true, isNullable: false, defaultValue: '' },
+    { name: 'name', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false, defaultValue: '' },
+    { name: 'created_at', type: 'TIMESTAMP WITH TIME ZONE', isPrimaryKey: false, isNullable: false, defaultValue: 'CURRENT_TIMESTAMP' }
+  ]);
+  const [explorerError, setExplorerError] = useState<string | null>(null);
 
   // Subscription & Upgrade Modal State
   const [selectedPlanForSubscribe, setSelectedPlanForSubscribe] = useState<any | null>(null);
@@ -889,6 +914,205 @@ export const CloudDashboardPage: React.FC = () => {
     }
   };
 
+  // Open Database Explorer Modal
+  const openDbExplorerModal = async (db: any) => {
+    setShowDbExplorerModal(db);
+    setSelectedTable(null);
+    setTableData(null);
+    setExplorerError(null);
+    setExplorerTab('rows');
+    setLoadingExplorer(true);
+    try {
+      const res = await fetch(`/api/cloud/databases/${db.id}/tables`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        setDbTables(json.tables || []);
+        if (json.tables && json.tables.length > 0) {
+          loadTableData(db.id, json.tables[0].name, 1);
+        }
+      } else {
+        setExplorerError(json.error || 'Failed to fetch database tables.');
+      }
+    } catch (err: any) {
+      setExplorerError(err.message);
+    } finally {
+      setLoadingExplorer(false);
+    }
+  };
+
+  // Load Paginated Table Data
+  const loadTableData = async (dbId: string, tableName: string, page = 1) => {
+    setSelectedTable(tableName);
+    setLoadingExplorer(true);
+    setExplorerError(null);
+    try {
+      const res = await fetch(`/api/cloud/databases/${dbId}/tables/${encodeURIComponent(tableName)}/data?page=${page}&limit=20`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        setTableData(json);
+      } else {
+        setExplorerError(json.error || 'Failed to load table records.');
+      }
+    } catch (err: any) {
+      setExplorerError(err.message);
+    } finally {
+      setLoadingExplorer(false);
+    }
+  };
+
+  // Insert New Row
+  const handleInsertRow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showDbExplorerModal || !selectedTable) return;
+    try {
+      const res = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables/${encodeURIComponent(selectedTable)}/rows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({ rowData: newRowData })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowAddRowModal(false);
+        setNewRowData({});
+        await loadTableData(showDbExplorerModal.id, selectedTable, tableData?.page || 1);
+        // Refresh table metadata row count
+        const refreshTables = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables`, {
+          headers: { Authorization: `Bearer ${getAuthToken()}` }
+        });
+        const refJson = await refreshTables.json();
+        if (refJson.success) setDbTables(refJson.tables || []);
+      } else {
+        alert(json.error || 'Failed to insert row.');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Save Edited Row
+  const handleUpdateRow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showDbExplorerModal || !selectedTable || !editingRow) return;
+    const currentTableObj = dbTables.find((t) => t.name === selectedTable);
+    const pkCol = (currentTableObj?.primaryKeys && currentTableObj.primaryKeys[0]) || (tableData?.columns && tableData.columns[0]) || 'id';
+    const pkVal = editingRow[pkCol];
+
+    try {
+      const res = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables/${encodeURIComponent(selectedTable)}/rows`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({
+          primaryKey: { column: pkCol, value: pkVal },
+          rowData: editRowData
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setEditingRow(null);
+        setEditRowData({});
+        await loadTableData(showDbExplorerModal.id, selectedTable, tableData?.page || 1);
+      } else {
+        alert(json.error || 'Failed to update row.');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Delete Row
+  const handleDeleteRow = async (row: any) => {
+    if (!showDbExplorerModal || !selectedTable) return;
+    const currentTableObj = dbTables.find((t) => t.name === selectedTable);
+    const pkCol = (currentTableObj?.primaryKeys && currentTableObj.primaryKeys[0]) || (tableData?.columns && tableData.columns[0]) || 'id';
+    const pkVal = row[pkCol];
+
+    if (!window.confirm(`Are you sure you want to delete this row (${pkCol} = ${pkVal})?`)) return;
+
+    try {
+      const res = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables/${encodeURIComponent(selectedTable)}/rows`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({ column: pkCol, value: pkVal })
+      });
+      const json = await res.json();
+      if (json.success) {
+        await loadTableData(showDbExplorerModal.id, selectedTable, tableData?.page || 1);
+        const refreshTables = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables`, {
+          headers: { Authorization: `Bearer ${getAuthToken()}` }
+        });
+        const refJson = await refreshTables.json();
+        if (refJson.success) setDbTables(refJson.tables || []);
+      } else {
+        alert(json.error || 'Failed to delete row.');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Create Table
+  const handleCreateTable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showDbExplorerModal || !newTableName.trim()) return;
+    try {
+      const res = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({
+          tableName: newTableName.trim(),
+          columns: newTableCols
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowCreateTableModal(false);
+        setNewTableName('');
+        await openDbExplorerModal(showDbExplorerModal);
+      } else {
+        alert(json.error || 'Failed to create table.');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Drop Table
+  const handleDropTable = async (tableName: string) => {
+    if (!showDbExplorerModal) return;
+    if (!window.confirm(`⚠️ DANGER: Are you sure you want to drop table "${tableName}"? All data inside this table will be permanently deleted.`)) return;
+
+    try {
+      const res = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables/${encodeURIComponent(tableName)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        await openDbExplorerModal(showDbExplorerModal);
+      } else {
+        alert(json.error || 'Failed to drop table.');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   // Attach Custom Domain
   const handleAddDomain = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1645,6 +1869,13 @@ export const CloudDashboardPage: React.FC = () => {
                           >
                             <Terminal className="w-3.5 h-3.5" />
                             <span>SQL Console</span>
+                          </button>
+                          <button
+                            onClick={() => openDbExplorerModal(db)}
+                            className="px-2.5 py-1.5 rounded-lg bg-sky-600/15 hover:bg-sky-600/25 border border-sky-500/30 text-xs text-sky-300 font-semibold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>Explore Database</span>
                           </button>
                         </div>
 
@@ -2671,6 +2902,676 @@ export const CloudDashboardPage: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* DATABASE EXPLORER MODAL */}
+      {showDbExplorerModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
+          <div className="bg-[#0f131c] border border-white/10 rounded-2xl w-full max-w-6xl h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Explorer Header */}
+            <div className="px-6 py-4 bg-black/40 border-b border-white/10 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-base text-white">Database Explorer: {showDbExplorerModal.name}</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                      Neon Serverless
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono">
+                    Schema: <span className="text-sky-300 font-bold">{showDbExplorerModal.schema_name || showDbExplorerModal.db_name}</span> • Host: ep-soft-hill...neon.tech:5432
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowCreateTableModal(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Table</span>
+                </button>
+                <button
+                  onClick={() => openDbExplorerModal(showDbExplorerModal)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white"
+                  title="Reload Tables"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingExplorer ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={() => setShowDbExplorerModal(null)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-base"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Explorer Body: 2 Columns */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left Column: Tables List */}
+              <div className="w-64 sm:w-72 border-r border-white/10 bg-black/20 flex flex-col shrink-0">
+                <div className="p-3 border-b border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-bold uppercase tracking-wider text-[11px] text-slate-300">Tables</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-[10px] font-mono text-purple-300">{dbTables.length}</span>
+                  </div>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Filter tables..."
+                      value={tableSearchQuery}
+                      onChange={(e) => setTableSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-2.5 py-1.5 bg-black/50 border border-white/10 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {dbTables
+                    .filter((t) => !tableSearchQuery || t.name.toLowerCase().includes(tableSearchQuery.toLowerCase()))
+                    .map((t) => {
+                      const isSelected = selectedTable === t.name;
+                      return (
+                        <div
+                          key={t.name}
+                          onClick={() => loadTableData(showDbExplorerModal.id, t.name, 1)}
+                          className={`group flex items-center justify-between px-3 py-2 rounded-xl text-xs cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-purple-600/20 border border-purple-500/40 text-purple-200'
+                              : 'hover:bg-white/5 text-slate-300 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Table className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-purple-400' : 'text-slate-500'}`} />
+                            <span className="truncate font-mono font-medium">{t.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-500 group-hover:text-slate-400 font-mono">
+                              {t.rowCount}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDropTable(t.name);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:text-rose-400 transition-opacity"
+                              title="Drop Table"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {dbTables.length === 0 && !loadingExplorer && (
+                    <div className="p-6 text-center text-xs text-slate-500">
+                      <Database className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+                      <p>No tables found in this schema.</p>
+                      <button
+                        onClick={() => setShowCreateTableModal(true)}
+                        className="mt-3 px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold hover:bg-purple-600/30"
+                      >
+                        Create First Table
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Table Records & Schema */}
+              <div className="flex-1 flex flex-col overflow-hidden bg-black/10">
+                {selectedTable ? (
+                  <>
+                    {/* Table View Header */}
+                    <div className="px-6 py-3 border-b border-white/10 bg-white/[0.02] flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Table className="w-4 h-4 text-purple-400" />
+                          <h4 className="font-bold text-sm font-mono text-white">{selectedTable}</h4>
+                        </div>
+                        <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-0.5 text-xs">
+                          <button
+                            onClick={() => setExplorerTab('rows')}
+                            className={`px-3 py-1 rounded-md font-semibold transition-colors ${
+                              explorerTab === 'rows' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Data Records ({tableData?.total ?? 0})
+                          </button>
+                          <button
+                            onClick={() => setExplorerTab('schema')}
+                            className={`px-3 py-1 rounded-md font-semibold transition-colors ${
+                              explorerTab === 'schema' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Schema Structure
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {explorerTab === 'rows' && (
+                          <button
+                            onClick={() => {
+                              const initialRow: Record<string, any> = {};
+                              const currentTable = dbTables.find((t) => t.name === selectedTable);
+                              (currentTable?.columns || []).forEach((c: any) => {
+                                if (c.column_name !== 'id') {
+                                  initialRow[c.column_name] = '';
+                                }
+                              });
+                              setNewRowData(initialRow);
+                              setShowAddRowModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 shadow"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Row</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => loadTableData(showDbExplorerModal.id, selectedTable, tableData?.page || 1)}
+                          className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300"
+                          title="Refresh Table Records"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${loadingExplorer ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {explorerError && (
+                      <div className="m-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{explorerError}</span>
+                      </div>
+                    )}
+
+                    {/* Content View: Data Grid vs Schema */}
+                    {explorerTab === 'rows' ? (
+                      <div className="flex-1 flex flex-col overflow-hidden">
+                        {/* Scrollable Data Table Grid */}
+                        <div className="flex-1 overflow-auto">
+                          {tableData && tableData.columns.length > 0 ? (
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead className="bg-[#121622] sticky top-0 z-10 border-b border-white/10 text-slate-300 font-mono text-[11px]">
+                                <tr>
+                                  <th className="p-3 w-16 text-center font-bold text-slate-500">#</th>
+                                  {tableData.columns.map((col) => {
+                                    const currentTable = dbTables.find((t) => t.name === selectedTable);
+                                    const isPk = currentTable?.primaryKeys?.includes(col);
+                                    return (
+                                      <th key={col} className="p-3 font-bold whitespace-nowrap">
+                                        <div className="flex items-center gap-1.5">
+                                          <span>{col}</span>
+                                          {isPk && (
+                                            <span className="px-1 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                              PK
+                                            </span>
+                                          )}
+                                        </div>
+                                      </th>
+                                    );
+                                  })}
+                                  <th className="p-3 w-20 text-right font-bold text-slate-400">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-slate-300 font-mono text-xs">
+                                {tableData.rows.length === 0 ? (
+                                  <tr>
+                                    <td
+                                      colSpan={tableData.columns.length + 2}
+                                      className="p-12 text-center text-slate-500"
+                                    >
+                                      No rows found in table <code className="text-purple-300">{selectedTable}</code>.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  tableData.rows.map((row, idx) => (
+                                    <tr key={idx} className="hover:bg-white/[0.03] transition-colors">
+                                      <td className="p-3 text-center text-slate-500 text-[11px]">
+                                        {(tableData.page - 1) * tableData.limit + idx + 1}
+                                      </td>
+                                      {tableData.columns.map((col) => {
+                                        const val = row[col];
+                                        return (
+                                          <td
+                                            key={col}
+                                            className="p-3 truncate max-w-xs text-slate-300 select-all"
+                                            title={String(val ?? 'NULL')}
+                                          >
+                                            {val === null || val === undefined ? (
+                                              <span className="text-slate-600 italic">NULL</span>
+                                            ) : typeof val === 'object' ? (
+                                              JSON.stringify(val)
+                                            ) : (
+                                              String(val)
+                                            )}
+                                          </td>
+                                        );
+                                      })}
+                                      <td className="p-3 text-right whitespace-nowrap">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <button
+                                            onClick={() => {
+                                              setEditingRow(row);
+                                              setEditRowData({ ...row });
+                                            }}
+                                            className="p-1 rounded-md hover:bg-white/10 text-slate-400 hover:text-sky-300"
+                                            title="Edit Row"
+                                          >
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteRow(row)}
+                                            className="p-1 rounded-md hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                                            title="Delete Row"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <div className="p-12 text-center text-slate-500 text-xs">
+                              {loadingExplorer ? 'Loading records...' : 'Select a table from the sidebar.'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pagination Bar */}
+                        {tableData && tableData.total > 0 && (
+                          <div className="px-6 py-2.5 bg-black/30 border-t border-white/10 flex items-center justify-between text-xs text-slate-400 shrink-0">
+                            <div>
+                              Showing <strong className="text-white">{(tableData.page - 1) * tableData.limit + 1}</strong> to{' '}
+                              <strong className="text-white">{Math.min(tableData.page * tableData.limit, tableData.total)}</strong> of{' '}
+                              <strong className="text-white">{tableData.total}</strong> records
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => loadTableData(showDbExplorerModal.id, selectedTable, tableData.page - 1)}
+                                disabled={tableData.page <= 1}
+                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300 disabled:opacity-30 disabled:pointer-events-none flex items-center gap-1"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                                <span>Previous</span>
+                              </button>
+                              <span className="font-mono text-xs px-2 text-slate-300">
+                                Page {tableData.page} / {Math.ceil(tableData.total / tableData.limit) || 1}
+                              </span>
+                              <button
+                                onClick={() => loadTableData(showDbExplorerModal.id, selectedTable, tableData.page + 1)}
+                                disabled={tableData.page * tableData.limit >= tableData.total}
+                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300 disabled:opacity-30 disabled:pointer-events-none flex items-center gap-1"
+                              >
+                                <span>Next</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Schema Structure View */
+                      <div className="flex-1 overflow-auto p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h5 className="font-bold text-sm text-white flex items-center gap-2">
+                            <span>Columns & Types for</span>
+                            <code className="text-purple-300 px-2 py-0.5 bg-purple-500/10 rounded-md border border-purple-500/20">{selectedTable}</code>
+                          </h5>
+                          <button
+                            onClick={() => handleDropTable(selectedTable)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-xs text-rose-400 font-semibold flex items-center gap-1.5"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Drop Table</span>
+                          </button>
+                        </div>
+
+                        <div className="border border-white/10 rounded-xl overflow-hidden bg-black/40">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-white/5 text-slate-300 font-mono text-[11px] border-b border-white/10">
+                              <tr>
+                                <th className="p-3 font-bold">Column Name</th>
+                                <th className="p-3 font-bold">Data Type</th>
+                                <th className="p-3 font-bold">Primary Key</th>
+                                <th className="p-3 font-bold">Nullable</th>
+                                <th className="p-3 font-bold">Default Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5 text-slate-300 font-mono text-xs">
+                              {(dbTables.find((t) => t.name === selectedTable)?.columns || []).map((col: any) => {
+                                const isPk = dbTables.find((t) => t.name === selectedTable)?.primaryKeys?.includes(col.column_name);
+                                return (
+                                  <tr key={col.column_name} className="hover:bg-white/[0.02]">
+                                    <td className="p-3 font-bold text-white flex items-center gap-1.5">
+                                      <span>{col.column_name}</span>
+                                      {isPk && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                          PRIMARY KEY
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-sky-400 font-semibold">{col.data_type.toUpperCase()}</td>
+                                    <td className="p-3">{isPk ? 'YES' : 'NO'}</td>
+                                    <td className="p-3">{col.is_nullable === 'YES' ? 'YES' : 'NO'}</td>
+                                    <td className="p-3 text-slate-400 truncate max-w-xs">{col.column_default || '—'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-500">
+                    <div>
+                      <Layers className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                      <h4 className="font-bold text-sm text-slate-300 mb-1">Select a Table to View Records</h4>
+                      <p className="text-xs max-w-xs mx-auto mb-4">
+                        Choose a table from the left sidebar to browse rows, insert, edit, or modify records.
+                      </p>
+                      <button
+                        onClick={() => setShowCreateTableModal(true)}
+                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white inline-flex items-center gap-2 shadow"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Create New Table</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD ROW MODAL */}
+      {showAddRowModal && selectedTable && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#121620] border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-bold text-base text-white">Insert Row into {selectedTable}</h3>
+              </div>
+              <button onClick={() => setShowAddRowModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleInsertRow} className="space-y-3">
+              {(dbTables.find((t) => t.name === selectedTable)?.columns || []).map((col: any) => {
+                const isAutoSerial = col.column_name === 'id' && (col.column_default || '').includes('nextval');
+                return (
+                  <div key={col.column_name}>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1 font-mono">
+                      {col.column_name}{' '}
+                      <span className="text-[10px] text-slate-500 font-sans">
+                        ({col.data_type}{col.is_nullable === 'NO' ? ', required' : ', optional'}{isAutoSerial ? ', auto-increment' : ''})
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={isAutoSerial ? '(Auto-generated SERIAL sequence)' : `Value for ${col.column_name}`}
+                      value={newRowData[col.column_name] ?? ''}
+                      onChange={(e) => setNewRowData({ ...newRowData, [col.column_name]: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                );
+              })}
+
+              <div className="pt-3 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRowModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white"
+                >
+                  Insert Row
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT ROW MODAL */}
+      {editingRow && selectedTable && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#121620] border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-sky-400" />
+                <h3 className="font-bold text-base text-white">Edit Row in {selectedTable}</h3>
+              </div>
+              <button onClick={() => setEditingRow(null)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleUpdateRow} className="space-y-3">
+              {(dbTables.find((t) => t.name === selectedTable)?.columns || []).map((col: any) => {
+                const currentTable = dbTables.find((t) => t.name === selectedTable);
+                const isPk = currentTable?.primaryKeys?.includes(col.column_name);
+                return (
+                  <div key={col.column_name}>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1 font-mono">
+                      {col.column_name}{' '}
+                      <span className="text-[10px] text-slate-500 font-sans">
+                        ({col.data_type}{isPk ? ', PRIMARY KEY (read-only)' : ''})
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      disabled={isPk}
+                      value={editRowData[col.column_name] ?? ''}
+                      onChange={(e) => setEditRowData({ ...editRowData, [col.column_name]: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
+                    />
+                  </div>
+                );
+              })}
+
+              <div className="pt-3 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingRow(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-xs text-white"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE TABLE BUILDER MODAL */}
+      {showCreateTableModal && showDbExplorerModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#121620] border border-white/10 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Table className="w-5 h-5 text-purple-400" />
+                <h3 className="font-bold text-base text-white">Create New Table</h3>
+              </div>
+              <button onClick={() => setShowCreateTableModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateTable} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Table Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. products, customers, transactions"
+                  value={newTableName}
+                  onChange={(e) => setNewTableName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  className="w-full px-3.5 py-2.5 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-300">Columns Definition</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNewTableCols([
+                        ...newTableCols,
+                        { name: '', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: true, defaultValue: '' }
+                      ])
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold hover:bg-purple-600/30 flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Column</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {newTableCols.map((col, idx) => (
+                    <div key={idx} className="p-3 bg-white/[0.02] border border-white/10 rounded-xl space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                        <div className="sm:col-span-5">
+                          <input
+                            type="text"
+                            required
+                            placeholder="column_name"
+                            value={col.name}
+                            onChange={(e) => {
+                              const updated = [...newTableCols];
+                              updated[idx].name = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+                              setNewTableCols(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-black/60 border border-white/10 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div className="sm:col-span-5">
+                          <select
+                            value={col.type}
+                            onChange={(e) => {
+                              const updated = [...newTableCols];
+                              updated[idx].type = e.target.value;
+                              setNewTableCols(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-black/60 border border-white/10 rounded-lg text-xs font-mono text-sky-300 focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="SERIAL">SERIAL (Auto-increment PK)</option>
+                            <option value="INTEGER">INTEGER</option>
+                            <option value="BIGINT">BIGINT</option>
+                            <option value="VARCHAR(255)">VARCHAR(255)</option>
+                            <option value="TEXT">TEXT</option>
+                            <option value="BOOLEAN">BOOLEAN</option>
+                            <option value="NUMERIC(12,2)">NUMERIC(12,2)</option>
+                            <option value="TIMESTAMP WITH TIME ZONE">TIMESTAMP WITH TIME ZONE</option>
+                            <option value="JSONB">JSONB</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setNewTableCols(newTableCols.filter((_, i) => i !== idx))}
+                            disabled={newTableCols.length <= 1}
+                            className="p-1.5 text-rose-400 hover:text-rose-300 disabled:opacity-20"
+                            title="Remove Column"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 pt-1">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={col.isPrimaryKey}
+                            onChange={(e) => {
+                              const updated = [...newTableCols];
+                              updated[idx].isPrimaryKey = e.target.checked;
+                              if (e.target.checked) updated[idx].isNullable = false;
+                              setNewTableCols(updated);
+                            }}
+                            className="rounded border-white/20 text-purple-600 focus:ring-0"
+                          />
+                          <span>Primary Key</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!col.isNullable}
+                            onChange={(e) => {
+                              const updated = [...newTableCols];
+                              updated[idx].isNullable = !e.target.checked;
+                              setNewTableCols(updated);
+                            }}
+                            className="rounded border-white/20 text-purple-600 focus:ring-0"
+                          />
+                          <span>Not Null</span>
+                        </label>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <span>Default:</span>
+                          <input
+                            type="text"
+                            placeholder="e.g. 0 or now()"
+                            value={col.defaultValue}
+                            onChange={(e) => {
+                              const updated = [...newTableCols];
+                              updated[idx].defaultValue = e.target.value;
+                              setNewTableCols(updated);
+                            }}
+                            className="px-2 py-0.5 bg-black/40 border border-white/10 rounded text-[11px] font-mono text-slate-300 w-28 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateTableModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newTableName.trim()}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 font-bold text-xs text-white disabled:opacity-50"
+                >
+                  Create Table
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

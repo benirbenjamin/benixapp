@@ -75211,11 +75211,11 @@ var INITIAL_CLOUD_PLANS = [
     is_trial: true,
     trial_duration_days: 60,
     max_apps: -1,
-    vcpu_limit: -1,
+    vcpu_limit: 1,
     ram_mb: 1024,
-    storage_gb: 1,
-    max_databases: 3,
-    custom_domains_allowed: 0,
+    storage_gb: 5,
+    max_databases: 1,
+    custom_domains_allowed: 1,
     has_free_ssl: true,
     has_backups: false,
     has_priority_support: false,
@@ -75227,16 +75227,16 @@ var INITIAL_CLOUD_PLANS = [
     name: "Starter Cloud",
     slug: "starter",
     description: "Perfect for small sites, hobby projects, and lightweight web APIs.",
-    price_rwf: 1500,
+    price_rwf: 3e3,
     billing_cycle: "monthly",
     is_trial: false,
     trial_duration_days: 0,
-    max_apps: 1,
-    vcpu_limit: 0.5,
-    ram_mb: 512,
-    storage_gb: 5,
-    max_databases: 1,
-    custom_domains_allowed: 1,
+    max_apps: 3,
+    vcpu_limit: 1,
+    ram_mb: 2048,
+    storage_gb: 20,
+    max_databases: 3,
+    custom_domains_allowed: 3,
     has_free_ssl: true,
     has_backups: false,
     has_priority_support: false,
@@ -75248,16 +75248,16 @@ var INITIAL_CLOUD_PLANS = [
     name: "Basic Cloud",
     slug: "basic",
     description: "Ideal for freelance projects, growing websites, and client prototypes.",
-    price_rwf: 3e3,
+    price_rwf: 4500,
     billing_cycle: "monthly",
     is_trial: false,
     trial_duration_days: 0,
-    max_apps: 3,
-    vcpu_limit: 1,
-    ram_mb: 1024,
-    storage_gb: 15,
-    max_databases: 2,
-    custom_domains_allowed: 3,
+    max_apps: 6,
+    vcpu_limit: 2,
+    ram_mb: 4096,
+    storage_gb: 80,
+    max_databases: 8,
+    custom_domains_allowed: 8,
     has_free_ssl: true,
     has_backups: true,
     has_priority_support: false,
@@ -75269,16 +75269,16 @@ var INITIAL_CLOUD_PLANS = [
     name: "Pro Cloud",
     slug: "pro",
     description: "Built for production web apps, e-commerce, and high-traffic APIs with automated backups.",
-    price_rwf: 4500,
+    price_rwf: 7500,
     billing_cycle: "monthly",
     is_trial: false,
     trial_duration_days: 0,
-    max_apps: 8,
-    vcpu_limit: 2,
-    ram_mb: 2048,
-    storage_gb: 35,
-    max_databases: 5,
-    custom_domains_allowed: -1,
+    max_apps: 12,
+    vcpu_limit: 3,
+    ram_mb: 4096,
+    storage_gb: 150,
+    max_databases: 10,
+    custom_domains_allowed: 10,
     has_free_ssl: true,
     has_backups: true,
     has_priority_support: false,
@@ -75290,14 +75290,14 @@ var INITIAL_CLOUD_PLANS = [
     name: "Business Cloud",
     slug: "business",
     description: "Maximum power with priority support, dedicated scaling, and unlimited deployments.",
-    price_rwf: 8e3,
+    price_rwf: 15e3,
     billing_cycle: "monthly",
     is_trial: false,
     trial_duration_days: 0,
     max_apps: -1,
     vcpu_limit: 4,
-    ram_mb: 4096,
-    storage_gb: 80,
+    ram_mb: 8192,
+    storage_gb: 300,
     max_databases: -1,
     custom_domains_allowed: -1,
     has_free_ssl: true,
@@ -75583,23 +75583,7 @@ async function initCloudDb() {
           has_free_ssl, has_backups, has_priority_support, is_active, sort_order
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
-        ) ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          price_rwf = EXCLUDED.price_rwf,
-          is_trial = EXCLUDED.is_trial,
-          trial_duration_days = EXCLUDED.trial_duration_days,
-          max_apps = EXCLUDED.max_apps,
-          vcpu_limit = EXCLUDED.vcpu_limit,
-          ram_mb = EXCLUDED.ram_mb,
-          storage_gb = EXCLUDED.storage_gb,
-          max_databases = EXCLUDED.max_databases,
-          custom_domains_allowed = EXCLUDED.custom_domains_allowed,
-          has_free_ssl = EXCLUDED.has_free_ssl,
-          has_backups = EXCLUDED.has_backups,
-          has_priority_support = EXCLUDED.has_priority_support,
-          sort_order = EXCLUDED.sort_order,
-          updated_at = CURRENT_TIMESTAMP`,
+        ) ON CONFLICT (id) DO NOTHING`,
         [
           plan.id,
           plan.name,
@@ -75624,8 +75608,17 @@ async function initCloudDb() {
       );
     }
     try {
+      await query(`
+        UPDATE cloud_plans SET price_rwf = 0.00, vcpu_limit = 1.0, ram_mb = 1024, max_databases = 1, custom_domains_allowed = 1, storage_gb = 5, updated_at = CURRENT_TIMESTAMP WHERE id = 'free-trial';
+        UPDATE cloud_plans SET price_rwf = 3000.00, vcpu_limit = 1.0, ram_mb = 2048, storage_gb = 20, max_databases = 3, custom_domains_allowed = 3, max_apps = 3, updated_at = CURRENT_TIMESTAMP WHERE id = 'starter';
+        UPDATE cloud_plans SET price_rwf = 4500.00, vcpu_limit = 2.0, ram_mb = 4096, storage_gb = 80, max_databases = 8, custom_domains_allowed = 8, max_apps = 6, updated_at = CURRENT_TIMESTAMP WHERE id = 'basic';
+        UPDATE cloud_plans SET price_rwf = 7500.00, vcpu_limit = 3.0, ram_mb = 4096, storage_gb = 150, max_databases = 10, custom_domains_allowed = 10, max_apps = 12, updated_at = CURRENT_TIMESTAMP WHERE id = 'pro';
+        UPDATE cloud_plans SET price_rwf = 15000.00, vcpu_limit = 4.0, ram_mb = 8192, storage_gb = 300, max_databases = -1, custom_domains_allowed = -1, max_apps = -1, updated_at = CURRENT_TIMESTAMP WHERE id = 'business';
+      `);
+    } catch {
+    }
+    try {
       await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");
-      await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending' WHERE domain_name = 'voxify.space'");
       await query(`
         UPDATE cloud_deployments 
         SET live_url = 'https://' || LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) || '.apps.benix.space',
@@ -77564,6 +77557,348 @@ cloudRouter.post("/databases/:id/query", authenticateToken, async (req, res) => 
       rows: qRes.rows || [],
       rowCount: qRes.rowCount || 0,
       columns: qRes.rows.length > 0 ? Object.keys(qRes.rows[0]) : []
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+var VALID_IDENTIFIER_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/;
+var ALLOWED_COLUMN_TYPES = /* @__PURE__ */ new Set([
+  "SERIAL",
+  "BIGSERIAL",
+  "INTEGER",
+  "INT",
+  "BIGINT",
+  "SMALLINT",
+  "TEXT",
+  "VARCHAR(255)",
+  "VARCHAR(100)",
+  "VARCHAR(50)",
+  "CHAR(1)",
+  "BOOLEAN",
+  "NUMERIC(15,2)",
+  "NUMERIC",
+  "DOUBLE PRECISION",
+  "REAL",
+  "TIMESTAMP WITH TIME ZONE",
+  "TIMESTAMPTZ",
+  "TIMESTAMP",
+  "DATE",
+  "TIME",
+  "JSONB",
+  "JSON",
+  "UUID"
+]);
+async function getAuthorizedDatabase(dbId, userId, isAdmin) {
+  const dbRes = await query(
+    "SELECT * FROM cloud_databases WHERE id = $1 AND (user_id = $2 OR $3 = true)",
+    [dbId, userId, isAdmin]
+  );
+  if (dbRes.rowCount === 0) return null;
+  const db = dbRes.rows[0];
+  const schema = db.schema_name || `app_${db.db_name}`;
+  return { db, schema };
+}
+cloudRouter.get("/databases/:id/tables", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const tablesRes = await query(`
+      SELECT 
+        table_name,
+        table_type
+      FROM information_schema.tables
+      WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+      ORDER BY table_name ASC
+    `, [schema]);
+    const colsRes = await query(`
+      SELECT 
+        table_name,
+        column_name,
+        data_type,
+        udt_name,
+        is_nullable,
+        column_default
+      FROM information_schema.columns
+      WHERE table_schema = $1
+      ORDER BY table_name, ordinal_position ASC
+    `, [schema]);
+    const pkRes = await query(`
+      SELECT 
+        tc.table_name, 
+        kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu 
+        ON tc.constraint_name = kcu.constraint_name 
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = $1
+    `, [schema]);
+    const pkMap = /* @__PURE__ */ new Map();
+    for (const r of pkRes.rows) {
+      if (!pkMap.has(r.table_name)) pkMap.set(r.table_name, /* @__PURE__ */ new Set());
+      pkMap.get(r.table_name).add(r.column_name);
+    }
+    const colsByTable = /* @__PURE__ */ new Map();
+    for (const c of colsRes.rows) {
+      if (!colsByTable.has(c.table_name)) colsByTable.set(c.table_name, []);
+      const isPk = pkMap.get(c.table_name)?.has(c.column_name) || false;
+      colsByTable.get(c.table_name).push({
+        name: c.column_name,
+        type: c.data_type,
+        udtType: c.udt_name,
+        isNullable: c.is_nullable === "YES",
+        defaultValue: c.column_default,
+        isPrimaryKey: isPk
+      });
+    }
+    const tables = [];
+    for (const t of tablesRes.rows) {
+      let rowCount = 0;
+      try {
+        const countRes = await query(`SELECT COUNT(*) as cnt FROM "${schema}"."${t.table_name}"`);
+        rowCount = parseInt(countRes.rows[0]?.cnt, 10) || 0;
+      } catch {
+      }
+      const cols = colsByTable.get(t.table_name) || [];
+      tables.push({
+        name: t.table_name,
+        rowCount,
+        columnCount: cols.length,
+        columns: cols,
+        primaryKeys: Array.from(pkMap.get(t.table_name) || [])
+      });
+    }
+    return res.json({
+      success: true,
+      schema,
+      tables
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+cloudRouter.get("/databases/:id/tables/:tableName/data", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const tableName = String(req.params.tableName || "").trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: "Invalid table name identifier" });
+    }
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "25"), 10) || 25));
+    const offset = (page - 1) * limit;
+    const countRes = await query(`SELECT COUNT(*) as cnt FROM "${schema}"."${tableName}"`);
+    const total = parseInt(countRes.rows[0]?.cnt, 10) || 0;
+    const rowsRes = await query(`SELECT * FROM "${schema}"."${tableName}" LIMIT $1 OFFSET $2`, [limit, offset]);
+    return res.json({
+      success: true,
+      tableName,
+      schema,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+      columns: rowsRes.fields ? rowsRes.fields.map((f) => f.name) : rowsRes.rows.length > 0 ? Object.keys(rowsRes.rows[0]) : [],
+      rows: rowsRes.rows || []
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+cloudRouter.post("/databases/:id/tables/:tableName/rows", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const tableName = String(req.params.tableName || "").trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    const { rowData } = req.body;
+    if (!rowData || typeof rowData !== "object") {
+      return res.status(400).json({ error: "Row data is required" });
+    }
+    const keys = Object.keys(rowData);
+    for (const k of keys) {
+      if (!VALID_IDENTIFIER_REGEX.test(k)) {
+        return res.status(400).json({ error: `Invalid column name: ${k}` });
+      }
+    }
+    if (keys.length === 0) {
+      const insRes2 = await query(`INSERT INTO "${schema}"."${tableName}" DEFAULT VALUES RETURNING *`);
+      return res.json({ success: true, row: insRes2.rows[0] });
+    }
+    const quotedCols = keys.map((k) => `"${k}"`).join(", ");
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
+    const values = keys.map((k) => rowData[k]);
+    const insRes = await query(
+      `INSERT INTO "${schema}"."${tableName}" (${quotedCols}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+    return res.json({ success: true, message: "Row inserted successfully!", row: insRes.rows[0] });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+cloudRouter.put("/databases/:id/tables/:tableName/rows", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const tableName = String(req.params.tableName || "").trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    const { primaryKey, rowData } = req.body;
+    if (!primaryKey || typeof primaryKey !== "object" || !primaryKey.column) {
+      return res.status(400).json({ error: "Primary key { column, value } is required to update row" });
+    }
+    if (!VALID_IDENTIFIER_REGEX.test(primaryKey.column)) {
+      return res.status(400).json({ error: "Invalid primary key column name" });
+    }
+    if (!rowData || typeof rowData !== "object") {
+      return res.status(400).json({ error: "Row data is required" });
+    }
+    const updateKeys = Object.keys(rowData).filter((k) => k !== primaryKey.column);
+    for (const k of updateKeys) {
+      if (!VALID_IDENTIFIER_REGEX.test(k)) {
+        return res.status(400).json({ error: `Invalid column name: ${k}` });
+      }
+    }
+    if (updateKeys.length === 0) {
+      return res.status(400).json({ error: "No columns provided to update" });
+    }
+    const setClauses = updateKeys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
+    const values = updateKeys.map((k) => rowData[k]);
+    values.push(primaryKey.value);
+    const updateSql = `UPDATE "${schema}"."${tableName}" SET ${setClauses} WHERE "${primaryKey.column}" = $${values.length} RETURNING *`;
+    const updRes = await query(updateSql, values);
+    if (updRes.rowCount === 0) {
+      return res.status(404).json({ error: "Row not found or no changes made" });
+    }
+    return res.json({ success: true, message: "Row updated successfully!", row: updRes.rows[0] });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+cloudRouter.delete("/databases/:id/tables/:tableName/rows", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const tableName = String(req.params.tableName || "").trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    const { column, value } = req.body || req.query;
+    if (!column || value === void 0) {
+      return res.status(400).json({ error: "Column and value are required to identify row to delete" });
+    }
+    if (!VALID_IDENTIFIER_REGEX.test(String(column))) {
+      return res.status(400).json({ error: "Invalid column identifier" });
+    }
+    const delRes = await query(
+      `DELETE FROM "${schema}"."${tableName}" WHERE "${column}" = $1 RETURNING *`,
+      [value]
+    );
+    return res.json({ success: true, message: "Row deleted successfully!", rowCount: delRes.rowCount });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+cloudRouter.post("/databases/:id/tables", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const { tableName, columns } = req.body;
+    if (!tableName || !VALID_IDENTIFIER_REGEX.test(String(tableName).trim())) {
+      return res.status(400).json({ error: "Valid table name identifier is required (letters, numbers, underscore)" });
+    }
+    const cleanTableName = String(tableName).trim();
+    const forbiddenPrefixes = ["cloud_", "wallet_", "core_"];
+    for (const p2 of forbiddenPrefixes) {
+      if (cleanTableName.toLowerCase().startsWith(p2)) {
+        return res.status(403).json({ error: `Table name cannot start with reserved prefix "${p2}"` });
+      }
+    }
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return res.status(400).json({ error: "At least one column is required to create a table" });
+    }
+    const colDefs = [];
+    const pkCols = [];
+    for (const c of columns) {
+      const colName = String(c.name || "").trim();
+      if (!VALID_IDENTIFIER_REGEX.test(colName)) {
+        return res.status(400).json({ error: `Invalid column name: "${colName}"` });
+      }
+      const colType = String(c.type || "TEXT").toUpperCase().trim();
+      if (!ALLOWED_COLUMN_TYPES.has(colType)) {
+        return res.status(400).json({ error: `Unsupported or invalid data type "${colType}" for column "${colName}"` });
+      }
+      let def = `"${colName}" ${colType}`;
+      if (c.isPrimaryKey) {
+        pkCols.push(`"${colName}"`);
+      }
+      if (c.isNullable === false) {
+        def += " NOT NULL";
+      }
+      if (c.defaultValue && typeof c.defaultValue === "string" && c.defaultValue.trim()) {
+        const defVal = c.defaultValue.trim();
+        if (defVal.toUpperCase() === "CURRENT_TIMESTAMP" || defVal.toUpperCase() === "NOW()" || /^-?\d+(\.\d+)?$/.test(defVal) || defVal.toUpperCase() === "TRUE" || defVal.toUpperCase() === "FALSE") {
+          def += ` DEFAULT ${defVal}`;
+        } else {
+          def += ` DEFAULT '${defVal.replace(/'/g, "''")}'`;
+        }
+      }
+      colDefs.push(def);
+    }
+    if (pkCols.length > 0) {
+      colDefs.push(`PRIMARY KEY (${pkCols.join(", ")})`);
+    }
+    const ddl = `CREATE TABLE "${schema}"."${cleanTableName}" (
+  ${colDefs.join(",\n  ")}
+);`;
+    await query(ddl);
+    return res.json({
+      success: true,
+      message: `\u{1F389} Table "${cleanTableName}" created successfully!`,
+      tableName: cleanTableName
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+cloudRouter.delete("/databases/:id/tables/:tableName", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === "admin" || req.user?.role === "superadmin");
+    if (!authDb) return res.status(404).json({ error: "Database not found" });
+    const { schema } = authDb;
+    const tableName = String(req.params.tableName || "").trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: "Invalid table name" });
+    }
+    await query(`DROP TABLE IF EXISTS "${schema}"."${tableName}" CASCADE`);
+    return res.json({
+      success: true,
+      message: `Table "${tableName}" dropped successfully.`
     });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });

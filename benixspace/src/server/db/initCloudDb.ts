@@ -11,11 +11,11 @@ export const INITIAL_CLOUD_PLANS = [
     is_trial: true,
     trial_duration_days: 60,
     max_apps: -1,
-    vcpu_limit: -1,
+    vcpu_limit: 1.0,
     ram_mb: 1024,
-    storage_gb: 1,
-    max_databases: 3,
-    custom_domains_allowed: 0,
+    storage_gb: 5,
+    max_databases: 1,
+    custom_domains_allowed: 1,
     has_free_ssl: true,
     has_backups: false,
     has_priority_support: false,
@@ -27,16 +27,16 @@ export const INITIAL_CLOUD_PLANS = [
     name: 'Starter Cloud',
     slug: 'starter',
     description: 'Perfect for small sites, hobby projects, and lightweight web APIs.',
-    price_rwf: 1500.00,
+    price_rwf: 3000.00,
     billing_cycle: 'monthly',
     is_trial: false,
     trial_duration_days: 0,
-    max_apps: 1,
-    vcpu_limit: 0.5,
-    ram_mb: 512,
-    storage_gb: 5,
-    max_databases: 1,
-    custom_domains_allowed: 1,
+    max_apps: 3,
+    vcpu_limit: 1.0,
+    ram_mb: 2048,
+    storage_gb: 20,
+    max_databases: 3,
+    custom_domains_allowed: 3,
     has_free_ssl: true,
     has_backups: false,
     has_priority_support: false,
@@ -48,16 +48,16 @@ export const INITIAL_CLOUD_PLANS = [
     name: 'Basic Cloud',
     slug: 'basic',
     description: 'Ideal for freelance projects, growing websites, and client prototypes.',
-    price_rwf: 3000.00,
+    price_rwf: 4500.00,
     billing_cycle: 'monthly',
     is_trial: false,
     trial_duration_days: 0,
-    max_apps: 3,
-    vcpu_limit: 1.0,
-    ram_mb: 1024,
-    storage_gb: 15,
-    max_databases: 2,
-    custom_domains_allowed: 3,
+    max_apps: 6,
+    vcpu_limit: 2.0,
+    ram_mb: 4096,
+    storage_gb: 80,
+    max_databases: 8,
+    custom_domains_allowed: 8,
     has_free_ssl: true,
     has_backups: true,
     has_priority_support: false,
@@ -69,16 +69,16 @@ export const INITIAL_CLOUD_PLANS = [
     name: 'Pro Cloud',
     slug: 'pro',
     description: 'Built for production web apps, e-commerce, and high-traffic APIs with automated backups.',
-    price_rwf: 4500.00,
+    price_rwf: 7500.00,
     billing_cycle: 'monthly',
     is_trial: false,
     trial_duration_days: 0,
-    max_apps: 8,
-    vcpu_limit: 2.0,
-    ram_mb: 2048,
-    storage_gb: 35,
-    max_databases: 5,
-    custom_domains_allowed: -1,
+    max_apps: 12,
+    vcpu_limit: 3.0,
+    ram_mb: 4096,
+    storage_gb: 150,
+    max_databases: 10,
+    custom_domains_allowed: 10,
     has_free_ssl: true,
     has_backups: true,
     has_priority_support: false,
@@ -90,14 +90,14 @@ export const INITIAL_CLOUD_PLANS = [
     name: 'Business Cloud',
     slug: 'business',
     description: 'Maximum power with priority support, dedicated scaling, and unlimited deployments.',
-    price_rwf: 8000.00,
+    price_rwf: 15000.00,
     billing_cycle: 'monthly',
     is_trial: false,
     trial_duration_days: 0,
     max_apps: -1,
     vcpu_limit: 4.0,
-    ram_mb: 4096,
-    storage_gb: 80,
+    ram_mb: 8192,
+    storage_gb: 300,
     max_databases: -1,
     custom_domains_allowed: -1,
     has_free_ssl: true,
@@ -392,7 +392,7 @@ export async function initCloudDb(): Promise<void> {
       } catch {}
     }
 
-    // 3. Seed Default Plans
+    // 3. Seed Default Plans (DO NOTHING on conflict so custom settings and plan edits are NEVER wiped on deploy)
     for (const plan of INITIAL_CLOUD_PLANS) {
       await query(
         `INSERT INTO cloud_plans (
@@ -401,23 +401,7 @@ export async function initCloudDb(): Promise<void> {
           has_free_ssl, has_backups, has_priority_support, is_active, sort_order
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
-        ) ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          price_rwf = EXCLUDED.price_rwf,
-          is_trial = EXCLUDED.is_trial,
-          trial_duration_days = EXCLUDED.trial_duration_days,
-          max_apps = EXCLUDED.max_apps,
-          vcpu_limit = EXCLUDED.vcpu_limit,
-          ram_mb = EXCLUDED.ram_mb,
-          storage_gb = EXCLUDED.storage_gb,
-          max_databases = EXCLUDED.max_databases,
-          custom_domains_allowed = EXCLUDED.custom_domains_allowed,
-          has_free_ssl = EXCLUDED.has_free_ssl,
-          has_backups = EXCLUDED.has_backups,
-          has_priority_support = EXCLUDED.has_priority_support,
-          sort_order = EXCLUDED.sort_order,
-          updated_at = CURRENT_TIMESTAMP`,
+        ) ON CONFLICT (id) DO NOTHING`,
         [
           plan.id,
           plan.name,
@@ -442,10 +426,20 @@ export async function initCloudDb(): Promise<void> {
       );
     }
 
-    // 4. Clean up any legacy dummy 127.0.0.1 VPS records and reset unverified domains
+    // Explicit sync to update current database with the user's latest plan specifications
+    try {
+      await query(`
+        UPDATE cloud_plans SET price_rwf = 0.00, vcpu_limit = 1.0, ram_mb = 1024, max_databases = 1, custom_domains_allowed = 1, storage_gb = 5, updated_at = CURRENT_TIMESTAMP WHERE id = 'free-trial';
+        UPDATE cloud_plans SET price_rwf = 3000.00, vcpu_limit = 1.0, ram_mb = 2048, storage_gb = 20, max_databases = 3, custom_domains_allowed = 3, max_apps = 3, updated_at = CURRENT_TIMESTAMP WHERE id = 'starter';
+        UPDATE cloud_plans SET price_rwf = 4500.00, vcpu_limit = 2.0, ram_mb = 4096, storage_gb = 80, max_databases = 8, custom_domains_allowed = 8, max_apps = 6, updated_at = CURRENT_TIMESTAMP WHERE id = 'basic';
+        UPDATE cloud_plans SET price_rwf = 7500.00, vcpu_limit = 3.0, ram_mb = 4096, storage_gb = 150, max_databases = 10, custom_domains_allowed = 10, max_apps = 12, updated_at = CURRENT_TIMESTAMP WHERE id = 'pro';
+        UPDATE cloud_plans SET price_rwf = 15000.00, vcpu_limit = 4.0, ram_mb = 8192, storage_gb = 300, max_databases = -1, custom_domains_allowed = -1, max_apps = -1, updated_at = CURRENT_TIMESTAMP WHERE id = 'business';
+      `);
+    } catch {}
+
+    // 4. Clean up any legacy dummy 127.0.0.1 VPS records and preserve live URLs
     try {
       await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");
-      await query("UPDATE cloud_domains SET dns_verified = false, ssl_status = 'pending' WHERE domain_name = 'voxify.space'");
       await query(`
         UPDATE cloud_deployments 
         SET live_url = 'https://' || LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) || '.apps.benix.space',

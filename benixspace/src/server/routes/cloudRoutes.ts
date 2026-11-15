@@ -2275,6 +2275,415 @@ cloudRouter.post('/databases/:id/query', authenticateToken, async (req: Authenti
   }
 });
 
+// =========================================================================
+// DATABASE EXPLORER ENDPOINTS (View, Explore, Create, Edit, Delete Tables & Rows)
+// Strictly isolated to the tenant's schema with identifier sanitization
+// =========================================================================
+
+const VALID_IDENTIFIER_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/;
+
+const ALLOWED_COLUMN_TYPES = new Set([
+  'SERIAL', 'BIGSERIAL', 'INTEGER', 'INT', 'BIGINT', 'SMALLINT',
+  'TEXT', 'VARCHAR(255)', 'VARCHAR(100)', 'VARCHAR(50)', 'CHAR(1)',
+  'BOOLEAN', 'NUMERIC(15,2)', 'NUMERIC', 'DOUBLE PRECISION', 'REAL',
+  'TIMESTAMP WITH TIME ZONE', 'TIMESTAMPTZ', 'TIMESTAMP', 'DATE', 'TIME',
+  'JSONB', 'JSON', 'UUID'
+]);
+
+/**
+ * Helper to fetch database and verify ownership
+ */
+async function getAuthorizedDatabase(dbId: string, userId: string, isAdmin: boolean) {
+  const dbRes = await query(
+    'SELECT * FROM cloud_databases WHERE id = $1 AND (user_id = $2 OR $3 = true)',
+    [dbId, userId, isAdmin]
+  );
+  if (dbRes.rowCount === 0) return null;
+  const db = dbRes.rows[0];
+  const schema = db.schema_name || `app_${db.db_name}`;
+  return { db, schema };
+}
+
+/**
+ * 1. List all tables in user's database schema
+ */
+cloudRouter.get('/databases/:id/tables', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    // Fetch tables in schema
+    const tablesRes = await query(`
+      SELECT 
+        table_name,
+        table_type
+      FROM information_schema.tables
+      WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+      ORDER BY table_name ASC
+    `, [schema]);
+
+    // Fetch all columns in schema
+    const colsRes = await query(`
+      SELECT 
+        table_name,
+        column_name,
+        data_type,
+        udt_name,
+        is_nullable,
+        column_default
+      FROM information_schema.columns
+      WHERE table_schema = $1
+      ORDER BY table_name, ordinal_position ASC
+    `, [schema]);
+
+    // Fetch primary keys in schema
+    const pkRes = await query(`
+      SELECT 
+        tc.table_name, 
+        kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu 
+        ON tc.constraint_name = kcu.constraint_name 
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = $1
+    `, [schema]);
+
+    const pkMap = new Map<string, Set<string>>();
+    for (const r of pkRes.rows) {
+      if (!pkMap.has(r.table_name)) pkMap.set(r.table_name, new Set());
+      pkMap.get(r.table_name)!.add(r.column_name);
+    }
+
+    const colsByTable = new Map<string, any[]>();
+    for (const c of colsRes.rows) {
+      if (!colsByTable.has(c.table_name)) colsByTable.set(c.table_name, []);
+      const isPk = pkMap.get(c.table_name)?.has(c.column_name) || false;
+      colsByTable.get(c.table_name)!.push({
+        name: c.column_name,
+        type: c.data_type,
+        udtType: c.udt_name,
+        isNullable: c.is_nullable === 'YES',
+        defaultValue: c.column_default,
+        isPrimaryKey: isPk
+      });
+    }
+
+    // Get row counts
+    const tables = [];
+    for (const t of tablesRes.rows) {
+      let rowCount = 0;
+      try {
+        const countRes = await query(`SELECT COUNT(*) as cnt FROM "${schema}"."${t.table_name}"`);
+        rowCount = parseInt(countRes.rows[0]?.cnt, 10) || 0;
+      } catch {}
+
+      const cols = colsByTable.get(t.table_name) || [];
+      tables.push({
+        name: t.table_name,
+        rowCount,
+        columnCount: cols.length,
+        columns: cols,
+        primaryKeys: Array.from(pkMap.get(t.table_name) || [])
+      });
+    }
+
+    return res.json({
+      success: true,
+      schema,
+      tables
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 2. Get paginated table rows
+ */
+cloudRouter.get('/databases/:id/tables/:tableName/data', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    const tableName = String(req.params.tableName || '').trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: 'Invalid table name identifier' });
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '25'), 10) || 25));
+    const offset = (page - 1) * limit;
+
+    const countRes = await query(`SELECT COUNT(*) as cnt FROM "${schema}"."${tableName}"`);
+    const total = parseInt(countRes.rows[0]?.cnt, 10) || 0;
+
+    const rowsRes = await query(`SELECT * FROM "${schema}"."${tableName}" LIMIT $1 OFFSET $2`, [limit, offset]);
+
+    return res.json({
+      success: true,
+      tableName,
+      schema,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+      columns: rowsRes.fields ? rowsRes.fields.map(f => f.name) : (rowsRes.rows.length > 0 ? Object.keys(rowsRes.rows[0]) : []),
+      rows: rowsRes.rows || []
+    });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 3. Insert row into table
+ */
+cloudRouter.post('/databases/:id/tables/:tableName/rows', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    const tableName = String(req.params.tableName || '').trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
+    const { rowData } = req.body;
+    if (!rowData || typeof rowData !== 'object') {
+      return res.status(400).json({ error: 'Row data is required' });
+    }
+
+    const keys = Object.keys(rowData);
+    for (const k of keys) {
+      if (!VALID_IDENTIFIER_REGEX.test(k)) {
+        return res.status(400).json({ error: `Invalid column name: ${k}` });
+      }
+    }
+
+    if (keys.length === 0) {
+      const insRes = await query(`INSERT INTO "${schema}"."${tableName}" DEFAULT VALUES RETURNING *`);
+      return res.json({ success: true, row: insRes.rows[0] });
+    }
+
+    const quotedCols = keys.map(k => `"${k}"`).join(', ');
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const values = keys.map(k => rowData[k]);
+
+    const insRes = await query(
+      `INSERT INTO "${schema}"."${tableName}" (${quotedCols}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+
+    return res.json({ success: true, message: 'Row inserted successfully!', row: insRes.rows[0] });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 4. Update row in table
+ */
+cloudRouter.put('/databases/:id/tables/:tableName/rows', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    const tableName = String(req.params.tableName || '').trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
+    const { primaryKey, rowData } = req.body;
+    if (!primaryKey || typeof primaryKey !== 'object' || !primaryKey.column) {
+      return res.status(400).json({ error: 'Primary key { column, value } is required to update row' });
+    }
+    if (!VALID_IDENTIFIER_REGEX.test(primaryKey.column)) {
+      return res.status(400).json({ error: 'Invalid primary key column name' });
+    }
+    if (!rowData || typeof rowData !== 'object') {
+      return res.status(400).json({ error: 'Row data is required' });
+    }
+
+    const updateKeys = Object.keys(rowData).filter(k => k !== primaryKey.column);
+    for (const k of updateKeys) {
+      if (!VALID_IDENTIFIER_REGEX.test(k)) {
+        return res.status(400).json({ error: `Invalid column name: ${k}` });
+      }
+    }
+
+    if (updateKeys.length === 0) {
+      return res.status(400).json({ error: 'No columns provided to update' });
+    }
+
+    const setClauses = updateKeys.map((k, i) => `"${k}" = $${i + 1}`).join(', ');
+    const values = updateKeys.map(k => rowData[k]);
+    values.push(primaryKey.value);
+
+    const updateSql = `UPDATE "${schema}"."${tableName}" SET ${setClauses} WHERE "${primaryKey.column}" = $${values.length} RETURNING *`;
+    const updRes = await query(updateSql, values);
+
+    if (updRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Row not found or no changes made' });
+    }
+
+    return res.json({ success: true, message: 'Row updated successfully!', row: updRes.rows[0] });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 5. Delete row in table
+ */
+cloudRouter.delete('/databases/:id/tables/:tableName/rows', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    const tableName = String(req.params.tableName || '').trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
+    const { column, value } = req.body || req.query;
+    if (!column || value === undefined) {
+      return res.status(400).json({ error: 'Column and value are required to identify row to delete' });
+    }
+    if (!VALID_IDENTIFIER_REGEX.test(String(column))) {
+      return res.status(400).json({ error: 'Invalid column identifier' });
+    }
+
+    const delRes = await query(
+      `DELETE FROM "${schema}"."${tableName}" WHERE "${column}" = $1 RETURNING *`,
+      [value]
+    );
+
+    return res.json({ success: true, message: 'Row deleted successfully!', rowCount: delRes.rowCount });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 6. Create new table in user's schema
+ */
+cloudRouter.post('/databases/:id/tables', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    const { tableName, columns } = req.body;
+    if (!tableName || !VALID_IDENTIFIER_REGEX.test(String(tableName).trim())) {
+      return res.status(400).json({ error: 'Valid table name identifier is required (letters, numbers, underscore)' });
+    }
+    const cleanTableName = String(tableName).trim();
+
+    // Prevent system collision
+    const forbiddenPrefixes = ['cloud_', 'wallet_', 'core_'];
+    for (const p of forbiddenPrefixes) {
+      if (cleanTableName.toLowerCase().startsWith(p)) {
+        return res.status(403).json({ error: `Table name cannot start with reserved prefix "${p}"` });
+      }
+    }
+
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return res.status(400).json({ error: 'At least one column is required to create a table' });
+    }
+
+    const colDefs: string[] = [];
+    const pkCols: string[] = [];
+
+    for (const c of columns) {
+      const colName = String(c.name || '').trim();
+      if (!VALID_IDENTIFIER_REGEX.test(colName)) {
+        return res.status(400).json({ error: `Invalid column name: "${colName}"` });
+      }
+
+      const colType = String(c.type || 'TEXT').toUpperCase().trim();
+      if (!ALLOWED_COLUMN_TYPES.has(colType)) {
+        return res.status(400).json({ error: `Unsupported or invalid data type "${colType}" for column "${colName}"` });
+      }
+
+      let def = `"${colName}" ${colType}`;
+      if (c.isPrimaryKey) {
+        pkCols.push(`"${colName}"`);
+      }
+      if (c.isNullable === false) {
+        def += ' NOT NULL';
+      }
+      if (c.defaultValue && typeof c.defaultValue === 'string' && c.defaultValue.trim()) {
+        const defVal = c.defaultValue.trim();
+        if (defVal.toUpperCase() === 'CURRENT_TIMESTAMP' || defVal.toUpperCase() === 'NOW()' || /^-?\d+(\.\d+)?$/.test(defVal) || defVal.toUpperCase() === 'TRUE' || defVal.toUpperCase() === 'FALSE') {
+          def += ` DEFAULT ${defVal}`;
+        } else {
+          def += ` DEFAULT '${defVal.replace(/'/g, "''")}'`;
+        }
+      }
+      colDefs.push(def);
+    }
+
+    if (pkCols.length > 0) {
+      colDefs.push(`PRIMARY KEY (${pkCols.join(', ')})`);
+    }
+
+    const ddl = `CREATE TABLE "${schema}"."${cleanTableName}" (\n  ${colDefs.join(',\n  ')}\n);`;
+    await query(ddl);
+
+    return res.json({
+      success: true,
+      message: `🎉 Table "${cleanTableName}" created successfully!`,
+      tableName: cleanTableName
+    });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 7. Drop table in user's schema
+ */
+cloudRouter.delete('/databases/:id/tables/:tableName', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const authDb = await getAuthorizedDatabase(req.params.id, userId, req.user?.role === 'admin' || req.user?.role === 'superadmin');
+    if (!authDb) return res.status(404).json({ error: 'Database not found' });
+    const { schema } = authDb;
+
+    const tableName = String(req.params.tableName || '').trim();
+    if (!VALID_IDENTIFIER_REGEX.test(tableName)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+
+    await query(`DROP TABLE IF EXISTS "${schema}"."${tableName}" CASCADE`);
+
+    return res.json({
+      success: true,
+      message: `Table "${tableName}" dropped successfully.`
+    });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 /**
  * Update database settings
  */
