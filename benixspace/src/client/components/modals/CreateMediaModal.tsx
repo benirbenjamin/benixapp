@@ -507,21 +507,49 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     setStatusMsg({ text: 'Fetching YouTube title, description and thumbnail...' });
 
     try {
-      const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(trimmed)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.title) {
-          setVideoTitle(data.title);
+      const canonicalUrl = vidId ? `https://www.youtube.com/watch?v=${vidId}` : trimmed;
+      let fetchedTitle = '';
+      let fetchedAuthor = '';
+      let fetchedThumb = vidId ? `https://img.youtube.com/vi/${vidId}/hqdefault.jpg` : '';
+
+      // 1. Try official YouTube oEmbed API
+      try {
+        const ytRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`);
+        if (ytRes.ok) {
+          const ytData = await ytRes.json();
+          fetchedTitle = ytData.title || '';
+          fetchedAuthor = ytData.author_name || '';
+          if (ytData.thumbnail_url) fetchedThumb = ytData.thumbnail_url;
         }
-        if (data.author_name) {
-          setVideoDesc(`Video by ${data.author_name} — broadcasted on Benix.Space.`);
-        }
-        if (data.thumbnail_url) {
-          setVideoThumbnailUrl(data.thumbnail_url);
-        }
-        setStatusMsg({ text: '✨ Details fetched! You can freely edit the title and description below.' });
-      } else if (vidId) {
-        setStatusMsg({ text: 'YouTube link detected. Please enter a title.' });
+      } catch {}
+
+      // 2. Fallback to noembed if title not obtained
+      if (!fetchedTitle) {
+        try {
+          const noembedRes = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(canonicalUrl)}`);
+          if (noembedRes.ok) {
+            const noembedData = await noembedRes.json();
+            fetchedTitle = noembedData.title || '';
+            fetchedAuthor = noembedData.author_name || '';
+            if (noembedData.thumbnail_url) fetchedThumb = noembedData.thumbnail_url;
+          }
+        } catch {}
+      }
+
+      if (fetchedTitle) {
+        setVideoTitle(fetchedTitle);
+      }
+      if (fetchedAuthor) {
+        setVideoDesc(`Video by ${fetchedAuthor} — broadcasted on Benix.Space.`);
+      }
+      if (fetchedThumb) {
+        setVideoThumbnailUrl(fetchedThumb);
+      }
+
+      if (fetchedTitle || vidId) {
+        setStatusMsg({ text: '✨ Details loaded! You can freely edit the title and description below.' });
+      } else {
+        setStatusMsg({ text: 'Please enter a title for this video.' });
       }
     } catch {
       if (vidId) {
@@ -716,7 +744,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             </div>
             <div>
               <h3 className="text-base font-black text-white">Create on Benix.Space</h3>
-              <p className="text-[11px] text-slate-400">Share 24h stories and broadcast monetized videos</p>
+              <p className="text-[11px] text-slate-400">Share 24h stories and broadcast YouTube videos</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-800/60 transition-colors">
@@ -746,7 +774,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             }`}
           >
             <Video className="w-4 h-4" />
-            <span>Upload Video / Broadcast</span>
+            <span>Broadcast Video</span>
           </button>
         </div>
 
@@ -930,13 +958,30 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                     type="text"
                     value={videoUrl}
                     onChange={(e) => {
-                      setVideoUrl(e.target.value);
-                      const id = extractYouTubeId(e.target.value);
+                      const val = e.target.value;
+                      setVideoUrl(val);
+                      const id = extractYouTubeId(val);
                       if (id) {
                         setVideoThumbnailUrl(`https://img.youtube.com/vi/${id}/hqdefault.jpg`);
-                        if (e.target.value.includes('/shorts/')) {
+                        if (val.includes('/shorts/')) {
                           setIsVideoPortrait(true);
                           setVideoCategory('Trending Shorts');
+                        }
+                        fetchYouTubeInfo(val);
+                      }
+                    }}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text');
+                      if (pasted) {
+                        const id = extractYouTubeId(pasted);
+                        if (id) {
+                          setVideoUrl(pasted);
+                          setVideoThumbnailUrl(`https://img.youtube.com/vi/${id}/hqdefault.jpg`);
+                          if (pasted.includes('/shorts/')) {
+                            setIsVideoPortrait(true);
+                            setVideoCategory('Trending Shorts');
+                          }
+                          setTimeout(() => fetchYouTubeInfo(pasted), 30);
                         }
                       }
                     }}
@@ -1163,7 +1208,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 disabled={loading || !videoTitle.trim() || !videoUrl.trim()}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
               >
-                {loading ? 'Publishing Video...' : 'Publish Video to Creator Hub'}
+                {loading ? 'Broadcasting Video...' : 'Broadcast Video to Creator Hub'}
               </button>
             </form>
           )}

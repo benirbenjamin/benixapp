@@ -1167,8 +1167,8 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
               }}
               className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Post / Upload Video</span>
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Broadcast YouTube Video</span>
             </button>
 
             <button

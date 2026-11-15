@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import path from 'path';
@@ -117,6 +117,36 @@ export class StorageService {
       fileId: uniqueKey,
       provider: 'cloudflare_r2'
     };
+  }
+
+  /**
+   * Directly delete a file from Cloudflare R2 storage (e.g. expired stories)
+   */
+  static async deleteFile(fileUrlOrKey: string): Promise<boolean> {
+    if (!fileUrlOrKey) return false;
+    try {
+      let key = String(fileUrlOrKey).trim();
+      if (key.startsWith('http://') || key.startsWith('https://')) {
+        try {
+          const u = new URL(key);
+          key = u.pathname.replace(/^\/+/, '');
+        } catch {
+          const parts = key.split(PUBLIC_BASE_URL);
+          if (parts[1]) key = parts[1].replace(/^\/+/, '');
+        }
+      }
+      if (!key) return false;
+
+      const command = new DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+      await r2Client.send(command);
+      return true;
+    } catch (err: any) {
+      console.warn('Notice: Cloudflare R2 file deletion warning:', err?.message);
+      return false;
+    }
   }
 
   /**

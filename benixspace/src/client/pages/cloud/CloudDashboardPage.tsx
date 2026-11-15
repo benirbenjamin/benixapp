@@ -1760,19 +1760,32 @@ export const CloudDashboardPage: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex items-center justify-between text-xs">
+                      <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                         <span className="text-slate-400 truncate mr-2 font-mono">
                           {effectiveLiveUrl}
                         </span>
-                        <a
-                          href={effectiveLiveUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sky-400 hover:text-sky-300 font-bold shrink-0 flex items-center gap-1"
-                        >
-                          <span>Open App</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <a
+                            href={`https://benix.space/apps/${safeName}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1 text-[11px] transition"
+                            title="Direct Cloud Route (Guaranteed No-DNS Fallback)"
+                          >
+                            <span>Direct Link</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <a
+                            href={effectiveLiveUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 font-bold flex items-center gap-1 text-[11px] transition"
+                            title="Subdomain Route"
+                          >
+                            <span>Subdomain</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </div>
 
                       {/* Meta badges: Commit, Auto-Sync & Env count */}
@@ -3459,20 +3472,23 @@ export const CloudDashboardPage: React.FC = () => {
 
             <form onSubmit={handleInsertRow} className="space-y-3">
               {(dbTables.find((t) => t.name === selectedTable)?.columns || []).map((col: any) => {
-                const isAutoSerial = col.column_name === 'id' && (col.column_default || '').includes('nextval');
+                const colName = col.name || col.column_name;
+                const colType = col.type || col.data_type || 'TEXT';
+                const isAutoSerial = colName === 'id' && ((col.defaultValue || col.column_default || '').includes('nextval') || colType === 'SERIAL');
+                const isNullable = col.isNullable !== undefined ? col.isNullable : (col.is_nullable !== 'NO');
                 return (
-                  <div key={col.column_name}>
+                  <div key={colName}>
                     <label className="block text-xs font-semibold text-slate-300 mb-1 font-mono">
-                      {col.column_name}{' '}
+                      {colName}{' '}
                       <span className="text-[10px] text-slate-500 font-sans">
-                        ({col.data_type}{col.is_nullable === 'NO' ? ', required' : ', optional'}{isAutoSerial ? ', auto-increment' : ''})
+                        ({colType}{!isNullable ? ', required' : ', optional'}{isAutoSerial ? ', auto-increment' : ''})
                       </span>
                     </label>
                     <input
                       type="text"
-                      placeholder={isAutoSerial ? '(Auto-generated SERIAL sequence)' : `Value for ${col.column_name}`}
-                      value={newRowData[col.column_name] ?? ''}
-                      onChange={(e) => setNewRowData({ ...newRowData, [col.column_name]: e.target.value })}
+                      placeholder={isAutoSerial ? '(Auto-generated SERIAL sequence)' : `Value for ${colName}`}
+                      value={newRowData[colName] ?? ''}
+                      onChange={(e) => setNewRowData({ ...newRowData, [colName]: e.target.value })}
                       className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
                     />
                   </div>
@@ -3514,20 +3530,22 @@ export const CloudDashboardPage: React.FC = () => {
             <form onSubmit={handleUpdateRow} className="space-y-3">
               {(dbTables.find((t) => t.name === selectedTable)?.columns || []).map((col: any) => {
                 const currentTable = dbTables.find((t) => t.name === selectedTable);
-                const isPk = currentTable?.primaryKeys?.includes(col.column_name);
+                const colName = col.name || col.column_name;
+                const colType = col.type || col.data_type || 'TEXT';
+                const isPk = currentTable?.primaryKeys?.includes(colName) || col.isPrimaryKey;
                 return (
-                  <div key={col.column_name}>
+                  <div key={colName}>
                     <label className="block text-xs font-semibold text-slate-300 mb-1 font-mono">
-                      {col.column_name}{' '}
+                      {colName}{' '}
                       <span className="text-[10px] text-slate-500 font-sans">
-                        ({col.data_type}{isPk ? ', PRIMARY KEY (read-only)' : ''})
+                        ({colType}{isPk ? ', PRIMARY KEY (read-only)' : ''})
                       </span>
                     </label>
                     <input
                       type="text"
                       disabled={isPk}
-                      value={editRowData[col.column_name] ?? ''}
-                      onChange={(e) => setEditRowData({ ...editRowData, [col.column_name]: e.target.value })}
+                      value={editRowData[colName] ?? ''}
+                      onChange={(e) => setEditRowData({ ...editRowData, [colName]: e.target.value })}
                       className="w-full px-3 py-2 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
                     />
                   </div>

@@ -426,17 +426,6 @@ export async function initCloudDb(): Promise<void> {
       );
     }
 
-    // Explicit sync to update current database with the user's latest plan specifications
-    try {
-      await query(`
-        UPDATE cloud_plans SET price_rwf = 0.00, vcpu_limit = 1.0, ram_mb = 1024, max_databases = 1, custom_domains_allowed = 1, storage_gb = 5, updated_at = CURRENT_TIMESTAMP WHERE id = 'free-trial';
-        UPDATE cloud_plans SET price_rwf = 3000.00, vcpu_limit = 1.0, ram_mb = 2048, storage_gb = 20, max_databases = 3, custom_domains_allowed = 3, max_apps = 3, updated_at = CURRENT_TIMESTAMP WHERE id = 'starter';
-        UPDATE cloud_plans SET price_rwf = 4500.00, vcpu_limit = 2.0, ram_mb = 4096, storage_gb = 80, max_databases = 8, custom_domains_allowed = 8, max_apps = 6, updated_at = CURRENT_TIMESTAMP WHERE id = 'basic';
-        UPDATE cloud_plans SET price_rwf = 7500.00, vcpu_limit = 3.0, ram_mb = 4096, storage_gb = 150, max_databases = 10, custom_domains_allowed = 10, max_apps = 12, updated_at = CURRENT_TIMESTAMP WHERE id = 'pro';
-        UPDATE cloud_plans SET price_rwf = 15000.00, vcpu_limit = 4.0, ram_mb = 8192, storage_gb = 300, max_databases = -1, custom_domains_allowed = -1, max_apps = -1, updated_at = CURRENT_TIMESTAMP WHERE id = 'business';
-      `);
-    } catch {}
-
     // 4. Clean up any legacy dummy 127.0.0.1 VPS records and preserve live URLs
     try {
       await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");

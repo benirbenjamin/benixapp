@@ -263,16 +263,45 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Redirect legacy /apps/:appName paths to https://${safeName}.apps.benix.space
-app.use('/apps', (req, res, next) => {
+// Direct serving with fallback for /apps/:appName paths (guarantees apps load even if *.apps wildcard DNS is pending)
+app.use('/apps', async (req, res, next) => {
   const parts = req.path.split('/').filter(Boolean);
   if (parts.length > 0) {
     const rawName = parts[0];
     const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const remaining = parts.slice(1).join('/');
+    const assetSubpath = parts.slice(1).join('/');
+
+    try {
+      const depRes = await query(
+        `SELECT * FROM cloud_deployments 
+         WHERE (
+           LOWER(name) = LOWER($1)
+           OR LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) = LOWER($2)
+           OR LOWER(assigned_subdomain) = LOWER($3)
+           OR LOWER(assigned_subdomain) = LOWER($4)
+           OR id = $1
+         ) AND status != 'deleted' 
+         ORDER BY created_at DESC LIMIT 1`,
+        [rawName, safeName, `${safeName}.apps.benix.space`, safeName]
+      );
+
+      if (depRes.rowCount > 0) {
+        const deployment = depRes.rows[0];
+        if (assetSubpath) {
+          return await serveDeploymentAssetHandler(deployment, assetSubpath, res);
+        }
+        if (req.method === 'GET') {
+          return await renderDeploymentRawAppHandler(deployment, res, true);
+        }
+      }
+    } catch (e: any) {
+      console.warn('Direct app serving error:', e?.message);
+    }
+
+    // Fallback: If not found, attempt redirect to subdomain
     const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
-    const redirectUrl = `https://${safeName}.apps.benix.space${remaining ? '/' + remaining : ''}${queryString}`;
-    return res.redirect(301, redirectUrl);
+    const redirectUrl = `https://${safeName}.apps.benix.space${assetSubpath ? '/' + assetSubpath : ''}${queryString}`;
+    return res.redirect(302, redirectUrl);
   }
   next();
 });
@@ -4774,12 +4803,26 @@ async function ensureStoriesTable() {
   await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {});
 }
 
-// 24-Hour Auto-Expiring Stories Background Cleanup Routine
+// 24-Hour Auto-Expiring Stories Background Cleanup Routine (directly deletes media from Cloudflare R2)
 async function cleanupExpiredStories() {
   try {
+    const expiredRes = await query(`
+      SELECT media_url FROM core_stories WHERE expires_at <= CURRENT_TIMESTAMP
+      UNION
+      SELECT media_url FROM stories WHERE expires_at <= CURRENT_TIMESTAMP
+    `).catch(() => ({ rows: [] }));
+
+    for (const row of expiredRes.rows || []) {
+      if (row.media_url && typeof row.media_url === 'string') {
+        await StorageService.deleteFile(row.media_url).catch(() => {});
+      }
+    }
+
     await query('DELETE FROM core_stories WHERE expires_at <= CURRENT_TIMESTAMP;').catch(() => {});
     await query('DELETE FROM stories WHERE expires_at <= CURRENT_TIMESTAMP;').catch(() => {});
-  } catch {}
+  } catch (err: any) {
+    console.warn('Expired story cleanup warning:', err?.message);
+  }
 }
 cleanupExpiredStories();
 setInterval(cleanupExpiredStories, 30 * 60 * 1000);

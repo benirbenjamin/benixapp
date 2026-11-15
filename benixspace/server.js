@@ -65895,7 +65895,7 @@ var require_dist_cjs16 = __commonJS({
     };
     var DeleteObjectAnnotationCommand = class extends command5(_ep5, _mw05, "DeleteObjectAnnotation", DeleteObjectAnnotation$) {
     };
-    var DeleteObjectCommand = class extends command5(_ep05, _mw05, "DeleteObject", DeleteObject$) {
+    var DeleteObjectCommand2 = class extends command5(_ep05, _mw05, "DeleteObject", DeleteObject$) {
     };
     var DeleteObjectsCommand = class extends command5(_ep5, _mw5, "DeleteObjects", DeleteObjects$) {
     };
@@ -66190,7 +66190,7 @@ var require_dist_cjs16 = __commonJS({
       DeleteBucketReplicationCommand,
       DeleteBucketTaggingCommand,
       DeleteBucketWebsiteCommand,
-      DeleteObjectCommand,
+      DeleteObjectCommand: DeleteObjectCommand2,
       DeleteObjectAnnotationCommand,
       DeleteObjectsCommand,
       DeleteObjectTaggingCommand,
@@ -66877,7 +66877,7 @@ var require_dist_cjs16 = __commonJS({
     exports.DeleteObjectAnnotationCommand = DeleteObjectAnnotationCommand;
     exports.DeleteObjectAnnotationOutput$ = DeleteObjectAnnotationOutput$;
     exports.DeleteObjectAnnotationRequest$ = DeleteObjectAnnotationRequest$;
-    exports.DeleteObjectCommand = DeleteObjectCommand;
+    exports.DeleteObjectCommand = DeleteObjectCommand2;
     exports.DeleteObjectOutput$ = DeleteObjectOutput$;
     exports.DeleteObjectRequest$ = DeleteObjectRequest$;
     exports.DeleteObjectTagging$ = DeleteObjectTagging$;
@@ -105310,6 +105310,34 @@ var StorageService = class {
     };
   }
   /**
+   * Directly delete a file from Cloudflare R2 storage (e.g. expired stories)
+   */
+  static async deleteFile(fileUrlOrKey) {
+    if (!fileUrlOrKey) return false;
+    try {
+      let key = String(fileUrlOrKey).trim();
+      if (key.startsWith("http://") || key.startsWith("https://")) {
+        try {
+          const u = new URL(key);
+          key = u.pathname.replace(/^\/+/, "");
+        } catch {
+          const parts = key.split(PUBLIC_BASE_URL);
+          if (parts[1]) key = parts[1].replace(/^\/+/, "");
+        }
+      }
+      if (!key) return false;
+      const command5 = new import_client_s3.DeleteObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+      await r2Client.send(command5);
+      return true;
+    } catch (err) {
+      console.warn("Notice: Cloudflare R2 file deletion warning:", err?.message);
+      return false;
+    }
+  }
+  /**
    * Admin configuration status
    */
   static async getConfig() {
@@ -114131,16 +114159,6 @@ async function initCloudDb() {
       );
     }
     try {
-      await query(`
-        UPDATE cloud_plans SET price_rwf = 0.00, vcpu_limit = 1.0, ram_mb = 1024, max_databases = 1, custom_domains_allowed = 1, storage_gb = 5, updated_at = CURRENT_TIMESTAMP WHERE id = 'free-trial';
-        UPDATE cloud_plans SET price_rwf = 3000.00, vcpu_limit = 1.0, ram_mb = 2048, storage_gb = 20, max_databases = 3, custom_domains_allowed = 3, max_apps = 3, updated_at = CURRENT_TIMESTAMP WHERE id = 'starter';
-        UPDATE cloud_plans SET price_rwf = 4500.00, vcpu_limit = 2.0, ram_mb = 4096, storage_gb = 80, max_databases = 8, custom_domains_allowed = 8, max_apps = 6, updated_at = CURRENT_TIMESTAMP WHERE id = 'basic';
-        UPDATE cloud_plans SET price_rwf = 7500.00, vcpu_limit = 3.0, ram_mb = 4096, storage_gb = 150, max_databases = 10, custom_domains_allowed = 10, max_apps = 12, updated_at = CURRENT_TIMESTAMP WHERE id = 'pro';
-        UPDATE cloud_plans SET price_rwf = 15000.00, vcpu_limit = 4.0, ram_mb = 8192, storage_gb = 300, max_databases = -1, custom_domains_allowed = -1, max_apps = -1, updated_at = CURRENT_TIMESTAMP WHERE id = 'business';
-      `);
-    } catch {
-    }
-    try {
       await query("DELETE FROM cloud_servers WHERE public_ip = '127.0.0.1' OR id = 'srv-primary-01'");
       await query(`
         UPDATE cloud_deployments 
@@ -115969,15 +115987,19 @@ cloudRouter.post("/databases", authenticateToken, async (req, res) => {
     if (!name2 || !dbName || !dbUser) {
       return res.status(400).json({ error: "Database name, database user, and database identifier are required" });
     }
-    const quota = await CloudBillingService.canCreateDatabase(userId);
-    if (!quota.allowed) {
-      return res.status(403).json({
-        error: `Database quota reached (${quota.currentDbs}/${quota.maxDbs} databases). Please upgrade your hosting plan.`
-      });
+    const isAdmin = req.user?.role === "admin" || req.user?.role === "superadmin";
+    if (!isAdmin) {
+      const quota = await CloudBillingService.canCreateDatabase(userId);
+      if (!quota.allowed) {
+        return res.status(403).json({
+          error: `Database quota reached (${quota.currentDbs}/${quota.maxDbs} databases). Please upgrade your hosting plan.`
+        });
+      }
     }
-    const safeDb = dbName.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const safeDb = dbName.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 25);
     const shortUser = userId.replace(/[^a-z0-9]/g, "").substring(0, 8);
     const schemaName = `app_${safeDb}_${shortUser}`;
+    await query(`ALTER TABLE cloud_databases ADD COLUMN IF NOT EXISTS schema_name VARCHAR(255)`);
     await query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
     let realHost = "localhost";
     let realPort = 5432;
@@ -116170,10 +116192,14 @@ cloudRouter.get("/databases/:id/tables", authenticateToken, async (req, res) => 
       const isPk = pkMap.get(c5.table_name)?.has(c5.column_name) || false;
       colsByTable.get(c5.table_name).push({
         name: c5.column_name,
+        column_name: c5.column_name,
         type: c5.data_type,
+        data_type: c5.data_type,
         udtType: c5.udt_name,
         isNullable: c5.is_nullable === "YES",
+        is_nullable: c5.is_nullable,
         defaultValue: c5.column_default,
+        column_default: c5.column_default,
         isPrimaryKey: isPk
       });
     }
@@ -117073,15 +117099,40 @@ app.use(async (req, res, next) => {
   }
   next();
 });
-app.use("/apps", (req, res, next) => {
+app.use("/apps", async (req, res, next) => {
   const parts = req.path.split("/").filter(Boolean);
   if (parts.length > 0) {
     const rawName = parts[0];
     const safeName = rawName.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    const remaining = parts.slice(1).join("/");
+    const assetSubpath = parts.slice(1).join("/");
+    try {
+      const depRes = await query(
+        `SELECT * FROM cloud_deployments 
+         WHERE (
+           LOWER(name) = LOWER($1)
+           OR LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')) = LOWER($2)
+           OR LOWER(assigned_subdomain) = LOWER($3)
+           OR LOWER(assigned_subdomain) = LOWER($4)
+           OR id = $1
+         ) AND status != 'deleted' 
+         ORDER BY created_at DESC LIMIT 1`,
+        [rawName, safeName, `${safeName}.apps.benix.space`, safeName]
+      );
+      if (depRes.rowCount > 0) {
+        const deployment = depRes.rows[0];
+        if (assetSubpath) {
+          return await serveDeploymentAssetHandler(deployment, assetSubpath, res);
+        }
+        if (req.method === "GET") {
+          return await renderDeploymentRawAppHandler(deployment, res, true);
+        }
+      }
+    } catch (e5) {
+      console.warn("Direct app serving error:", e5?.message);
+    }
     const queryString = req.url.includes("?") ? "?" + req.url.split("?")[1] : "";
-    const redirectUrl = `https://${safeName}.apps.benix.space${remaining ? "/" + remaining : ""}${queryString}`;
-    return res.redirect(301, redirectUrl);
+    const redirectUrl = `https://${safeName}.apps.benix.space${assetSubpath ? "/" + assetSubpath : ""}${queryString}`;
+    return res.redirect(302, redirectUrl);
   }
   next();
 });
@@ -120921,11 +120972,23 @@ async function ensureStoriesTable() {
 }
 async function cleanupExpiredStories() {
   try {
+    const expiredRes = await query(`
+      SELECT media_url FROM core_stories WHERE expires_at <= CURRENT_TIMESTAMP
+      UNION
+      SELECT media_url FROM stories WHERE expires_at <= CURRENT_TIMESTAMP
+    `).catch(() => ({ rows: [] }));
+    for (const row of expiredRes.rows || []) {
+      if (row.media_url && typeof row.media_url === "string") {
+        await StorageService.deleteFile(row.media_url).catch(() => {
+        });
+      }
+    }
     await query("DELETE FROM core_stories WHERE expires_at <= CURRENT_TIMESTAMP;").catch(() => {
     });
     await query("DELETE FROM stories WHERE expires_at <= CURRENT_TIMESTAMP;").catch(() => {
     });
-  } catch {
+  } catch (err) {
+    console.warn("Expired story cleanup warning:", err?.message);
   }
 }
 cleanupExpiredStories();

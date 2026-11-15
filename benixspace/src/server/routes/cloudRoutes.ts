@@ -2129,20 +2129,24 @@ cloudRouter.post('/databases', authenticateToken, async (req: AuthenticatedReque
       return res.status(400).json({ error: 'Database name, database user, and database identifier are required' });
     }
 
-    // 1. Quota check
-    const quota = await CloudBillingService.canCreateDatabase(userId);
-    if (!quota.allowed) {
-      return res.status(403).json({
-        error: `Database quota reached (${quota.currentDbs}/${quota.maxDbs} databases). Please upgrade your hosting plan.`
-      });
+    // 1. Quota check (Admins and superadmins have unconstrained quotas)
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'superadmin';
+    if (!isAdmin) {
+      const quota = await CloudBillingService.canCreateDatabase(userId);
+      if (!quota.allowed) {
+        return res.status(403).json({
+          error: `Database quota reached (${quota.currentDbs}/${quota.maxDbs} databases). Please upgrade your hosting plan.`
+        });
+      }
     }
 
     // 2. Real Schema Name
-    const safeDb = dbName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const safeDb = dbName.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 25);
     const shortUser = userId.replace(/[^a-z0-9]/g, '').substring(0, 8);
     const schemaName = `app_${safeDb}_${shortUser}`;
 
-    // 3. Create real isolated PostgreSQL schema!
+    // 3. Ensure schema_name column exists & create real isolated PostgreSQL schema!
+    await query(`ALTER TABLE cloud_databases ADD COLUMN IF NOT EXISTS schema_name VARCHAR(255)`);
     await query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
     // 4. Generate connection credentials from active database configuration
@@ -2363,10 +2367,14 @@ cloudRouter.get('/databases/:id/tables', authenticateToken, async (req: Authenti
       const isPk = pkMap.get(c.table_name)?.has(c.column_name) || false;
       colsByTable.get(c.table_name)!.push({
         name: c.column_name,
+        column_name: c.column_name,
         type: c.data_type,
+        data_type: c.data_type,
         udtType: c.udt_name,
         isNullable: c.is_nullable === 'YES',
+        is_nullable: c.is_nullable,
         defaultValue: c.column_default,
+        column_default: c.column_default,
         isPrimaryKey: isPk
       });
     }
