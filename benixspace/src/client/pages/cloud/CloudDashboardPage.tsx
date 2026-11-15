@@ -304,7 +304,13 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ token: githubPatInput.trim() })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setGithubAccount(json.account);
         setShowGithubModal(false);
@@ -364,7 +370,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'POST',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         alert(json.message || 'GitHub webhook installed successfully!');
         await fetchCloudData();
@@ -386,7 +398,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'POST',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         alert(json.message || `Successfully synchronized ${depName} with latest GitHub commit!`);
         await fetchCloudData();
@@ -410,7 +428,13 @@ export const CloudDashboardPage: React.FC = () => {
       const res = await fetch(`/api/cloud/github/inspect?url=${encodeURIComponent(url)}`, {
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server inspection error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success && json.repo) {
         setInspectedRepo(json.repo);
         if (json.repo.name && !deployName) {
@@ -503,7 +527,13 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ planId, months })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setSubscribePreview(json.preview);
       }
@@ -549,7 +579,13 @@ export const CloudDashboardPage: React.FC = () => {
           months: selectedMonths
         })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         alert(json.message);
         setSelectedPlanForSubscribe(null);
@@ -572,7 +608,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'POST',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         alert(json.message);
         await fetchCloudData();
@@ -616,7 +658,13 @@ export const CloudDashboardPage: React.FC = () => {
         })
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setShowDeployModal(false);
         setDeployName('');
@@ -724,7 +772,13 @@ export const CloudDashboardPage: React.FC = () => {
         })
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         alert('Application settings and environment variables updated successfully!');
         setShowAppSettingsModal(null);
@@ -746,7 +800,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'POST',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         alert(json.message);
         await fetchCloudData();
@@ -766,7 +826,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deletion error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         await fetchCloudData();
       } else {
@@ -788,7 +854,13 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ action })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server action error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         await fetchCloudData();
       } else {
@@ -820,7 +892,13 @@ export const CloudDashboardPage: React.FC = () => {
         })
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setShowDbModal(false);
         setDbName('');
@@ -878,7 +956,13 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ sqlQuery: sqlQueryInput })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setQueryOutput({
           columns: json.columns || [],
@@ -903,7 +987,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         await fetchCloudData();
       } else {
@@ -926,7 +1016,13 @@ export const CloudDashboardPage: React.FC = () => {
       const res = await fetch(`/api/cloud/databases/${db.id}/tables`, {
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setDbTables(json.tables || []);
         if (json.tables && json.tables.length > 0) {
@@ -951,7 +1047,13 @@ export const CloudDashboardPage: React.FC = () => {
       const res = await fetch(`/api/cloud/databases/${dbId}/tables/${encodeURIComponent(tableName)}/data?page=${page}&limit=20`, {
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setTableData(json);
       } else {
@@ -977,7 +1079,13 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ rowData: newRowData })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setShowAddRowModal(false);
         setNewRowData({});
@@ -1016,7 +1124,13 @@ export const CloudDashboardPage: React.FC = () => {
           rowData: editRowData
         })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setEditingRow(null);
         setEditRowData({});
@@ -1047,7 +1161,13 @@ export const CloudDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ column: pkCol, value: pkVal })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         await loadTableData(showDbExplorerModal.id, selectedTable, tableData?.page || 1);
         const refreshTables = await fetch(`/api/cloud/databases/${showDbExplorerModal.id}/tables`, {
@@ -1079,7 +1199,13 @@ export const CloudDashboardPage: React.FC = () => {
           columns: newTableCols
         })
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setShowCreateTableModal(false);
         setNewTableName('');
@@ -1102,7 +1228,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         await openDbExplorerModal(showDbExplorerModal);
       } else {
@@ -1140,7 +1272,13 @@ export const CloudDashboardPage: React.FC = () => {
         })
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         setShowDomainModal(false);
         setDomainName('');
@@ -1187,7 +1325,13 @@ export const CloudDashboardPage: React.FC = () => {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${getAuthToken()}` }
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text && text.length < 150 ? text : `Server deployment error (${res.status}: ${res.statusText || 'Unknown'})` };
+      }
       if (json.success) {
         await fetchCloudData();
       } else {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './client/context/ThemeContext';
@@ -16,61 +16,79 @@ import { ActionNotificationProvider } from './client/context/ActionNotificationC
 import { GlobalRadioPlayer } from './client/components/player/GlobalRadioPlayer';
 import { FloatingPipTV } from './client/components/player/FloatingPipTV';
 import { RadioAdModal } from './client/components/ads/RadioAdModal';
-
-// Public Core Pages
-import { HomePage } from './client/pages/HomePage';
-import { ProjectsPage } from './client/pages/ProjectsPage';
-import { ProjectDetailPage } from './client/pages/ProjectDetailPage';
-import { ServicesPage } from './client/pages/ServicesPage';
-import { AboutPage } from './client/pages/AboutPage';
-import { BlogPage } from './client/pages/BlogPage';
-import { BlogDetailPage } from './client/pages/BlogDetailPage';
-import { ContactPage } from './client/pages/ContactPage';
-import { PrivacyPage } from './client/pages/PrivacyPage';
-import { CookiesPage } from './client/pages/CookiesPage';
-import { TermsPage } from './client/pages/TermsPage';
-import { NotFoundPage } from './client/pages/NotFoundPage';
 import { CoffeeProvider } from './client/context/CoffeeContext';
 import { FloatingCoffeeButton } from './client/components/coffee/FloatingCoffeeButton';
 import { BuyCoffeeModal } from './client/components/coffee/BuyCoffeeModal';
-
-// Unified Super-App Dashboard
-import { DashboardPage } from './client/pages/DashboardPage';
-
-// Integrated Super-App Module Pages
-import { TvPage } from './client/pages/modules/TvPage';
-import { VideosPage } from './client/pages/modules/VideosPage';
-import { RadioPage } from './client/pages/modules/RadioPage';
-import { GamesPage } from './client/pages/modules/GamesPage';
-import { MarketplacePage } from './client/pages/modules/MarketplacePage';
-import { VoxifyPage } from './client/pages/modules/VoxifyPage';
-import { KundaPage } from './client/pages/modules/KundaPage';
-import { EasyCalcPage } from './client/pages/modules/EasyCalcPage';
-import { CloudLandingPage } from './client/pages/modules/CloudLandingPage';
-import { CloudLoginPage, CloudRegisterPage } from './client/pages/cloud/CloudAuthPages';
-import { CloudDashboardPage } from './client/pages/cloud/CloudDashboardPage';
-import { CloudAdminPage } from './client/pages/cloud/CloudAdminPage';
-import { AppLiveViewPage } from './client/pages/cloud/AppLiveViewPage';
-import { MessagesPage } from './client/pages/MessagesPage';
-import { CreatorStudioPage } from './client/pages/CreatorStudioPage';
-import { AdvertisePage } from './client/pages/AdvertisePage';
 import { PwaInstallBanner } from './client/components/pwa/PwaInstallBanner';
-
-// Admin System Pages
-import { AdminLoginPage } from './client/pages/admin/AdminLoginPage';
-import { AdminDashboardPage } from './client/pages/admin/AdminDashboardPage';
-import { AdminProjectsPage } from './client/pages/admin/AdminProjectsPage';
-import { AdminBlogPage } from './client/pages/admin/AdminBlogPage';
-import { AdminBlogEditPage } from './client/pages/admin/AdminBlogEditPage';
-import { AdminAnalyticsPage } from './client/pages/admin/AdminAnalyticsPage';
-import { AdminSeoPage } from './client/pages/admin/AdminSeoPage';
-import { AdminSettingsPage } from './client/pages/admin/AdminSettingsPage';
-import { AdminProfilePage } from './client/pages/admin/AdminProfilePage';
-import { AdminUsersPage } from './client/pages/admin/AdminUsersPage';
 import { getAuthToken } from './client/services/api';
-
 import { RouteAnalyticsTracker } from './client/analytics/tracker';
 import { ScrollToTop } from './client/components/common/ScrollToTop';
+
+// Dynamic code-splitting helper for named and default exports
+function lazyNamed<T extends React.ComponentType<any>>(
+  factory: () => Promise<any>,
+  name: string
+) {
+  return React.lazy(() =>
+    factory().then((m) => ({
+      default: m[name] || m.default
+    }))
+  );
+}
+
+// Fallback loader during dynamic chunk fetches
+const PageLoader: React.FC = () => (
+  <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 bg-[#0B0E14]">
+    <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+    <span className="text-xs font-semibold text-slate-400 mt-3 animate-pulse">Loading BenixSpace...</span>
+  </div>
+);
+
+// Lazy Loaded Core Pages
+const HomePage = lazyNamed(() => import('./client/pages/HomePage'), 'HomePage');
+const ProjectsPage = lazyNamed(() => import('./client/pages/ProjectsPage'), 'ProjectsPage');
+const ProjectDetailPage = lazyNamed(() => import('./client/pages/ProjectDetailPage'), 'ProjectDetailPage');
+const ServicesPage = lazyNamed(() => import('./client/pages/ServicesPage'), 'ServicesPage');
+const AboutPage = lazyNamed(() => import('./client/pages/AboutPage'), 'AboutPage');
+const BlogPage = lazyNamed(() => import('./client/pages/BlogPage'), 'BlogPage');
+const BlogDetailPage = lazyNamed(() => import('./client/pages/BlogDetailPage'), 'BlogDetailPage');
+const ContactPage = lazyNamed(() => import('./client/pages/ContactPage'), 'ContactPage');
+const PrivacyPage = lazyNamed(() => import('./client/pages/PrivacyPage'), 'PrivacyPage');
+const CookiesPage = lazyNamed(() => import('./client/pages/CookiesPage'), 'CookiesPage');
+const TermsPage = lazyNamed(() => import('./client/pages/TermsPage'), 'TermsPage');
+const NotFoundPage = lazyNamed(() => import('./client/pages/NotFoundPage'), 'NotFoundPage');
+
+// Lazy Loaded Super-App Dashboard & Modules
+const DashboardPage = lazyNamed(() => import('./client/pages/DashboardPage'), 'DashboardPage');
+const TvPage = lazyNamed(() => import('./client/pages/modules/TvPage'), 'TvPage');
+const VideosPage = lazyNamed(() => import('./client/pages/modules/VideosPage'), 'VideosPage');
+const RadioPage = lazyNamed(() => import('./client/pages/modules/RadioPage'), 'RadioPage');
+const GamesPage = lazyNamed(() => import('./client/pages/modules/GamesPage'), 'GamesPage');
+const MarketplacePage = lazyNamed(() => import('./client/pages/modules/MarketplacePage'), 'MarketplacePage');
+const VoxifyPage = lazyNamed(() => import('./client/pages/modules/VoxifyPage'), 'VoxifyPage');
+const KundaPage = lazyNamed(() => import('./client/pages/modules/KundaPage'), 'KundaPage');
+const EasyCalcPage = lazyNamed(() => import('./client/pages/modules/EasyCalcPage'), 'EasyCalcPage');
+const CloudLandingPage = lazyNamed(() => import('./client/pages/modules/CloudLandingPage'), 'CloudLandingPage');
+const CloudLoginPage = lazyNamed(() => import('./client/pages/cloud/CloudAuthPages'), 'CloudLoginPage');
+const CloudRegisterPage = lazyNamed(() => import('./client/pages/cloud/CloudAuthPages'), 'CloudRegisterPage');
+const CloudDashboardPage = lazyNamed(() => import('./client/pages/cloud/CloudDashboardPage'), 'CloudDashboardPage');
+const CloudAdminPage = lazyNamed(() => import('./client/pages/cloud/CloudAdminPage'), 'CloudAdminPage');
+const AppLiveViewPage = lazyNamed(() => import('./client/pages/cloud/AppLiveViewPage'), 'AppLiveViewPage');
+const MessagesPage = lazyNamed(() => import('./client/pages/MessagesPage'), 'MessagesPage');
+const CreatorStudioPage = lazyNamed(() => import('./client/pages/CreatorStudioPage'), 'CreatorStudioPage');
+const AdvertisePage = lazyNamed(() => import('./client/pages/AdvertisePage'), 'AdvertisePage');
+
+// Lazy Loaded Admin Pages
+const AdminLoginPage = lazyNamed(() => import('./client/pages/admin/AdminLoginPage'), 'AdminLoginPage');
+const AdminDashboardPage = lazyNamed(() => import('./client/pages/admin/AdminDashboardPage'), 'AdminDashboardPage');
+const AdminProjectsPage = lazyNamed(() => import('./client/pages/admin/AdminProjectsPage'), 'AdminProjectsPage');
+const AdminBlogPage = lazyNamed(() => import('./client/pages/admin/AdminBlogPage'), 'AdminBlogPage');
+const AdminBlogEditPage = lazyNamed(() => import('./client/pages/admin/AdminBlogEditPage'), 'AdminBlogEditPage');
+const AdminAnalyticsPage = lazyNamed(() => import('./client/pages/admin/AdminAnalyticsPage'), 'AdminAnalyticsPage');
+const AdminSeoPage = lazyNamed(() => import('./client/pages/admin/AdminSeoPage'), 'AdminSeoPage');
+const AdminSettingsPage = lazyNamed(() => import('./client/pages/admin/AdminSettingsPage'), 'AdminSettingsPage');
+const AdminProfilePage = lazyNamed(() => import('./client/pages/admin/AdminProfilePage'), 'AdminProfilePage');
+const AdminUsersPage = lazyNamed(() => import('./client/pages/admin/AdminUsersPage'), 'AdminUsersPage');
 
 const ProtectedCustomerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -153,205 +171,207 @@ export const App: React.FC = () => {
                   <PlayerProvider>
                     <UploadProvider>
                       <SidebarProvider>
-                <Router>
-              <ScrollToTop />
-              <RouteAnalyticsTracker />
-              <Routes>
-                
-                {/* Benix Cloud Standalone Console & Auth Routes */}
-                <Route path="/cloud/login" element={<CloudLoginPage />} />
-                <Route path="/cloud/register" element={<CloudRegisterPage />} />
-                <Route
-                  path="/cloud/admin"
-                  element={
-                    <ProtectedAdminRoute>
-                      <CloudAdminPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
+                        <Router>
+                          <ScrollToTop />
+                          <RouteAnalyticsTracker />
+                          <Suspense fallback={<PageLoader />}>
+                            <Routes>
+                              {/* Benix Cloud Standalone Console & Auth Routes */}
+                              <Route path="/cloud/login" element={<CloudLoginPage />} />
+                              <Route path="/cloud/register" element={<CloudRegisterPage />} />
+                              <Route
+                                path="/cloud/admin"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <CloudAdminPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
 
-                {/* Admin Routes (No default Navbar/Footer) */}
-                <Route path="/admin/login" element={<AdminLoginPage />} />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminDashboardPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/projects"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminProjectsPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/blog"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminBlogPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/blog/new"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminBlogEditPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/blog/edit/:id"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminBlogEditPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/users"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminUsersPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/profile"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminProfilePage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/analytics"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminAnalyticsPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/seo"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminSeoPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/settings"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminSettingsPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/settings/company"
-                  element={
-                    <ProtectedAdminRoute>
-                      <AdminSettingsPage />
-                    </ProtectedAdminRoute>
-                  }
-                />
+                              {/* Admin Routes (No default Navbar/Footer) */}
+                              <Route path="/admin/login" element={<AdminLoginPage />} />
+                              <Route
+                                path="/admin"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminDashboardPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/projects"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminProjectsPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/blog"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminBlogPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/blog/new"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminBlogEditPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/blog/edit/:id"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminBlogEditPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/users"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminUsersPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/profile"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminProfilePage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/analytics"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminAnalyticsPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/seo"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminSeoPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/settings"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminSettingsPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
+                              <Route
+                                path="/admin/settings/company"
+                                element={
+                                  <ProtectedAdminRoute>
+                                    <AdminSettingsPage />
+                                  </ProtectedAdminRoute>
+                                }
+                              />
 
-                {/* Standalone Independent App Hosting Viewers (Zero Shell / No Navbar / Fullscreen) */}
-                <Route path="/apps/:appName/*" element={<AppLiveViewPage />} />
-                <Route path="/apps/:appName" element={<AppLiveViewPage />} />
-                <Route path="/live/:deploymentId/*" element={<AppLiveViewPage />} />
-                <Route path="/live/:deploymentId" element={<AppLiveViewPage />} />
+                              {/* Standalone Independent App Hosting Viewers (Zero Shell / No Navbar / Fullscreen) */}
+                              <Route path="/apps/:appName/*" element={<AppLiveViewPage />} />
+                              <Route path="/apps/:appName" element={<AppLiveViewPage />} />
+                              <Route path="/live/:deploymentId/*" element={<AppLiveViewPage />} />
+                              <Route path="/live/:deploymentId" element={<AppLiveViewPage />} />
 
-                {/* Public Super-App Routes (Wrapped with Unified Navbar, Footer, and BottomNav) */}
-                <Route
-                  path="*"
-                  element={
-                    <div className="flex flex-col min-h-screen pb-16 md:pb-0 bg-[#0B0E14]">
-                      <Navbar />
-                      <div className="flex-1 flex overflow-x-hidden">
-                        <YouTubeSidebar />
-                        <div className="flex-1 min-w-0 flex flex-col">
-                          <main className="flex-1">
-                        <Routes>
-                          <Route path="/" element={<HomePage />} />
-                          
-                          {/* Unified Dashboard */}
-                          <Route path="/dashboard" element={<DashboardPage />} />
-                          <Route path="/smm" element={<Navigate to="/dashboard#smm" replace />} />
-                          <Route path="/boost" element={<Navigate to="/dashboard#smm" replace />} />
-                          <Route path="/messages" element={<MessagesPage />} />
-                          <Route path="/chat" element={<Navigate to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com" replace />} />
+                              {/* Public Super-App Routes (Wrapped with Unified Navbar, Footer, and BottomNav) */}
+                              <Route
+                                path="*"
+                                element={
+                                  <div className="flex flex-col min-h-screen pb-16 md:pb-0 bg-[#0B0E14]">
+                                    <Navbar />
+                                    <div className="flex-1 flex overflow-x-hidden">
+                                      <YouTubeSidebar />
+                                      <div className="flex-1 min-w-0 flex flex-col">
+                                        <main className="flex-1">
+                                          <Suspense fallback={<PageLoader />}>
+                                            <Routes>
+                                              <Route path="/" element={<HomePage />} />
+                                              
+                                              {/* Unified Dashboard */}
+                                              <Route path="/dashboard" element={<DashboardPage />} />
+                                              <Route path="/smm" element={<Navigate to="/dashboard#smm" replace />} />
+                                              <Route path="/boost" element={<Navigate to="/dashboard#smm" replace />} />
+                                              <Route path="/messages" element={<MessagesPage />} />
+                                              <Route path="/chat" element={<Navigate to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com" replace />} />
 
-                          {/* Integrated Module Pages */}
-                          <Route path="/shorts" element={<VideosPage initialTab="shorts" />} />
-                          <Route path="/videos" element={<VideosPage initialTab="videos" />} />
-                          <Route path="/videos/:id" element={<VideosPage initialTab="videos" />} />
-                          <Route path="/studio" element={<CreatorStudioPage />} />
-                          <Route path="/advertise" element={<AdvertisePage />} />
-                          <Route path="/ads/create" element={<AdvertisePage />} />
-                          <Route path="/tv" element={<TvPage />} />
-                          <Route path="/radio" element={<RadioPage />} />
-                          <Route path="/games" element={<GamesPage />} />
-                          <Route path="/dice" element={<GamesPage />} />
-                          <Route path="/marketplace" element={<MarketplacePage />} />
-                          <Route path="/shop" element={<MarketplacePage />} />
-                          <Route path="/music" element={<VoxifyPage />} />
-                          <Route path="/voxify" element={<VoxifyPage />} />
-                          <Route path="/dating" element={<KundaPage />} />
-                          <Route path="/kunda" element={<KundaPage />} />
-                          <Route path="/calc" element={<EasyCalcPage />} />
-                          <Route path="/calculators" element={<EasyCalcPage />} />
-                          <Route path="/cloud" element={<CloudLandingPage />} />
-                          <Route
-                            path="/cloud/dashboard"
-                            element={
-                              <ProtectedCustomerRoute>
-                                <CloudDashboardPage />
-                              </ProtectedCustomerRoute>
-                            }
-                          />
+                                              {/* Integrated Module Pages */}
+                                              <Route path="/shorts" element={<VideosPage initialTab="shorts" />} />
+                                              <Route path="/videos" element={<VideosPage initialTab="videos" />} />
+                                              <Route path="/videos/:id" element={<VideosPage initialTab="videos" />} />
+                                              <Route path="/studio" element={<CreatorStudioPage />} />
+                                              <Route path="/advertise" element={<AdvertisePage />} />
+                                              <Route path="/ads/create" element={<AdvertisePage />} />
+                                              <Route path="/tv" element={<TvPage />} />
+                                              <Route path="/radio" element={<RadioPage />} />
+                                              <Route path="/games" element={<GamesPage />} />
+                                              <Route path="/dice" element={<GamesPage />} />
+                                              <Route path="/marketplace" element={<MarketplacePage />} />
+                                              <Route path="/shop" element={<MarketplacePage />} />
+                                              <Route path="/music" element={<VoxifyPage />} />
+                                              <Route path="/voxify" element={<VoxifyPage />} />
+                                              <Route path="/dating" element={<KundaPage />} />
+                                              <Route path="/kunda" element={<KundaPage />} />
+                                              <Route path="/calc" element={<EasyCalcPage />} />
+                                              <Route path="/calculators" element={<EasyCalcPage />} />
+                                              <Route path="/cloud" element={<CloudLandingPage />} />
+                                              <Route
+                                                path="/cloud/dashboard"
+                                                element={
+                                                  <ProtectedCustomerRoute>
+                                                    <CloudDashboardPage />
+                                                  </ProtectedCustomerRoute>
+                                                }
+                                              />
 
-                          {/* Core Platform Pages */}
-                          <Route path="/projects" element={<ProjectsPage />} />
-                          <Route path="/projects/:slug" element={<ProjectDetailPage />} />
-                          <Route path="/services" element={<ServicesPage />} />
-                          <Route path="/about" element={<AboutPage />} />
-                          <Route path="/blog" element={<BlogPage />} />
-                          <Route path="/blog/:slug" element={<BlogDetailPage />} />
-                          <Route path="/contact" element={<ContactPage />} />
-                          <Route path="/terms" element={<TermsPage />} />
-                          <Route path="/privacy" element={<PrivacyPage />} />
-                          <Route path="/cookies" element={<CookiesPage />} />
-                          <Route path="*" element={<NotFoundPage />} />
-                        </Routes>
-                      </main>
-                          <Footer />
-                        </div>
-                      </div>
-                      <BottomNav />
-                      <GlobalPlayerLayer />
-                    </div>
-                  }
-                />
-
-              </Routes>
-            </Router>
+                                              {/* Core Platform Pages */}
+                                              <Route path="/projects" element={<ProjectsPage />} />
+                                              <Route path="/projects/:slug" element={<ProjectDetailPage />} />
+                                              <Route path="/services" element={<ServicesPage />} />
+                                              <Route path="/about" element={<AboutPage />} />
+                                              <Route path="/blog" element={<BlogPage />} />
+                                              <Route path="/blog/:slug" element={<BlogDetailPage />} />
+                                              <Route path="/contact" element={<ContactPage />} />
+                                              <Route path="/terms" element={<TermsPage />} />
+                                              <Route path="/privacy" element={<PrivacyPage />} />
+                                              <Route path="/cookies" element={<CookiesPage />} />
+                                              <Route path="*" element={<NotFoundPage />} />
+                                            </Routes>
+                                          </Suspense>
+                                        </main>
+                                        <Footer />
+                                      </div>
+                                    </div>
+                                    <BottomNav />
+                                    <GlobalPlayerLayer />
+                                  </div>
+                                }
+                              />
+                            </Routes>
+                          </Suspense>
+                        </Router>
                       </SidebarProvider>
                     </UploadProvider>
                   </PlayerProvider>
-        </ActionNotificationProvider>
-        </PwaProvider>
-      </CoffeeProvider>
-      </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
-  </HelmetProvider>
-);
+                </ActionNotificationProvider>
+              </PwaProvider>
+            </CoffeeProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </HelmetProvider>
+  );
 };
 
 export default App;

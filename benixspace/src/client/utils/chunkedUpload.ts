@@ -52,104 +52,74 @@ export const compressImageClient = (file: File, maxDimension = 1080, quality = 0
   });
 };
 
-/**
- * Convert Blob or Slice to base64 string
- */
-const blobToBase64 = (blob: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      // Strip metadata prefix (data:*/*;base64,) to send raw base64 data
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx !== -1 ? result.substring(commaIdx + 1) : result);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-};
-
-export interface ChunkUploadOptions {
+export interface UploadOptions {
   onProgress?: (percent: number) => void;
   folder?: string;
-  chunkSize?: number; // default 2,500,000 bytes (~2.5 MB) for 2.5x faster upload speed
+  fileName?: string;
 }
 
 /**
- * Resilient Chunked Upload for Vercel Serverless
- * Slices any file into 1MB chunks, posts to /api/upload/chunk, reassembles on server,
- * and uploads to Google Drive / Multi-Drive with zero payload limit issues!
+ * Direct Upload to Cloudflare R2 via 60-second Pre-Signed URL
+ * 0 MB Node.js RAM usage and 0 server bandwidth
+ * Browser uploads directly to Cloudflare R2 via HTTP PUT
  */
-export async function uploadFileInChunks(
-  file: File,
-  options: ChunkUploadOptions = {}
+export async function uploadDirectToR2(
+  file: File | Blob,
+  options: UploadOptions = {}
 ): Promise<string> {
-  const { onProgress, folder = 'media', chunkSize = 2500000 } = options;
+  const { onProgress, folder = 'media' } = options;
   const token = getAuthToken();
 
   let fileToUpload: Blob = file;
-
-  // Compress images first to save memory & bandwidth
-  if (file.type.startsWith('image/')) {
-    fileToUpload = await compressImageClient(file, 1080, 0.75);
+  if (file.type && file.type.startsWith('image/')) {
+    fileToUpload = await compressImageClient(file as File, 1080, 0.75);
   }
 
-  const fileSize = fileToUpload.size;
-  const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
-  const uploadId = `upl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const rawFileName = options.fileName || (file instanceof File ? file.name : `media_${Date.now()}.jpg`);
+  const safeFileName = rawFileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  const mimeType = fileToUpload.type || 'application/octet-stream';
 
-  if (onProgress) onProgress(5);
-
-  let finalUrl = '';
-
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * chunkSize;
-    const end = Math.min(fileSize, start + chunkSize);
-    const chunkBlob = fileToUpload.slice(start, end);
-    const chunkBase64 = await blobToBase64(chunkBlob);
-
-    let res: any = null;
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (attempts < maxAttempts) {
-      try {
-        attempts++;
-        res = await axios.post(
-          '/api/upload/chunk',
-          {
-            uploadId,
-            chunkIndex: i,
-            totalChunks,
-            fileName: file.name,
-            fileType: file.type || 'application/octet-stream',
-            chunkData: chunkBase64,
-            folder
-          },
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-            timeout: 30000 // 30s per chunk
-          }
-        );
-        break;
-      } catch (postErr: any) {
-        if (attempts >= maxAttempts) throw postErr;
-        await new Promise((r) => setTimeout(r, 1000 * attempts));
+  // 1. Request 60-second presigned upload URL from Benix backend
+  const presignRes = await axios.post(
+    '/api/media/presigned-upload',
+    {
+      fileName: safeFileName,
+      fileType: mimeType,
+      folder
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       }
     }
+  );
 
-    const pct = Math.round(((i + 1) / totalChunks) * 95);
-    if (onProgress) onProgress(pct);
+  const { uploadUrl, publicUrl } = presignRes.data;
 
-    if (i === totalChunks - 1) {
-      if (res?.data?.url) {
-        finalUrl = res.data.url;
-      } else {
-        throw new Error(res?.data?.error || 'Failed to assemble uploaded chunks.');
+  // 2. Direct HTTP PUT upload to Cloudflare R2
+  await axios.put(uploadUrl, fileToUpload, {
+    headers: {
+      'Content-Type': mimeType
+    },
+    onUploadProgress: (progressEvent) => {
+      if (onProgress && progressEvent.total) {
+        const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+        onProgress(Math.min(99, percent));
       }
     }
-  }
+  });
 
   if (onProgress) onProgress(100);
-  return finalUrl;
+  return publicUrl;
+}
+
+/**
+ * Backwards compatibility alias for components calling uploadFileInChunks
+ */
+export async function uploadFileInChunks(
+  file: File,
+  options: UploadOptions = {}
+): Promise<string> {
+  return uploadDirectToR2(file, options);
 }

@@ -73,78 +73,36 @@ interface VideoItem {
 // 94 Real YouTube videos provided by user (real creators & titles, 0 fake subscriber counters)
 const FALLBACK_VIDEOS: VideoItem[] = realVideosData as VideoItem[];
 
+export function extractYouTubeId(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed) && !trimmed.startsWith('vid-')) return trimmed;
+  const match = trimmed.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/|e\/)|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/i
+  );
+  return match ? match[1] : null;
+}
+
 export function getSafeYouTubeEmbedUrl(
   video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined,
   quality: string = '720p'
 ): string {
   if (!video) return '';
-  const vidId = video.id?.trim();
-  const vqMap: Record<string, string> = {
-    '1080p': 'hd1080',
-    '720p': 'hd720',
-    '480p': 'large',
-    '360p': 'medium'
-  };
-  const vq = vqMap[quality] || 'hd720';
-
-  // If video id is a standard 11-char YouTube ID (e.g. B0xTrgyZGeM)
-  if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId)) {
-    return `https://www.youtube.com/embed/${vidId}?autoplay=1&enablejsapi=1&playsinline=1&rel=0&vq=${vq}`;
+  const vidId = extractYouTubeId(video.id) || extractYouTubeId(video.embedUrl) || extractYouTubeId(video.videoUrl);
+  if (vidId) {
+    return `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&enablejsapi=1&playsinline=1&rel=0`;
   }
-
-  // Check in embedUrl or videoUrl
   const urlCandidate = (video.embedUrl || video.videoUrl || '').trim();
-  const ytMatch = urlCandidate.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  if (ytMatch && ytMatch[1]) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&playsinline=1&rel=0&vq=${vq}`;
-  }
-
   if (urlCandidate.includes('/embed/')) {
     const separator = urlCandidate.includes('?') ? '&' : '?';
-    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1&playsinline=1&rel=0&vq=${vq}`;
+    return `${urlCandidate}${separator}autoplay=1&enablejsapi=1&playsinline=1&rel=0`;
   }
-
   return urlCandidate;
 }
 
 export function isYouTubeVideo(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): boolean {
   if (!video) return false;
-  const vidId = video.id?.trim();
-  if (vidId && /^[a-zA-Z0-9_-]{11}$/.test(vidId) && !vidId.startsWith('vid-')) return true;
-  const str = (video.embedUrl || video.videoUrl || '').toLowerCase();
-  return (str.includes('youtube.com') || str.includes('youtu.be')) && !str.includes('drive.google');
-}
-
-export function isGoogleDriveVideo(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): boolean {
-  if (!video) return false;
-  const str = (video.embedUrl || video.videoUrl || '').toLowerCase();
-  return str.includes('drive.google.com') || str.includes('docs.google.com');
-}
-
-export function getGoogleDrivePreviewUrl(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): string {
-  if (!video) return '';
-  const url = (video.embedUrl || video.videoUrl || '').trim();
-  const match = url.match(/(?:\/d\/|id=)([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `/api/media/stream/${match[1]}`;
-  }
-  return url;
-}
-
-export function getSafeVideoSrc(video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined): string {
-  if (!video) return '';
-  const url = (video.embedUrl || (video as any).videoUrl || '').trim();
-  if (isGoogleDriveVideo(video)) {
-    const match = url.match(/(?:\/d\/|id=)([a-zA-Z0-9_-]+)/);
-    if (match && match[1]) {
-      return `/api/media/stream/${match[1]}`;
-    }
-  }
-  if (url.startsWith('/uploads/') || url.includes('/uploads/')) {
-    const filename = url.split('/uploads/')[1];
-    if (filename) return `/api/uploads/${filename}`;
-  }
-  return url;
+  return Boolean(extractYouTubeId(video.id) || extractYouTubeId(video.embedUrl) || extractYouTubeId(video.videoUrl));
 }
 
 const CATEGORIES = [
@@ -1298,57 +1256,25 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
                   !isControlsVisible && isPlaying ? 'cursor-none' : 'cursor-default'
                 }`}
               >
-                {/* Media Screen (YouTube / Direct Video Stream via /api/media/stream) */}
-                {isYouTubeVideo(activeVideo) ? (
-                  <div className="relative w-full h-full">
-                    <iframe
-                      ref={iframeRef}
-                      src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
-                      title={activeVideo.title}
-                      className="w-full h-full border-0 relative z-10 pointer-events-auto"
-                      allow="accelerometer; autoplay *; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                    />
-                    {/* Transparent Click/Hover Overlay on top of iframe (excluding bottom controls area) */}
-                    <div
-                      className="absolute inset-0 bottom-16 z-20 cursor-pointer"
-                      onClick={handlePlayerTap}
-                      onMouseMove={showControls}
-                      onTouchStart={showControls}
-                      title={isPlaying ? "Click to Pause" : "Click to Play"}
-                    />
-                  </div>
-                ) : (
-                  <video
-                    ref={videoRef}
-                    key={activeVideo.id}
-                    src={getSafeVideoSrc(activeVideo)}
-                    controls={false}
-                    autoPlay
-                    playsInline
-                    preload={activeQuality === '360p' || activeQuality === '480p' ? 'metadata' : 'auto'}
-                    className="w-full h-full object-contain bg-black relative z-10 cursor-pointer"
-                    poster={activeVideo.thumbnail}
+                {/* Media Screen (Responsive Sandboxed YouTube Embed) */}
+                <div className="relative w-full h-full">
+                  <iframe
+                    ref={iframeRef}
+                    src={getSafeYouTubeEmbedUrl(activeVideo, activeQuality)}
+                    title={activeVideo.title}
+                    className="w-full h-full border-0 relative z-10 pointer-events-auto"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                  {/* Transparent Click/Hover Overlay on top of iframe (excluding bottom controls area) */}
+                  <div
+                    className="absolute inset-0 bottom-16 z-20 cursor-pointer"
                     onClick={handlePlayerTap}
                     onMouseMove={showControls}
                     onTouchStart={showControls}
-                    onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
-                    onDurationChange={(e) => setVideoDuration(e.currentTarget.duration || 0)}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onEnded={handleVideoEnded}
-                    onTimeUpdate={(e) => {
-                      const cur = e.currentTarget.currentTime;
-                      setVideoCurrentTime(cur);
-                      const limitSec = Math.max(12, Math.floor((parseSeconds(activeVideo.duration) || 300) * 0.20));
-                      if (!isVideoUnlocked(activeVideo) && cur >= limitSec) {
-                        e.currentTarget.pause();
-                        e.currentTarget.currentTime = limitSec;
-                        setIsPreviewEnded(true);
-                      }
-                    }}
+                    title={isPlaying ? "Click to Pause" : "Click to Play"}
                   />
-                )}
+                </div>
 
                 {/* 20% Free Preview Remaining Banner (before unlock) */}
                 {!isVideoUnlocked(activeVideo) && !isPreviewEnded && (

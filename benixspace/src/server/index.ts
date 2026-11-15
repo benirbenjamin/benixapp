@@ -4152,107 +4152,46 @@ app.post('/api/admin/users/:id/role', authenticateToken, requireAdminRole, async
 });
 
 
-// ==================== 2.45 CHUNKED UPLOAD API (VERCEL SERVERLESS RESILIENT) ==================== //
+// ==================== 2.45 CLOUDFLARE R2 DIRECT PRESIGNED UPLOAD API ==================== //
 
-async function ensureUploadChunksTable() {
-  await query(`
-    CREATE TABLE IF NOT EXISTS upload_chunks (
-      upload_id VARCHAR(255) NOT NULL,
-      chunk_index INT NOT NULL,
-      total_chunks INT NOT NULL,
-      chunk_data TEXT NOT NULL,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (upload_id, chunk_index)
-    );
-  `).catch(() => {});
-}
+// Clean up any obsolete upload_chunks table
+query('DROP TABLE IF EXISTS upload_chunks;').catch(() => {});
 
-app.post('/api/upload/chunk', async (req, res) => {
+/**
+ * 60-Second Direct Cloudflare R2 Pre-Signed Upload URL
+ * Direct client PUT upload with 0 MB Node.js RAM and 0 server bandwidth
+ */
+app.post('/api/media/presigned-upload', async (req, res) => {
   try {
-    const { uploadId, chunkIndex, totalChunks, fileName, fileType, chunkData, folder = 'media' } = req.body;
-    if (!uploadId || chunkIndex === undefined || !totalChunks || !chunkData) {
-      return res.status(400).json({ error: 'Missing chunk upload metadata.' });
+    const { fileName, fileType, folder = 'media' } = req.body;
+    if (!fileName || !fileType) {
+      return res.status(400).json({ error: 'fileName and fileType are required.' });
     }
 
-    await ensureUploadChunksTable();
-
-    // Store this chunk in PostgreSQL
-    await query(
-      `INSERT INTO upload_chunks (upload_id, chunk_index, total_chunks, chunk_data)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (upload_id, chunk_index) DO UPDATE SET chunk_data = $4`,
-      [uploadId, Number(chunkIndex), Number(totalChunks), chunkData]
-    );
-
-    // If not the last chunk, return immediately with progress confirmation
-    if (Number(chunkIndex) < Number(totalChunks) - 1) {
-      return res.json({ success: true, chunkReceived: Number(chunkIndex) });
-    }
-
-    // Last chunk received: assemble all chunks in order
-    const allChunksRes = await query(
-      `SELECT chunk_index, chunk_data FROM upload_chunks WHERE upload_id = $1 ORDER BY chunk_index ASC`,
-      [uploadId]
-    );
-
-    if (allChunksRes.rowCount < Number(totalChunks)) {
-      return res.status(400).json({
-        error: `Incomplete chunks. Received ${allChunksRes.rowCount} of ${totalChunks}.`
-      });
-    }
-
-    // Assemble base64 chunks into full binary Buffer
-    const bufferParts = allChunksRes.rows.map((r: any) => Buffer.from(r.chunk_data, 'base64'));
-    const fullBuffer = Buffer.concat(bufferParts);
-
-    // Clean up temporary chunks from database
-    await query(`DELETE FROM upload_chunks WHERE upload_id = $1`, [uploadId]).catch(() => {});
-
-    // Upload to Multi-Google Drive or Server storage
-    const mime = fileType || (fileName?.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream');
-    const safeFileName = `${Date.now()}_${(fileName || 'media.mp4').replace(/[^a-zA-Z0-9_\.-]/g, '_')}`;
-    const uploadResult = await StorageService.uploadFile(safeFileName, mime, fullBuffer);
-
-    // Clean up any stale chunks older than 2 hours
-    query(`DELETE FROM upload_chunks WHERE created_at < NOW() - INTERVAL '2 hours'`).catch(() => {});
-
+    const presigned = await StorageService.generatePresignedUploadUrl(fileName, fileType, folder);
     return res.json({
       success: true,
-      url: uploadResult.fileUrl,
-      provider: uploadResult.provider,
-      sizeBytes: fullBuffer.length
+      ...presigned
     });
   } catch (err: any) {
-    console.error('Chunk upload error:', err);
-    return res.status(500).json({ error: err.message || 'Chunk upload failed.' });
+    console.error('Presigned upload generation error:', err);
+    return res.status(400).json({ error: err.message || 'Failed to generate presigned upload link.' });
   }
 });
 
 /**
- * Universal Video & Media Streamer (Google Drive & Direct Streams with HTTP 206 Partial Content)
+ * Deprecated Google Drive Streaming Endpoints (Retired in favor of Cloudflare R2 CDN & YouTube embeds)
  */
-app.get('/api/media/stream/:fileId', async (req, res) => {
-  try {
-    const { fileId } = req.params;
-    if (!fileId) return res.status(400).send('File ID required');
-    await StorageService.streamFromDrive(fileId, req.headers.range, res);
-  } catch (err: any) {
-    if (!res.headersSent) {
-      res.status(500).send('Streaming error: ' + err.message);
-    }
-  }
+app.get('/api/media/stream/:fileId', (req, res) => {
+  return res.status(410).json({
+    error: 'Google Drive proxy streaming has been retired. Media is delivered directly via high-speed Cloudflare R2 CDN.'
+  });
 });
 
-app.get('/api/videos/stream/:fileId', async (req, res) => {
-  try {
-    const { fileId } = req.params;
-    if (!fileId) return res.status(400).send('File ID required');
-    await StorageService.streamFromDrive(fileId, req.headers.range, res);
-  } catch (err: any) {
-    if (!res.headersSent) {
-      res.status(500).send('Streaming error: ' + err.message);
-    }
-  }
+app.get('/api/videos/stream/:fileId', (req, res) => {
+  return res.status(410).json({
+    error: 'Direct video chunk streaming proxy has been retired in favor of native YouTube embeds.'
+  });
 });
 
 /**
@@ -4478,6 +4417,10 @@ function ensureShortsFeedTablesOnce() {
   ]).catch(() => {});
 }
 
+app.get('/api/shorts', (req, res) => {
+  res.redirect(307, '/api/shorts/feed');
+});
+
 /**
  * Unified Shorts Feed (TikTok-Style Vertical Reels & Convergence of Stories + Portrait Videos)
  * Powered by dynamic trending & engagement ranking:
@@ -4498,7 +4441,7 @@ app.get('/api/shorts/feed', async (req, res) => {
       }
     }
 
-    // 1. Fetch ALL stories (both active and past/old stories) without 24h expiration limit
+    // 1. Fetch active stories (< 24 hours) integrated into vertical Shorts feed
     const storiesRes = await query(`
       SELECT 
         s.id, 
@@ -4525,6 +4468,7 @@ app.get('/api/shorts/feed', async (req, res) => {
         ) as "subscribersCount"
       FROM core_stories s
       LEFT JOIN core_users u ON s.user_id = u.id
+      WHERE (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)
       ORDER BY s.created_at DESC
       LIMIT 150
     `).catch(() => ({ rows: [] }));
@@ -4807,6 +4751,16 @@ async function ensureStoriesTable() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
     );
+    CREATE TABLE IF NOT EXISTS stories (
+      id VARCHAR(255) PRIMARY KEY,
+      user_id VARCHAR(255),
+      author_name TEXT NOT NULL,
+      author_avatar TEXT,
+      media_url TEXT NOT NULL,
+      caption TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
+    );
   `).catch(() => {});
   await query('ALTER TABLE core_stories ALTER COLUMN media_url TYPE TEXT;').catch(() => {});
   await query('ALTER TABLE core_stories ALTER COLUMN author_avatar TYPE TEXT;').catch(() => {});
@@ -4815,7 +4769,20 @@ async function ensureStoriesTable() {
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {});
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {});
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {});
+  await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {});
+  await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {});
+  await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {});
 }
+
+// 24-Hour Auto-Expiring Stories Background Cleanup Routine
+async function cleanupExpiredStories() {
+  try {
+    await query('DELETE FROM core_stories WHERE expires_at <= CURRENT_TIMESTAMP;').catch(() => {});
+    await query('DELETE FROM stories WHERE expires_at <= CURRENT_TIMESTAMP;').catch(() => {});
+  } catch {}
+}
+cleanupExpiredStories();
+setInterval(cleanupExpiredStories, 30 * 60 * 1000);
 
 // GET real active stories from PostgreSQL core_stories table
 app.get('/api/stories', async (req, res) => {
@@ -4976,7 +4943,7 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
     const storyId = 'story-' + Date.now();
     let finalUrl = mediaUrl;
 
-    // If mediaUrl is base64, save to PostgreSQL stored_media_files to prevent giant payloads
+    // If mediaUrl is base64, directly stream to Cloudflare R2
     if (typeof mediaUrl === 'string' && mediaUrl.startsWith('data:')) {
       try {
         const commaIdx = mediaUrl.indexOf(',');
@@ -4985,18 +4952,11 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
         const mime = header.replace(/^data:/, '').replace(/;base64$/, '') || (determinedType === 'video' ? 'video/mp4' : 'image/jpeg');
         const buf = Buffer.from(b64, 'base64');
         const ext = mime.split('/')[1]?.split(';')[0] || (determinedType === 'video' ? 'mp4' : 'jpg');
-        const fileId = `story_${storyId}`;
-        const fileName = `${fileId}.${ext}`;
-        await StorageService.ensureStoredMediaFilesTable();
-        await query(
-          `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (id) DO UPDATE SET file_data = $4, file_size = $5, mime_type = $3`,
-          [fileId, fileName, mime, buf, buf.length]
-        );
-        finalUrl = `/api/media/stream/${fileId}`;
+        const fileName = `story_${storyId}.${ext}`;
+        const uploaded = await StorageService.uploadFile(fileName, mime, buf, 'stories');
+        finalUrl = uploaded.fileUrl;
       } catch (err: any) {
-        console.warn('Story base64 storage notice:', err?.message);
+        console.warn('Story R2 upload notice:', err?.message);
       }
     }
 
@@ -5007,6 +4967,11 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
       [storyId, req.user!.id, authorName, authorAvatar, finalUrl, caption || '', determinedType, finalDuration, String(lifespanHours)]
     );
+    await query(
+      `INSERT INTO stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
+      [storyId, req.user!.id, authorName, authorAvatar, finalUrl, caption || '', determinedType, finalDuration, String(lifespanHours)]
+    ).catch(() => {});
 
     const newStory = {
       id: storyId,
@@ -5030,12 +4995,28 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
 
 app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { title, description, videoUrl, category = 'General', price = 0, driveFolder = 'primary', isPortrait, duration } = req.body;
+    const { title, description, videoUrl, category = 'General', price = 0, isPortrait, duration, thumbnailUrl } = req.body;
     if (!title || !videoUrl) {
-      return res.status(400).json({ error: 'Video title and video URL / file are required.' });
+      return res.status(400).json({ error: 'Video title and YouTube video URL are required.' });
     }
 
+    // Automatically parse 11-character YouTube video ID
+    const ytMatch = String(videoUrl || '').match(
+      /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/|e\/)|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/i
+    );
+    const parsedYtId = ytMatch ? ytMatch[1] : (/^[a-zA-Z0-9_-]{11}$/.test(String(videoUrl).trim()) ? String(videoUrl).trim() : null);
+
+    if (!parsedYtId) {
+      return res.status(400).json({
+        error: 'Invalid YouTube link. Please provide a standard, shortened, or YouTube Shorts URL (e.g. https://www.youtube.com/watch?v=... or https://youtu.be/...)'
+      });
+    }
+
+    const finalVideoUrl = `https://www.youtube.com/watch?v=${parsedYtId}`;
+    const finalThumbnailUrl = thumbnailUrl || `https://img.youtube.com/vi/${parsedYtId}/hqdefault.jpg`;
+
     const isPortraitVideo = Boolean(isPortrait) ||
+      String(videoUrl).includes('/shorts/') ||
       category.toLowerCase().includes('short') ||
       category.toLowerCase().includes('tiktok') ||
       category.toLowerCase().includes('story') ||
@@ -5050,22 +5031,24 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
       authorName: req.user!.email?.split('@')[0] || 'Benix Creator',
       title,
       description: description || '',
-      videoUrl,
+      videoUrl: finalVideoUrl,
+      youtubeId: parsedYtId,
+      thumbnailUrl: finalThumbnailUrl,
       category,
       price: Number(price) || 0,
       isPaid: Number(price) > 0,
       isPortrait: isPortraitVideo,
       duration: videoDuration,
-      driveFolder,
       views: 0,
       createdAt: new Date().toISOString()
     };
 
     userVideosList.unshift(newVideo);
 
+    await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(50);').catch(() => {});
     await query(
-      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, category, price, is_paid, is_portrait, duration)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         newVideo.id,
         newVideo.userId,
@@ -5073,14 +5056,16 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
         newVideo.title,
         newVideo.description,
         newVideo.videoUrl,
+        newVideo.thumbnailUrl,
         newVideo.category,
         newVideo.price,
         newVideo.isPaid,
         isPortraitVideo,
-        videoDuration
+        videoDuration,
+        parsedYtId
       ]
     ).catch(() => {});
-    return res.json({ success: true, video: newVideo, message: 'Video uploaded and ready for broadcast!' });
+    return res.json({ success: true, video: newVideo, message: 'YouTube video published and ready for broadcast!' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

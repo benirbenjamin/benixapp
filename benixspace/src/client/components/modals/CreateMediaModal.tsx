@@ -478,13 +478,30 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     onClose();
   };
 
+  // Extract 11-Character YouTube Video ID (Standard, Shortened, and Shorts)
+  const extractYouTubeId = (rawUrl: string): string | null => {
+    if (!rawUrl) return null;
+    const trimmed = rawUrl.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+    const match = trimmed.match(
+      /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/|e\/)|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/i
+    );
+    return match ? match[1] : null;
+  };
+
   // Fetch YouTube Metadata (Title, Author, Thumbnail) automatically via oEmbed
   const fetchYouTubeInfo = async (rawUrl: string) => {
     const trimmed = rawUrl.trim();
     if (!trimmed) return;
 
-    const isYouTube = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)/i.test(trimmed);
-    if (!isYouTube) return;
+    const vidId = extractYouTubeId(trimmed);
+    if (vidId) {
+      setVideoThumbnailUrl(`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`);
+      if (trimmed.includes('/shorts/')) {
+        setIsVideoPortrait(true);
+        setVideoCategory('Trending Shorts');
+      }
+    }
 
     setIsFetchingYouTube(true);
     setStatusMsg({ text: 'Fetching YouTube title, description and thumbnail...' });
@@ -503,24 +520,13 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           setVideoThumbnailUrl(data.thumbnail_url);
         }
         setStatusMsg({ text: '✨ Details fetched! You can freely edit the title and description below.' });
-      } else {
-        // Fallback: extract ID directly for thumbnail
-        let vidId = '';
-        if (trimmed.includes('youtu.be/')) vidId = trimmed.split('youtu.be/')[1]?.split('?')[0];
-        else if (trimmed.includes('v=')) vidId = trimmed.split('v=')[1]?.split('&')[0];
-        if (vidId) {
-          setVideoThumbnailUrl(`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`);
-          setStatusMsg({ text: 'YouTube link detected. Please enter a title and description.' });
-        }
+      } else if (vidId) {
+        setStatusMsg({ text: 'YouTube link detected. Please enter a title.' });
       }
     } catch {
-      let vidId = '';
-      if (trimmed.includes('youtu.be/')) vidId = trimmed.split('youtu.be/')[1]?.split('?')[0];
-      else if (trimmed.includes('v=')) vidId = trimmed.split('v=')[1]?.split('&')[0];
       if (vidId) {
-        setVideoThumbnailUrl(`https://img.youtube.com/vi/${vidId}/hqdefault.jpg`);
+        setStatusMsg({ text: 'YouTube link detected. Please enter a title.' });
       }
-      setStatusMsg({ text: 'YouTube link detected. Please enter a title.' });
     } finally {
       setIsFetchingYouTube(false);
     }
@@ -589,7 +595,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     }
   };
 
-  // Handle Video Broadcast submission
+  // Handle Video Broadcast submission (YouTube-Only System)
   const handleUploadVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMsg(null);
@@ -599,63 +605,37 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       return;
     }
 
-    if (!videoTitle.trim() || (!videoUrl.trim() && !selectedVideoFile)) {
-      setStatusMsg({ text: 'Video Title and Video Stream / File / YouTube Link are required.', error: true });
+    const ytId = extractYouTubeId(videoUrl);
+    if (!ytId) {
+      setStatusMsg({ text: 'Please enter a valid YouTube video URL or Shorts link (e.g. https://youtu.be/... or https://youtube.com/watch?v=...)', error: true });
+      return;
+    }
+
+    if (!videoTitle.trim()) {
+      setStatusMsg({ text: 'Video Title is required.', error: true });
       return;
     }
 
     // Capture parameters for background upload
     const titleToUpload = videoTitle.trim();
     const descToUpload = videoDesc.trim();
-    const rawUrlToUpload = videoUrl.trim();
-    const fileToUpload = videoSourceMode === 'file' ? selectedVideoFile : null;
     const categoryToUpload = videoCategory;
     const isPaidToUpload = isPaidVideo;
     const priceToUpload = isPaidVideo ? parseFloat(videoPrice) || 0 : 0;
     const channelNameToUpdate = channelNameInput.trim();
-    const thumbToUpload = videoThumbnailUrl.trim();
+    const thumbToUpload = videoThumbnailUrl.trim() || `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+    const formattedUrl = `https://www.youtube-nocookie.com/embed/${ytId}`;
 
     // Start background upload & close modal so user can browse anywhere
     startUpload(titleToUpload, 'video', async (updateProgress) => {
-      updateProgress(10);
+      updateProgress(20);
 
       // Save channel name if changed
       if (channelNameToUpdate !== user?.channel_name) {
         await updateProfile({ channel_name: channelNameToUpdate }).catch(() => {});
       }
 
-      updateProgress(20);
-
-      let formattedUrl = rawUrlToUpload;
-      let thumb = thumbToUpload;
-
-      if (fileToUpload) {
-        // Upload video file safely in chunks to bypass Vercel serverless 4.5MB limit
-        updateProgress(25);
-        formattedUrl = await uploadFileInChunks(fileToUpload, {
-          folder: 'videos',
-          onProgress: (pct) => {
-            // Scale progress from 25% to 75%
-            updateProgress(25 + Math.round(pct * 0.5));
-          }
-        });
-        if (!thumb) {
-          thumb = 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80';
-        }
-      } else {
-        // Clean / Format YouTube embed URL if applicable
-        if (formattedUrl.includes('youtube.com/watch?v=')) {
-          const id = formattedUrl.split('v=')[1]?.split('&')[0];
-          formattedUrl = `https://www.youtube.com/embed/${id}`;
-          if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-        } else if (formattedUrl.includes('youtu.be/')) {
-          const id = formattedUrl.split('youtu.be/')[1]?.split('?')[0];
-          formattedUrl = `https://www.youtube.com/embed/${id}`;
-          if (!thumb) thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-        }
-      }
-
-      updateProgress(80);
+      updateProgress(50);
 
       // 1. Post to module videos endpoint
       await fetch('/api/modules/videos', {
@@ -668,7 +648,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           title: titleToUpload,
           description: descToUpload,
           videoUrl: formattedUrl,
-          thumbnailUrl: thumb || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80',
+          embedUrl: formattedUrl,
+          thumbnailUrl: thumbToUpload,
+          youtubeId: ytId,
           category: categoryToUpload,
           price: priceToUpload,
           channelName: channelNameToUpdate || user?.channel_name || user?.name,
@@ -678,7 +660,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         })
       }).catch(() => {});
 
-      updateProgress(90);
+      updateProgress(80);
 
       // 2. Also record in user video uploads
       const res = await fetch('/api/videos/upload', {
@@ -691,6 +673,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           title: titleToUpload,
           description: descToUpload,
           videoUrl: formattedUrl,
+          embedUrl: formattedUrl,
+          thumbnailUrl: thumbToUpload,
+          youtubeId: ytId,
           category: categoryToUpload,
           price: priceToUpload,
           channelName: channelNameToUpdate || user?.channel_name || user?.name,
@@ -931,98 +916,49 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             </form>
           )}
 
-          {/* TAB 2: UPLOAD VIDEO (YouTube Auto-Fetch or Local Video Selection) */}
+          {/* TAB 2: BROADCAST YOUTUBE VIDEO */}
           {tab === 'video' && (
             <form onSubmit={handleUploadVideo} className="space-y-4">
               
-              {/* Video Source Selector: YouTube vs Local File */}
+              {/* Single YouTube Video Input (Standard, Shortened, or Shorts) */}
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Choose Video Source
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  YouTube Video or Shorts URL *
                 </label>
-                <div className="grid grid-cols-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={videoUrl}
+                    onChange={(e) => {
+                      setVideoUrl(e.target.value);
+                      const id = extractYouTubeId(e.target.value);
+                      if (id) {
+                        setVideoThumbnailUrl(`https://img.youtube.com/vi/${id}/hqdefault.jpg`);
+                        if (e.target.value.includes('/shorts/')) {
+                          setIsVideoPortrait(true);
+                          setVideoCategory('Trending Shorts');
+                        }
+                      }
+                    }}
+                    onBlur={() => fetchYouTubeInfo(videoUrl)}
+                    placeholder="https://youtu.be/... or https://youtube.com/watch?v=... or /shorts/..."
+                    required
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 font-mono"
+                  />
                   <button
                     type="button"
-                    onClick={() => setVideoSourceMode('youtube')}
-                    className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
-                      videoSourceMode === 'youtube'
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
+                    disabled={isFetchingYouTube || !videoUrl.trim()}
+                    onClick={() => fetchYouTubeInfo(videoUrl)}
+                    className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
                   >
-                    <LinkIcon className="w-3.5 h-3.5" />
-                    <span>YouTube Link</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVideoSourceMode('file')}
-                    className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
-                      videoSourceMode === 'file'
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <FileVideo className="w-3.5 h-3.5" />
-                    <span>Select Video File</span>
+                    <Search className="w-3.5 h-3.5" />
+                    <span>{isFetchingYouTube ? 'Fetching...' : 'Fetch Info'}</span>
                   </button>
                 </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Accepts Standard, Shortened, and Shorts URLs — Title, duration, and thumbnail are auto-extracted.
+                </span>
               </div>
-
-              {/* YouTube Link Input with Auto-Fetch */}
-              {videoSourceMode === 'youtube' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    YouTube Video URL *
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={videoUrl}
-                      onChange={(e) => {
-                        setVideoUrl(e.target.value);
-                      }}
-                      onBlur={() => fetchYouTubeInfo(videoUrl)}
-                      placeholder="https://youtu.be/... or https://youtube.com/watch?v=..."
-                      required
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 font-mono"
-                    />
-                    <button
-                      type="button"
-                      disabled={isFetchingYouTube || !videoUrl.trim()}
-                      onClick={() => fetchYouTubeInfo(videoUrl)}
-                      className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
-                    >
-                      <Search className="w-3.5 h-3.5" />
-                      <span>{isFetchingYouTube ? 'Fetching...' : 'Fetch Info'}</span>
-                    </button>
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    Paste any YouTube URL — we will automatically fetch the video title, description, and thumbnail!
-                  </span>
-                </div>
-              ) : (
-                /* Local Video File Picker */
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Select Video from Device *
-                  </label>
-                  <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 text-center hover:border-blue-500 transition-colors bg-[#121824]">
-                    <label className="cursor-pointer block py-4">
-                      <FileVideo className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                      <span className="text-xs font-bold text-white block">
-                        {selectedVideoFileName || 'Click to choose video from device'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block mt-1">MP4, WebM, MOV video files</span>
-                      <input
-                        type="file"
-                        accept="video/*"
-                        onChange={handleLocalVideoChange}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
 
               {/* Video Thumbnail (Auto-Generated Snapshot / Upload Custom / YouTube) */}
               <div className="space-y-2">
