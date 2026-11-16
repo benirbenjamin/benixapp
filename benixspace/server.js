@@ -164,46 +164,46 @@ var require_ms = __commonJS({
 var require_common = __commonJS({
   "node_modules/debug/src/common.js"(exports, module) {
     function setup(env2) {
-      createDebug.debug = createDebug;
-      createDebug.default = createDebug;
-      createDebug.coerce = coerce;
-      createDebug.disable = disable;
-      createDebug.enable = enable;
-      createDebug.enabled = enabled;
-      createDebug.humanize = require_ms();
-      createDebug.destroy = destroy;
+      createDebug3.debug = createDebug3;
+      createDebug3.default = createDebug3;
+      createDebug3.coerce = coerce;
+      createDebug3.disable = disable;
+      createDebug3.enable = enable;
+      createDebug3.enabled = enabled;
+      createDebug3.humanize = require_ms();
+      createDebug3.destroy = destroy;
       Object.keys(env2).forEach((key) => {
-        createDebug[key] = env2[key];
+        createDebug3[key] = env2[key];
       });
-      createDebug.names = [];
-      createDebug.skips = [];
-      createDebug.formatters = {};
+      createDebug3.names = [];
+      createDebug3.skips = [];
+      createDebug3.formatters = {};
       function selectColor(namespace) {
         let hash2 = 0;
         for (let i5 = 0; i5 < namespace.length; i5++) {
           hash2 = (hash2 << 5) - hash2 + namespace.charCodeAt(i5);
           hash2 |= 0;
         }
-        return createDebug.colors[Math.abs(hash2) % createDebug.colors.length];
+        return createDebug3.colors[Math.abs(hash2) % createDebug3.colors.length];
       }
-      createDebug.selectColor = selectColor;
-      function createDebug(namespace) {
+      createDebug3.selectColor = selectColor;
+      function createDebug3(namespace) {
         let prevTime;
         let enableOverride = null;
         let namespacesCache;
         let enabledCache;
-        function debug(...args) {
-          if (!debug.enabled) {
+        function debug3(...args) {
+          if (!debug3.enabled) {
             return;
           }
-          const self2 = debug;
+          const self2 = debug3;
           const curr = Number(/* @__PURE__ */ new Date());
           const ms = curr - (prevTime || curr);
           self2.diff = ms;
           self2.prev = prevTime;
           self2.curr = curr;
           prevTime = curr;
-          args[0] = createDebug.coerce(args[0]);
+          args[0] = createDebug3.coerce(args[0]);
           if (typeof args[0] !== "string") {
             args.unshift("%O");
           }
@@ -213,7 +213,7 @@ var require_common = __commonJS({
               return "%";
             }
             index++;
-            const formatter = createDebug.formatters[format2];
+            const formatter = createDebug3.formatters[format2];
             if (typeof formatter === "function") {
               const val = args[index];
               match = formatter.call(self2, val);
@@ -222,25 +222,25 @@ var require_common = __commonJS({
             }
             return match;
           });
-          createDebug.formatArgs.call(self2, args);
-          const logFn = self2.log || createDebug.log;
+          createDebug3.formatArgs.call(self2, args);
+          const logFn = self2.log || createDebug3.log;
           logFn.apply(self2, args);
         }
-        debug.namespace = namespace;
-        debug.useColors = createDebug.useColors();
-        debug.color = createDebug.selectColor(namespace);
-        debug.extend = extend2;
-        debug.destroy = createDebug.destroy;
-        Object.defineProperty(debug, "enabled", {
+        debug3.namespace = namespace;
+        debug3.useColors = createDebug3.useColors();
+        debug3.color = createDebug3.selectColor(namespace);
+        debug3.extend = extend2;
+        debug3.destroy = createDebug3.destroy;
+        Object.defineProperty(debug3, "enabled", {
           enumerable: true,
           configurable: false,
           get: () => {
             if (enableOverride !== null) {
               return enableOverride;
             }
-            if (namespacesCache !== createDebug.namespaces) {
-              namespacesCache = createDebug.namespaces;
-              enabledCache = createDebug.enabled(namespace);
+            if (namespacesCache !== createDebug3.namespaces) {
+              namespacesCache = createDebug3.namespaces;
+              enabledCache = createDebug3.enabled(namespace);
             }
             return enabledCache;
           },
@@ -248,27 +248,27 @@ var require_common = __commonJS({
             enableOverride = v2;
           }
         });
-        if (typeof createDebug.init === "function") {
-          createDebug.init(debug);
+        if (typeof createDebug3.init === "function") {
+          createDebug3.init(debug3);
         }
-        return debug;
+        return debug3;
       }
       function extend2(namespace, delimiter2) {
-        const newDebug = createDebug(this.namespace + (typeof delimiter2 === "undefined" ? ":" : delimiter2) + namespace);
+        const newDebug = createDebug3(this.namespace + (typeof delimiter2 === "undefined" ? ":" : delimiter2) + namespace);
         newDebug.log = this.log;
         return newDebug;
       }
       function enable(namespaces) {
-        createDebug.save(namespaces);
-        createDebug.namespaces = namespaces;
-        createDebug.names = [];
-        createDebug.skips = [];
+        createDebug3.save(namespaces);
+        createDebug3.namespaces = namespaces;
+        createDebug3.names = [];
+        createDebug3.skips = [];
         const split2 = (typeof namespaces === "string" ? namespaces : "").trim().replace(/\s+/g, ",").split(",").filter(Boolean);
         for (const ns2 of split2) {
           if (ns2[0] === "-") {
-            createDebug.skips.push(ns2.slice(1));
+            createDebug3.skips.push(ns2.slice(1));
           } else {
-            createDebug.names.push(ns2);
+            createDebug3.names.push(ns2);
           }
         }
       }
@@ -302,19 +302,19 @@ var require_common = __commonJS({
       }
       function disable() {
         const namespaces = [
-          ...createDebug.names,
-          ...createDebug.skips.map((namespace) => "-" + namespace)
+          ...createDebug3.names,
+          ...createDebug3.skips.map((namespace) => "-" + namespace)
         ].join(",");
-        createDebug.enable("");
+        createDebug3.enable("");
         return namespaces;
       }
       function enabled(name2) {
-        for (const skip of createDebug.skips) {
+        for (const skip of createDebug3.skips) {
           if (matchesTemplate(name2, skip)) {
             return false;
           }
         }
-        for (const ns2 of createDebug.names) {
+        for (const ns2 of createDebug3.names) {
           if (matchesTemplate(name2, ns2)) {
             return true;
           }
@@ -330,8 +330,8 @@ var require_common = __commonJS({
       function destroy() {
         console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
       }
-      createDebug.enable(createDebug.load());
-      return createDebug;
+      createDebug3.enable(createDebug3.load());
+      return createDebug3;
     }
     module.exports = setup;
   }
@@ -788,11 +788,11 @@ var require_node = __commonJS({
     function load() {
       return process.env.DEBUG;
     }
-    function init(debug) {
-      debug.inspectOpts = {};
+    function init(debug3) {
+      debug3.inspectOpts = {};
       const keys = Object.keys(exports.inspectOpts);
       for (let i5 = 0; i5 < keys.length; i5++) {
-        debug.inspectOpts[keys[i5]] = exports.inspectOpts[keys[i5]];
+        debug3.inspectOpts[keys[i5]] = exports.inspectOpts[keys[i5]];
       }
     }
     module.exports = require_common()(exports);
@@ -15776,9 +15776,9 @@ var require_read = __commonJS({
     var hasBody = require_type_is().hasBody;
     var { getCharset } = require_utils();
     module.exports = read;
-    function read(req, res, next, parse4, debug, options) {
+    function read(req, res, next, parse4, debug3, options) {
       if (onFinished.isFinished(req)) {
-        debug("body already parsed");
+        debug3("body already parsed");
         next();
         return;
       }
@@ -15786,13 +15786,13 @@ var require_read = __commonJS({
         req.body = void 0;
       }
       if (!hasBody(req)) {
-        debug("skip empty body");
+        debug3("skip empty body");
         next();
         return;
       }
-      debug("content-type %j", req.headers["content-type"]);
+      debug3("content-type %j", req.headers["content-type"]);
       if (!options.shouldParse(req)) {
-        debug("skip parsing");
+        debug3("skip parsing");
         next();
         return;
       }
@@ -15800,7 +15800,7 @@ var require_read = __commonJS({
       if (options?.skipCharset !== true) {
         encoding = getCharset(req) || options.defaultCharset;
         if (!!options?.isValidCharset && !options.isValidCharset(encoding)) {
-          debug("invalid charset");
+          debug3("invalid charset");
           next(createError(415, 'unsupported charset "' + encoding.toUpperCase() + '"', {
             charset: encoding,
             type: "charset.unsupported"
@@ -15813,7 +15813,7 @@ var require_read = __commonJS({
       let stream4;
       const verify = opts.verify;
       try {
-        stream4 = contentstream(req, debug, opts.inflate);
+        stream4 = contentstream(req, debug3, opts.inflate);
         length = stream4.length;
         stream4.length = void 0;
       } catch (err) {
@@ -15827,7 +15827,7 @@ var require_read = __commonJS({
           type: "charset.unsupported"
         }));
       }
-      debug("read body");
+      debug3("read body");
       getBody(stream4, opts, function(error3, body) {
         if (error3) {
           let _error;
@@ -15850,7 +15850,7 @@ var require_read = __commonJS({
         }
         if (verify) {
           try {
-            debug("verify body");
+            debug3("verify body");
             verify(req, res, body, encoding);
           } catch (err) {
             next(createError(403, err, {
@@ -15862,7 +15862,7 @@ var require_read = __commonJS({
         }
         let str = body;
         try {
-          debug("parse body");
+          debug3("parse body");
           str = typeof body !== "string" && encoding !== null ? iconv.decode(body, encoding) : body;
           req.body = parse4(str, encoding);
         } catch (err) {
@@ -15875,10 +15875,10 @@ var require_read = __commonJS({
         next();
       });
     }
-    function contentstream(req, debug, inflate) {
+    function contentstream(req, debug3, inflate) {
       const encoding = (req.headers["content-encoding"] || "identity").toLowerCase();
       const length = req.headers["content-length"];
-      debug('content-encoding "%s"', encoding);
+      debug3('content-encoding "%s"', encoding);
       if (inflate === false && encoding !== "identity") {
         throw createError(415, "content encoding unsupported", {
           encoding,
@@ -15889,20 +15889,20 @@ var require_read = __commonJS({
         req.length = length;
         return req;
       }
-      const stream4 = createDecompressionStream(encoding, debug);
+      const stream4 = createDecompressionStream(encoding, debug3);
       req.pipe(stream4);
       return stream4;
     }
-    function createDecompressionStream(encoding, debug) {
+    function createDecompressionStream(encoding, debug3) {
       switch (encoding) {
         case "deflate":
-          debug("inflate body");
+          debug3("inflate body");
           return zlib4.createInflate();
         case "gzip":
-          debug("gunzip body");
+          debug3("gunzip body");
           return zlib4.createGunzip();
         case "br":
-          debug("brotli decompress body");
+          debug3("brotli decompress body");
           return zlib4.createBrotliDecompress();
         default:
           throw createError(415, 'unsupported content encoding "' + encoding + '"', {
@@ -15926,7 +15926,7 @@ var require_read = __commonJS({
 var require_json = __commonJS({
   "node_modules/body-parser/lib/types/json.js"(exports, module) {
     "use strict";
-    var debug = require_src()("body-parser:json");
+    var debug3 = require_src()("body-parser:json");
     var read = require_read();
     var { normalizeOptions } = require_utils();
     module.exports = json;
@@ -15942,7 +15942,7 @@ var require_json = __commonJS({
         isValidCharset: (charset) => charset.slice(0, 4) === "utf-"
       };
       return function jsonParser(req, res, next) {
-        read(req, res, next, parse4, debug, readOptions);
+        read(req, res, next, parse4, debug3, readOptions);
       };
     }
     function createJsonParser(options) {
@@ -15955,11 +15955,11 @@ var require_json = __commonJS({
           }
           const first = firstchar(body);
           if (first !== "{" && first !== "[") {
-            debug("strict violation");
+            debug3("strict violation");
             throw createStrictSyntaxError(body, first);
           }
           try {
-            debug("parse json");
+            debug3("parse json");
             return JSON.parse(body, reviver);
           } catch (e5) {
             throw normalizeJsonSyntaxError(e5, {
@@ -15974,7 +15974,7 @@ var require_json = __commonJS({
           return {};
         }
         try {
-          debug("parse json");
+          debug3("parse json");
           return JSON.parse(body, reviver);
         } catch (e5) {
           throw normalizeJsonSyntaxError(e5, {
@@ -16025,7 +16025,7 @@ var require_json = __commonJS({
 var require_raw = __commonJS({
   "node_modules/body-parser/lib/types/raw.js"(exports, module) {
     "use strict";
-    var debug = require_src()("body-parser:raw");
+    var debug3 = require_src()("body-parser:raw");
     var read = require_read();
     var { normalizeOptions, passthrough } = require_utils();
     module.exports = raw;
@@ -16037,7 +16037,7 @@ var require_raw = __commonJS({
         skipCharset: true
       };
       return function rawParser(req, res, next) {
-        read(req, res, next, passthrough, debug, readOptions);
+        read(req, res, next, passthrough, debug3, readOptions);
       };
     }
   }
@@ -16047,14 +16047,14 @@ var require_raw = __commonJS({
 var require_text = __commonJS({
   "node_modules/body-parser/lib/types/text.js"(exports, module) {
     "use strict";
-    var debug = require_src()("body-parser:text");
+    var debug3 = require_src()("body-parser:text");
     var read = require_read();
     var { normalizeOptions, passthrough } = require_utils();
     module.exports = text;
     function text(options) {
       const normalizedOptions = normalizeOptions(options, "text/plain");
       return function textParser(req, res, next) {
-        read(req, res, next, passthrough, debug, normalizedOptions);
+        read(req, res, next, passthrough, debug3, normalizedOptions);
       };
     }
   }
@@ -18663,7 +18663,7 @@ var require_urlencoded = __commonJS({
   "node_modules/body-parser/lib/types/urlencoded.js"(exports, module) {
     "use strict";
     var createError = require_http_errors();
-    var debug = require_src()("body-parser:urlencoded");
+    var debug3 = require_src()("body-parser:urlencoded");
     var read = require_read();
     var qs = require_lib2();
     var { normalizeOptions } = require_utils();
@@ -18680,7 +18680,7 @@ var require_urlencoded = __commonJS({
         isValidCharset: (charset) => charset === "utf-8" || charset === "iso-8859-1"
       };
       return function urlencodedParser(req, res, next) {
-        read(req, res, next, parse4, debug, readOptions);
+        read(req, res, next, parse4, debug3, readOptions);
       };
     }
     function createQueryParser(options) {
@@ -18702,13 +18702,13 @@ var require_urlencoded = __commonJS({
         if (!body.length) return {};
         const paramCount = parameterCount(body, parameterLimit);
         if (paramCount === void 0) {
-          debug("too many parameters");
+          debug3("too many parameters");
           throw createError(413, "too many parameters", {
             type: "parameters.too.many"
           });
         }
         const arrayLimit = extended ? Math.max(100, paramCount) : paramCount;
-        debug("parse " + (extended ? "extended " : "") + "urlencoding");
+        debug3("parse " + (extended ? "extended " : "") + "urlencoding");
         try {
           return qs.parse(body, {
             allowPrototypes: true,
@@ -18932,7 +18932,7 @@ var require_parseurl = __commonJS({
 var require_finalhandler = __commonJS({
   "node_modules/finalhandler/index.js"(exports, module) {
     "use strict";
-    var debug = require_src()("finalhandler");
+    var debug3 = require_src()("finalhandler");
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var onFinished = require_on_finished();
@@ -18953,7 +18953,7 @@ var require_finalhandler = __commonJS({
         var msg;
         var status;
         if (!err && res.headersSent) {
-          debug("cannot 404 after headers sent");
+          debug3("cannot 404 after headers sent");
           return;
         }
         if (err) {
@@ -18968,12 +18968,12 @@ var require_finalhandler = __commonJS({
           status = 404;
           msg = "Cannot " + req.method + " " + encodeUrl(getResourceName(req));
         }
-        debug("default %s", status);
+        debug3("default %s", status);
         if (err && onerror) {
           setImmediate(onerror, err, req, res);
         }
         if (res.headersSent) {
-          debug("cannot %d after headers sent", status);
+          debug3("cannot %d after headers sent", status);
           if (req.socket) {
             req.socket.destroy();
           }
@@ -19059,7 +19059,7 @@ var require_finalhandler = __commonJS({
 var require_view = __commonJS({
   "node_modules/express/lib/view.js"(exports, module) {
     "use strict";
-    var debug = require_src()("express:view");
+    var debug3 = require_src()("express:view");
     var path6 = __require("node:path");
     var fs7 = __require("node:fs");
     var dirname = path6.dirname;
@@ -19084,7 +19084,7 @@ var require_view = __commonJS({
       }
       if (!opts.engines[this.ext]) {
         var mod = this.ext.slice(1);
-        debug('require "%s"', mod);
+        debug3('require "%s"', mod);
         var fn = __require(mod).__express;
         if (typeof fn !== "function") {
           throw new Error('Module "' + mod + '" does not provide a view engine.');
@@ -19097,7 +19097,7 @@ var require_view = __commonJS({
     View.prototype.lookup = function lookup(name2) {
       var path7;
       var roots = [].concat(this.root);
-      debug('lookup "%s"', name2);
+      debug3('lookup "%s"', name2);
       for (var i5 = 0; i5 < roots.length && !path7; i5++) {
         var root5 = roots[i5];
         var loc = resolve3(root5, name2);
@@ -19109,7 +19109,7 @@ var require_view = __commonJS({
     };
     View.prototype.render = function render(options, callback) {
       var sync = true;
-      debug('render "%s"', this.path);
+      debug3('render "%s"', this.path);
       this.engine(this.path, options, function onRender() {
         if (!sync) {
           return callback.apply(this, arguments);
@@ -19139,7 +19139,7 @@ var require_view = __commonJS({
       }
     };
     function tryStat(path7) {
-      debug('stat "%s"', path7);
+      debug3('stat "%s"', path7);
       try {
         return fs7.statSync(path7);
       } catch (e5) {
@@ -19258,14 +19258,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto17 = __require("crypto");
+    var crypto22 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString3 = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto17.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto22.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -20726,7 +20726,7 @@ var require_layer = __commonJS({
     "use strict";
     var isPromise = require_is_promise();
     var pathRegexp = require_dist3();
-    var debug = require_src()("router:layer");
+    var debug3 = require_src()("router:layer");
     var deprecate = require_depd()("router");
     var TRAILING_SLASH_REGEXP = /\/+$/;
     var MATCHING_GROUP_REGEXP = /\((?:\?<(.*?)>)?(?!\?)/g;
@@ -20735,7 +20735,7 @@ var require_layer = __commonJS({
       if (!(this instanceof Layer)) {
         return new Layer(path6, options, fn);
       }
-      debug("new %o", path6);
+      debug3("new %o", path6);
       const opts = options || {};
       this.handle = fn;
       this.keys = [];
@@ -20874,7 +20874,7 @@ var require_layer = __commonJS({
 var require_route = __commonJS({
   "node_modules/router/lib/route.js"(exports, module) {
     "use strict";
-    var debug = require_src()("router:route");
+    var debug3 = require_src()("router:route");
     var Layer = require_layer();
     var { METHODS } = __require("node:http");
     var slice = Array.prototype.slice;
@@ -20882,7 +20882,7 @@ var require_route = __commonJS({
     var methods = METHODS.map((method) => method.toLowerCase());
     module.exports = Route;
     function Route(path6) {
-      debug("new %o", path6);
+      debug3("new %o", path6);
       this.path = path6;
       this.stack = [];
       this.methods = /* @__PURE__ */ Object.create(null);
@@ -20978,7 +20978,7 @@ var require_route = __commonJS({
           if (typeof fn !== "function") {
             throw new TypeError("argument handler must be a function");
           }
-          debug("%s %s", method, this.path);
+          debug3("%s %s", method, this.path);
           const layer = Layer("/", {}, fn);
           layer.method = method;
           this.methods[method] = true;
@@ -20999,16 +20999,16 @@ var require_router = __commonJS({
     var { METHODS } = __require("node:http");
     var parseUrl3 = require_parseurl();
     var Route = require_route();
-    var debug = require_src()("router");
+    var debug3 = require_src()("router");
     var deprecate = require_depd()("router");
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router2;
+    module.exports = Router3;
     module.exports.Route = Route;
-    function Router2(options) {
-      if (!(this instanceof Router2)) {
-        return new Router2(options);
+    function Router3(options) {
+      if (!(this instanceof Router3)) {
+        return new Router3(options);
       }
       const opts = options || {};
       function router(req, res, next) {
@@ -21022,9 +21022,9 @@ var require_router = __commonJS({
       router.stack = [];
       return router;
     }
-    Router2.prototype = function() {
+    Router3.prototype = function() {
     };
-    Router2.prototype.param = function param(name2, fn) {
+    Router3.prototype.param = function param(name2, fn) {
       if (!name2) {
         throw new TypeError("argument name is required");
       }
@@ -21044,11 +21044,11 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router2.prototype.handle = function handle(req, res, callback) {
+    Router3.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
-      debug("dispatching %s %s", req.method, req.url);
+      debug3("dispatching %s %s", req.method, req.url);
       let idx = 0;
       let methods2;
       const protohost = getProtohost(req.url) || "";
@@ -21154,7 +21154,7 @@ var require_router = __commonJS({
             next(layerError);
             return;
           }
-          debug("trim prefix (%s) from url %s", layerPath, req.url);
+          debug3("trim prefix (%s) from url %s", layerPath, req.url);
           removed = layerPath;
           req.url = protohost + req.url.slice(protohost.length + removed.length);
           if (!protohost && req.url[0] !== "/") {
@@ -21163,7 +21163,7 @@ var require_router = __commonJS({
           }
           req.baseUrl = parentUrl + (removed[removed.length - 1] === "/" ? removed.substring(0, removed.length - 1) : removed);
         }
-        debug("%s %s : %s", layer.name, layerPath, req.originalUrl);
+        debug3("%s %s : %s", layer.name, layerPath, req.originalUrl);
         if (layerError) {
           layer.handleError(layerError, req, res, next);
         } else {
@@ -21171,7 +21171,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router2.prototype.use = function use(handler) {
+    Router3.prototype.use = function use(handler) {
       let offset = 0;
       let path6 = "/";
       if (typeof handler !== "function") {
@@ -21193,7 +21193,7 @@ var require_router = __commonJS({
         if (typeof fn !== "function") {
           throw new TypeError("argument handler must be a function");
         }
-        debug("use %o %s", path6, fn.name || "<anonymous>");
+        debug3("use %o %s", path6, fn.name || "<anonymous>");
         const layer = new Layer(path6, {
           sensitive: this.caseSensitive,
           strict: false,
@@ -21204,7 +21204,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router2.prototype.route = function route(path6) {
+    Router3.prototype.route = function route(path6) {
       const route2 = new Route(path6);
       const layer = new Layer(path6, {
         sensitive: this.caseSensitive,
@@ -21219,7 +21219,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router2.prototype[method] = function(path6) {
+      Router3.prototype[method] = function(path6) {
         const route = this.route(path6);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -21393,16 +21393,16 @@ var require_application = __commonJS({
   "node_modules/express/lib/application.js"(exports, module) {
     "use strict";
     var finalhandler = require_finalhandler();
-    var debug = require_src()("express:application");
+    var debug3 = require_src()("express:application");
     var View = require_view();
-    var http4 = __require("node:http");
+    var http6 = __require("node:http");
     var methods = require_utils3().methods;
     var compileETag = require_utils3().compileETag;
     var compileQueryParser = require_utils3().compileQueryParser;
     var compileTrust = require_utils3().compileTrust;
     var resolve3 = __require("node:path").resolve;
     var once = require_once();
-    var Router2 = require_router();
+    var Router3 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
@@ -21418,7 +21418,7 @@ var require_application = __commonJS({
         enumerable: true,
         get: function getrouter() {
           if (router === null) {
-            router = new Router2({
+            router = new Router3({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
@@ -21439,7 +21439,7 @@ var require_application = __commonJS({
         configurable: true,
         value: true
       });
-      debug("booting in %s mode", env2);
+      debug3("booting in %s mode", env2);
       this.on("mount", function onmount(parent) {
         if (this.settings[trustProxyDefaultSymbol] === true && typeof parent.settings["trust proxy fn"] === "function") {
           delete this.settings["trust proxy"];
@@ -21499,7 +21499,7 @@ var require_application = __commonJS({
         if (!fn2 || !fn2.handle || !fn2.set) {
           return router.use(path6, fn2);
         }
-        debug(".use app under %s", path6);
+        debug3(".use app under %s", path6);
         fn2.mountpath = path6;
         fn2.parent = this;
         router.use(path6, function mounted_app(req, res, next) {
@@ -21539,7 +21539,7 @@ var require_application = __commonJS({
       if (arguments.length === 1) {
         return this.settings[setting];
       }
-      debug('set "%s" to %o', setting, val);
+      debug3('set "%s" to %o', setting, val);
       this.settings[setting] = val;
       switch (setting) {
         case "etag":
@@ -21628,7 +21628,7 @@ var require_application = __commonJS({
       tryRender(view, renderOptions, done);
     };
     app2.listen = function listen() {
-      var server2 = http4.createServer(this);
+      var server2 = http6.createServer(this);
       var args = slice.call(arguments);
       if (typeof args[args.length - 1] === "function") {
         var done = args[args.length - 1] = once(args[args.length - 1]);
@@ -22476,14 +22476,14 @@ var require_request = __commonJS({
   "node_modules/express/lib/request.js"(exports, module) {
     "use strict";
     var accepts = require_accepts();
-    var isIP = __require("node:net").isIP;
+    var isIP2 = __require("node:net").isIP;
     var typeis = require_type_is();
-    var http4 = __require("node:http");
+    var http6 = __require("node:http");
     var fresh = require_fresh();
     var parseRange = require_range_parser();
     var parse4 = require_parseurl();
     var proxyaddr = require_proxy_addr();
-    var req = Object.create(http4.IncomingMessage.prototype);
+    var req = Object.create(http6.IncomingMessage.prototype);
     module.exports = req;
     req.get = req.header = function header(name2) {
       if (!name2) {
@@ -22566,7 +22566,7 @@ var require_request = __commonJS({
       var hostname = this.hostname;
       if (!hostname) return [];
       var offset = this.app.get("subdomain offset");
-      var subdomains2 = !isIP(hostname) ? hostname.split(".").reverse() : [hostname];
+      var subdomains2 = !isIP2(hostname) ? hostname.split(".").reverse() : [hostname];
       return subdomains2.slice(offset);
     });
     defineGetter(req, "path", function path6() {
@@ -22831,17 +22831,17 @@ var require_content_disposition = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto17 = __require("crypto");
+    var crypto22 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto17.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto22.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(input, secret) {
       if ("string" != typeof input) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input.slice(0, input.lastIndexOf(".")), expectedInput = exports.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input);
-      return expectedBuffer.length === inputBuffer.length && crypto17.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto22.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -23017,7 +23017,7 @@ var require_send = __commonJS({
   "node_modules/send/index.js"(exports, module) {
     "use strict";
     var createError = require_http_errors();
-    var debug = require_src()("send");
+    var debug3 = require_src()("send");
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var etag = require_etag();
@@ -23117,14 +23117,14 @@ var require_send = __commonJS({
     };
     SendStream.prototype.notModified = function notModified() {
       var res = this.res;
-      debug("not modified");
+      debug3("not modified");
       this.removeContentHeaderFields();
       res.statusCode = 304;
       res.end();
     };
     SendStream.prototype.headersAlreadySent = function headersAlreadySent() {
       var err = new Error("Can't set headers after they are sent.");
-      debug("headers already sent");
+      debug3("headers already sent");
       this.error(500, err);
     };
     SendStream.prototype.isCachable = function isCachable() {
@@ -23199,7 +23199,7 @@ var require_send = __commonJS({
           path7 = normalize("." + sep2 + path7);
         }
         if (UP_PATH_REGEXP.test(path7)) {
-          debug('malicious path "%s"', path7);
+          debug3('malicious path "%s"', path7);
           this.error(403);
           return res;
         }
@@ -23207,7 +23207,7 @@ var require_send = __commonJS({
         path7 = normalize(join5(root5, path7));
       } else {
         if (UP_PATH_REGEXP.test(path7)) {
-          debug('malicious path "%s"', path7);
+          debug3('malicious path "%s"', path7);
           this.error(403);
           return res;
         }
@@ -23215,7 +23215,7 @@ var require_send = __commonJS({
         path7 = resolve3(path7);
       }
       if (containsDotFile(parts)) {
-        debug('%s dotfile "%s"', this._dotfiles, path7);
+        debug3('%s dotfile "%s"', this._dotfiles, path7);
         switch (this._dotfiles) {
           case "allow":
             break;
@@ -23247,7 +23247,7 @@ var require_send = __commonJS({
         this.headersAlreadySent();
         return;
       }
-      debug('pipe "%s"', path7);
+      debug3('pipe "%s"', path7);
       this.setHeader(path7, stat);
       this.type(path7);
       if (this.isConditionalGET()) {
@@ -23270,18 +23270,18 @@ var require_send = __commonJS({
           combine: true
         });
         if (!this.isRangeFresh()) {
-          debug("range stale");
+          debug3("range stale");
           ranges = -2;
         }
         if (ranges === -1) {
-          debug("range unsatisfiable");
+          debug3("range unsatisfiable");
           res.setHeader("Content-Range", contentRange("bytes", len));
           return this.error(416, {
             headers: { "Content-Range": res.getHeader("Content-Range") }
           });
         }
         if (ranges !== -2 && ranges.length === 1) {
-          debug("range %j", ranges);
+          debug3("range %j", ranges);
           res.statusCode = 206;
           res.setHeader("Content-Range", contentRange("bytes", len, ranges[0]));
           offset += ranges[0].start;
@@ -23303,7 +23303,7 @@ var require_send = __commonJS({
     SendStream.prototype.sendFile = function sendFile(path7) {
       var i5 = 0;
       var self2 = this;
-      debug('stat "%s"', path7);
+      debug3('stat "%s"', path7);
       fs7.stat(path7, function onstat(err, stat) {
         var pathEndsWithSep = path7[path7.length - 1] === sep2;
         if (err && err.code === "ENOENT" && !extname(path7) && !pathEndsWithSep) {
@@ -23320,7 +23320,7 @@ var require_send = __commonJS({
           return err ? self2.onStatError(err) : self2.error(404);
         }
         var p4 = path7 + "." + self2._extensions[i5++];
-        debug('stat "%s"', p4);
+        debug3('stat "%s"', p4);
         fs7.stat(p4, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
@@ -23338,7 +23338,7 @@ var require_send = __commonJS({
           return self2.error(404);
         }
         var p4 = join5(path7, self2._index[i5]);
-        debug('stat "%s"', p4);
+        debug3('stat "%s"', p4);
         fs7.stat(p4, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
@@ -23371,14 +23371,14 @@ var require_send = __commonJS({
       if (res.getHeader("Content-Type")) return;
       var ext = extname(path7);
       var type2 = mime.contentType(ext) || "application/octet-stream";
-      debug("content-type %s", type2);
+      debug3("content-type %s", type2);
       res.setHeader("Content-Type", type2);
     };
     SendStream.prototype.setHeader = function setHeader(path7, stat) {
       var res = this.res;
       this.emit("headers", res, path7, stat);
       if (this._acceptRanges && !res.getHeader("Accept-Ranges")) {
-        debug("accept ranges");
+        debug3("accept ranges");
         res.setHeader("Accept-Ranges", "bytes");
       }
       if (this._cacheControl && !res.getHeader("Cache-Control")) {
@@ -23386,17 +23386,17 @@ var require_send = __commonJS({
         if (this._immutable) {
           cacheControl += ", immutable";
         }
-        debug("cache-control %s", cacheControl);
+        debug3("cache-control %s", cacheControl);
         res.setHeader("Cache-Control", cacheControl);
       }
       if (this._lastModified && !res.getHeader("Last-Modified")) {
         var modified = stat.mtime.toUTCString();
-        debug("modified %s", modified);
+        debug3("modified %s", modified);
         res.setHeader("Last-Modified", modified);
       }
       if (this._etag && !res.getHeader("ETag")) {
         var val = etag(stat);
-        debug("etag %s", val);
+        debug3("etag %s", val);
         res.setHeader("ETag", val);
       }
     };
@@ -23577,7 +23577,7 @@ var require_response = __commonJS({
     var deprecate = require_depd()("express");
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
-    var http4 = __require("node:http");
+    var http6 = __require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
     var path6 = __require("node:path");
@@ -23593,7 +23593,7 @@ var require_response = __commonJS({
     var resolve3 = path6.resolve;
     var vary = require_vary();
     var { Buffer: Buffer2 } = __require("node:buffer");
-    var res = Object.create(http4.ServerResponse.prototype);
+    var res = Object.create(http6.ServerResponse.prototype);
     module.exports = res;
     res.status = function status(code) {
       if (!Number.isInteger(code)) {
@@ -24150,7 +24150,7 @@ var require_express = __commonJS({
     var EventEmitter8 = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router2 = require_router();
+    var Router3 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -24172,8 +24172,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router2.Route;
-    exports.Router = Router2;
+    exports.Route = Router3.Route;
+    exports.Router = Router3;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -24474,7 +24474,7 @@ var require_main = __commonJS({
     var fs7 = __require("fs");
     var path6 = __require("path");
     var os4 = __require("os");
-    var crypto17 = __require("crypto");
+    var crypto22 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -24622,9 +24622,9 @@ var require_main = __commonJS({
       return envPath[0] === "~" ? path6.join(os4.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
-      const debug = parseBoolean2(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
+      const debug3 = parseBoolean2(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
       const quiet = parseBoolean2(process.env.DOTENV_CONFIG_QUIET || options && options.quiet);
-      if (debug || !quiet) {
+      if (debug3 || !quiet) {
         _log("loading env from encrypted .env.vault");
       }
       const parsed = DotenvModule._parseVault(options);
@@ -24642,12 +24642,12 @@ var require_main = __commonJS({
       if (options && options.processEnv != null) {
         processEnv = options.processEnv;
       }
-      let debug = parseBoolean2(processEnv.DOTENV_CONFIG_DEBUG || options && options.debug);
+      let debug3 = parseBoolean2(processEnv.DOTENV_CONFIG_DEBUG || options && options.debug);
       let quiet = parseBoolean2(processEnv.DOTENV_CONFIG_QUIET || options && options.quiet);
       if (options && options.encoding) {
         encoding = options.encoding;
       } else {
-        if (debug) {
+        if (debug3) {
           _debug("no encoding is specified (UTF-8 is used by default)");
         }
       }
@@ -24669,16 +24669,16 @@ var require_main = __commonJS({
           const parsed = DotenvModule.parse(fs7.readFileSync(path7, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e5) {
-          if (debug) {
+          if (debug3) {
             _debug(`failed to load ${path7} ${e5.message}`);
           }
           lastError = e5;
         }
       }
       const populated = DotenvModule.populate(processEnv, parsedAll, options);
-      debug = parseBoolean2(processEnv.DOTENV_CONFIG_DEBUG || debug);
+      debug3 = parseBoolean2(processEnv.DOTENV_CONFIG_DEBUG || debug3);
       quiet = parseBoolean2(processEnv.DOTENV_CONFIG_QUIET || quiet);
-      if (debug || !quiet) {
+      if (debug3 || !quiet) {
         const keysCount = Object.keys(populated).length;
         const shortPaths = [];
         for (const filePath of optionPaths) {
@@ -24686,7 +24686,7 @@ var require_main = __commonJS({
             const relative = path6.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e5) {
-            if (debug) {
+            if (debug3) {
               _debug(`failed to load ${filePath} ${e5.message}`);
             }
             lastError = e5;
@@ -24718,7 +24718,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto17.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto22.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error3) {
@@ -24739,7 +24739,7 @@ var require_main = __commonJS({
       }
     }
     function populate(processEnv, parsed, options = {}) {
-      const debug = Boolean(options && options.debug);
+      const debug3 = Boolean(options && options.debug);
       const override = Boolean(options && options.override);
       const populated = {};
       if (typeof parsed !== "object") {
@@ -24753,7 +24753,7 @@ var require_main = __commonJS({
             processEnv[key] = parsed[key];
             populated[key] = parsed[key];
           }
-          if (debug) {
+          if (debug3) {
             if (override === true) {
               _debug(`"${key}" is already defined and WAS overwritten`);
             } else {
@@ -25095,14 +25095,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports, module) {
     var Buffer2 = require_safe_buffer().Buffer;
-    var crypto17 = __require("crypto");
+    var crypto22 = __require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util6 = __require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto17.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto22.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -25192,17 +25192,17 @@ var require_jwa = __commonJS({
       return function sign5(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto17.createHmac("sha" + bits, secret);
+        var hmac = crypto22.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase642(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual = "timingSafeEqual" in crypto17 ? function timingSafeEqual2(a6, b6) {
+    var timingSafeEqual = "timingSafeEqual" in crypto22 ? function timingSafeEqual2(a6, b6) {
       if (a6.byteLength !== b6.byteLength) {
         return false;
       }
-      return crypto17.timingSafeEqual(a6, b6);
+      return crypto22.timingSafeEqual(a6, b6);
     } : function timingSafeEqual2(a6, b6) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -25219,7 +25219,7 @@ var require_jwa = __commonJS({
       return function sign5(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto17.createSign("RSA-SHA" + bits);
+        var signer = crypto22.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase642(sig);
       };
@@ -25229,7 +25229,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase643(signature);
-        var verifier = crypto17.createVerify("RSA-SHA" + bits);
+        var verifier = crypto22.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -25238,11 +25238,11 @@ var require_jwa = __commonJS({
       return function sign5(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto17.createSign("RSA-SHA" + bits);
+        var signer = crypto22.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto17.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto17.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto22.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto22.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase642(sig);
       };
@@ -25252,12 +25252,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase643(signature);
-        var verifier = crypto17.createVerify("RSA-SHA" + bits);
+        var verifier = crypto22.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto17.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto17.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto22.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto22.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -25555,10 +25555,10 @@ var require_jws = __commonJS({
 // node_modules/jsonwebtoken/decode.js
 var require_decode = __commonJS({
   "node_modules/jsonwebtoken/decode.js"(exports, module) {
-    var jws = require_jws();
+    var jws2 = require_jws();
     module.exports = function(jwt2, options) {
       options = options || {};
-      var decoded = jws.decode(jwt2, options);
+      var decoded = jws2.decode(jwt2, options);
       if (!decoded) {
         return null;
       }
@@ -25689,9 +25689,9 @@ var require_constants = __commonJS({
 var require_debug = __commonJS({
   "node_modules/semver/internal/debug.js"(exports, module) {
     "use strict";
-    var debug = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {
+    var debug3 = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {
     };
-    module.exports = debug;
+    module.exports = debug3;
   }
 });
 
@@ -25704,7 +25704,7 @@ var require_re = __commonJS({
       MAX_SAFE_BUILD_LENGTH,
       MAX_LENGTH
     } = require_constants();
-    var debug = require_debug();
+    var debug3 = require_debug();
     exports = module.exports = {};
     var re = exports.re = [];
     var safeRe = exports.safeRe = [];
@@ -25727,7 +25727,7 @@ var require_re = __commonJS({
     var createToken = (name2, value, isGlobal) => {
       const safe = makeSafeRegex(value);
       const index = R++;
-      debug(name2, index, value);
+      debug3(name2, index, value);
       t[name2] = index;
       src[index] = value;
       safeSrc[index] = safe;
@@ -25831,7 +25831,7 @@ var require_identifiers = __commonJS({
 var require_semver = __commonJS({
   "node_modules/semver/classes/semver.js"(exports, module) {
     "use strict";
-    var debug = require_debug();
+    var debug3 = require_debug();
     var { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants();
     var { safeRe: re, t } = require_re();
     var parseOptions = require_parse_options();
@@ -25865,7 +25865,7 @@ var require_semver = __commonJS({
             `version is longer than ${MAX_LENGTH} characters`
           );
         }
-        debug("SemVer", version2, options);
+        debug3("SemVer", version2, options);
         this.options = options;
         this.loose = !!options.loose;
         this.includePrerelease = !!options.includePrerelease;
@@ -25913,7 +25913,7 @@ var require_semver = __commonJS({
         return this.version;
       }
       compare(other) {
-        debug("SemVer.compare", this.version, this.options, other);
+        debug3("SemVer.compare", this.version, this.options, other);
         if (!(other instanceof _SemVer)) {
           if (typeof other === "string" && other === this.version) {
             return 0;
@@ -25964,7 +25964,7 @@ var require_semver = __commonJS({
         do {
           const a6 = this.prerelease[i5];
           const b6 = other.prerelease[i5];
-          debug("prerelease compare", i5, a6, b6);
+          debug3("prerelease compare", i5, a6, b6);
           if (a6 === void 0 && b6 === void 0) {
             return 0;
           } else if (b6 === void 0) {
@@ -25986,7 +25986,7 @@ var require_semver = __commonJS({
         do {
           const a6 = this.build[i5];
           const b6 = other.build[i5];
-          debug("build compare", i5, a6, b6);
+          debug3("build compare", i5, a6, b6);
           if (a6 === void 0 && b6 === void 0) {
             return 0;
           } else if (b6 === void 0) {
@@ -26657,21 +26657,21 @@ var require_range2 = __commonJS({
         const loose = this.options.loose;
         const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE];
         range2 = range2.replace(hr, hyphenReplace(this.options.includePrerelease));
-        debug("hyphen replace", range2);
+        debug3("hyphen replace", range2);
         range2 = range2.replace(re[t.COMPARATORTRIM], comparatorTrimReplace);
-        debug("comparator trim", range2);
+        debug3("comparator trim", range2);
         range2 = range2.replace(re[t.TILDETRIM], tildeTrimReplace);
-        debug("tilde trim", range2);
+        debug3("tilde trim", range2);
         range2 = range2.replace(re[t.CARETTRIM], caretTrimReplace);
-        debug("caret trim", range2);
+        debug3("caret trim", range2);
         let rangeList = range2.split(" ").map((comp) => parseComparator(comp, this.options)).join(" ").split(/\s+/).map((comp) => replaceGTE0(comp, this.options));
         if (loose) {
           rangeList = rangeList.filter((comp) => {
-            debug("loose invalid filter", comp, this.options);
+            debug3("loose invalid filter", comp, this.options);
             return !!comp.match(re[t.COMPARATORLOOSE]);
           });
         }
-        debug("range list", rangeList);
+        debug3("range list", rangeList);
         const rangeMap = /* @__PURE__ */ new Map();
         const comparators = rangeList.map((comp) => new Comparator(comp, this.options));
         for (const comp of comparators) {
@@ -26726,7 +26726,7 @@ var require_range2 = __commonJS({
     var cache5 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
-    var debug = require_debug();
+    var debug3 = require_debug();
     var SemVer = require_semver();
     var {
       safeRe: re,
@@ -26754,15 +26754,15 @@ var require_range2 = __commonJS({
     };
     var parseComparator = (comp, options) => {
       comp = comp.replace(re[t.BUILD], "");
-      debug("comp", comp, options);
+      debug3("comp", comp, options);
       comp = replaceCarets(comp, options);
-      debug("caret", comp);
+      debug3("caret", comp);
       comp = replaceTildes(comp, options);
-      debug("tildes", comp);
+      debug3("tildes", comp);
       comp = replaceXRanges(comp, options);
-      debug("xrange", comp);
+      debug3("xrange", comp);
       comp = replaceStars(comp, options);
-      debug("stars", comp);
+      debug3("stars", comp);
       return comp;
     };
     var isX = (id) => !id || id.toLowerCase() === "x" || id === "*";
@@ -26774,7 +26774,7 @@ var require_range2 = __commonJS({
       const r5 = options.loose ? re[t.TILDELOOSE] : re[t.TILDE];
       const z = options.includePrerelease ? "-0" : "";
       return comp.replace(r5, (_, M3, m3, p4, pr) => {
-        debug("tilde", comp, _, M3, m3, p4, pr);
+        debug3("tilde", comp, _, M3, m3, p4, pr);
         let ret;
         if (isX(M3)) {
           ret = "";
@@ -26783,12 +26783,12 @@ var require_range2 = __commonJS({
         } else if (isX(p4)) {
           ret = `>=${M3}.${m3}.0${z} <${M3}.${+m3 + 1}.0-0`;
         } else if (pr) {
-          debug("replaceTilde pr", pr);
+          debug3("replaceTilde pr", pr);
           ret = `>=${M3}.${m3}.${p4}-${pr} <${M3}.${+m3 + 1}.0-0`;
         } else {
           ret = `>=${M3}.${m3}.${p4} <${M3}.${+m3 + 1}.0-0`;
         }
-        debug("tilde return", ret);
+        debug3("tilde return", ret);
         return ret;
       });
     };
@@ -26796,11 +26796,11 @@ var require_range2 = __commonJS({
       return comp.trim().split(/\s+/).map((c5) => replaceCaret(c5, options)).join(" ");
     };
     var replaceCaret = (comp, options) => {
-      debug("caret", comp, options);
+      debug3("caret", comp, options);
       const r5 = options.loose ? re[t.CARETLOOSE] : re[t.CARET];
       const z = options.includePrerelease ? "-0" : "";
       return comp.replace(r5, (_, M3, m3, p4, pr) => {
-        debug("caret", comp, _, M3, m3, p4, pr);
+        debug3("caret", comp, _, M3, m3, p4, pr);
         let ret;
         if (isX(M3)) {
           ret = "";
@@ -26813,7 +26813,7 @@ var require_range2 = __commonJS({
             ret = `>=${M3}.${m3}.0${z} <${+M3 + 1}.0.0-0`;
           }
         } else if (pr) {
-          debug("replaceCaret pr", pr);
+          debug3("replaceCaret pr", pr);
           if (M3 === "0") {
             if (m3 === "0") {
               ret = `>=${M3}.${m3}.${p4}-${pr} <${M3}.${m3}.${+p4 + 1}-0`;
@@ -26824,7 +26824,7 @@ var require_range2 = __commonJS({
             ret = `>=${M3}.${m3}.${p4}-${pr} <${+M3 + 1}.0.0-0`;
           }
         } else {
-          debug("no pr");
+          debug3("no pr");
           if (M3 === "0") {
             if (m3 === "0") {
               ret = `>=${M3}.${m3}.${p4} <${M3}.${m3}.${+p4 + 1}-0`;
@@ -26835,19 +26835,19 @@ var require_range2 = __commonJS({
             ret = `>=${M3}.${m3}.${p4} <${+M3 + 1}.0.0-0`;
           }
         }
-        debug("caret return", ret);
+        debug3("caret return", ret);
         return ret;
       });
     };
     var replaceXRanges = (comp, options) => {
-      debug("replaceXRanges", comp, options);
+      debug3("replaceXRanges", comp, options);
       return comp.split(/\s+/).map((c5) => replaceXRange(c5, options)).join(" ");
     };
     var replaceXRange = (comp, options) => {
       comp = comp.trim();
       const r5 = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE];
       return comp.replace(r5, (ret, gtlt, M3, m3, p4, pr) => {
-        debug("xRange", comp, ret, gtlt, M3, m3, p4, pr);
+        debug3("xRange", comp, ret, gtlt, M3, m3, p4, pr);
         if (invalidXRangeOrder(M3, m3, p4)) {
           return comp;
         }
@@ -26897,16 +26897,16 @@ var require_range2 = __commonJS({
         } else if (xp) {
           ret = `>=${M3}.${m3}.0${pr} <${M3}.${+m3 + 1}.0-0`;
         }
-        debug("xRange return", ret);
+        debug3("xRange return", ret);
         return ret;
       });
     };
     var replaceStars = (comp, options) => {
-      debug("replaceStars", comp, options);
+      debug3("replaceStars", comp, options);
       return comp.trim().replace(re[t.STAR], "");
     };
     var replaceGTE0 = (comp, options) => {
-      debug("replaceGTE0", comp, options);
+      debug3("replaceGTE0", comp, options);
       return comp.trim().replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], "");
     };
     var hyphenReplace = (incPr) => ($0, from, fM, fm, fp, fpr, fb, to2, tM, tm, tp, tpr) => {
@@ -26944,7 +26944,7 @@ var require_range2 = __commonJS({
       }
       if (version2.prerelease.length && !options.includePrerelease) {
         for (let i5 = 0; i5 < set.length; i5++) {
-          debug(set[i5].semver);
+          debug3(set[i5].semver);
           if (set[i5].semver === Comparator.ANY) {
             continue;
           }
@@ -26981,7 +26981,7 @@ var require_comparator = __commonJS({
           }
         }
         comp = comp.trim().split(/\s+/).join(" ");
-        debug("comparator", comp, options);
+        debug3("comparator", comp, options);
         this.options = options;
         this.loose = !!options.loose;
         this.parse(comp);
@@ -26990,7 +26990,7 @@ var require_comparator = __commonJS({
         } else {
           this.value = this.operator + this.semver.version;
         }
-        debug("comp", this);
+        debug3("comp", this);
       }
       parse(comp) {
         const r5 = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR];
@@ -27012,7 +27012,7 @@ var require_comparator = __commonJS({
         return this.value;
       }
       test(version2) {
-        debug("Comparator.test", version2, this.options.loose);
+        debug3("Comparator.test", version2, this.options.loose);
         if (this.semver === ANY || version2 === ANY) {
           return true;
         }
@@ -27069,7 +27069,7 @@ var require_comparator = __commonJS({
     var parseOptions = require_parse_options();
     var { safeRe: re, t } = require_re();
     var cmp = require_cmp();
-    var debug = require_debug();
+    var debug3 = require_debug();
     var SemVer = require_semver();
     var Range = require_range2();
   }
@@ -27734,7 +27734,7 @@ var require_verify = __commonJS({
     var timespan = require_timespan();
     var validateAsymmetricKey = require_validateAsymmetricKey();
     var PS_SUPPORTED = require_psSupported();
-    var jws = require_jws();
+    var jws2 = require_jws();
     var { KeyObject, createSecretKey, createPublicKey } = __require("crypto");
     var PUB_KEY_ALGS = ["RS256", "RS384", "RS512"];
     var EC_KEY_ALGS = ["ES256", "ES384", "ES512"];
@@ -27856,7 +27856,7 @@ var require_verify = __commonJS({
         }
         let valid;
         try {
-          valid = jws.verify(jwtString, decodedToken.header.alg, secretOrPublicKey2);
+          valid = jws2.verify(jwtString, decodedToken.header.alg, secretOrPublicKey2);
         } catch (e5) {
           return done(e5);
         }
@@ -28367,7 +28367,7 @@ var require_sign2 = __commonJS({
     var timespan = require_timespan();
     var PS_SUPPORTED = require_psSupported();
     var validateAsymmetricKey = require_validateAsymmetricKey();
-    var jws = require_jws();
+    var jws2 = require_jws();
     var includes = require_lodash();
     var isBoolean2 = require_lodash2();
     var isInteger = require_lodash3();
@@ -28407,7 +28407,7 @@ var require_sign2 = __commonJS({
       exp: { isValid: isNumber2, message: '"exp" should be a number of seconds' },
       nbf: { isValid: isNumber2, message: '"nbf" should be a number of seconds' }
     };
-    function validate2(schema, allowUnknown, object, parameterName) {
+    function validate3(schema, allowUnknown, object, parameterName) {
       if (!isPlainObject2(object)) {
         throw new Error('Expected "' + parameterName + '" to be a plain object.');
       }
@@ -28425,10 +28425,10 @@ var require_sign2 = __commonJS({
       });
     }
     function validateOptions(options) {
-      return validate2(sign_options_schema, false, options, "options");
+      return validate3(sign_options_schema, false, options, "options");
     }
     function validatePayload(payload) {
-      return validate2(registered_claims_schema, true, payload, "payload");
+      return validate3(registered_claims_schema, true, payload, "payload");
     }
     var options_to_payload = {
       "audience": "aud",
@@ -28564,7 +28564,7 @@ var require_sign2 = __commonJS({
       const encoding = options.encoding || "utf8";
       if (typeof callback === "function") {
         callback = callback && once(callback);
-        jws.createSign({
+        jws2.createSign({
           header,
           privateKey: secretOrPrivateKey,
           payload,
@@ -28576,7 +28576,7 @@ var require_sign2 = __commonJS({
           callback(null, signature);
         });
       } else {
-        let signature = jws.sign({ header, payload, secret: secretOrPrivateKey, encoding });
+        let signature = jws2.sign({ header, payload, secret: secretOrPrivateKey, encoding });
         if (!options.allowInsecureKeySizes && /^(?:RS|PS)/.test(header.alg) && signature.length < 256) {
           throw new Error(`secretOrPrivateKey has a minimum key size of 2048 bits for ${header.alg}`);
         }
@@ -30883,7 +30883,7 @@ var init_MiddlewareStack = __esm({
         });
         return expandedMiddlewareList;
       };
-      const getMiddlewareList = (debug = false) => {
+      const getMiddlewareList = (debug3 = false) => {
         const normalizedAbsoluteEntries = [];
         const normalizedRelativeEntries = [];
         const normalizedEntriesNameMap = {};
@@ -30913,7 +30913,7 @@ var init_MiddlewareStack = __esm({
           if (entry.toMiddleware) {
             const toMiddleware = normalizedEntriesNameMap[entry.toMiddleware];
             if (toMiddleware === void 0) {
-              if (debug) {
+              if (debug3) {
                 return;
               }
               throw new Error(`${entry.toMiddleware} is not found when adding ${getMiddlewareNameWithAliases(entry.name, entry.aliases)} middleware ${entry.relation} ${entry.toMiddleware}`);
@@ -33022,9 +33022,9 @@ var init_resolveCustomEndpointsConfig = __esm({
   "node_modules/@smithy/core/dist-es/submodules/config/config-resolver/endpointsConfig/resolveCustomEndpointsConfig.js"() {
     init_client2();
     resolveCustomEndpointsConfig = (input) => {
-      const { tls: tls3, endpoint, urlParser, useDualstackEndpoint } = input;
+      const { tls: tls4, endpoint, urlParser, useDualstackEndpoint } = input;
       return Object.assign(input, {
-        tls: tls3 ?? true,
+        tls: tls4 ?? true,
         endpoint: normalizeProvider(typeof endpoint === "string" ? urlParser(endpoint) : endpoint),
         isCustomEndpoint: true,
         useDualstackEndpoint: normalizeProvider(useDualstackEndpoint ?? false)
@@ -33038,7 +33038,7 @@ var getEndpointFromRegion;
 var init_getEndpointFromRegion = __esm({
   "node_modules/@smithy/core/dist-es/submodules/config/config-resolver/endpointsConfig/utils/getEndpointFromRegion.js"() {
     getEndpointFromRegion = async (input) => {
-      const { tls: tls3 = true } = input;
+      const { tls: tls4 = true } = input;
       const region = await input.region();
       const dnsHostRegex = new RegExp(/^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9])$/);
       if (!dnsHostRegex.test(region)) {
@@ -33050,7 +33050,7 @@ var init_getEndpointFromRegion = __esm({
       if (!hostname) {
         throw new Error("Cannot resolve hostname from client config");
       }
-      return input.urlParser(`${tls3 ? "https:" : "http:"}//${hostname}`);
+      return input.urlParser(`${tls4 ? "https:" : "http:"}//${hostname}`);
     };
   }
 });
@@ -33063,9 +33063,9 @@ var init_resolveEndpointsConfig = __esm({
     init_getEndpointFromRegion();
     resolveEndpointsConfig = (input) => {
       const useDualstackEndpoint = normalizeProvider(input.useDualstackEndpoint ?? false);
-      const { endpoint, useFipsEndpoint, urlParser, tls: tls3 } = input;
+      const { endpoint, useFipsEndpoint, urlParser, tls: tls4 } = input;
       return Object.assign(input, {
-        tls: tls3 ?? true,
+        tls: tls4 ?? true,
         endpoint: endpoint ? normalizeProvider(typeof endpoint === "string" ? urlParser(endpoint) : endpoint) : () => getEndpointFromRegion({ ...input, useDualstackEndpoint, useFipsEndpoint }),
         isCustomEndpoint: !!endpoint,
         useDualstackEndpoint
@@ -33849,13 +33849,13 @@ var init_getEndpointPlugin = __esm({
 // node_modules/@smithy/core/dist-es/submodules/endpoints/middleware-endpoint/resolveEndpointConfig.js
 function bindResolveEndpointConfig(getEndpointFromConfig2) {
   return (input) => {
-    const tls3 = input.tls ?? true;
+    const tls4 = input.tls ?? true;
     const { endpoint, useDualstackEndpoint, useFipsEndpoint } = input;
     const customEndpointProvider = endpoint != null ? async () => toEndpointV1(await normalizeProvider(endpoint)()) : void 0;
     const isCustomEndpoint = !!endpoint;
     const resolvedConfig = Object.assign(input, {
       endpoint: customEndpointProvider,
-      tls: tls3,
+      tls: tls4,
       isCustomEndpoint,
       useDualstackEndpoint: normalizeProvider(useDualstackEndpoint ?? false),
       useFipsEndpoint: normalizeProvider(useFipsEndpoint ?? false),
@@ -42465,8 +42465,8 @@ var init_AdaptiveRetryStrategy = __esm({
       rateLimiter;
       standardRetryStrategy;
       constructor(maxAttemptsProvider, options) {
-        const { rateLimiter } = options ?? {};
-        this.rateLimiter = rateLimiter ?? new DefaultRateLimiter();
+        const { rateLimiter: rateLimiter2 } = options ?? {};
+        this.rateLimiter = rateLimiter2 ?? new DefaultRateLimiter();
         this.standardRetryStrategy = options ? new StandardRetryStrategy({
           maxAttempts: typeof maxAttemptsProvider === "number" ? maxAttemptsProvider : 3,
           ...options
@@ -42688,9 +42688,9 @@ var init_AdaptiveRetryStrategy2 = __esm({
     AdaptiveRetryStrategy2 = class extends StandardRetryStrategy2 {
       rateLimiter;
       constructor(maxAttemptsProvider, options) {
-        const { rateLimiter, ...superOptions } = options ?? {};
+        const { rateLimiter: rateLimiter2, ...superOptions } = options ?? {};
         super(maxAttemptsProvider, superOptions);
-        this.rateLimiter = rateLimiter ?? new DefaultRateLimiter();
+        this.rateLimiter = rateLimiter2 ?? new DefaultRateLimiter();
         this.mode = RETRY_MODES.ADAPTIVE;
       }
       async retry(next, args) {
@@ -51132,9 +51132,9 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
           throwOnRequestTimeout,
           httpAgentProvider: () => httpAgentPromise ??= (async () => {
             const node_http = __require("node:http");
-            const { Agent, request } = node_http.default ?? node_http;
+            const { Agent: Agent3, request } = node_http.default ?? node_http;
             hRequest = request;
-            hAgent = Agent;
+            hAgent = Agent3;
             if (httpAgent instanceof hAgent || typeof httpAgent?.destroy === "function") {
               this.externalAgent = true;
               return httpAgent;
@@ -76723,12 +76723,12 @@ var require_form_data = __commonJS({
     var CombinedStream = require_combined_stream();
     var util6 = __require("util");
     var path6 = __require("path");
-    var http4 = __require("http");
-    var https6 = __require("https");
+    var http6 = __require("http");
+    var https10 = __require("https");
     var parseUrl3 = __require("url").parse;
     var fs7 = __require("fs");
     var Stream2 = __require("stream").Stream;
-    var crypto17 = __require("crypto");
+    var crypto22 = __require("crypto");
     var mime = require_mime_types2();
     var asynckit = require_asynckit();
     var setToStringTag = require_es_set_tostringtag();
@@ -76937,7 +76937,7 @@ var require_form_data = __commonJS({
       return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
     };
     FormData3.prototype._generateBoundary = function() {
-      this._boundary = "--------------------------" + crypto17.randomBytes(12).toString("hex");
+      this._boundary = "--------------------------" + crypto22.randomBytes(12).toString("hex");
     };
     FormData3.prototype.getLengthSync = function() {
       var knownLength = this._overheadLength + this._valueLength;
@@ -76996,9 +76996,9 @@ var require_form_data = __commonJS({
       }
       options.headers = this.getHeaders(params.headers);
       if (options.protocol === "https:") {
-        request = https6.request(options);
+        request = https10.request(options);
       } else {
-        request = http4.request(options);
+        request = http6.request(options);
       }
       this.getLength(function(err, length) {
         if (err && err !== "Unknown stream") {
@@ -77070,7 +77070,7 @@ var require_src2 = __commonJS({
     var events_1 = __require("events");
     var debug_1 = __importDefault(require_src());
     var promisify_1 = __importDefault(require_promisify());
-    var debug = debug_1.default("agent-base");
+    var debug3 = debug_1.default("agent-base");
     function isAgent(v2) {
       return Boolean(v2) && typeof v2.addRequest === "function";
     }
@@ -77084,7 +77084,7 @@ var require_src2 = __commonJS({
       return new createAgent.Agent(callback, opts);
     }
     (function(createAgent2) {
-      class Agent extends events_1.EventEmitter {
+      class Agent3 extends events_1.EventEmitter {
         constructor(callback, _opts) {
           super();
           let opts = _opts;
@@ -77189,7 +77189,7 @@ var require_src2 = __commonJS({
               timeoutId = null;
             }
             if (isAgent(socket)) {
-              debug("Callback returned another Agent instance %o", socket.constructor.name);
+              debug3("Callback returned another Agent instance %o", socket.constructor.name);
               socket.addRequest(req, opts);
               return;
             }
@@ -77209,7 +77209,7 @@ var require_src2 = __commonJS({
           }
           if (!this.promisifiedCallback) {
             if (this.callback.length >= 3) {
-              debug("Converting legacy callback function to promise");
+              debug3("Converting legacy callback function to promise");
               this.promisifiedCallback = promisify_1.default(this.callback);
             } else {
               this.promisifiedCallback = this.callback;
@@ -77222,21 +77222,21 @@ var require_src2 = __commonJS({
             opts.port = Number(opts.port);
           }
           try {
-            debug("Resolving socket for %o request: %o", opts.protocol, `${req.method} ${req.path}`);
+            debug3("Resolving socket for %o request: %o", opts.protocol, `${req.method} ${req.path}`);
             Promise.resolve(this.promisifiedCallback(req, opts)).then(onsocket, callbackError);
           } catch (err) {
             Promise.reject(err).catch(callbackError);
           }
         }
         freeSocket(socket, opts) {
-          debug("Freeing socket %o %o", socket.constructor.name, opts);
+          debug3("Freeing socket %o %o", socket.constructor.name, opts);
           socket.destroy();
         }
         destroy() {
-          debug("Destroying agent %o", this.constructor.name);
+          debug3("Destroying agent %o", this.constructor.name);
         }
       }
-      createAgent2.Agent = Agent;
+      createAgent2.Agent = Agent3;
       createAgent2.prototype = createAgent2.Agent.prototype;
     })(createAgent || (createAgent = {}));
     module.exports = createAgent;
@@ -77252,8 +77252,8 @@ var require_parse_proxy_response = __commonJS({
     };
     Object.defineProperty(exports, "__esModule", { value: true });
     var debug_1 = __importDefault(require_src());
-    var debug = debug_1.default("https-proxy-agent:parse-proxy-response");
-    function parseProxyResponse(socket) {
+    var debug3 = debug_1.default("https-proxy-agent:parse-proxy-response");
+    function parseProxyResponse2(socket) {
       return new Promise((resolve3, reject) => {
         let buffersLength = 0;
         const buffers = [];
@@ -77271,14 +77271,14 @@ var require_parse_proxy_response = __commonJS({
           socket.removeListener("readable", read);
         }
         function onclose(err) {
-          debug("onclose had error %o", err);
+          debug3("onclose had error %o", err);
         }
         function onend() {
-          debug("onend");
+          debug3("onend");
         }
         function onerror(err) {
           cleanup();
-          debug("onerror %o", err);
+          debug3("onerror %o", err);
           reject(err);
         }
         function ondata(b6) {
@@ -77287,13 +77287,13 @@ var require_parse_proxy_response = __commonJS({
           const buffered = Buffer.concat(buffers, buffersLength);
           const endOfHeaders = buffered.indexOf("\r\n\r\n");
           if (endOfHeaders === -1) {
-            debug("have not received end of HTTP headers yet...");
+            debug3("have not received end of HTTP headers yet...");
             read();
             return;
           }
           const firstLine = buffered.toString("ascii", 0, buffered.indexOf("\r\n"));
           const statusCode = +firstLine.split(" ")[1];
-          debug("got proxy server response: %o", firstLine);
+          debug3("got proxy server response: %o", firstLine);
           resolve3({
             statusCode,
             buffered
@@ -77305,7 +77305,7 @@ var require_parse_proxy_response = __commonJS({
         read();
       });
     }
-    exports.default = parseProxyResponse;
+    exports.default = parseProxyResponse2;
   }
 });
 
@@ -77351,8 +77351,8 @@ var require_agent = __commonJS({
     var debug_1 = __importDefault(require_src());
     var agent_base_1 = require_src2();
     var parse_proxy_response_1 = __importDefault(require_parse_proxy_response());
-    var debug = debug_1.default("https-proxy-agent:agent");
-    var HttpsProxyAgent2 = class extends agent_base_1.Agent {
+    var debug3 = debug_1.default("https-proxy-agent:agent");
+    var HttpsProxyAgent3 = class extends agent_base_1.Agent {
       constructor(_opts) {
         let opts;
         if (typeof _opts === "string") {
@@ -77363,7 +77363,7 @@ var require_agent = __commonJS({
         if (!opts) {
           throw new Error("an HTTP(S) proxy server `host` and `port` must be specified!");
         }
-        debug("creating new HttpsProxyAgent instance: %o", opts);
+        debug3("creating new HttpsProxyAgent instance: %o", opts);
         super(opts);
         const proxy = Object.assign({}, opts);
         this.secureProxy = opts.secureProxy || isHTTPS(proxy.protocol);
@@ -77394,10 +77394,10 @@ var require_agent = __commonJS({
           const { proxy, secureProxy } = this;
           let socket;
           if (secureProxy) {
-            debug("Creating `tls.Socket`: %o", proxy);
+            debug3("Creating `tls.Socket`: %o", proxy);
             socket = tls_1.default.connect(proxy);
           } else {
-            debug("Creating `net.Socket`: %o", proxy);
+            debug3("Creating `net.Socket`: %o", proxy);
             socket = net_1.default.connect(proxy);
           }
           const headers = Object.assign({}, proxy.headers);
@@ -77422,11 +77422,11 @@ var require_agent = __commonJS({
 `);
           const { statusCode, buffered } = yield proxyResponsePromise;
           if (statusCode === 200) {
-            req.once("socket", resume);
+            req.once("socket", resume2);
             if (opts.secureEndpoint) {
-              debug("Upgrading socket connection to TLS");
+              debug3("Upgrading socket connection to TLS");
               const servername = opts.servername || opts.host;
-              return tls_1.default.connect(Object.assign(Object.assign({}, omit(opts, "host", "hostname", "path", "port")), {
+              return tls_1.default.connect(Object.assign(Object.assign({}, omit2(opts, "host", "hostname", "path", "port")), {
                 socket,
                 servername
               }));
@@ -77437,7 +77437,7 @@ var require_agent = __commonJS({
           const fakeSocket = new net_1.default.Socket({ writable: false });
           fakeSocket.readable = true;
           req.once("socket", (s2) => {
-            debug("replaying proxy buffer for failed request");
+            debug3("replaying proxy buffer for failed request");
             assert_1.default(s2.listenerCount("data") > 0);
             s2.push(buffered);
             s2.push(null);
@@ -77446,8 +77446,8 @@ var require_agent = __commonJS({
         });
       }
     };
-    exports.default = HttpsProxyAgent2;
-    function resume(socket) {
+    exports.default = HttpsProxyAgent3;
+    function resume2(socket) {
       socket.resume();
     }
     function isDefaultPort(port, secure) {
@@ -77456,7 +77456,7 @@ var require_agent = __commonJS({
     function isHTTPS(protocol) {
       return typeof protocol === "string" ? /^https:?$/i.test(protocol) : false;
     }
-    function omit(obj, ...keys) {
+    function omit2(obj, ...keys) {
       const ret = {};
       let key;
       for (key in obj) {
@@ -77491,19 +77491,19 @@ var require_dist5 = __commonJS({
 // node_modules/follow-redirects/debug.js
 var require_debug2 = __commonJS({
   "node_modules/follow-redirects/debug.js"(exports, module) {
-    var debug;
+    var debug3;
     module.exports = function() {
-      if (!debug) {
+      if (!debug3) {
         try {
-          debug = require_src()("follow-redirects");
+          debug3 = require_src()("follow-redirects");
         } catch (error3) {
         }
-        if (typeof debug !== "function") {
-          debug = function() {
+        if (typeof debug3 !== "function") {
+          debug3 = function() {
           };
         }
       }
-      debug.apply(null, arguments);
+      debug3.apply(null, arguments);
     };
   }
 });
@@ -77512,12 +77512,12 @@ var require_debug2 = __commonJS({
 var require_follow_redirects = __commonJS({
   "node_modules/follow-redirects/index.js"(exports, module) {
     var url2 = __require("url");
-    var URL2 = url2.URL;
-    var http4 = __require("http");
-    var https6 = __require("https");
+    var URL4 = url2.URL;
+    var http6 = __require("http");
+    var https10 = __require("https");
     var Writable4 = __require("stream").Writable;
-    var assert = __require("assert");
-    var debug = require_debug2();
+    var assert2 = __require("assert");
+    var debug3 = require_debug2();
     (function detectUnsupportedEnvironment() {
       var looksLikeNode = typeof process !== "undefined";
       var looksLikeBrowser = typeof window !== "undefined" && typeof document !== "undefined";
@@ -77528,7 +77528,7 @@ var require_follow_redirects = __commonJS({
     })();
     var useNativeURL = false;
     try {
-      assert(new URL2(""));
+      assert2(new URL4(""));
     } catch (error3) {
       useNativeURL = error3.code === "ERR_INVALID_URL";
     }
@@ -77849,7 +77849,7 @@ var require_follow_redirects = __commonJS({
       var currentHost = currentHostHeader || currentUrlParts.host;
       var currentUrl = /^\w+:/.test(location) ? this._currentUrl : url2.format(Object.assign(currentUrlParts, { host: currentHost }));
       var redirectUrl = resolveUrl(location, currentUrl);
-      debug("redirecting to", redirectUrl.href);
+      debug3("redirecting to", redirectUrl.href);
       this._isRedirect = true;
       spreadUrlObject(redirectUrl, this._options);
       if (redirectUrl.protocol !== currentUrlParts.protocol && redirectUrl.protocol !== "https:" || redirectUrl.host !== currentHost && !isSubdomain(redirectUrl.host, currentHost)) {
@@ -77902,8 +77902,8 @@ var require_follow_redirects = __commonJS({
           if (!isString2(options.host) && !isString2(options.hostname)) {
             options.hostname = "::1";
           }
-          assert.equal(options.protocol, protocol, "protocol mismatch");
-          debug("options", options);
+          assert2.equal(options.protocol, protocol, "protocol mismatch");
+          debug3("options", options);
           return new RedirectableRequest(options, callback);
         }
         function get2(input, options, callback) {
@@ -77923,7 +77923,7 @@ var require_follow_redirects = __commonJS({
     function parseUrl3(input) {
       var parsed;
       if (useNativeURL) {
-        parsed = new URL2(input);
+        parsed = new URL4(input);
       } else {
         parsed = validateUrl(url2.parse(input));
         if (!isString2(parsed.protocol)) {
@@ -77933,7 +77933,7 @@ var require_follow_redirects = __commonJS({
       return parsed;
     }
     function resolveUrl(relative, base2) {
-      return useNativeURL ? new URL2(relative, base2) : parseUrl3(url2.resolve(base2, relative));
+      return useNativeURL ? new URL4(relative, base2) : parseUrl3(url2.resolve(base2, relative));
     }
     function validateUrl(input) {
       if (/^\[/.test(input.hostname) && !/^\[[:0-9a-f]+\]$/i.test(input.hostname)) {
@@ -77998,7 +77998,7 @@ var require_follow_redirects = __commonJS({
       request.destroy(error3);
     }
     function isSubdomain(subdomain, domain) {
-      assert(isString2(subdomain) && isString2(domain));
+      assert2(isString2(subdomain) && isString2(domain));
       var dot = subdomain.length - domain.length - 1;
       return dot > 0 && subdomain[dot] === "." && subdomain.endsWith(domain);
     }
@@ -78015,12 +78015,12 @@ var require_follow_redirects = __commonJS({
       return typeof value === "object" && "length" in value;
     }
     function isURL(value) {
-      return URL2 && value instanceof URL2;
+      return URL4 && value instanceof URL4;
     }
     function escapeRegex(regex) {
       return regex.replace(/[[\]\\/()*+?.^$|]/g, "\\$&");
     }
-    module.exports = wrap2({ http: http4, https: https6 });
+    module.exports = wrap2({ http: http6, https: https10 });
     module.exports.wrap = wrap2;
   }
 });
@@ -79342,7 +79342,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "node_modules/pg/lib/crypto/sasl.js"(exports, module) {
     "use strict";
-    var crypto17 = require_utils5();
+    var crypto22 = require_utils5();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function saslprep(password) {
       const nonAsciiSpace = /[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g;
@@ -79360,7 +79360,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream4.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto17.randomBytes(18).toString("base64");
+      const clientNonce = crypto22.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream4 ? "y" : "n";
       return {
         mechanism,
@@ -79402,20 +79402,20 @@ var require_sasl = __commonJS({
         const peerCert = stream4.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto17.hashByName(hashName, peerCert);
+        const certHash = await crypto22.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto17.deriveKey(saslprep(password), saltBytes, sv.iteration);
-      const clientKey = await crypto17.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto17.sha256(clientKey);
-      const clientSignature = await crypto17.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto22.deriveKey(saslprep(password), saltBytes, sv.iteration);
+      const clientKey = await crypto22.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto22.sha256(clientKey);
+      const clientSignature = await crypto22.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto17.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto17.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto22.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto22.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -81099,12 +81099,12 @@ var require_stream = __commonJS({
     };
     function getNodejsStreamFuncs() {
       function getStream2(ssl) {
-        const net8 = __require("net");
-        return new net8.Socket();
+        const net10 = __require("net");
+        return new net10.Socket();
       }
       function getSecureStream2(options) {
-        const tls3 = __require("tls");
-        return tls3.connect(options);
+        const tls4 = __require("tls");
+        return tls4.connect(options);
       }
       return {
         getStream: getStream2,
@@ -81238,8 +81238,8 @@ var require_connection = __commonJS({
         if (self2.sslNegotiation === "direct") {
           options.ALPNProtocols = ["postgresql"];
         }
-        const net8 = __require("net");
-        if (net8.isIP && net8.isIP(host) === 0) {
+        const net10 = __require("net");
+        if (net10.isIP && net10.isIP(host) === 0) {
           options.servername = host;
         }
         try {
@@ -81649,7 +81649,7 @@ var require_client = __commonJS({
     var Query2 = require_query();
     var defaults3 = require_defaults();
     var Connection2 = require_connection();
-    var crypto17 = require_utils5();
+    var crypto22 = require_utils5();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -81904,7 +81904,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto17.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto22.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e5) {
             this.emit("error", e5);
@@ -83335,18 +83335,6525 @@ var init_esm = __esm({
   }
 });
 
+// node_modules/bn.js/lib/bn.js
+var require_bn = __commonJS({
+  "node_modules/bn.js/lib/bn.js"(exports, module) {
+    (function(module2, exports2) {
+      "use strict";
+      function assert2(val, msg) {
+        if (!val) throw new Error(msg || "Assertion failed");
+      }
+      function inherits2(ctor, superCtor) {
+        ctor.super_ = superCtor;
+        var TempCtor = function() {
+        };
+        TempCtor.prototype = superCtor.prototype;
+        ctor.prototype = new TempCtor();
+        ctor.prototype.constructor = ctor;
+      }
+      function BN(number, base2, endian) {
+        if (BN.isBN(number)) {
+          return number;
+        }
+        this.negative = 0;
+        this.words = null;
+        this.length = 0;
+        this.red = null;
+        if (number !== null) {
+          if (base2 === "le" || base2 === "be") {
+            endian = base2;
+            base2 = 10;
+          }
+          this._init(number || 0, base2 || 10, endian || "be");
+        }
+      }
+      if (typeof module2 === "object") {
+        module2.exports = BN;
+      } else {
+        exports2.BN = BN;
+      }
+      BN.BN = BN;
+      BN.wordSize = 26;
+      var Buffer2;
+      try {
+        if (typeof window !== "undefined" && typeof window.Buffer !== "undefined") {
+          Buffer2 = window.Buffer;
+        } else {
+          Buffer2 = __require("buffer").Buffer;
+        }
+      } catch (e5) {
+      }
+      BN.isBN = function isBN(num) {
+        if (num instanceof BN) {
+          return true;
+        }
+        return num !== null && typeof num === "object" && num.constructor.wordSize === BN.wordSize && Array.isArray(num.words);
+      };
+      BN.max = function max(left, right) {
+        if (left.cmp(right) > 0) return left;
+        return right;
+      };
+      BN.min = function min(left, right) {
+        if (left.cmp(right) < 0) return left;
+        return right;
+      };
+      BN.prototype._init = function init(number, base2, endian) {
+        if (typeof number === "number") {
+          return this._initNumber(number, base2, endian);
+        }
+        if (typeof number === "object") {
+          return this._initArray(number, base2, endian);
+        }
+        if (base2 === "hex") {
+          base2 = 16;
+        }
+        assert2(base2 === (base2 | 0) && base2 >= 2 && base2 <= 36);
+        number = number.toString().replace(/\s+/g, "");
+        var start = 0;
+        if (number[0] === "-") {
+          start++;
+          this.negative = 1;
+        }
+        if (start < number.length) {
+          if (base2 === 16) {
+            this._parseHex(number, start, endian);
+          } else {
+            this._parseBase(number, base2, start);
+            if (endian === "le") {
+              this._initArray(this.toArray(), base2, endian);
+            }
+          }
+        }
+      };
+      BN.prototype._initNumber = function _initNumber(number, base2, endian) {
+        if (number < 0) {
+          this.negative = 1;
+          number = -number;
+        }
+        if (number < 67108864) {
+          this.words = [number & 67108863];
+          this.length = 1;
+        } else if (number < 4503599627370496) {
+          this.words = [
+            number & 67108863,
+            number / 67108864 & 67108863
+          ];
+          this.length = 2;
+        } else {
+          assert2(number < 9007199254740992);
+          this.words = [
+            number & 67108863,
+            number / 67108864 & 67108863,
+            1
+          ];
+          this.length = 3;
+        }
+        if (endian !== "le") return;
+        this._initArray(this.toArray(), base2, endian);
+      };
+      BN.prototype._initArray = function _initArray(number, base2, endian) {
+        assert2(typeof number.length === "number");
+        if (number.length <= 0) {
+          this.words = [0];
+          this.length = 1;
+          return this;
+        }
+        this.length = Math.ceil(number.length / 3);
+        this.words = new Array(this.length);
+        for (var i5 = 0; i5 < this.length; i5++) {
+          this.words[i5] = 0;
+        }
+        var j5, w;
+        var off = 0;
+        if (endian === "be") {
+          for (i5 = number.length - 1, j5 = 0; i5 >= 0; i5 -= 3) {
+            w = number[i5] | number[i5 - 1] << 8 | number[i5 - 2] << 16;
+            this.words[j5] |= w << off & 67108863;
+            this.words[j5 + 1] = w >>> 26 - off & 67108863;
+            off += 24;
+            if (off >= 26) {
+              off -= 26;
+              j5++;
+            }
+          }
+        } else if (endian === "le") {
+          for (i5 = 0, j5 = 0; i5 < number.length; i5 += 3) {
+            w = number[i5] | number[i5 + 1] << 8 | number[i5 + 2] << 16;
+            this.words[j5] |= w << off & 67108863;
+            this.words[j5 + 1] = w >>> 26 - off & 67108863;
+            off += 24;
+            if (off >= 26) {
+              off -= 26;
+              j5++;
+            }
+          }
+        }
+        return this.strip();
+      };
+      function parseHex4Bits(string, index) {
+        var c5 = string.charCodeAt(index);
+        if (c5 >= 65 && c5 <= 70) {
+          return c5 - 55;
+        } else if (c5 >= 97 && c5 <= 102) {
+          return c5 - 87;
+        } else {
+          return c5 - 48 & 15;
+        }
+      }
+      function parseHexByte(string, lowerBound, index) {
+        var r5 = parseHex4Bits(string, index);
+        if (index - 1 >= lowerBound) {
+          r5 |= parseHex4Bits(string, index - 1) << 4;
+        }
+        return r5;
+      }
+      BN.prototype._parseHex = function _parseHex(number, start, endian) {
+        this.length = Math.ceil((number.length - start) / 6);
+        this.words = new Array(this.length);
+        for (var i5 = 0; i5 < this.length; i5++) {
+          this.words[i5] = 0;
+        }
+        var off = 0;
+        var j5 = 0;
+        var w;
+        if (endian === "be") {
+          for (i5 = number.length - 1; i5 >= start; i5 -= 2) {
+            w = parseHexByte(number, start, i5) << off;
+            this.words[j5] |= w & 67108863;
+            if (off >= 18) {
+              off -= 18;
+              j5 += 1;
+              this.words[j5] |= w >>> 26;
+            } else {
+              off += 8;
+            }
+          }
+        } else {
+          var parseLength = number.length - start;
+          for (i5 = parseLength % 2 === 0 ? start + 1 : start; i5 < number.length; i5 += 2) {
+            w = parseHexByte(number, start, i5) << off;
+            this.words[j5] |= w & 67108863;
+            if (off >= 18) {
+              off -= 18;
+              j5 += 1;
+              this.words[j5] |= w >>> 26;
+            } else {
+              off += 8;
+            }
+          }
+        }
+        this.strip();
+      };
+      function parseBase(str, start, end, mul) {
+        var r5 = 0;
+        var len = Math.min(str.length, end);
+        for (var i5 = start; i5 < len; i5++) {
+          var c5 = str.charCodeAt(i5) - 48;
+          r5 *= mul;
+          if (c5 >= 49) {
+            r5 += c5 - 49 + 10;
+          } else if (c5 >= 17) {
+            r5 += c5 - 17 + 10;
+          } else {
+            r5 += c5;
+          }
+        }
+        return r5;
+      }
+      BN.prototype._parseBase = function _parseBase(number, base2, start) {
+        this.words = [0];
+        this.length = 1;
+        for (var limbLen = 0, limbPow = 1; limbPow <= 67108863; limbPow *= base2) {
+          limbLen++;
+        }
+        limbLen--;
+        limbPow = limbPow / base2 | 0;
+        var total = number.length - start;
+        var mod = total % limbLen;
+        var end = Math.min(total, total - mod) + start;
+        var word = 0;
+        for (var i5 = start; i5 < end; i5 += limbLen) {
+          word = parseBase(number, i5, i5 + limbLen, base2);
+          this.imuln(limbPow);
+          if (this.words[0] + word < 67108864) {
+            this.words[0] += word;
+          } else {
+            this._iaddn(word);
+          }
+        }
+        if (mod !== 0) {
+          var pow = 1;
+          word = parseBase(number, i5, number.length, base2);
+          for (i5 = 0; i5 < mod; i5++) {
+            pow *= base2;
+          }
+          this.imuln(pow);
+          if (this.words[0] + word < 67108864) {
+            this.words[0] += word;
+          } else {
+            this._iaddn(word);
+          }
+        }
+        this.strip();
+      };
+      BN.prototype.copy = function copy(dest) {
+        dest.words = new Array(this.length);
+        for (var i5 = 0; i5 < this.length; i5++) {
+          dest.words[i5] = this.words[i5];
+        }
+        dest.length = this.length;
+        dest.negative = this.negative;
+        dest.red = this.red;
+      };
+      BN.prototype.clone = function clone() {
+        var r5 = new BN(null);
+        this.copy(r5);
+        return r5;
+      };
+      BN.prototype._expand = function _expand(size) {
+        while (this.length < size) {
+          this.words[this.length++] = 0;
+        }
+        return this;
+      };
+      BN.prototype.strip = function strip() {
+        while (this.length > 1 && this.words[this.length - 1] === 0) {
+          this.length--;
+        }
+        return this._normSign();
+      };
+      BN.prototype._normSign = function _normSign() {
+        if (this.length === 1 && this.words[0] === 0) {
+          this.negative = 0;
+        }
+        return this;
+      };
+      BN.prototype.inspect = function inspect() {
+        return (this.red ? "<BN-R: " : "<BN: ") + this.toString(16) + ">";
+      };
+      var zeros = [
+        "",
+        "0",
+        "00",
+        "000",
+        "0000",
+        "00000",
+        "000000",
+        "0000000",
+        "00000000",
+        "000000000",
+        "0000000000",
+        "00000000000",
+        "000000000000",
+        "0000000000000",
+        "00000000000000",
+        "000000000000000",
+        "0000000000000000",
+        "00000000000000000",
+        "000000000000000000",
+        "0000000000000000000",
+        "00000000000000000000",
+        "000000000000000000000",
+        "0000000000000000000000",
+        "00000000000000000000000",
+        "000000000000000000000000",
+        "0000000000000000000000000"
+      ];
+      var groupSizes = [
+        0,
+        0,
+        25,
+        16,
+        12,
+        11,
+        10,
+        9,
+        8,
+        8,
+        7,
+        7,
+        7,
+        7,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5
+      ];
+      var groupBases = [
+        0,
+        0,
+        33554432,
+        43046721,
+        16777216,
+        48828125,
+        60466176,
+        40353607,
+        16777216,
+        43046721,
+        1e7,
+        19487171,
+        35831808,
+        62748517,
+        7529536,
+        11390625,
+        16777216,
+        24137569,
+        34012224,
+        47045881,
+        64e6,
+        4084101,
+        5153632,
+        6436343,
+        7962624,
+        9765625,
+        11881376,
+        14348907,
+        17210368,
+        20511149,
+        243e5,
+        28629151,
+        33554432,
+        39135393,
+        45435424,
+        52521875,
+        60466176
+      ];
+      BN.prototype.toString = function toString3(base2, padding) {
+        base2 = base2 || 10;
+        padding = padding | 0 || 1;
+        var out;
+        if (base2 === 16 || base2 === "hex") {
+          out = "";
+          var off = 0;
+          var carry = 0;
+          for (var i5 = 0; i5 < this.length; i5++) {
+            var w = this.words[i5];
+            var word = ((w << off | carry) & 16777215).toString(16);
+            carry = w >>> 24 - off & 16777215;
+            off += 2;
+            if (off >= 26) {
+              off -= 26;
+              i5--;
+            }
+            if (carry !== 0 || i5 !== this.length - 1) {
+              out = zeros[6 - word.length] + word + out;
+            } else {
+              out = word + out;
+            }
+          }
+          if (carry !== 0) {
+            out = carry.toString(16) + out;
+          }
+          while (out.length % padding !== 0) {
+            out = "0" + out;
+          }
+          if (this.negative !== 0) {
+            out = "-" + out;
+          }
+          return out;
+        }
+        if (base2 === (base2 | 0) && base2 >= 2 && base2 <= 36) {
+          var groupSize = groupSizes[base2];
+          var groupBase = groupBases[base2];
+          out = "";
+          var c5 = this.clone();
+          c5.negative = 0;
+          while (!c5.isZero()) {
+            var r5 = c5.modn(groupBase).toString(base2);
+            c5 = c5.idivn(groupBase);
+            if (!c5.isZero()) {
+              out = zeros[groupSize - r5.length] + r5 + out;
+            } else {
+              out = r5 + out;
+            }
+          }
+          if (this.isZero()) {
+            out = "0" + out;
+          }
+          while (out.length % padding !== 0) {
+            out = "0" + out;
+          }
+          if (this.negative !== 0) {
+            out = "-" + out;
+          }
+          return out;
+        }
+        assert2(false, "Base should be between 2 and 36");
+      };
+      BN.prototype.toNumber = function toNumber() {
+        var ret = this.words[0];
+        if (this.length === 2) {
+          ret += this.words[1] * 67108864;
+        } else if (this.length === 3 && this.words[2] === 1) {
+          ret += 4503599627370496 + this.words[1] * 67108864;
+        } else if (this.length > 2) {
+          assert2(false, "Number can only safely store up to 53 bits");
+        }
+        return this.negative !== 0 ? -ret : ret;
+      };
+      BN.prototype.toJSON = function toJSON() {
+        return this.toString(16);
+      };
+      BN.prototype.toBuffer = function toBuffer4(endian, length) {
+        assert2(typeof Buffer2 !== "undefined");
+        return this.toArrayLike(Buffer2, endian, length);
+      };
+      BN.prototype.toArray = function toArray2(endian, length) {
+        return this.toArrayLike(Array, endian, length);
+      };
+      BN.prototype.toArrayLike = function toArrayLike(ArrayType, endian, length) {
+        var byteLength = this.byteLength();
+        var reqLength = length || Math.max(1, byteLength);
+        assert2(byteLength <= reqLength, "byte array longer than desired length");
+        assert2(reqLength > 0, "Requested array length <= 0");
+        this.strip();
+        var littleEndian = endian === "le";
+        var res = new ArrayType(reqLength);
+        var b6, i5;
+        var q3 = this.clone();
+        if (!littleEndian) {
+          for (i5 = 0; i5 < reqLength - byteLength; i5++) {
+            res[i5] = 0;
+          }
+          for (i5 = 0; !q3.isZero(); i5++) {
+            b6 = q3.andln(255);
+            q3.iushrn(8);
+            res[reqLength - i5 - 1] = b6;
+          }
+        } else {
+          for (i5 = 0; !q3.isZero(); i5++) {
+            b6 = q3.andln(255);
+            q3.iushrn(8);
+            res[i5] = b6;
+          }
+          for (; i5 < reqLength; i5++) {
+            res[i5] = 0;
+          }
+        }
+        return res;
+      };
+      if (Math.clz32) {
+        BN.prototype._countBits = function _countBits(w) {
+          return 32 - Math.clz32(w);
+        };
+      } else {
+        BN.prototype._countBits = function _countBits(w) {
+          var t = w;
+          var r5 = 0;
+          if (t >= 4096) {
+            r5 += 13;
+            t >>>= 13;
+          }
+          if (t >= 64) {
+            r5 += 7;
+            t >>>= 7;
+          }
+          if (t >= 8) {
+            r5 += 4;
+            t >>>= 4;
+          }
+          if (t >= 2) {
+            r5 += 2;
+            t >>>= 2;
+          }
+          return r5 + t;
+        };
+      }
+      BN.prototype._zeroBits = function _zeroBits(w) {
+        if (w === 0) return 26;
+        var t = w;
+        var r5 = 0;
+        if ((t & 8191) === 0) {
+          r5 += 13;
+          t >>>= 13;
+        }
+        if ((t & 127) === 0) {
+          r5 += 7;
+          t >>>= 7;
+        }
+        if ((t & 15) === 0) {
+          r5 += 4;
+          t >>>= 4;
+        }
+        if ((t & 3) === 0) {
+          r5 += 2;
+          t >>>= 2;
+        }
+        if ((t & 1) === 0) {
+          r5++;
+        }
+        return r5;
+      };
+      BN.prototype.bitLength = function bitLength() {
+        var w = this.words[this.length - 1];
+        var hi2 = this._countBits(w);
+        return (this.length - 1) * 26 + hi2;
+      };
+      function toBitArray(num) {
+        var w = new Array(num.bitLength());
+        for (var bit = 0; bit < w.length; bit++) {
+          var off = bit / 26 | 0;
+          var wbit = bit % 26;
+          w[bit] = (num.words[off] & 1 << wbit) >>> wbit;
+        }
+        return w;
+      }
+      BN.prototype.zeroBits = function zeroBits() {
+        if (this.isZero()) return 0;
+        var r5 = 0;
+        for (var i5 = 0; i5 < this.length; i5++) {
+          var b6 = this._zeroBits(this.words[i5]);
+          r5 += b6;
+          if (b6 !== 26) break;
+        }
+        return r5;
+      };
+      BN.prototype.byteLength = function byteLength() {
+        return Math.ceil(this.bitLength() / 8);
+      };
+      BN.prototype.toTwos = function toTwos(width) {
+        if (this.negative !== 0) {
+          return this.abs().inotn(width).iaddn(1);
+        }
+        return this.clone();
+      };
+      BN.prototype.fromTwos = function fromTwos(width) {
+        if (this.testn(width - 1)) {
+          return this.notn(width).iaddn(1).ineg();
+        }
+        return this.clone();
+      };
+      BN.prototype.isNeg = function isNeg() {
+        return this.negative !== 0;
+      };
+      BN.prototype.neg = function neg() {
+        return this.clone().ineg();
+      };
+      BN.prototype.ineg = function ineg() {
+        if (!this.isZero()) {
+          this.negative ^= 1;
+        }
+        return this;
+      };
+      BN.prototype.iuor = function iuor(num) {
+        while (this.length < num.length) {
+          this.words[this.length++] = 0;
+        }
+        for (var i5 = 0; i5 < num.length; i5++) {
+          this.words[i5] = this.words[i5] | num.words[i5];
+        }
+        return this.strip();
+      };
+      BN.prototype.ior = function ior(num) {
+        assert2((this.negative | num.negative) === 0);
+        return this.iuor(num);
+      };
+      BN.prototype.or = function or(num) {
+        if (this.length > num.length) return this.clone().ior(num);
+        return num.clone().ior(this);
+      };
+      BN.prototype.uor = function uor(num) {
+        if (this.length > num.length) return this.clone().iuor(num);
+        return num.clone().iuor(this);
+      };
+      BN.prototype.iuand = function iuand(num) {
+        var b6;
+        if (this.length > num.length) {
+          b6 = num;
+        } else {
+          b6 = this;
+        }
+        for (var i5 = 0; i5 < b6.length; i5++) {
+          this.words[i5] = this.words[i5] & num.words[i5];
+        }
+        this.length = b6.length;
+        return this.strip();
+      };
+      BN.prototype.iand = function iand(num) {
+        assert2((this.negative | num.negative) === 0);
+        return this.iuand(num);
+      };
+      BN.prototype.and = function and(num) {
+        if (this.length > num.length) return this.clone().iand(num);
+        return num.clone().iand(this);
+      };
+      BN.prototype.uand = function uand(num) {
+        if (this.length > num.length) return this.clone().iuand(num);
+        return num.clone().iuand(this);
+      };
+      BN.prototype.iuxor = function iuxor(num) {
+        var a6;
+        var b6;
+        if (this.length > num.length) {
+          a6 = this;
+          b6 = num;
+        } else {
+          a6 = num;
+          b6 = this;
+        }
+        for (var i5 = 0; i5 < b6.length; i5++) {
+          this.words[i5] = a6.words[i5] ^ b6.words[i5];
+        }
+        if (this !== a6) {
+          for (; i5 < a6.length; i5++) {
+            this.words[i5] = a6.words[i5];
+          }
+        }
+        this.length = a6.length;
+        return this.strip();
+      };
+      BN.prototype.ixor = function ixor(num) {
+        assert2((this.negative | num.negative) === 0);
+        return this.iuxor(num);
+      };
+      BN.prototype.xor = function xor(num) {
+        if (this.length > num.length) return this.clone().ixor(num);
+        return num.clone().ixor(this);
+      };
+      BN.prototype.uxor = function uxor(num) {
+        if (this.length > num.length) return this.clone().iuxor(num);
+        return num.clone().iuxor(this);
+      };
+      BN.prototype.inotn = function inotn(width) {
+        assert2(typeof width === "number" && width >= 0);
+        var bytesNeeded = Math.ceil(width / 26) | 0;
+        var bitsLeft = width % 26;
+        this._expand(bytesNeeded);
+        if (bitsLeft > 0) {
+          bytesNeeded--;
+        }
+        for (var i5 = 0; i5 < bytesNeeded; i5++) {
+          this.words[i5] = ~this.words[i5] & 67108863;
+        }
+        if (bitsLeft > 0) {
+          this.words[i5] = ~this.words[i5] & 67108863 >> 26 - bitsLeft;
+          i5++;
+        }
+        for (; i5 < this.length; i5++) {
+          this.words[i5] = 0;
+        }
+        return this.strip();
+      };
+      BN.prototype.notn = function notn(width) {
+        return this.clone().inotn(width);
+      };
+      BN.prototype.setn = function setn(bit, val) {
+        assert2(typeof bit === "number" && bit >= 0);
+        var off = bit / 26 | 0;
+        var wbit = bit % 26;
+        this._expand(off + 1);
+        if (val) {
+          this.words[off] = this.words[off] | 1 << wbit;
+        } else {
+          this.words[off] = this.words[off] & ~(1 << wbit);
+        }
+        return this.strip();
+      };
+      BN.prototype.iadd = function iadd(num) {
+        var r5;
+        if (this.negative !== 0 && num.negative === 0) {
+          this.negative = 0;
+          r5 = this.isub(num);
+          this.negative ^= 1;
+          return this._normSign();
+        } else if (this.negative === 0 && num.negative !== 0) {
+          num.negative = 0;
+          r5 = this.isub(num);
+          num.negative = 1;
+          return r5._normSign();
+        }
+        var a6, b6;
+        if (this.length > num.length) {
+          a6 = this;
+          b6 = num;
+        } else {
+          a6 = num;
+          b6 = this;
+        }
+        var carry = 0;
+        for (var i5 = 0; i5 < b6.length; i5++) {
+          r5 = (a6.words[i5] | 0) + (b6.words[i5] | 0) + carry;
+          this.words[i5] = r5 & 67108863;
+          carry = r5 >>> 26;
+        }
+        for (; carry !== 0 && i5 < a6.length; i5++) {
+          r5 = (a6.words[i5] | 0) + carry;
+          this.words[i5] = r5 & 67108863;
+          carry = r5 >>> 26;
+        }
+        this.length = a6.length;
+        if (carry !== 0) {
+          this.words[this.length] = carry;
+          this.length++;
+        } else if (a6 !== this) {
+          for (; i5 < a6.length; i5++) {
+            this.words[i5] = a6.words[i5];
+          }
+        }
+        return this;
+      };
+      BN.prototype.add = function add(num) {
+        var res;
+        if (num.negative !== 0 && this.negative === 0) {
+          num.negative = 0;
+          res = this.sub(num);
+          num.negative ^= 1;
+          return res;
+        } else if (num.negative === 0 && this.negative !== 0) {
+          this.negative = 0;
+          res = num.sub(this);
+          this.negative = 1;
+          return res;
+        }
+        if (this.length > num.length) return this.clone().iadd(num);
+        return num.clone().iadd(this);
+      };
+      BN.prototype.isub = function isub(num) {
+        if (num.negative !== 0) {
+          num.negative = 0;
+          var r5 = this.iadd(num);
+          num.negative = 1;
+          return r5._normSign();
+        } else if (this.negative !== 0) {
+          this.negative = 0;
+          this.iadd(num);
+          this.negative = 1;
+          return this._normSign();
+        }
+        var cmp = this.cmp(num);
+        if (cmp === 0) {
+          this.negative = 0;
+          this.length = 1;
+          this.words[0] = 0;
+          return this;
+        }
+        var a6, b6;
+        if (cmp > 0) {
+          a6 = this;
+          b6 = num;
+        } else {
+          a6 = num;
+          b6 = this;
+        }
+        var carry = 0;
+        for (var i5 = 0; i5 < b6.length; i5++) {
+          r5 = (a6.words[i5] | 0) - (b6.words[i5] | 0) + carry;
+          carry = r5 >> 26;
+          this.words[i5] = r5 & 67108863;
+        }
+        for (; carry !== 0 && i5 < a6.length; i5++) {
+          r5 = (a6.words[i5] | 0) + carry;
+          carry = r5 >> 26;
+          this.words[i5] = r5 & 67108863;
+        }
+        if (carry === 0 && i5 < a6.length && a6 !== this) {
+          for (; i5 < a6.length; i5++) {
+            this.words[i5] = a6.words[i5];
+          }
+        }
+        this.length = Math.max(this.length, i5);
+        if (a6 !== this) {
+          this.negative = 1;
+        }
+        return this.strip();
+      };
+      BN.prototype.sub = function sub(num) {
+        return this.clone().isub(num);
+      };
+      function smallMulTo(self2, num, out) {
+        out.negative = num.negative ^ self2.negative;
+        var len = self2.length + num.length | 0;
+        out.length = len;
+        len = len - 1 | 0;
+        var a6 = self2.words[0] | 0;
+        var b6 = num.words[0] | 0;
+        var r5 = a6 * b6;
+        var lo = r5 & 67108863;
+        var carry = r5 / 67108864 | 0;
+        out.words[0] = lo;
+        for (var k5 = 1; k5 < len; k5++) {
+          var ncarry = carry >>> 26;
+          var rword = carry & 67108863;
+          var maxJ = Math.min(k5, num.length - 1);
+          for (var j5 = Math.max(0, k5 - self2.length + 1); j5 <= maxJ; j5++) {
+            var i5 = k5 - j5 | 0;
+            a6 = self2.words[i5] | 0;
+            b6 = num.words[j5] | 0;
+            r5 = a6 * b6 + rword;
+            ncarry += r5 / 67108864 | 0;
+            rword = r5 & 67108863;
+          }
+          out.words[k5] = rword | 0;
+          carry = ncarry | 0;
+        }
+        if (carry !== 0) {
+          out.words[k5] = carry | 0;
+        } else {
+          out.length--;
+        }
+        return out.strip();
+      }
+      var comb10MulTo = function comb10MulTo2(self2, num, out) {
+        var a6 = self2.words;
+        var b6 = num.words;
+        var o3 = out.words;
+        var c5 = 0;
+        var lo;
+        var mid;
+        var hi2;
+        var a0 = a6[0] | 0;
+        var al0 = a0 & 8191;
+        var ah0 = a0 >>> 13;
+        var a1 = a6[1] | 0;
+        var al1 = a1 & 8191;
+        var ah1 = a1 >>> 13;
+        var a22 = a6[2] | 0;
+        var al2 = a22 & 8191;
+        var ah2 = a22 >>> 13;
+        var a32 = a6[3] | 0;
+        var al3 = a32 & 8191;
+        var ah3 = a32 >>> 13;
+        var a42 = a6[4] | 0;
+        var al4 = a42 & 8191;
+        var ah4 = a42 >>> 13;
+        var a52 = a6[5] | 0;
+        var al5 = a52 & 8191;
+        var ah5 = a52 >>> 13;
+        var a62 = a6[6] | 0;
+        var al6 = a62 & 8191;
+        var ah6 = a62 >>> 13;
+        var a7 = a6[7] | 0;
+        var al7 = a7 & 8191;
+        var ah7 = a7 >>> 13;
+        var a8 = a6[8] | 0;
+        var al8 = a8 & 8191;
+        var ah8 = a8 >>> 13;
+        var a9 = a6[9] | 0;
+        var al9 = a9 & 8191;
+        var ah9 = a9 >>> 13;
+        var b0 = b6[0] | 0;
+        var bl0 = b0 & 8191;
+        var bh0 = b0 >>> 13;
+        var b1 = b6[1] | 0;
+        var bl1 = b1 & 8191;
+        var bh1 = b1 >>> 13;
+        var b22 = b6[2] | 0;
+        var bl2 = b22 & 8191;
+        var bh2 = b22 >>> 13;
+        var b32 = b6[3] | 0;
+        var bl3 = b32 & 8191;
+        var bh3 = b32 >>> 13;
+        var b42 = b6[4] | 0;
+        var bl4 = b42 & 8191;
+        var bh4 = b42 >>> 13;
+        var b52 = b6[5] | 0;
+        var bl5 = b52 & 8191;
+        var bh5 = b52 >>> 13;
+        var b62 = b6[6] | 0;
+        var bl6 = b62 & 8191;
+        var bh6 = b62 >>> 13;
+        var b7 = b6[7] | 0;
+        var bl7 = b7 & 8191;
+        var bh7 = b7 >>> 13;
+        var b8 = b6[8] | 0;
+        var bl8 = b8 & 8191;
+        var bh8 = b8 >>> 13;
+        var b9 = b6[9] | 0;
+        var bl9 = b9 & 8191;
+        var bh9 = b9 >>> 13;
+        out.negative = self2.negative ^ num.negative;
+        out.length = 19;
+        lo = Math.imul(al0, bl0);
+        mid = Math.imul(al0, bh0);
+        mid = mid + Math.imul(ah0, bl0) | 0;
+        hi2 = Math.imul(ah0, bh0);
+        var w0 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w0 >>> 26) | 0;
+        w0 &= 67108863;
+        lo = Math.imul(al1, bl0);
+        mid = Math.imul(al1, bh0);
+        mid = mid + Math.imul(ah1, bl0) | 0;
+        hi2 = Math.imul(ah1, bh0);
+        lo = lo + Math.imul(al0, bl1) | 0;
+        mid = mid + Math.imul(al0, bh1) | 0;
+        mid = mid + Math.imul(ah0, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh1) | 0;
+        var w1 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w1 >>> 26) | 0;
+        w1 &= 67108863;
+        lo = Math.imul(al2, bl0);
+        mid = Math.imul(al2, bh0);
+        mid = mid + Math.imul(ah2, bl0) | 0;
+        hi2 = Math.imul(ah2, bh0);
+        lo = lo + Math.imul(al1, bl1) | 0;
+        mid = mid + Math.imul(al1, bh1) | 0;
+        mid = mid + Math.imul(ah1, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh1) | 0;
+        lo = lo + Math.imul(al0, bl2) | 0;
+        mid = mid + Math.imul(al0, bh2) | 0;
+        mid = mid + Math.imul(ah0, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh2) | 0;
+        var w2 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w2 >>> 26) | 0;
+        w2 &= 67108863;
+        lo = Math.imul(al3, bl0);
+        mid = Math.imul(al3, bh0);
+        mid = mid + Math.imul(ah3, bl0) | 0;
+        hi2 = Math.imul(ah3, bh0);
+        lo = lo + Math.imul(al2, bl1) | 0;
+        mid = mid + Math.imul(al2, bh1) | 0;
+        mid = mid + Math.imul(ah2, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh1) | 0;
+        lo = lo + Math.imul(al1, bl2) | 0;
+        mid = mid + Math.imul(al1, bh2) | 0;
+        mid = mid + Math.imul(ah1, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh2) | 0;
+        lo = lo + Math.imul(al0, bl3) | 0;
+        mid = mid + Math.imul(al0, bh3) | 0;
+        mid = mid + Math.imul(ah0, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh3) | 0;
+        var w3 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w3 >>> 26) | 0;
+        w3 &= 67108863;
+        lo = Math.imul(al4, bl0);
+        mid = Math.imul(al4, bh0);
+        mid = mid + Math.imul(ah4, bl0) | 0;
+        hi2 = Math.imul(ah4, bh0);
+        lo = lo + Math.imul(al3, bl1) | 0;
+        mid = mid + Math.imul(al3, bh1) | 0;
+        mid = mid + Math.imul(ah3, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh1) | 0;
+        lo = lo + Math.imul(al2, bl2) | 0;
+        mid = mid + Math.imul(al2, bh2) | 0;
+        mid = mid + Math.imul(ah2, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh2) | 0;
+        lo = lo + Math.imul(al1, bl3) | 0;
+        mid = mid + Math.imul(al1, bh3) | 0;
+        mid = mid + Math.imul(ah1, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh3) | 0;
+        lo = lo + Math.imul(al0, bl4) | 0;
+        mid = mid + Math.imul(al0, bh4) | 0;
+        mid = mid + Math.imul(ah0, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh4) | 0;
+        var w4 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w4 >>> 26) | 0;
+        w4 &= 67108863;
+        lo = Math.imul(al5, bl0);
+        mid = Math.imul(al5, bh0);
+        mid = mid + Math.imul(ah5, bl0) | 0;
+        hi2 = Math.imul(ah5, bh0);
+        lo = lo + Math.imul(al4, bl1) | 0;
+        mid = mid + Math.imul(al4, bh1) | 0;
+        mid = mid + Math.imul(ah4, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh1) | 0;
+        lo = lo + Math.imul(al3, bl2) | 0;
+        mid = mid + Math.imul(al3, bh2) | 0;
+        mid = mid + Math.imul(ah3, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh2) | 0;
+        lo = lo + Math.imul(al2, bl3) | 0;
+        mid = mid + Math.imul(al2, bh3) | 0;
+        mid = mid + Math.imul(ah2, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh3) | 0;
+        lo = lo + Math.imul(al1, bl4) | 0;
+        mid = mid + Math.imul(al1, bh4) | 0;
+        mid = mid + Math.imul(ah1, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh4) | 0;
+        lo = lo + Math.imul(al0, bl5) | 0;
+        mid = mid + Math.imul(al0, bh5) | 0;
+        mid = mid + Math.imul(ah0, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh5) | 0;
+        var w5 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w5 >>> 26) | 0;
+        w5 &= 67108863;
+        lo = Math.imul(al6, bl0);
+        mid = Math.imul(al6, bh0);
+        mid = mid + Math.imul(ah6, bl0) | 0;
+        hi2 = Math.imul(ah6, bh0);
+        lo = lo + Math.imul(al5, bl1) | 0;
+        mid = mid + Math.imul(al5, bh1) | 0;
+        mid = mid + Math.imul(ah5, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh1) | 0;
+        lo = lo + Math.imul(al4, bl2) | 0;
+        mid = mid + Math.imul(al4, bh2) | 0;
+        mid = mid + Math.imul(ah4, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh2) | 0;
+        lo = lo + Math.imul(al3, bl3) | 0;
+        mid = mid + Math.imul(al3, bh3) | 0;
+        mid = mid + Math.imul(ah3, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh3) | 0;
+        lo = lo + Math.imul(al2, bl4) | 0;
+        mid = mid + Math.imul(al2, bh4) | 0;
+        mid = mid + Math.imul(ah2, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh4) | 0;
+        lo = lo + Math.imul(al1, bl5) | 0;
+        mid = mid + Math.imul(al1, bh5) | 0;
+        mid = mid + Math.imul(ah1, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh5) | 0;
+        lo = lo + Math.imul(al0, bl6) | 0;
+        mid = mid + Math.imul(al0, bh6) | 0;
+        mid = mid + Math.imul(ah0, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh6) | 0;
+        var w6 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w6 >>> 26) | 0;
+        w6 &= 67108863;
+        lo = Math.imul(al7, bl0);
+        mid = Math.imul(al7, bh0);
+        mid = mid + Math.imul(ah7, bl0) | 0;
+        hi2 = Math.imul(ah7, bh0);
+        lo = lo + Math.imul(al6, bl1) | 0;
+        mid = mid + Math.imul(al6, bh1) | 0;
+        mid = mid + Math.imul(ah6, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh1) | 0;
+        lo = lo + Math.imul(al5, bl2) | 0;
+        mid = mid + Math.imul(al5, bh2) | 0;
+        mid = mid + Math.imul(ah5, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh2) | 0;
+        lo = lo + Math.imul(al4, bl3) | 0;
+        mid = mid + Math.imul(al4, bh3) | 0;
+        mid = mid + Math.imul(ah4, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh3) | 0;
+        lo = lo + Math.imul(al3, bl4) | 0;
+        mid = mid + Math.imul(al3, bh4) | 0;
+        mid = mid + Math.imul(ah3, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh4) | 0;
+        lo = lo + Math.imul(al2, bl5) | 0;
+        mid = mid + Math.imul(al2, bh5) | 0;
+        mid = mid + Math.imul(ah2, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh5) | 0;
+        lo = lo + Math.imul(al1, bl6) | 0;
+        mid = mid + Math.imul(al1, bh6) | 0;
+        mid = mid + Math.imul(ah1, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh6) | 0;
+        lo = lo + Math.imul(al0, bl7) | 0;
+        mid = mid + Math.imul(al0, bh7) | 0;
+        mid = mid + Math.imul(ah0, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh7) | 0;
+        var w7 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w7 >>> 26) | 0;
+        w7 &= 67108863;
+        lo = Math.imul(al8, bl0);
+        mid = Math.imul(al8, bh0);
+        mid = mid + Math.imul(ah8, bl0) | 0;
+        hi2 = Math.imul(ah8, bh0);
+        lo = lo + Math.imul(al7, bl1) | 0;
+        mid = mid + Math.imul(al7, bh1) | 0;
+        mid = mid + Math.imul(ah7, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh1) | 0;
+        lo = lo + Math.imul(al6, bl2) | 0;
+        mid = mid + Math.imul(al6, bh2) | 0;
+        mid = mid + Math.imul(ah6, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh2) | 0;
+        lo = lo + Math.imul(al5, bl3) | 0;
+        mid = mid + Math.imul(al5, bh3) | 0;
+        mid = mid + Math.imul(ah5, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh3) | 0;
+        lo = lo + Math.imul(al4, bl4) | 0;
+        mid = mid + Math.imul(al4, bh4) | 0;
+        mid = mid + Math.imul(ah4, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh4) | 0;
+        lo = lo + Math.imul(al3, bl5) | 0;
+        mid = mid + Math.imul(al3, bh5) | 0;
+        mid = mid + Math.imul(ah3, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh5) | 0;
+        lo = lo + Math.imul(al2, bl6) | 0;
+        mid = mid + Math.imul(al2, bh6) | 0;
+        mid = mid + Math.imul(ah2, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh6) | 0;
+        lo = lo + Math.imul(al1, bl7) | 0;
+        mid = mid + Math.imul(al1, bh7) | 0;
+        mid = mid + Math.imul(ah1, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh7) | 0;
+        lo = lo + Math.imul(al0, bl8) | 0;
+        mid = mid + Math.imul(al0, bh8) | 0;
+        mid = mid + Math.imul(ah0, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh8) | 0;
+        var w8 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w8 >>> 26) | 0;
+        w8 &= 67108863;
+        lo = Math.imul(al9, bl0);
+        mid = Math.imul(al9, bh0);
+        mid = mid + Math.imul(ah9, bl0) | 0;
+        hi2 = Math.imul(ah9, bh0);
+        lo = lo + Math.imul(al8, bl1) | 0;
+        mid = mid + Math.imul(al8, bh1) | 0;
+        mid = mid + Math.imul(ah8, bl1) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh1) | 0;
+        lo = lo + Math.imul(al7, bl2) | 0;
+        mid = mid + Math.imul(al7, bh2) | 0;
+        mid = mid + Math.imul(ah7, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh2) | 0;
+        lo = lo + Math.imul(al6, bl3) | 0;
+        mid = mid + Math.imul(al6, bh3) | 0;
+        mid = mid + Math.imul(ah6, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh3) | 0;
+        lo = lo + Math.imul(al5, bl4) | 0;
+        mid = mid + Math.imul(al5, bh4) | 0;
+        mid = mid + Math.imul(ah5, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh4) | 0;
+        lo = lo + Math.imul(al4, bl5) | 0;
+        mid = mid + Math.imul(al4, bh5) | 0;
+        mid = mid + Math.imul(ah4, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh5) | 0;
+        lo = lo + Math.imul(al3, bl6) | 0;
+        mid = mid + Math.imul(al3, bh6) | 0;
+        mid = mid + Math.imul(ah3, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh6) | 0;
+        lo = lo + Math.imul(al2, bl7) | 0;
+        mid = mid + Math.imul(al2, bh7) | 0;
+        mid = mid + Math.imul(ah2, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh7) | 0;
+        lo = lo + Math.imul(al1, bl8) | 0;
+        mid = mid + Math.imul(al1, bh8) | 0;
+        mid = mid + Math.imul(ah1, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh8) | 0;
+        lo = lo + Math.imul(al0, bl9) | 0;
+        mid = mid + Math.imul(al0, bh9) | 0;
+        mid = mid + Math.imul(ah0, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah0, bh9) | 0;
+        var w9 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w9 >>> 26) | 0;
+        w9 &= 67108863;
+        lo = Math.imul(al9, bl1);
+        mid = Math.imul(al9, bh1);
+        mid = mid + Math.imul(ah9, bl1) | 0;
+        hi2 = Math.imul(ah9, bh1);
+        lo = lo + Math.imul(al8, bl2) | 0;
+        mid = mid + Math.imul(al8, bh2) | 0;
+        mid = mid + Math.imul(ah8, bl2) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh2) | 0;
+        lo = lo + Math.imul(al7, bl3) | 0;
+        mid = mid + Math.imul(al7, bh3) | 0;
+        mid = mid + Math.imul(ah7, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh3) | 0;
+        lo = lo + Math.imul(al6, bl4) | 0;
+        mid = mid + Math.imul(al6, bh4) | 0;
+        mid = mid + Math.imul(ah6, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh4) | 0;
+        lo = lo + Math.imul(al5, bl5) | 0;
+        mid = mid + Math.imul(al5, bh5) | 0;
+        mid = mid + Math.imul(ah5, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh5) | 0;
+        lo = lo + Math.imul(al4, bl6) | 0;
+        mid = mid + Math.imul(al4, bh6) | 0;
+        mid = mid + Math.imul(ah4, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh6) | 0;
+        lo = lo + Math.imul(al3, bl7) | 0;
+        mid = mid + Math.imul(al3, bh7) | 0;
+        mid = mid + Math.imul(ah3, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh7) | 0;
+        lo = lo + Math.imul(al2, bl8) | 0;
+        mid = mid + Math.imul(al2, bh8) | 0;
+        mid = mid + Math.imul(ah2, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh8) | 0;
+        lo = lo + Math.imul(al1, bl9) | 0;
+        mid = mid + Math.imul(al1, bh9) | 0;
+        mid = mid + Math.imul(ah1, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah1, bh9) | 0;
+        var w10 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w10 >>> 26) | 0;
+        w10 &= 67108863;
+        lo = Math.imul(al9, bl2);
+        mid = Math.imul(al9, bh2);
+        mid = mid + Math.imul(ah9, bl2) | 0;
+        hi2 = Math.imul(ah9, bh2);
+        lo = lo + Math.imul(al8, bl3) | 0;
+        mid = mid + Math.imul(al8, bh3) | 0;
+        mid = mid + Math.imul(ah8, bl3) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh3) | 0;
+        lo = lo + Math.imul(al7, bl4) | 0;
+        mid = mid + Math.imul(al7, bh4) | 0;
+        mid = mid + Math.imul(ah7, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh4) | 0;
+        lo = lo + Math.imul(al6, bl5) | 0;
+        mid = mid + Math.imul(al6, bh5) | 0;
+        mid = mid + Math.imul(ah6, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh5) | 0;
+        lo = lo + Math.imul(al5, bl6) | 0;
+        mid = mid + Math.imul(al5, bh6) | 0;
+        mid = mid + Math.imul(ah5, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh6) | 0;
+        lo = lo + Math.imul(al4, bl7) | 0;
+        mid = mid + Math.imul(al4, bh7) | 0;
+        mid = mid + Math.imul(ah4, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh7) | 0;
+        lo = lo + Math.imul(al3, bl8) | 0;
+        mid = mid + Math.imul(al3, bh8) | 0;
+        mid = mid + Math.imul(ah3, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh8) | 0;
+        lo = lo + Math.imul(al2, bl9) | 0;
+        mid = mid + Math.imul(al2, bh9) | 0;
+        mid = mid + Math.imul(ah2, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah2, bh9) | 0;
+        var w11 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w11 >>> 26) | 0;
+        w11 &= 67108863;
+        lo = Math.imul(al9, bl3);
+        mid = Math.imul(al9, bh3);
+        mid = mid + Math.imul(ah9, bl3) | 0;
+        hi2 = Math.imul(ah9, bh3);
+        lo = lo + Math.imul(al8, bl4) | 0;
+        mid = mid + Math.imul(al8, bh4) | 0;
+        mid = mid + Math.imul(ah8, bl4) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh4) | 0;
+        lo = lo + Math.imul(al7, bl5) | 0;
+        mid = mid + Math.imul(al7, bh5) | 0;
+        mid = mid + Math.imul(ah7, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh5) | 0;
+        lo = lo + Math.imul(al6, bl6) | 0;
+        mid = mid + Math.imul(al6, bh6) | 0;
+        mid = mid + Math.imul(ah6, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh6) | 0;
+        lo = lo + Math.imul(al5, bl7) | 0;
+        mid = mid + Math.imul(al5, bh7) | 0;
+        mid = mid + Math.imul(ah5, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh7) | 0;
+        lo = lo + Math.imul(al4, bl8) | 0;
+        mid = mid + Math.imul(al4, bh8) | 0;
+        mid = mid + Math.imul(ah4, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh8) | 0;
+        lo = lo + Math.imul(al3, bl9) | 0;
+        mid = mid + Math.imul(al3, bh9) | 0;
+        mid = mid + Math.imul(ah3, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah3, bh9) | 0;
+        var w12 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w12 >>> 26) | 0;
+        w12 &= 67108863;
+        lo = Math.imul(al9, bl4);
+        mid = Math.imul(al9, bh4);
+        mid = mid + Math.imul(ah9, bl4) | 0;
+        hi2 = Math.imul(ah9, bh4);
+        lo = lo + Math.imul(al8, bl5) | 0;
+        mid = mid + Math.imul(al8, bh5) | 0;
+        mid = mid + Math.imul(ah8, bl5) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh5) | 0;
+        lo = lo + Math.imul(al7, bl6) | 0;
+        mid = mid + Math.imul(al7, bh6) | 0;
+        mid = mid + Math.imul(ah7, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh6) | 0;
+        lo = lo + Math.imul(al6, bl7) | 0;
+        mid = mid + Math.imul(al6, bh7) | 0;
+        mid = mid + Math.imul(ah6, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh7) | 0;
+        lo = lo + Math.imul(al5, bl8) | 0;
+        mid = mid + Math.imul(al5, bh8) | 0;
+        mid = mid + Math.imul(ah5, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh8) | 0;
+        lo = lo + Math.imul(al4, bl9) | 0;
+        mid = mid + Math.imul(al4, bh9) | 0;
+        mid = mid + Math.imul(ah4, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah4, bh9) | 0;
+        var w13 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w13 >>> 26) | 0;
+        w13 &= 67108863;
+        lo = Math.imul(al9, bl5);
+        mid = Math.imul(al9, bh5);
+        mid = mid + Math.imul(ah9, bl5) | 0;
+        hi2 = Math.imul(ah9, bh5);
+        lo = lo + Math.imul(al8, bl6) | 0;
+        mid = mid + Math.imul(al8, bh6) | 0;
+        mid = mid + Math.imul(ah8, bl6) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh6) | 0;
+        lo = lo + Math.imul(al7, bl7) | 0;
+        mid = mid + Math.imul(al7, bh7) | 0;
+        mid = mid + Math.imul(ah7, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh7) | 0;
+        lo = lo + Math.imul(al6, bl8) | 0;
+        mid = mid + Math.imul(al6, bh8) | 0;
+        mid = mid + Math.imul(ah6, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh8) | 0;
+        lo = lo + Math.imul(al5, bl9) | 0;
+        mid = mid + Math.imul(al5, bh9) | 0;
+        mid = mid + Math.imul(ah5, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah5, bh9) | 0;
+        var w14 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w14 >>> 26) | 0;
+        w14 &= 67108863;
+        lo = Math.imul(al9, bl6);
+        mid = Math.imul(al9, bh6);
+        mid = mid + Math.imul(ah9, bl6) | 0;
+        hi2 = Math.imul(ah9, bh6);
+        lo = lo + Math.imul(al8, bl7) | 0;
+        mid = mid + Math.imul(al8, bh7) | 0;
+        mid = mid + Math.imul(ah8, bl7) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh7) | 0;
+        lo = lo + Math.imul(al7, bl8) | 0;
+        mid = mid + Math.imul(al7, bh8) | 0;
+        mid = mid + Math.imul(ah7, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh8) | 0;
+        lo = lo + Math.imul(al6, bl9) | 0;
+        mid = mid + Math.imul(al6, bh9) | 0;
+        mid = mid + Math.imul(ah6, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah6, bh9) | 0;
+        var w15 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w15 >>> 26) | 0;
+        w15 &= 67108863;
+        lo = Math.imul(al9, bl7);
+        mid = Math.imul(al9, bh7);
+        mid = mid + Math.imul(ah9, bl7) | 0;
+        hi2 = Math.imul(ah9, bh7);
+        lo = lo + Math.imul(al8, bl8) | 0;
+        mid = mid + Math.imul(al8, bh8) | 0;
+        mid = mid + Math.imul(ah8, bl8) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh8) | 0;
+        lo = lo + Math.imul(al7, bl9) | 0;
+        mid = mid + Math.imul(al7, bh9) | 0;
+        mid = mid + Math.imul(ah7, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah7, bh9) | 0;
+        var w16 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w16 >>> 26) | 0;
+        w16 &= 67108863;
+        lo = Math.imul(al9, bl8);
+        mid = Math.imul(al9, bh8);
+        mid = mid + Math.imul(ah9, bl8) | 0;
+        hi2 = Math.imul(ah9, bh8);
+        lo = lo + Math.imul(al8, bl9) | 0;
+        mid = mid + Math.imul(al8, bh9) | 0;
+        mid = mid + Math.imul(ah8, bl9) | 0;
+        hi2 = hi2 + Math.imul(ah8, bh9) | 0;
+        var w17 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w17 >>> 26) | 0;
+        w17 &= 67108863;
+        lo = Math.imul(al9, bl9);
+        mid = Math.imul(al9, bh9);
+        mid = mid + Math.imul(ah9, bl9) | 0;
+        hi2 = Math.imul(ah9, bh9);
+        var w18 = (c5 + lo | 0) + ((mid & 8191) << 13) | 0;
+        c5 = (hi2 + (mid >>> 13) | 0) + (w18 >>> 26) | 0;
+        w18 &= 67108863;
+        o3[0] = w0;
+        o3[1] = w1;
+        o3[2] = w2;
+        o3[3] = w3;
+        o3[4] = w4;
+        o3[5] = w5;
+        o3[6] = w6;
+        o3[7] = w7;
+        o3[8] = w8;
+        o3[9] = w9;
+        o3[10] = w10;
+        o3[11] = w11;
+        o3[12] = w12;
+        o3[13] = w13;
+        o3[14] = w14;
+        o3[15] = w15;
+        o3[16] = w16;
+        o3[17] = w17;
+        o3[18] = w18;
+        if (c5 !== 0) {
+          o3[19] = c5;
+          out.length++;
+        }
+        return out;
+      };
+      if (!Math.imul) {
+        comb10MulTo = smallMulTo;
+      }
+      function bigMulTo(self2, num, out) {
+        out.negative = num.negative ^ self2.negative;
+        out.length = self2.length + num.length;
+        var carry = 0;
+        var hncarry = 0;
+        for (var k5 = 0; k5 < out.length - 1; k5++) {
+          var ncarry = hncarry;
+          hncarry = 0;
+          var rword = carry & 67108863;
+          var maxJ = Math.min(k5, num.length - 1);
+          for (var j5 = Math.max(0, k5 - self2.length + 1); j5 <= maxJ; j5++) {
+            var i5 = k5 - j5;
+            var a6 = self2.words[i5] | 0;
+            var b6 = num.words[j5] | 0;
+            var r5 = a6 * b6;
+            var lo = r5 & 67108863;
+            ncarry = ncarry + (r5 / 67108864 | 0) | 0;
+            lo = lo + rword | 0;
+            rword = lo & 67108863;
+            ncarry = ncarry + (lo >>> 26) | 0;
+            hncarry += ncarry >>> 26;
+            ncarry &= 67108863;
+          }
+          out.words[k5] = rword;
+          carry = ncarry;
+          ncarry = hncarry;
+        }
+        if (carry !== 0) {
+          out.words[k5] = carry;
+        } else {
+          out.length--;
+        }
+        return out.strip();
+      }
+      function jumboMulTo(self2, num, out) {
+        var fftm = new FFTM();
+        return fftm.mulp(self2, num, out);
+      }
+      BN.prototype.mulTo = function mulTo(num, out) {
+        var res;
+        var len = this.length + num.length;
+        if (this.length === 10 && num.length === 10) {
+          res = comb10MulTo(this, num, out);
+        } else if (len < 63) {
+          res = smallMulTo(this, num, out);
+        } else if (len < 1024) {
+          res = bigMulTo(this, num, out);
+        } else {
+          res = jumboMulTo(this, num, out);
+        }
+        return res;
+      };
+      function FFTM(x2, y2) {
+        this.x = x2;
+        this.y = y2;
+      }
+      FFTM.prototype.makeRBT = function makeRBT(N2) {
+        var t = new Array(N2);
+        var l3 = BN.prototype._countBits(N2) - 1;
+        for (var i5 = 0; i5 < N2; i5++) {
+          t[i5] = this.revBin(i5, l3, N2);
+        }
+        return t;
+      };
+      FFTM.prototype.revBin = function revBin(x2, l3, N2) {
+        if (x2 === 0 || x2 === N2 - 1) return x2;
+        var rb = 0;
+        for (var i5 = 0; i5 < l3; i5++) {
+          rb |= (x2 & 1) << l3 - i5 - 1;
+          x2 >>= 1;
+        }
+        return rb;
+      };
+      FFTM.prototype.permute = function permute(rbt, rws, iws, rtws, itws, N2) {
+        for (var i5 = 0; i5 < N2; i5++) {
+          rtws[i5] = rws[rbt[i5]];
+          itws[i5] = iws[rbt[i5]];
+        }
+      };
+      FFTM.prototype.transform = function transform(rws, iws, rtws, itws, N2, rbt) {
+        this.permute(rbt, rws, iws, rtws, itws, N2);
+        for (var s2 = 1; s2 < N2; s2 <<= 1) {
+          var l3 = s2 << 1;
+          var rtwdf = Math.cos(2 * Math.PI / l3);
+          var itwdf = Math.sin(2 * Math.PI / l3);
+          for (var p4 = 0; p4 < N2; p4 += l3) {
+            var rtwdf_ = rtwdf;
+            var itwdf_ = itwdf;
+            for (var j5 = 0; j5 < s2; j5++) {
+              var re = rtws[p4 + j5];
+              var ie = itws[p4 + j5];
+              var ro2 = rtws[p4 + j5 + s2];
+              var io = itws[p4 + j5 + s2];
+              var rx = rtwdf_ * ro2 - itwdf_ * io;
+              io = rtwdf_ * io + itwdf_ * ro2;
+              ro2 = rx;
+              rtws[p4 + j5] = re + ro2;
+              itws[p4 + j5] = ie + io;
+              rtws[p4 + j5 + s2] = re - ro2;
+              itws[p4 + j5 + s2] = ie - io;
+              if (j5 !== l3) {
+                rx = rtwdf * rtwdf_ - itwdf * itwdf_;
+                itwdf_ = rtwdf * itwdf_ + itwdf * rtwdf_;
+                rtwdf_ = rx;
+              }
+            }
+          }
+        }
+      };
+      FFTM.prototype.guessLen13b = function guessLen13b(n3, m3) {
+        var N2 = Math.max(m3, n3) | 1;
+        var odd = N2 & 1;
+        var i5 = 0;
+        for (N2 = N2 / 2 | 0; N2; N2 = N2 >>> 1) {
+          i5++;
+        }
+        return 1 << i5 + 1 + odd;
+      };
+      FFTM.prototype.conjugate = function conjugate(rws, iws, N2) {
+        if (N2 <= 1) return;
+        for (var i5 = 0; i5 < N2 / 2; i5++) {
+          var t = rws[i5];
+          rws[i5] = rws[N2 - i5 - 1];
+          rws[N2 - i5 - 1] = t;
+          t = iws[i5];
+          iws[i5] = -iws[N2 - i5 - 1];
+          iws[N2 - i5 - 1] = -t;
+        }
+      };
+      FFTM.prototype.normalize13b = function normalize13b(ws, N2) {
+        var carry = 0;
+        for (var i5 = 0; i5 < N2 / 2; i5++) {
+          var w = Math.round(ws[2 * i5 + 1] / N2) * 8192 + Math.round(ws[2 * i5] / N2) + carry;
+          ws[i5] = w & 67108863;
+          if (w < 67108864) {
+            carry = 0;
+          } else {
+            carry = w / 67108864 | 0;
+          }
+        }
+        return ws;
+      };
+      FFTM.prototype.convert13b = function convert13b(ws, len, rws, N2) {
+        var carry = 0;
+        for (var i5 = 0; i5 < len; i5++) {
+          carry = carry + (ws[i5] | 0);
+          rws[2 * i5] = carry & 8191;
+          carry = carry >>> 13;
+          rws[2 * i5 + 1] = carry & 8191;
+          carry = carry >>> 13;
+        }
+        for (i5 = 2 * len; i5 < N2; ++i5) {
+          rws[i5] = 0;
+        }
+        assert2(carry === 0);
+        assert2((carry & ~8191) === 0);
+      };
+      FFTM.prototype.stub = function stub(N2) {
+        var ph = new Array(N2);
+        for (var i5 = 0; i5 < N2; i5++) {
+          ph[i5] = 0;
+        }
+        return ph;
+      };
+      FFTM.prototype.mulp = function mulp(x2, y2, out) {
+        var N2 = 2 * this.guessLen13b(x2.length, y2.length);
+        var rbt = this.makeRBT(N2);
+        var _ = this.stub(N2);
+        var rws = new Array(N2);
+        var rwst = new Array(N2);
+        var iwst = new Array(N2);
+        var nrws = new Array(N2);
+        var nrwst = new Array(N2);
+        var niwst = new Array(N2);
+        var rmws = out.words;
+        rmws.length = N2;
+        this.convert13b(x2.words, x2.length, rws, N2);
+        this.convert13b(y2.words, y2.length, nrws, N2);
+        this.transform(rws, _, rwst, iwst, N2, rbt);
+        this.transform(nrws, _, nrwst, niwst, N2, rbt);
+        for (var i5 = 0; i5 < N2; i5++) {
+          var rx = rwst[i5] * nrwst[i5] - iwst[i5] * niwst[i5];
+          iwst[i5] = rwst[i5] * niwst[i5] + iwst[i5] * nrwst[i5];
+          rwst[i5] = rx;
+        }
+        this.conjugate(rwst, iwst, N2);
+        this.transform(rwst, iwst, rmws, _, N2, rbt);
+        this.conjugate(rmws, _, N2);
+        this.normalize13b(rmws, N2);
+        out.negative = x2.negative ^ y2.negative;
+        out.length = x2.length + y2.length;
+        return out.strip();
+      };
+      BN.prototype.mul = function mul(num) {
+        var out = new BN(null);
+        out.words = new Array(this.length + num.length);
+        return this.mulTo(num, out);
+      };
+      BN.prototype.mulf = function mulf(num) {
+        var out = new BN(null);
+        out.words = new Array(this.length + num.length);
+        return jumboMulTo(this, num, out);
+      };
+      BN.prototype.imul = function imul(num) {
+        return this.clone().mulTo(num, this);
+      };
+      BN.prototype.imuln = function imuln(num) {
+        assert2(typeof num === "number");
+        assert2(num < 67108864);
+        var carry = 0;
+        for (var i5 = 0; i5 < this.length; i5++) {
+          var w = (this.words[i5] | 0) * num;
+          var lo = (w & 67108863) + (carry & 67108863);
+          carry >>= 26;
+          carry += w / 67108864 | 0;
+          carry += lo >>> 26;
+          this.words[i5] = lo & 67108863;
+        }
+        if (carry !== 0) {
+          this.words[i5] = carry;
+          this.length++;
+        }
+        if (num === 0) {
+          this.length = 1;
+          this._normSign();
+        }
+        return this;
+      };
+      BN.prototype.muln = function muln(num) {
+        return this.clone().imuln(num);
+      };
+      BN.prototype.sqr = function sqr() {
+        return this.mul(this);
+      };
+      BN.prototype.isqr = function isqr() {
+        return this.imul(this.clone());
+      };
+      BN.prototype.pow = function pow(num) {
+        var w = toBitArray(num);
+        if (w.length === 0) return new BN(1);
+        var res = this;
+        for (var i5 = 0; i5 < w.length; i5++, res = res.sqr()) {
+          if (w[i5] !== 0) break;
+        }
+        if (++i5 < w.length) {
+          for (var q3 = res.sqr(); i5 < w.length; i5++, q3 = q3.sqr()) {
+            if (w[i5] === 0) continue;
+            res = res.mul(q3);
+          }
+        }
+        return res;
+      };
+      BN.prototype.iushln = function iushln(bits) {
+        assert2(typeof bits === "number" && bits >= 0);
+        var r5 = bits % 26;
+        var s2 = (bits - r5) / 26;
+        var carryMask = 67108863 >>> 26 - r5 << 26 - r5;
+        var i5;
+        if (r5 !== 0) {
+          var carry = 0;
+          for (i5 = 0; i5 < this.length; i5++) {
+            var newCarry = this.words[i5] & carryMask;
+            var c5 = (this.words[i5] | 0) - newCarry << r5;
+            this.words[i5] = c5 | carry;
+            carry = newCarry >>> 26 - r5;
+          }
+          if (carry) {
+            this.words[i5] = carry;
+            this.length++;
+          }
+        }
+        if (s2 !== 0) {
+          for (i5 = this.length - 1; i5 >= 0; i5--) {
+            this.words[i5 + s2] = this.words[i5];
+          }
+          for (i5 = 0; i5 < s2; i5++) {
+            this.words[i5] = 0;
+          }
+          this.length += s2;
+        }
+        return this.strip();
+      };
+      BN.prototype.ishln = function ishln(bits) {
+        assert2(this.negative === 0);
+        return this.iushln(bits);
+      };
+      BN.prototype.iushrn = function iushrn(bits, hint, extended) {
+        assert2(typeof bits === "number" && bits >= 0);
+        var h6;
+        if (hint) {
+          h6 = (hint - hint % 26) / 26;
+        } else {
+          h6 = 0;
+        }
+        var r5 = bits % 26;
+        var s2 = Math.min((bits - r5) / 26, this.length);
+        var mask = 67108863 ^ 67108863 >>> r5 << r5;
+        var maskedWords = extended;
+        h6 -= s2;
+        h6 = Math.max(0, h6);
+        if (maskedWords) {
+          for (var i5 = 0; i5 < s2; i5++) {
+            maskedWords.words[i5] = this.words[i5];
+          }
+          maskedWords.length = s2;
+        }
+        if (s2 === 0) {
+        } else if (this.length > s2) {
+          this.length -= s2;
+          for (i5 = 0; i5 < this.length; i5++) {
+            this.words[i5] = this.words[i5 + s2];
+          }
+        } else {
+          this.words[0] = 0;
+          this.length = 1;
+        }
+        var carry = 0;
+        for (i5 = this.length - 1; i5 >= 0 && (carry !== 0 || i5 >= h6); i5--) {
+          var word = this.words[i5] | 0;
+          this.words[i5] = carry << 26 - r5 | word >>> r5;
+          carry = word & mask;
+        }
+        if (maskedWords && carry !== 0) {
+          maskedWords.words[maskedWords.length++] = carry;
+        }
+        if (this.length === 0) {
+          this.words[0] = 0;
+          this.length = 1;
+        }
+        return this.strip();
+      };
+      BN.prototype.ishrn = function ishrn(bits, hint, extended) {
+        assert2(this.negative === 0);
+        return this.iushrn(bits, hint, extended);
+      };
+      BN.prototype.shln = function shln(bits) {
+        return this.clone().ishln(bits);
+      };
+      BN.prototype.ushln = function ushln(bits) {
+        return this.clone().iushln(bits);
+      };
+      BN.prototype.shrn = function shrn(bits) {
+        return this.clone().ishrn(bits);
+      };
+      BN.prototype.ushrn = function ushrn(bits) {
+        return this.clone().iushrn(bits);
+      };
+      BN.prototype.testn = function testn(bit) {
+        assert2(typeof bit === "number" && bit >= 0);
+        var r5 = bit % 26;
+        var s2 = (bit - r5) / 26;
+        var q3 = 1 << r5;
+        if (this.length <= s2) return false;
+        var w = this.words[s2];
+        return !!(w & q3);
+      };
+      BN.prototype.imaskn = function imaskn(bits) {
+        assert2(typeof bits === "number" && bits >= 0);
+        var r5 = bits % 26;
+        var s2 = (bits - r5) / 26;
+        assert2(this.negative === 0, "imaskn works only with positive numbers");
+        if (this.length <= s2) {
+          return this;
+        }
+        if (r5 !== 0) {
+          s2++;
+        }
+        this.length = Math.min(s2, this.length);
+        if (r5 !== 0) {
+          var mask = 67108863 ^ 67108863 >>> r5 << r5;
+          this.words[this.length - 1] &= mask;
+        }
+        if (this.length === 0) {
+          this.words[0] = 0;
+          this.length = 1;
+        }
+        return this.strip();
+      };
+      BN.prototype.maskn = function maskn(bits) {
+        return this.clone().imaskn(bits);
+      };
+      BN.prototype.iaddn = function iaddn(num) {
+        assert2(typeof num === "number");
+        assert2(num < 67108864);
+        if (num < 0) return this.isubn(-num);
+        if (this.negative !== 0) {
+          if (this.length === 1 && (this.words[0] | 0) < num) {
+            this.words[0] = num - (this.words[0] | 0);
+            this.negative = 0;
+            return this;
+          }
+          this.negative = 0;
+          this.isubn(num);
+          this.negative = 1;
+          return this;
+        }
+        return this._iaddn(num);
+      };
+      BN.prototype._iaddn = function _iaddn(num) {
+        this.words[0] += num;
+        for (var i5 = 0; i5 < this.length && this.words[i5] >= 67108864; i5++) {
+          this.words[i5] -= 67108864;
+          if (i5 === this.length - 1) {
+            this.words[i5 + 1] = 1;
+          } else {
+            this.words[i5 + 1]++;
+          }
+        }
+        this.length = Math.max(this.length, i5 + 1);
+        return this;
+      };
+      BN.prototype.isubn = function isubn(num) {
+        assert2(typeof num === "number");
+        assert2(num < 67108864);
+        if (num < 0) return this.iaddn(-num);
+        if (this.negative !== 0) {
+          this.negative = 0;
+          this.iaddn(num);
+          this.negative = 1;
+          return this;
+        }
+        this.words[0] -= num;
+        if (this.length === 1 && this.words[0] < 0) {
+          this.words[0] = -this.words[0];
+          this.negative = 1;
+        } else {
+          for (var i5 = 0; i5 < this.length && this.words[i5] < 0; i5++) {
+            this.words[i5] += 67108864;
+            this.words[i5 + 1] -= 1;
+          }
+        }
+        return this.strip();
+      };
+      BN.prototype.addn = function addn(num) {
+        return this.clone().iaddn(num);
+      };
+      BN.prototype.subn = function subn(num) {
+        return this.clone().isubn(num);
+      };
+      BN.prototype.iabs = function iabs() {
+        this.negative = 0;
+        return this;
+      };
+      BN.prototype.abs = function abs() {
+        return this.clone().iabs();
+      };
+      BN.prototype._ishlnsubmul = function _ishlnsubmul(num, mul, shift) {
+        var len = num.length + shift;
+        var i5;
+        this._expand(len);
+        var w;
+        var carry = 0;
+        for (i5 = 0; i5 < num.length; i5++) {
+          w = (this.words[i5 + shift] | 0) + carry;
+          var right = (num.words[i5] | 0) * mul;
+          w -= right & 67108863;
+          carry = (w >> 26) - (right / 67108864 | 0);
+          this.words[i5 + shift] = w & 67108863;
+        }
+        for (; i5 < this.length - shift; i5++) {
+          w = (this.words[i5 + shift] | 0) + carry;
+          carry = w >> 26;
+          this.words[i5 + shift] = w & 67108863;
+        }
+        if (carry === 0) return this.strip();
+        assert2(carry === -1);
+        carry = 0;
+        for (i5 = 0; i5 < this.length; i5++) {
+          w = -(this.words[i5] | 0) + carry;
+          carry = w >> 26;
+          this.words[i5] = w & 67108863;
+        }
+        this.negative = 1;
+        return this.strip();
+      };
+      BN.prototype._wordDiv = function _wordDiv(num, mode) {
+        var shift = this.length - num.length;
+        var a6 = this.clone();
+        var b6 = num;
+        var bhi = b6.words[b6.length - 1] | 0;
+        var bhiBits = this._countBits(bhi);
+        shift = 26 - bhiBits;
+        if (shift !== 0) {
+          b6 = b6.ushln(shift);
+          a6.iushln(shift);
+          bhi = b6.words[b6.length - 1] | 0;
+        }
+        var m3 = a6.length - b6.length;
+        var q3;
+        if (mode !== "mod") {
+          q3 = new BN(null);
+          q3.length = m3 + 1;
+          q3.words = new Array(q3.length);
+          for (var i5 = 0; i5 < q3.length; i5++) {
+            q3.words[i5] = 0;
+          }
+        }
+        var diff = a6.clone()._ishlnsubmul(b6, 1, m3);
+        if (diff.negative === 0) {
+          a6 = diff;
+          if (q3) {
+            q3.words[m3] = 1;
+          }
+        }
+        for (var j5 = m3 - 1; j5 >= 0; j5--) {
+          var qj = (a6.words[b6.length + j5] | 0) * 67108864 + (a6.words[b6.length + j5 - 1] | 0);
+          qj = Math.min(qj / bhi | 0, 67108863);
+          a6._ishlnsubmul(b6, qj, j5);
+          while (a6.negative !== 0) {
+            qj--;
+            a6.negative = 0;
+            a6._ishlnsubmul(b6, 1, j5);
+            if (!a6.isZero()) {
+              a6.negative ^= 1;
+            }
+          }
+          if (q3) {
+            q3.words[j5] = qj;
+          }
+        }
+        if (q3) {
+          q3.strip();
+        }
+        a6.strip();
+        if (mode !== "div" && shift !== 0) {
+          a6.iushrn(shift);
+        }
+        return {
+          div: q3 || null,
+          mod: a6
+        };
+      };
+      BN.prototype.divmod = function divmod(num, mode, positive) {
+        assert2(!num.isZero());
+        if (this.isZero()) {
+          return {
+            div: new BN(0),
+            mod: new BN(0)
+          };
+        }
+        var div, mod, res;
+        if (this.negative !== 0 && num.negative === 0) {
+          res = this.neg().divmod(num, mode);
+          if (mode !== "mod") {
+            div = res.div.neg();
+          }
+          if (mode !== "div") {
+            mod = res.mod.neg();
+            if (positive && mod.negative !== 0) {
+              mod.iadd(num);
+            }
+          }
+          return {
+            div,
+            mod
+          };
+        }
+        if (this.negative === 0 && num.negative !== 0) {
+          res = this.divmod(num.neg(), mode);
+          if (mode !== "mod") {
+            div = res.div.neg();
+          }
+          return {
+            div,
+            mod: res.mod
+          };
+        }
+        if ((this.negative & num.negative) !== 0) {
+          res = this.neg().divmod(num.neg(), mode);
+          if (mode !== "div") {
+            mod = res.mod.neg();
+            if (positive && mod.negative !== 0) {
+              mod.isub(num);
+            }
+          }
+          return {
+            div: res.div,
+            mod
+          };
+        }
+        if (num.length > this.length || this.cmp(num) < 0) {
+          return {
+            div: new BN(0),
+            mod: this
+          };
+        }
+        if (num.length === 1) {
+          if (mode === "div") {
+            return {
+              div: this.divn(num.words[0]),
+              mod: null
+            };
+          }
+          if (mode === "mod") {
+            return {
+              div: null,
+              mod: new BN(this.modn(num.words[0]))
+            };
+          }
+          return {
+            div: this.divn(num.words[0]),
+            mod: new BN(this.modn(num.words[0]))
+          };
+        }
+        return this._wordDiv(num, mode);
+      };
+      BN.prototype.div = function div(num) {
+        return this.divmod(num, "div", false).div;
+      };
+      BN.prototype.mod = function mod(num) {
+        return this.divmod(num, "mod", false).mod;
+      };
+      BN.prototype.umod = function umod(num) {
+        return this.divmod(num, "mod", true).mod;
+      };
+      BN.prototype.divRound = function divRound(num) {
+        var dm = this.divmod(num);
+        if (dm.mod.isZero()) return dm.div;
+        var mod = dm.mod.abs();
+        var half = num.abs().iushrn(1);
+        var r22 = num.words[0] & 1;
+        var cmp = mod.cmp(half);
+        if (cmp < 0 || r22 === 1 && cmp === 0) return dm.div;
+        var up = new BN(1);
+        up.negative = this.negative ^ num.negative;
+        return dm.div.iadd(up);
+      };
+      BN.prototype.modn = function modn(num) {
+        assert2(num <= 67108863);
+        var p4 = (1 << 26) % num;
+        var acc = 0;
+        for (var i5 = this.length - 1; i5 >= 0; i5--) {
+          acc = (p4 * acc + (this.words[i5] | 0)) % num;
+        }
+        return acc;
+      };
+      BN.prototype.idivn = function idivn(num) {
+        assert2(num <= 67108863);
+        var carry = 0;
+        for (var i5 = this.length - 1; i5 >= 0; i5--) {
+          var w = (this.words[i5] | 0) + carry * 67108864;
+          this.words[i5] = w / num | 0;
+          carry = w % num;
+        }
+        return this.strip();
+      };
+      BN.prototype.divn = function divn(num) {
+        return this.clone().idivn(num);
+      };
+      BN.prototype.egcd = function egcd(p4) {
+        assert2(p4.negative === 0);
+        assert2(!p4.isZero());
+        var x2 = this;
+        var y2 = p4.clone();
+        if (x2.negative !== 0) {
+          x2 = x2.umod(p4);
+        } else {
+          x2 = x2.clone();
+        }
+        var A2 = new BN(1);
+        var B = new BN(0);
+        var C = new BN(0);
+        var D = new BN(1);
+        var g5 = 0;
+        while (x2.isEven() && y2.isEven()) {
+          x2.iushrn(1);
+          y2.iushrn(1);
+          ++g5;
+        }
+        var yp = y2.clone();
+        var xp = x2.clone();
+        while (!x2.isZero()) {
+          for (var i5 = 0, im = 1; (x2.words[0] & im) === 0 && i5 < 26; ++i5, im <<= 1) ;
+          if (i5 > 0) {
+            x2.iushrn(i5);
+            while (i5-- > 0) {
+              if (A2.isOdd() || B.isOdd()) {
+                A2.iadd(yp);
+                B.isub(xp);
+              }
+              A2.iushrn(1);
+              B.iushrn(1);
+            }
+          }
+          for (var j5 = 0, jm = 1; (y2.words[0] & jm) === 0 && j5 < 26; ++j5, jm <<= 1) ;
+          if (j5 > 0) {
+            y2.iushrn(j5);
+            while (j5-- > 0) {
+              if (C.isOdd() || D.isOdd()) {
+                C.iadd(yp);
+                D.isub(xp);
+              }
+              C.iushrn(1);
+              D.iushrn(1);
+            }
+          }
+          if (x2.cmp(y2) >= 0) {
+            x2.isub(y2);
+            A2.isub(C);
+            B.isub(D);
+          } else {
+            y2.isub(x2);
+            C.isub(A2);
+            D.isub(B);
+          }
+        }
+        return {
+          a: C,
+          b: D,
+          gcd: y2.iushln(g5)
+        };
+      };
+      BN.prototype._invmp = function _invmp(p4) {
+        assert2(p4.negative === 0);
+        assert2(!p4.isZero());
+        var a6 = this;
+        var b6 = p4.clone();
+        if (a6.negative !== 0) {
+          a6 = a6.umod(p4);
+        } else {
+          a6 = a6.clone();
+        }
+        var x1 = new BN(1);
+        var x2 = new BN(0);
+        var delta = b6.clone();
+        while (a6.cmpn(1) > 0 && b6.cmpn(1) > 0) {
+          for (var i5 = 0, im = 1; (a6.words[0] & im) === 0 && i5 < 26; ++i5, im <<= 1) ;
+          if (i5 > 0) {
+            a6.iushrn(i5);
+            while (i5-- > 0) {
+              if (x1.isOdd()) {
+                x1.iadd(delta);
+              }
+              x1.iushrn(1);
+            }
+          }
+          for (var j5 = 0, jm = 1; (b6.words[0] & jm) === 0 && j5 < 26; ++j5, jm <<= 1) ;
+          if (j5 > 0) {
+            b6.iushrn(j5);
+            while (j5-- > 0) {
+              if (x2.isOdd()) {
+                x2.iadd(delta);
+              }
+              x2.iushrn(1);
+            }
+          }
+          if (a6.cmp(b6) >= 0) {
+            a6.isub(b6);
+            x1.isub(x2);
+          } else {
+            b6.isub(a6);
+            x2.isub(x1);
+          }
+        }
+        var res;
+        if (a6.cmpn(1) === 0) {
+          res = x1;
+        } else {
+          res = x2;
+        }
+        if (res.cmpn(0) < 0) {
+          res.iadd(p4);
+        }
+        return res;
+      };
+      BN.prototype.gcd = function gcd(num) {
+        if (this.isZero()) return num.abs();
+        if (num.isZero()) return this.abs();
+        var a6 = this.clone();
+        var b6 = num.clone();
+        a6.negative = 0;
+        b6.negative = 0;
+        for (var shift = 0; a6.isEven() && b6.isEven(); shift++) {
+          a6.iushrn(1);
+          b6.iushrn(1);
+        }
+        do {
+          while (a6.isEven()) {
+            a6.iushrn(1);
+          }
+          while (b6.isEven()) {
+            b6.iushrn(1);
+          }
+          var r5 = a6.cmp(b6);
+          if (r5 < 0) {
+            var t = a6;
+            a6 = b6;
+            b6 = t;
+          } else if (r5 === 0 || b6.cmpn(1) === 0) {
+            break;
+          }
+          a6.isub(b6);
+        } while (true);
+        return b6.iushln(shift);
+      };
+      BN.prototype.invm = function invm(num) {
+        return this.egcd(num).a.umod(num);
+      };
+      BN.prototype.isEven = function isEven() {
+        return (this.words[0] & 1) === 0;
+      };
+      BN.prototype.isOdd = function isOdd() {
+        return (this.words[0] & 1) === 1;
+      };
+      BN.prototype.andln = function andln(num) {
+        return this.words[0] & num;
+      };
+      BN.prototype.bincn = function bincn(bit) {
+        assert2(typeof bit === "number");
+        var r5 = bit % 26;
+        var s2 = (bit - r5) / 26;
+        var q3 = 1 << r5;
+        if (this.length <= s2) {
+          this._expand(s2 + 1);
+          this.words[s2] |= q3;
+          return this;
+        }
+        var carry = q3;
+        for (var i5 = s2; carry !== 0 && i5 < this.length; i5++) {
+          var w = this.words[i5] | 0;
+          w += carry;
+          carry = w >>> 26;
+          w &= 67108863;
+          this.words[i5] = w;
+        }
+        if (carry !== 0) {
+          this.words[i5] = carry;
+          this.length++;
+        }
+        return this;
+      };
+      BN.prototype.isZero = function isZero() {
+        return this.length === 1 && this.words[0] === 0;
+      };
+      BN.prototype.cmpn = function cmpn(num) {
+        var negative = num < 0;
+        if (this.negative !== 0 && !negative) return -1;
+        if (this.negative === 0 && negative) return 1;
+        this.strip();
+        var res;
+        if (this.length > 1) {
+          res = 1;
+        } else {
+          if (negative) {
+            num = -num;
+          }
+          assert2(num <= 67108863, "Number is too big");
+          var w = this.words[0] | 0;
+          res = w === num ? 0 : w < num ? -1 : 1;
+        }
+        if (this.negative !== 0) return -res | 0;
+        return res;
+      };
+      BN.prototype.cmp = function cmp(num) {
+        if (this.negative !== 0 && num.negative === 0) return -1;
+        if (this.negative === 0 && num.negative !== 0) return 1;
+        var res = this.ucmp(num);
+        if (this.negative !== 0) return -res | 0;
+        return res;
+      };
+      BN.prototype.ucmp = function ucmp(num) {
+        if (this.length > num.length) return 1;
+        if (this.length < num.length) return -1;
+        var res = 0;
+        for (var i5 = this.length - 1; i5 >= 0; i5--) {
+          var a6 = this.words[i5] | 0;
+          var b6 = num.words[i5] | 0;
+          if (a6 === b6) continue;
+          if (a6 < b6) {
+            res = -1;
+          } else if (a6 > b6) {
+            res = 1;
+          }
+          break;
+        }
+        return res;
+      };
+      BN.prototype.gtn = function gtn(num) {
+        return this.cmpn(num) === 1;
+      };
+      BN.prototype.gt = function gt2(num) {
+        return this.cmp(num) === 1;
+      };
+      BN.prototype.gten = function gten(num) {
+        return this.cmpn(num) >= 0;
+      };
+      BN.prototype.gte = function gte(num) {
+        return this.cmp(num) >= 0;
+      };
+      BN.prototype.ltn = function ltn(num) {
+        return this.cmpn(num) === -1;
+      };
+      BN.prototype.lt = function lt(num) {
+        return this.cmp(num) === -1;
+      };
+      BN.prototype.lten = function lten(num) {
+        return this.cmpn(num) <= 0;
+      };
+      BN.prototype.lte = function lte(num) {
+        return this.cmp(num) <= 0;
+      };
+      BN.prototype.eqn = function eqn(num) {
+        return this.cmpn(num) === 0;
+      };
+      BN.prototype.eq = function eq(num) {
+        return this.cmp(num) === 0;
+      };
+      BN.red = function red(num) {
+        return new Red(num);
+      };
+      BN.prototype.toRed = function toRed(ctx) {
+        assert2(!this.red, "Already a number in reduction context");
+        assert2(this.negative === 0, "red works only with positives");
+        return ctx.convertTo(this)._forceRed(ctx);
+      };
+      BN.prototype.fromRed = function fromRed() {
+        assert2(this.red, "fromRed works only with numbers in reduction context");
+        return this.red.convertFrom(this);
+      };
+      BN.prototype._forceRed = function _forceRed(ctx) {
+        this.red = ctx;
+        return this;
+      };
+      BN.prototype.forceRed = function forceRed(ctx) {
+        assert2(!this.red, "Already a number in reduction context");
+        return this._forceRed(ctx);
+      };
+      BN.prototype.redAdd = function redAdd(num) {
+        assert2(this.red, "redAdd works only with red numbers");
+        return this.red.add(this, num);
+      };
+      BN.prototype.redIAdd = function redIAdd(num) {
+        assert2(this.red, "redIAdd works only with red numbers");
+        return this.red.iadd(this, num);
+      };
+      BN.prototype.redSub = function redSub(num) {
+        assert2(this.red, "redSub works only with red numbers");
+        return this.red.sub(this, num);
+      };
+      BN.prototype.redISub = function redISub(num) {
+        assert2(this.red, "redISub works only with red numbers");
+        return this.red.isub(this, num);
+      };
+      BN.prototype.redShl = function redShl(num) {
+        assert2(this.red, "redShl works only with red numbers");
+        return this.red.shl(this, num);
+      };
+      BN.prototype.redMul = function redMul(num) {
+        assert2(this.red, "redMul works only with red numbers");
+        this.red._verify2(this, num);
+        return this.red.mul(this, num);
+      };
+      BN.prototype.redIMul = function redIMul(num) {
+        assert2(this.red, "redMul works only with red numbers");
+        this.red._verify2(this, num);
+        return this.red.imul(this, num);
+      };
+      BN.prototype.redSqr = function redSqr() {
+        assert2(this.red, "redSqr works only with red numbers");
+        this.red._verify1(this);
+        return this.red.sqr(this);
+      };
+      BN.prototype.redISqr = function redISqr() {
+        assert2(this.red, "redISqr works only with red numbers");
+        this.red._verify1(this);
+        return this.red.isqr(this);
+      };
+      BN.prototype.redSqrt = function redSqrt() {
+        assert2(this.red, "redSqrt works only with red numbers");
+        this.red._verify1(this);
+        return this.red.sqrt(this);
+      };
+      BN.prototype.redInvm = function redInvm() {
+        assert2(this.red, "redInvm works only with red numbers");
+        this.red._verify1(this);
+        return this.red.invm(this);
+      };
+      BN.prototype.redNeg = function redNeg() {
+        assert2(this.red, "redNeg works only with red numbers");
+        this.red._verify1(this);
+        return this.red.neg(this);
+      };
+      BN.prototype.redPow = function redPow(num) {
+        assert2(this.red && !num.red, "redPow(normalNum)");
+        this.red._verify1(this);
+        return this.red.pow(this, num);
+      };
+      var primes = {
+        k256: null,
+        p224: null,
+        p192: null,
+        p25519: null
+      };
+      function MPrime(name2, p4) {
+        this.name = name2;
+        this.p = new BN(p4, 16);
+        this.n = this.p.bitLength();
+        this.k = new BN(1).iushln(this.n).isub(this.p);
+        this.tmp = this._tmp();
+      }
+      MPrime.prototype._tmp = function _tmp() {
+        var tmp = new BN(null);
+        tmp.words = new Array(Math.ceil(this.n / 13));
+        return tmp;
+      };
+      MPrime.prototype.ireduce = function ireduce(num) {
+        var r5 = num;
+        var rlen;
+        do {
+          this.split(r5, this.tmp);
+          r5 = this.imulK(r5);
+          r5 = r5.iadd(this.tmp);
+          rlen = r5.bitLength();
+        } while (rlen > this.n);
+        var cmp = rlen < this.n ? -1 : r5.ucmp(this.p);
+        if (cmp === 0) {
+          r5.words[0] = 0;
+          r5.length = 1;
+        } else if (cmp > 0) {
+          r5.isub(this.p);
+        } else {
+          if (r5.strip !== void 0) {
+            r5.strip();
+          } else {
+            r5._strip();
+          }
+        }
+        return r5;
+      };
+      MPrime.prototype.split = function split2(input, out) {
+        input.iushrn(this.n, 0, out);
+      };
+      MPrime.prototype.imulK = function imulK(num) {
+        return num.imul(this.k);
+      };
+      function K256() {
+        MPrime.call(
+          this,
+          "k256",
+          "ffffffff ffffffff ffffffff ffffffff ffffffff ffffffff fffffffe fffffc2f"
+        );
+      }
+      inherits2(K256, MPrime);
+      K256.prototype.split = function split2(input, output) {
+        var mask = 4194303;
+        var outLen = Math.min(input.length, 9);
+        for (var i5 = 0; i5 < outLen; i5++) {
+          output.words[i5] = input.words[i5];
+        }
+        output.length = outLen;
+        if (input.length <= 9) {
+          input.words[0] = 0;
+          input.length = 1;
+          return;
+        }
+        var prev = input.words[9];
+        output.words[output.length++] = prev & mask;
+        for (i5 = 10; i5 < input.length; i5++) {
+          var next = input.words[i5] | 0;
+          input.words[i5 - 10] = (next & mask) << 4 | prev >>> 22;
+          prev = next;
+        }
+        prev >>>= 22;
+        input.words[i5 - 10] = prev;
+        if (prev === 0 && input.length > 10) {
+          input.length -= 10;
+        } else {
+          input.length -= 9;
+        }
+      };
+      K256.prototype.imulK = function imulK(num) {
+        num.words[num.length] = 0;
+        num.words[num.length + 1] = 0;
+        num.length += 2;
+        var lo = 0;
+        for (var i5 = 0; i5 < num.length; i5++) {
+          var w = num.words[i5] | 0;
+          lo += w * 977;
+          num.words[i5] = lo & 67108863;
+          lo = w * 64 + (lo / 67108864 | 0);
+        }
+        if (num.words[num.length - 1] === 0) {
+          num.length--;
+          if (num.words[num.length - 1] === 0) {
+            num.length--;
+          }
+        }
+        return num;
+      };
+      function P224() {
+        MPrime.call(
+          this,
+          "p224",
+          "ffffffff ffffffff ffffffff ffffffff 00000000 00000000 00000001"
+        );
+      }
+      inherits2(P224, MPrime);
+      function P192() {
+        MPrime.call(
+          this,
+          "p192",
+          "ffffffff ffffffff ffffffff fffffffe ffffffff ffffffff"
+        );
+      }
+      inherits2(P192, MPrime);
+      function P25519() {
+        MPrime.call(
+          this,
+          "25519",
+          "7fffffffffffffff ffffffffffffffff ffffffffffffffff ffffffffffffffed"
+        );
+      }
+      inherits2(P25519, MPrime);
+      P25519.prototype.imulK = function imulK(num) {
+        var carry = 0;
+        for (var i5 = 0; i5 < num.length; i5++) {
+          var hi2 = (num.words[i5] | 0) * 19 + carry;
+          var lo = hi2 & 67108863;
+          hi2 >>>= 26;
+          num.words[i5] = lo;
+          carry = hi2;
+        }
+        if (carry !== 0) {
+          num.words[num.length++] = carry;
+        }
+        return num;
+      };
+      BN._prime = function prime(name2) {
+        if (primes[name2]) return primes[name2];
+        var prime2;
+        if (name2 === "k256") {
+          prime2 = new K256();
+        } else if (name2 === "p224") {
+          prime2 = new P224();
+        } else if (name2 === "p192") {
+          prime2 = new P192();
+        } else if (name2 === "p25519") {
+          prime2 = new P25519();
+        } else {
+          throw new Error("Unknown prime " + name2);
+        }
+        primes[name2] = prime2;
+        return prime2;
+      };
+      function Red(m3) {
+        if (typeof m3 === "string") {
+          var prime = BN._prime(m3);
+          this.m = prime.p;
+          this.prime = prime;
+        } else {
+          assert2(m3.gtn(1), "modulus must be greater than 1");
+          this.m = m3;
+          this.prime = null;
+        }
+      }
+      Red.prototype._verify1 = function _verify1(a6) {
+        assert2(a6.negative === 0, "red works only with positives");
+        assert2(a6.red, "red works only with red numbers");
+      };
+      Red.prototype._verify2 = function _verify2(a6, b6) {
+        assert2((a6.negative | b6.negative) === 0, "red works only with positives");
+        assert2(
+          a6.red && a6.red === b6.red,
+          "red works only with red numbers"
+        );
+      };
+      Red.prototype.imod = function imod(a6) {
+        if (this.prime) return this.prime.ireduce(a6)._forceRed(this);
+        return a6.umod(this.m)._forceRed(this);
+      };
+      Red.prototype.neg = function neg(a6) {
+        if (a6.isZero()) {
+          return a6.clone();
+        }
+        return this.m.sub(a6)._forceRed(this);
+      };
+      Red.prototype.add = function add(a6, b6) {
+        this._verify2(a6, b6);
+        var res = a6.add(b6);
+        if (res.cmp(this.m) >= 0) {
+          res.isub(this.m);
+        }
+        return res._forceRed(this);
+      };
+      Red.prototype.iadd = function iadd(a6, b6) {
+        this._verify2(a6, b6);
+        var res = a6.iadd(b6);
+        if (res.cmp(this.m) >= 0) {
+          res.isub(this.m);
+        }
+        return res;
+      };
+      Red.prototype.sub = function sub(a6, b6) {
+        this._verify2(a6, b6);
+        var res = a6.sub(b6);
+        if (res.cmpn(0) < 0) {
+          res.iadd(this.m);
+        }
+        return res._forceRed(this);
+      };
+      Red.prototype.isub = function isub(a6, b6) {
+        this._verify2(a6, b6);
+        var res = a6.isub(b6);
+        if (res.cmpn(0) < 0) {
+          res.iadd(this.m);
+        }
+        return res;
+      };
+      Red.prototype.shl = function shl(a6, num) {
+        this._verify1(a6);
+        return this.imod(a6.ushln(num));
+      };
+      Red.prototype.imul = function imul(a6, b6) {
+        this._verify2(a6, b6);
+        return this.imod(a6.imul(b6));
+      };
+      Red.prototype.mul = function mul(a6, b6) {
+        this._verify2(a6, b6);
+        return this.imod(a6.mul(b6));
+      };
+      Red.prototype.isqr = function isqr(a6) {
+        return this.imul(a6, a6.clone());
+      };
+      Red.prototype.sqr = function sqr(a6) {
+        return this.mul(a6, a6);
+      };
+      Red.prototype.sqrt = function sqrt(a6) {
+        if (a6.isZero()) return a6.clone();
+        var mod3 = this.m.andln(3);
+        assert2(mod3 % 2 === 1);
+        if (mod3 === 3) {
+          var pow = this.m.add(new BN(1)).iushrn(2);
+          return this.pow(a6, pow);
+        }
+        var q3 = this.m.subn(1);
+        var s2 = 0;
+        while (!q3.isZero() && q3.andln(1) === 0) {
+          s2++;
+          q3.iushrn(1);
+        }
+        assert2(!q3.isZero());
+        var one = new BN(1).toRed(this);
+        var nOne = one.redNeg();
+        var lpow = this.m.subn(1).iushrn(1);
+        var z = this.m.bitLength();
+        z = new BN(2 * z * z).toRed(this);
+        while (this.pow(z, lpow).cmp(nOne) !== 0) {
+          z.redIAdd(nOne);
+        }
+        var c5 = this.pow(z, q3);
+        var r5 = this.pow(a6, q3.addn(1).iushrn(1));
+        var t = this.pow(a6, q3);
+        var m3 = s2;
+        while (t.cmp(one) !== 0) {
+          var tmp = t;
+          for (var i5 = 0; tmp.cmp(one) !== 0; i5++) {
+            tmp = tmp.redSqr();
+          }
+          assert2(i5 < m3);
+          var b6 = this.pow(c5, new BN(1).iushln(m3 - i5 - 1));
+          r5 = r5.redMul(b6);
+          c5 = b6.redSqr();
+          t = t.redMul(c5);
+          m3 = i5;
+        }
+        return r5;
+      };
+      Red.prototype.invm = function invm(a6) {
+        var inv = a6._invmp(this.m);
+        if (inv.negative !== 0) {
+          inv.negative = 0;
+          return this.imod(inv).redNeg();
+        } else {
+          return this.imod(inv);
+        }
+      };
+      Red.prototype.pow = function pow(a6, num) {
+        if (num.isZero()) return new BN(1).toRed(this);
+        if (num.cmpn(1) === 0) return a6.clone();
+        var windowSize = 4;
+        var wnd = new Array(1 << windowSize);
+        wnd[0] = new BN(1).toRed(this);
+        wnd[1] = a6;
+        for (var i5 = 2; i5 < wnd.length; i5++) {
+          wnd[i5] = this.mul(wnd[i5 - 1], a6);
+        }
+        var res = wnd[0];
+        var current = 0;
+        var currentLen = 0;
+        var start = num.bitLength() % 26;
+        if (start === 0) {
+          start = 26;
+        }
+        for (i5 = num.length - 1; i5 >= 0; i5--) {
+          var word = num.words[i5];
+          for (var j5 = start - 1; j5 >= 0; j5--) {
+            var bit = word >> j5 & 1;
+            if (res !== wnd[0]) {
+              res = this.sqr(res);
+            }
+            if (bit === 0 && current === 0) {
+              currentLen = 0;
+              continue;
+            }
+            current <<= 1;
+            current |= bit;
+            currentLen++;
+            if (currentLen !== windowSize && (i5 !== 0 || j5 !== 0)) continue;
+            res = this.mul(res, wnd[current]);
+            currentLen = 0;
+            current = 0;
+          }
+          start = 26;
+        }
+        return res;
+      };
+      Red.prototype.convertTo = function convertTo(num) {
+        var r5 = num.umod(this.m);
+        return r5 === num ? r5.clone() : r5;
+      };
+      Red.prototype.convertFrom = function convertFrom(num) {
+        var res = num.clone();
+        res.red = null;
+        return res;
+      };
+      BN.mont = function mont(num) {
+        return new Mont(num);
+      };
+      function Mont(m3) {
+        Red.call(this, m3);
+        this.shift = this.m.bitLength();
+        if (this.shift % 26 !== 0) {
+          this.shift += 26 - this.shift % 26;
+        }
+        this.r = new BN(1).iushln(this.shift);
+        this.r2 = this.imod(this.r.sqr());
+        this.rinv = this.r._invmp(this.m);
+        this.minv = this.rinv.mul(this.r).isubn(1).div(this.m);
+        this.minv = this.minv.umod(this.r);
+        this.minv = this.r.sub(this.minv);
+      }
+      inherits2(Mont, Red);
+      Mont.prototype.convertTo = function convertTo(num) {
+        return this.imod(num.ushln(this.shift));
+      };
+      Mont.prototype.convertFrom = function convertFrom(num) {
+        var r5 = this.imod(num.mul(this.rinv));
+        r5.red = null;
+        return r5;
+      };
+      Mont.prototype.imul = function imul(a6, b6) {
+        if (a6.isZero() || b6.isZero()) {
+          a6.words[0] = 0;
+          a6.length = 1;
+          return a6;
+        }
+        var t = a6.imul(b6);
+        var c5 = t.maskn(this.shift).mul(this.minv).imaskn(this.shift).mul(this.m);
+        var u = t.isub(c5).iushrn(this.shift);
+        var res = u;
+        if (u.cmp(this.m) >= 0) {
+          res = u.isub(this.m);
+        } else if (u.cmpn(0) < 0) {
+          res = u.iadd(this.m);
+        }
+        return res._forceRed(this);
+      };
+      Mont.prototype.mul = function mul(a6, b6) {
+        if (a6.isZero() || b6.isZero()) return new BN(0)._forceRed(this);
+        var t = a6.mul(b6);
+        var c5 = t.maskn(this.shift).mul(this.minv).imaskn(this.shift).mul(this.m);
+        var u = t.isub(c5).iushrn(this.shift);
+        var res = u;
+        if (u.cmp(this.m) >= 0) {
+          res = u.isub(this.m);
+        } else if (u.cmpn(0) < 0) {
+          res = u.iadd(this.m);
+        }
+        return res._forceRed(this);
+      };
+      Mont.prototype.invm = function invm(a6) {
+        var res = this.imod(a6._invmp(this.m).mul(this.r2));
+        return res._forceRed(this);
+      };
+    })(typeof module === "undefined" || module, exports);
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/base/reporter.js
+var require_reporter = __commonJS({
+  "node_modules/asn1.js/lib/asn1/base/reporter.js"(exports) {
+    "use strict";
+    var inherits2 = require_inherits();
+    function Reporter(options) {
+      this._reporterState = {
+        obj: null,
+        path: [],
+        options: options || {},
+        errors: []
+      };
+    }
+    exports.Reporter = Reporter;
+    Reporter.prototype.isError = function isError(obj) {
+      return obj instanceof ReporterError;
+    };
+    Reporter.prototype.save = function save() {
+      const state2 = this._reporterState;
+      return { obj: state2.obj, pathLen: state2.path.length };
+    };
+    Reporter.prototype.restore = function restore(data) {
+      const state2 = this._reporterState;
+      state2.obj = data.obj;
+      state2.path = state2.path.slice(0, data.pathLen);
+    };
+    Reporter.prototype.enterKey = function enterKey(key) {
+      return this._reporterState.path.push(key);
+    };
+    Reporter.prototype.exitKey = function exitKey(index) {
+      const state2 = this._reporterState;
+      state2.path = state2.path.slice(0, index - 1);
+    };
+    Reporter.prototype.leaveKey = function leaveKey(index, key, value) {
+      const state2 = this._reporterState;
+      this.exitKey(index);
+      if (state2.obj !== null)
+        state2.obj[key] = value;
+    };
+    Reporter.prototype.path = function path6() {
+      return this._reporterState.path.join("/");
+    };
+    Reporter.prototype.enterObject = function enterObject() {
+      const state2 = this._reporterState;
+      const prev = state2.obj;
+      state2.obj = {};
+      return prev;
+    };
+    Reporter.prototype.leaveObject = function leaveObject(prev) {
+      const state2 = this._reporterState;
+      const now = state2.obj;
+      state2.obj = prev;
+      return now;
+    };
+    Reporter.prototype.error = function error3(msg) {
+      let err;
+      const state2 = this._reporterState;
+      const inherited = msg instanceof ReporterError;
+      if (inherited) {
+        err = msg;
+      } else {
+        err = new ReporterError(state2.path.map(function(elem) {
+          return "[" + JSON.stringify(elem) + "]";
+        }).join(""), msg.message || msg, msg.stack);
+      }
+      if (!state2.options.partial)
+        throw err;
+      if (!inherited)
+        state2.errors.push(err);
+      return err;
+    };
+    Reporter.prototype.wrapResult = function wrapResult(result) {
+      const state2 = this._reporterState;
+      if (!state2.options.partial)
+        return result;
+      return {
+        result: this.isError(result) ? null : result,
+        errors: state2.errors
+      };
+    };
+    function ReporterError(path6, msg) {
+      this.path = path6;
+      this.rethrow(msg);
+    }
+    inherits2(ReporterError, Error);
+    ReporterError.prototype.rethrow = function rethrow(msg) {
+      this.message = msg + " at: " + (this.path || "(shallow)");
+      if (Error.captureStackTrace)
+        Error.captureStackTrace(this, ReporterError);
+      if (!this.stack) {
+        try {
+          throw new Error(this.message);
+        } catch (e5) {
+          this.stack = e5.stack;
+        }
+      }
+      return this;
+    };
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/base/buffer.js
+var require_buffer = __commonJS({
+  "node_modules/asn1.js/lib/asn1/base/buffer.js"(exports) {
+    "use strict";
+    var inherits2 = require_inherits();
+    var Reporter = require_reporter().Reporter;
+    var Buffer2 = require_safer().Buffer;
+    function DecoderBuffer(base2, options) {
+      Reporter.call(this, options);
+      if (!Buffer2.isBuffer(base2)) {
+        this.error("Input not Buffer");
+        return;
+      }
+      this.base = base2;
+      this.offset = 0;
+      this.length = base2.length;
+    }
+    inherits2(DecoderBuffer, Reporter);
+    exports.DecoderBuffer = DecoderBuffer;
+    DecoderBuffer.isDecoderBuffer = function isDecoderBuffer(data) {
+      if (data instanceof DecoderBuffer) {
+        return true;
+      }
+      const isCompatible = typeof data === "object" && Buffer2.isBuffer(data.base) && data.constructor.name === "DecoderBuffer" && typeof data.offset === "number" && typeof data.length === "number" && typeof data.save === "function" && typeof data.restore === "function" && typeof data.isEmpty === "function" && typeof data.readUInt8 === "function" && typeof data.skip === "function" && typeof data.raw === "function";
+      return isCompatible;
+    };
+    DecoderBuffer.prototype.save = function save() {
+      return { offset: this.offset, reporter: Reporter.prototype.save.call(this) };
+    };
+    DecoderBuffer.prototype.restore = function restore(save) {
+      const res = new DecoderBuffer(this.base);
+      res.offset = save.offset;
+      res.length = this.offset;
+      this.offset = save.offset;
+      Reporter.prototype.restore.call(this, save.reporter);
+      return res;
+    };
+    DecoderBuffer.prototype.isEmpty = function isEmpty() {
+      return this.offset === this.length;
+    };
+    DecoderBuffer.prototype.readUInt8 = function readUInt8(fail) {
+      if (this.offset + 1 <= this.length)
+        return this.base.readUInt8(this.offset++, true);
+      else
+        return this.error(fail || "DecoderBuffer overrun");
+    };
+    DecoderBuffer.prototype.skip = function skip(bytes, fail) {
+      if (!(this.offset + bytes <= this.length))
+        return this.error(fail || "DecoderBuffer overrun");
+      const res = new DecoderBuffer(this.base);
+      res._reporterState = this._reporterState;
+      res.offset = this.offset;
+      res.length = this.offset + bytes;
+      this.offset += bytes;
+      return res;
+    };
+    DecoderBuffer.prototype.raw = function raw(save) {
+      return this.base.slice(save ? save.offset : this.offset, this.length);
+    };
+    function EncoderBuffer(value, reporter) {
+      if (Array.isArray(value)) {
+        this.length = 0;
+        this.value = value.map(function(item) {
+          if (!EncoderBuffer.isEncoderBuffer(item))
+            item = new EncoderBuffer(item, reporter);
+          this.length += item.length;
+          return item;
+        }, this);
+      } else if (typeof value === "number") {
+        if (!(0 <= value && value <= 255))
+          return reporter.error("non-byte EncoderBuffer value");
+        this.value = value;
+        this.length = 1;
+      } else if (typeof value === "string") {
+        this.value = value;
+        this.length = Buffer2.byteLength(value);
+      } else if (Buffer2.isBuffer(value)) {
+        this.value = value;
+        this.length = value.length;
+      } else {
+        return reporter.error("Unsupported type: " + typeof value);
+      }
+    }
+    exports.EncoderBuffer = EncoderBuffer;
+    EncoderBuffer.isEncoderBuffer = function isEncoderBuffer(data) {
+      if (data instanceof EncoderBuffer) {
+        return true;
+      }
+      const isCompatible = typeof data === "object" && data.constructor.name === "EncoderBuffer" && typeof data.length === "number" && typeof data.join === "function";
+      return isCompatible;
+    };
+    EncoderBuffer.prototype.join = function join5(out, offset) {
+      if (!out)
+        out = Buffer2.alloc(this.length);
+      if (!offset)
+        offset = 0;
+      if (this.length === 0)
+        return out;
+      if (Array.isArray(this.value)) {
+        this.value.forEach(function(item) {
+          item.join(out, offset);
+          offset += item.length;
+        });
+      } else {
+        if (typeof this.value === "number")
+          out[offset] = this.value;
+        else if (typeof this.value === "string")
+          out.write(this.value, offset);
+        else if (Buffer2.isBuffer(this.value))
+          this.value.copy(out, offset);
+        offset += this.length;
+      }
+      return out;
+    };
+  }
+});
+
+// node_modules/minimalistic-assert/index.js
+var require_minimalistic_assert = __commonJS({
+  "node_modules/minimalistic-assert/index.js"(exports, module) {
+    module.exports = assert2;
+    function assert2(val, msg) {
+      if (!val)
+        throw new Error(msg || "Assertion failed");
+    }
+    assert2.equal = function assertEqual(l3, r5, msg) {
+      if (l3 != r5)
+        throw new Error(msg || "Assertion failed: " + l3 + " != " + r5);
+    };
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/base/node.js
+var require_node2 = __commonJS({
+  "node_modules/asn1.js/lib/asn1/base/node.js"(exports, module) {
+    "use strict";
+    var Reporter = require_reporter().Reporter;
+    var EncoderBuffer = require_buffer().EncoderBuffer;
+    var DecoderBuffer = require_buffer().DecoderBuffer;
+    var assert2 = require_minimalistic_assert();
+    var tags = [
+      "seq",
+      "seqof",
+      "set",
+      "setof",
+      "objid",
+      "bool",
+      "gentime",
+      "utctime",
+      "null_",
+      "enum",
+      "int",
+      "objDesc",
+      "bitstr",
+      "bmpstr",
+      "charstr",
+      "genstr",
+      "graphstr",
+      "ia5str",
+      "iso646str",
+      "numstr",
+      "octstr",
+      "printstr",
+      "t61str",
+      "unistr",
+      "utf8str",
+      "videostr"
+    ];
+    var methods = [
+      "key",
+      "obj",
+      "use",
+      "optional",
+      "explicit",
+      "implicit",
+      "def",
+      "choice",
+      "any",
+      "contains"
+    ].concat(tags);
+    var overrided = [
+      "_peekTag",
+      "_decodeTag",
+      "_use",
+      "_decodeStr",
+      "_decodeObjid",
+      "_decodeTime",
+      "_decodeNull",
+      "_decodeInt",
+      "_decodeBool",
+      "_decodeList",
+      "_encodeComposite",
+      "_encodeStr",
+      "_encodeObjid",
+      "_encodeTime",
+      "_encodeNull",
+      "_encodeInt",
+      "_encodeBool"
+    ];
+    function Node(enc, parent, name2) {
+      const state2 = {};
+      this._baseState = state2;
+      state2.name = name2;
+      state2.enc = enc;
+      state2.parent = parent || null;
+      state2.children = null;
+      state2.tag = null;
+      state2.args = null;
+      state2.reverseArgs = null;
+      state2.choice = null;
+      state2.optional = false;
+      state2.any = false;
+      state2.obj = false;
+      state2.use = null;
+      state2.useDecoder = null;
+      state2.key = null;
+      state2["default"] = null;
+      state2.explicit = null;
+      state2.implicit = null;
+      state2.contains = null;
+      if (!state2.parent) {
+        state2.children = [];
+        this._wrap();
+      }
+    }
+    module.exports = Node;
+    var stateProps = [
+      "enc",
+      "parent",
+      "children",
+      "tag",
+      "args",
+      "reverseArgs",
+      "choice",
+      "optional",
+      "any",
+      "obj",
+      "use",
+      "alteredUse",
+      "key",
+      "default",
+      "explicit",
+      "implicit",
+      "contains"
+    ];
+    Node.prototype.clone = function clone() {
+      const state2 = this._baseState;
+      const cstate = {};
+      stateProps.forEach(function(prop) {
+        cstate[prop] = state2[prop];
+      });
+      const res = new this.constructor(cstate.parent);
+      res._baseState = cstate;
+      return res;
+    };
+    Node.prototype._wrap = function wrap2() {
+      const state2 = this._baseState;
+      methods.forEach(function(method) {
+        this[method] = function _wrappedMethod() {
+          const clone = new this.constructor(this);
+          state2.children.push(clone);
+          return clone[method].apply(clone, arguments);
+        };
+      }, this);
+    };
+    Node.prototype._init = function init(body) {
+      const state2 = this._baseState;
+      assert2(state2.parent === null);
+      body.call(this);
+      state2.children = state2.children.filter(function(child) {
+        return child._baseState.parent === this;
+      }, this);
+      assert2.equal(state2.children.length, 1, "Root node can have only one child");
+    };
+    Node.prototype._useArgs = function useArgs(args) {
+      const state2 = this._baseState;
+      const children = args.filter(function(arg) {
+        return arg instanceof this.constructor;
+      }, this);
+      args = args.filter(function(arg) {
+        return !(arg instanceof this.constructor);
+      }, this);
+      if (children.length !== 0) {
+        assert2(state2.children === null);
+        state2.children = children;
+        children.forEach(function(child) {
+          child._baseState.parent = this;
+        }, this);
+      }
+      if (args.length !== 0) {
+        assert2(state2.args === null);
+        state2.args = args;
+        state2.reverseArgs = args.map(function(arg) {
+          if (typeof arg !== "object" || arg.constructor !== Object)
+            return arg;
+          const res = {};
+          Object.keys(arg).forEach(function(key) {
+            if (key == (key | 0))
+              key |= 0;
+            const value = arg[key];
+            res[value] = key;
+          });
+          return res;
+        });
+      }
+    };
+    overrided.forEach(function(method) {
+      Node.prototype[method] = function _overrided() {
+        const state2 = this._baseState;
+        throw new Error(method + " not implemented for encoding: " + state2.enc);
+      };
+    });
+    tags.forEach(function(tag) {
+      Node.prototype[tag] = function _tagMethod() {
+        const state2 = this._baseState;
+        const args = Array.prototype.slice.call(arguments);
+        assert2(state2.tag === null);
+        state2.tag = tag;
+        this._useArgs(args);
+        return this;
+      };
+    });
+    Node.prototype.use = function use(item) {
+      assert2(item);
+      const state2 = this._baseState;
+      assert2(state2.use === null);
+      state2.use = item;
+      return this;
+    };
+    Node.prototype.optional = function optional() {
+      const state2 = this._baseState;
+      state2.optional = true;
+      return this;
+    };
+    Node.prototype.def = function def(val) {
+      const state2 = this._baseState;
+      assert2(state2["default"] === null);
+      state2["default"] = val;
+      state2.optional = true;
+      return this;
+    };
+    Node.prototype.explicit = function explicit(num) {
+      const state2 = this._baseState;
+      assert2(state2.explicit === null && state2.implicit === null);
+      state2.explicit = num;
+      return this;
+    };
+    Node.prototype.implicit = function implicit(num) {
+      const state2 = this._baseState;
+      assert2(state2.explicit === null && state2.implicit === null);
+      state2.implicit = num;
+      return this;
+    };
+    Node.prototype.obj = function obj() {
+      const state2 = this._baseState;
+      const args = Array.prototype.slice.call(arguments);
+      state2.obj = true;
+      if (args.length !== 0)
+        this._useArgs(args);
+      return this;
+    };
+    Node.prototype.key = function key(newKey) {
+      const state2 = this._baseState;
+      assert2(state2.key === null);
+      state2.key = newKey;
+      return this;
+    };
+    Node.prototype.any = function any() {
+      const state2 = this._baseState;
+      state2.any = true;
+      return this;
+    };
+    Node.prototype.choice = function choice(obj) {
+      const state2 = this._baseState;
+      assert2(state2.choice === null);
+      state2.choice = obj;
+      this._useArgs(Object.keys(obj).map(function(key) {
+        return obj[key];
+      }));
+      return this;
+    };
+    Node.prototype.contains = function contains(item) {
+      const state2 = this._baseState;
+      assert2(state2.use === null);
+      state2.contains = item;
+      return this;
+    };
+    Node.prototype._decode = function decode2(input, options) {
+      const state2 = this._baseState;
+      if (state2.parent === null)
+        return input.wrapResult(state2.children[0]._decode(input, options));
+      let result = state2["default"];
+      let present = true;
+      let prevKey = null;
+      if (state2.key !== null)
+        prevKey = input.enterKey(state2.key);
+      if (state2.optional) {
+        let tag = null;
+        if (state2.explicit !== null)
+          tag = state2.explicit;
+        else if (state2.implicit !== null)
+          tag = state2.implicit;
+        else if (state2.tag !== null)
+          tag = state2.tag;
+        if (tag === null && !state2.any) {
+          const save = input.save();
+          try {
+            if (state2.choice === null)
+              this._decodeGeneric(state2.tag, input, options);
+            else
+              this._decodeChoice(input, options);
+            present = true;
+          } catch (e5) {
+            present = false;
+          }
+          input.restore(save);
+        } else {
+          present = this._peekTag(input, tag, state2.any);
+          if (input.isError(present))
+            return present;
+        }
+      }
+      let prevObj;
+      if (state2.obj && present)
+        prevObj = input.enterObject();
+      if (present) {
+        if (state2.explicit !== null) {
+          const explicit = this._decodeTag(input, state2.explicit);
+          if (input.isError(explicit))
+            return explicit;
+          input = explicit;
+        }
+        const start = input.offset;
+        if (state2.use === null && state2.choice === null) {
+          let save;
+          if (state2.any)
+            save = input.save();
+          const body = this._decodeTag(
+            input,
+            state2.implicit !== null ? state2.implicit : state2.tag,
+            state2.any
+          );
+          if (input.isError(body))
+            return body;
+          if (state2.any)
+            result = input.raw(save);
+          else
+            input = body;
+        }
+        if (options && options.track && state2.tag !== null)
+          options.track(input.path(), start, input.length, "tagged");
+        if (options && options.track && state2.tag !== null)
+          options.track(input.path(), input.offset, input.length, "content");
+        if (state2.any) {
+        } else if (state2.choice === null) {
+          result = this._decodeGeneric(state2.tag, input, options);
+        } else {
+          result = this._decodeChoice(input, options);
+        }
+        if (input.isError(result))
+          return result;
+        if (!state2.any && state2.choice === null && state2.children !== null) {
+          state2.children.forEach(function decodeChildren(child) {
+            child._decode(input, options);
+          });
+        }
+        if (state2.contains && (state2.tag === "octstr" || state2.tag === "bitstr")) {
+          const data = new DecoderBuffer(result);
+          result = this._getUse(state2.contains, input._reporterState.obj)._decode(data, options);
+        }
+      }
+      if (state2.obj && present)
+        result = input.leaveObject(prevObj);
+      if (state2.key !== null && (result !== null || present === true))
+        input.leaveKey(prevKey, state2.key, result);
+      else if (prevKey !== null)
+        input.exitKey(prevKey);
+      return result;
+    };
+    Node.prototype._decodeGeneric = function decodeGeneric(tag, input, options) {
+      const state2 = this._baseState;
+      if (tag === "seq" || tag === "set")
+        return null;
+      if (tag === "seqof" || tag === "setof")
+        return this._decodeList(input, tag, state2.args[0], options);
+      else if (/str$/.test(tag))
+        return this._decodeStr(input, tag, options);
+      else if (tag === "objid" && state2.args)
+        return this._decodeObjid(input, state2.args[0], state2.args[1], options);
+      else if (tag === "objid")
+        return this._decodeObjid(input, null, null, options);
+      else if (tag === "gentime" || tag === "utctime")
+        return this._decodeTime(input, tag, options);
+      else if (tag === "null_")
+        return this._decodeNull(input, options);
+      else if (tag === "bool")
+        return this._decodeBool(input, options);
+      else if (tag === "objDesc")
+        return this._decodeStr(input, tag, options);
+      else if (tag === "int" || tag === "enum")
+        return this._decodeInt(input, state2.args && state2.args[0], options);
+      if (state2.use !== null) {
+        return this._getUse(state2.use, input._reporterState.obj)._decode(input, options);
+      } else {
+        return input.error("unknown tag: " + tag);
+      }
+    };
+    Node.prototype._getUse = function _getUse(entity, obj) {
+      const state2 = this._baseState;
+      state2.useDecoder = this._use(entity, obj);
+      assert2(state2.useDecoder._baseState.parent === null);
+      state2.useDecoder = state2.useDecoder._baseState.children[0];
+      if (state2.implicit !== state2.useDecoder._baseState.implicit) {
+        state2.useDecoder = state2.useDecoder.clone();
+        state2.useDecoder._baseState.implicit = state2.implicit;
+      }
+      return state2.useDecoder;
+    };
+    Node.prototype._decodeChoice = function decodeChoice(input, options) {
+      const state2 = this._baseState;
+      let result = null;
+      let match = false;
+      Object.keys(state2.choice).some(function(key) {
+        const save = input.save();
+        const node = state2.choice[key];
+        try {
+          const value = node._decode(input, options);
+          if (input.isError(value))
+            return false;
+          result = { type: key, value };
+          match = true;
+        } catch (e5) {
+          input.restore(save);
+          return false;
+        }
+        return true;
+      }, this);
+      if (!match)
+        return input.error("Choice not matched");
+      return result;
+    };
+    Node.prototype._createEncoderBuffer = function createEncoderBuffer(data) {
+      return new EncoderBuffer(data, this.reporter);
+    };
+    Node.prototype._encode = function encode6(data, reporter, parent) {
+      const state2 = this._baseState;
+      if (state2["default"] !== null && state2["default"] === data)
+        return;
+      const result = this._encodeValue(data, reporter, parent);
+      if (result === void 0)
+        return;
+      if (this._skipDefault(result, reporter, parent))
+        return;
+      return result;
+    };
+    Node.prototype._encodeValue = function encode6(data, reporter, parent) {
+      const state2 = this._baseState;
+      if (state2.parent === null)
+        return state2.children[0]._encode(data, reporter || new Reporter());
+      let result = null;
+      this.reporter = reporter;
+      if (state2.optional && data === void 0) {
+        if (state2["default"] !== null)
+          data = state2["default"];
+        else
+          return;
+      }
+      let content = null;
+      let primitive = false;
+      if (state2.any) {
+        result = this._createEncoderBuffer(data);
+      } else if (state2.choice) {
+        result = this._encodeChoice(data, reporter);
+      } else if (state2.contains) {
+        content = this._getUse(state2.contains, parent)._encode(data, reporter);
+        primitive = true;
+      } else if (state2.children) {
+        content = state2.children.map(function(child) {
+          if (child._baseState.tag === "null_")
+            return child._encode(null, reporter, data);
+          if (child._baseState.key === null)
+            return reporter.error("Child should have a key");
+          const prevKey = reporter.enterKey(child._baseState.key);
+          if (typeof data !== "object")
+            return reporter.error("Child expected, but input is not object");
+          const res = child._encode(data[child._baseState.key], reporter, data);
+          reporter.leaveKey(prevKey);
+          return res;
+        }, this).filter(function(child) {
+          return child;
+        });
+        content = this._createEncoderBuffer(content);
+      } else {
+        if (state2.tag === "seqof" || state2.tag === "setof") {
+          if (!(state2.args && state2.args.length === 1))
+            return reporter.error("Too many args for : " + state2.tag);
+          if (!Array.isArray(data))
+            return reporter.error("seqof/setof, but data is not Array");
+          const child = this.clone();
+          child._baseState.implicit = null;
+          content = this._createEncoderBuffer(data.map(function(item) {
+            const state3 = this._baseState;
+            return this._getUse(state3.args[0], data)._encode(item, reporter);
+          }, child));
+        } else if (state2.use !== null) {
+          result = this._getUse(state2.use, parent)._encode(data, reporter);
+        } else {
+          content = this._encodePrimitive(state2.tag, data);
+          primitive = true;
+        }
+      }
+      if (!state2.any && state2.choice === null) {
+        const tag = state2.implicit !== null ? state2.implicit : state2.tag;
+        const cls = state2.implicit === null ? "universal" : "context";
+        if (tag === null) {
+          if (state2.use === null)
+            reporter.error("Tag could be omitted only for .use()");
+        } else {
+          if (state2.use === null)
+            result = this._encodeComposite(tag, primitive, cls, content);
+        }
+      }
+      if (state2.explicit !== null)
+        result = this._encodeComposite(state2.explicit, false, "context", result);
+      return result;
+    };
+    Node.prototype._encodeChoice = function encodeChoice(data, reporter) {
+      const state2 = this._baseState;
+      const node = state2.choice[data.type];
+      if (!node) {
+        assert2(
+          false,
+          data.type + " not found in " + JSON.stringify(Object.keys(state2.choice))
+        );
+      }
+      return node._encode(data.value, reporter);
+    };
+    Node.prototype._encodePrimitive = function encodePrimitive(tag, data) {
+      const state2 = this._baseState;
+      if (/str$/.test(tag))
+        return this._encodeStr(data, tag);
+      else if (tag === "objid" && state2.args)
+        return this._encodeObjid(data, state2.reverseArgs[0], state2.args[1]);
+      else if (tag === "objid")
+        return this._encodeObjid(data, null, null);
+      else if (tag === "gentime" || tag === "utctime")
+        return this._encodeTime(data, tag);
+      else if (tag === "null_")
+        return this._encodeNull();
+      else if (tag === "int" || tag === "enum")
+        return this._encodeInt(data, state2.args && state2.reverseArgs[0]);
+      else if (tag === "bool")
+        return this._encodeBool(data);
+      else if (tag === "objDesc")
+        return this._encodeStr(data, tag);
+      else
+        throw new Error("Unsupported tag: " + tag);
+    };
+    Node.prototype._isNumstr = function isNumstr(str) {
+      return /^[0-9 ]*$/.test(str);
+    };
+    Node.prototype._isPrintstr = function isPrintstr(str) {
+      return /^[A-Za-z0-9 '()+,-./:=?]*$/.test(str);
+    };
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/constants/der.js
+var require_der = __commonJS({
+  "node_modules/asn1.js/lib/asn1/constants/der.js"(exports) {
+    "use strict";
+    function reverse(map4) {
+      const res = {};
+      Object.keys(map4).forEach(function(key) {
+        if ((key | 0) == key)
+          key = key | 0;
+        const value = map4[key];
+        res[value] = key;
+      });
+      return res;
+    }
+    exports.tagClass = {
+      0: "universal",
+      1: "application",
+      2: "context",
+      3: "private"
+    };
+    exports.tagClassByName = reverse(exports.tagClass);
+    exports.tag = {
+      0: "end",
+      1: "bool",
+      2: "int",
+      3: "bitstr",
+      4: "octstr",
+      5: "null_",
+      6: "objid",
+      7: "objDesc",
+      8: "external",
+      9: "real",
+      10: "enum",
+      11: "embed",
+      12: "utf8str",
+      13: "relativeOid",
+      16: "seq",
+      17: "set",
+      18: "numstr",
+      19: "printstr",
+      20: "t61str",
+      21: "videostr",
+      22: "ia5str",
+      23: "utctime",
+      24: "gentime",
+      25: "graphstr",
+      26: "iso646str",
+      27: "genstr",
+      28: "unistr",
+      29: "charstr",
+      30: "bmpstr"
+    };
+    exports.tagByName = reverse(exports.tag);
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/encoders/der.js
+var require_der2 = __commonJS({
+  "node_modules/asn1.js/lib/asn1/encoders/der.js"(exports, module) {
+    "use strict";
+    var inherits2 = require_inherits();
+    var Buffer2 = require_safer().Buffer;
+    var Node = require_node2();
+    var der = require_der();
+    function DEREncoder(entity) {
+      this.enc = "der";
+      this.name = entity.name;
+      this.entity = entity;
+      this.tree = new DERNode();
+      this.tree._init(entity.body);
+    }
+    module.exports = DEREncoder;
+    DEREncoder.prototype.encode = function encode6(data, reporter) {
+      return this.tree._encode(data, reporter).join();
+    };
+    function DERNode(parent) {
+      Node.call(this, "der", parent);
+    }
+    inherits2(DERNode, Node);
+    DERNode.prototype._encodeComposite = function encodeComposite(tag, primitive, cls, content) {
+      const encodedTag = encodeTag(tag, primitive, cls, this.reporter);
+      if (content.length < 128) {
+        const header2 = Buffer2.alloc(2);
+        header2[0] = encodedTag;
+        header2[1] = content.length;
+        return this._createEncoderBuffer([header2, content]);
+      }
+      let lenOctets = 1;
+      for (let i5 = content.length; i5 >= 256; i5 >>= 8)
+        lenOctets++;
+      const header = Buffer2.alloc(1 + 1 + lenOctets);
+      header[0] = encodedTag;
+      header[1] = 128 | lenOctets;
+      for (let i5 = 1 + lenOctets, j5 = content.length; j5 > 0; i5--, j5 >>= 8)
+        header[i5] = j5 & 255;
+      return this._createEncoderBuffer([header, content]);
+    };
+    DERNode.prototype._encodeStr = function encodeStr(str, tag) {
+      if (tag === "bitstr") {
+        return this._createEncoderBuffer([str.unused | 0, str.data]);
+      } else if (tag === "bmpstr") {
+        const buf = Buffer2.alloc(str.length * 2);
+        for (let i5 = 0; i5 < str.length; i5++) {
+          buf.writeUInt16BE(str.charCodeAt(i5), i5 * 2);
+        }
+        return this._createEncoderBuffer(buf);
+      } else if (tag === "numstr") {
+        if (!this._isNumstr(str)) {
+          return this.reporter.error("Encoding of string type: numstr supports only digits and space");
+        }
+        return this._createEncoderBuffer(str);
+      } else if (tag === "printstr") {
+        if (!this._isPrintstr(str)) {
+          return this.reporter.error("Encoding of string type: printstr supports only latin upper and lower case letters, digits, space, apostrophe, left and rigth parenthesis, plus sign, comma, hyphen, dot, slash, colon, equal sign, question mark");
+        }
+        return this._createEncoderBuffer(str);
+      } else if (/str$/.test(tag)) {
+        return this._createEncoderBuffer(str);
+      } else if (tag === "objDesc") {
+        return this._createEncoderBuffer(str);
+      } else {
+        return this.reporter.error("Encoding of string type: " + tag + " unsupported");
+      }
+    };
+    DERNode.prototype._encodeObjid = function encodeObjid(id, values, relative) {
+      if (typeof id === "string") {
+        if (!values)
+          return this.reporter.error("string objid given, but no values map found");
+        if (!values.hasOwnProperty(id))
+          return this.reporter.error("objid not found in values map");
+        id = values[id].split(/[\s.]+/g);
+        for (let i5 = 0; i5 < id.length; i5++)
+          id[i5] |= 0;
+      } else if (Array.isArray(id)) {
+        id = id.slice();
+        for (let i5 = 0; i5 < id.length; i5++)
+          id[i5] |= 0;
+      }
+      if (!Array.isArray(id)) {
+        return this.reporter.error("objid() should be either array or string, got: " + JSON.stringify(id));
+      }
+      if (!relative) {
+        if (id[1] >= 40)
+          return this.reporter.error("Second objid identifier OOB");
+        id.splice(0, 2, id[0] * 40 + id[1]);
+      }
+      let size = 0;
+      for (let i5 = 0; i5 < id.length; i5++) {
+        let ident = id[i5];
+        for (size++; ident >= 128; ident >>= 7)
+          size++;
+      }
+      const objid = Buffer2.alloc(size);
+      let offset = objid.length - 1;
+      for (let i5 = id.length - 1; i5 >= 0; i5--) {
+        let ident = id[i5];
+        objid[offset--] = ident & 127;
+        while ((ident >>= 7) > 0)
+          objid[offset--] = 128 | ident & 127;
+      }
+      return this._createEncoderBuffer(objid);
+    };
+    function two(num) {
+      if (num < 10)
+        return "0" + num;
+      else
+        return num;
+    }
+    DERNode.prototype._encodeTime = function encodeTime(time2, tag) {
+      let str;
+      const date2 = new Date(time2);
+      if (tag === "gentime") {
+        str = [
+          two(date2.getUTCFullYear()),
+          two(date2.getUTCMonth() + 1),
+          two(date2.getUTCDate()),
+          two(date2.getUTCHours()),
+          two(date2.getUTCMinutes()),
+          two(date2.getUTCSeconds()),
+          "Z"
+        ].join("");
+      } else if (tag === "utctime") {
+        str = [
+          two(date2.getUTCFullYear() % 100),
+          two(date2.getUTCMonth() + 1),
+          two(date2.getUTCDate()),
+          two(date2.getUTCHours()),
+          two(date2.getUTCMinutes()),
+          two(date2.getUTCSeconds()),
+          "Z"
+        ].join("");
+      } else {
+        this.reporter.error("Encoding " + tag + " time is not supported yet");
+      }
+      return this._encodeStr(str, "octstr");
+    };
+    DERNode.prototype._encodeNull = function encodeNull() {
+      return this._createEncoderBuffer("");
+    };
+    DERNode.prototype._encodeInt = function encodeInt(num, values) {
+      if (typeof num === "string") {
+        if (!values)
+          return this.reporter.error("String int or enum given, but no values map");
+        if (!values.hasOwnProperty(num)) {
+          return this.reporter.error("Values map doesn't contain: " + JSON.stringify(num));
+        }
+        num = values[num];
+      }
+      if (typeof num !== "number" && !Buffer2.isBuffer(num)) {
+        const numArray = num.toArray();
+        if (!num.sign && numArray[0] & 128) {
+          numArray.unshift(0);
+        }
+        num = Buffer2.from(numArray);
+      }
+      if (Buffer2.isBuffer(num)) {
+        let size2 = num.length;
+        if (num.length === 0)
+          size2++;
+        const out2 = Buffer2.alloc(size2);
+        num.copy(out2);
+        if (num.length === 0)
+          out2[0] = 0;
+        return this._createEncoderBuffer(out2);
+      }
+      if (num < 128)
+        return this._createEncoderBuffer(num);
+      if (num < 256)
+        return this._createEncoderBuffer([0, num]);
+      let size = 1;
+      for (let i5 = num; i5 >= 256; i5 >>= 8)
+        size++;
+      const out = new Array(size);
+      for (let i5 = out.length - 1; i5 >= 0; i5--) {
+        out[i5] = num & 255;
+        num >>= 8;
+      }
+      if (out[0] & 128) {
+        out.unshift(0);
+      }
+      return this._createEncoderBuffer(Buffer2.from(out));
+    };
+    DERNode.prototype._encodeBool = function encodeBool(value) {
+      return this._createEncoderBuffer(value ? 255 : 0);
+    };
+    DERNode.prototype._use = function use(entity, obj) {
+      if (typeof entity === "function")
+        entity = entity(obj);
+      return entity._getEncoder("der").tree;
+    };
+    DERNode.prototype._skipDefault = function skipDefault(dataBuffer, reporter, parent) {
+      const state2 = this._baseState;
+      let i5;
+      if (state2["default"] === null)
+        return false;
+      const data = dataBuffer.join();
+      if (state2.defaultBuffer === void 0)
+        state2.defaultBuffer = this._encodeValue(state2["default"], reporter, parent).join();
+      if (data.length !== state2.defaultBuffer.length)
+        return false;
+      for (i5 = 0; i5 < data.length; i5++)
+        if (data[i5] !== state2.defaultBuffer[i5])
+          return false;
+      return true;
+    };
+    function encodeTag(tag, primitive, cls, reporter) {
+      let res;
+      if (tag === "seqof")
+        tag = "seq";
+      else if (tag === "setof")
+        tag = "set";
+      if (der.tagByName.hasOwnProperty(tag))
+        res = der.tagByName[tag];
+      else if (typeof tag === "number" && (tag | 0) === tag)
+        res = tag;
+      else
+        return reporter.error("Unknown tag: " + tag);
+      if (res >= 31)
+        return reporter.error("Multi-octet tag encoding unsupported");
+      if (!primitive)
+        res |= 32;
+      res |= der.tagClassByName[cls || "universal"] << 6;
+      return res;
+    }
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/encoders/pem.js
+var require_pem = __commonJS({
+  "node_modules/asn1.js/lib/asn1/encoders/pem.js"(exports, module) {
+    "use strict";
+    var inherits2 = require_inherits();
+    var DEREncoder = require_der2();
+    function PEMEncoder(entity) {
+      DEREncoder.call(this, entity);
+      this.enc = "pem";
+    }
+    inherits2(PEMEncoder, DEREncoder);
+    module.exports = PEMEncoder;
+    PEMEncoder.prototype.encode = function encode6(data, options) {
+      const buf = DEREncoder.prototype.encode.call(this, data);
+      const p4 = buf.toString("base64");
+      const out = ["-----BEGIN " + options.label + "-----"];
+      for (let i5 = 0; i5 < p4.length; i5 += 64)
+        out.push(p4.slice(i5, i5 + 64));
+      out.push("-----END " + options.label + "-----");
+      return out.join("\n");
+    };
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/encoders/index.js
+var require_encoders = __commonJS({
+  "node_modules/asn1.js/lib/asn1/encoders/index.js"(exports) {
+    "use strict";
+    var encoders = exports;
+    encoders.der = require_der2();
+    encoders.pem = require_pem();
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/decoders/der.js
+var require_der3 = __commonJS({
+  "node_modules/asn1.js/lib/asn1/decoders/der.js"(exports, module) {
+    "use strict";
+    var inherits2 = require_inherits();
+    var bignum = require_bn();
+    var DecoderBuffer = require_buffer().DecoderBuffer;
+    var Node = require_node2();
+    var der = require_der();
+    function DERDecoder(entity) {
+      this.enc = "der";
+      this.name = entity.name;
+      this.entity = entity;
+      this.tree = new DERNode();
+      this.tree._init(entity.body);
+    }
+    module.exports = DERDecoder;
+    DERDecoder.prototype.decode = function decode2(data, options) {
+      if (!DecoderBuffer.isDecoderBuffer(data)) {
+        data = new DecoderBuffer(data, options);
+      }
+      return this.tree._decode(data, options);
+    };
+    function DERNode(parent) {
+      Node.call(this, "der", parent);
+    }
+    inherits2(DERNode, Node);
+    DERNode.prototype._peekTag = function peekTag(buffer, tag, any) {
+      if (buffer.isEmpty())
+        return false;
+      const state2 = buffer.save();
+      const decodedTag = derDecodeTag(buffer, 'Failed to peek tag: "' + tag + '"');
+      if (buffer.isError(decodedTag))
+        return decodedTag;
+      buffer.restore(state2);
+      return decodedTag.tag === tag || decodedTag.tagStr === tag || decodedTag.tagStr + "of" === tag || any;
+    };
+    DERNode.prototype._decodeTag = function decodeTag(buffer, tag, any) {
+      const decodedTag = derDecodeTag(
+        buffer,
+        'Failed to decode tag of "' + tag + '"'
+      );
+      if (buffer.isError(decodedTag))
+        return decodedTag;
+      let len = derDecodeLen(
+        buffer,
+        decodedTag.primitive,
+        'Failed to get length of "' + tag + '"'
+      );
+      if (buffer.isError(len))
+        return len;
+      if (!any && decodedTag.tag !== tag && decodedTag.tagStr !== tag && decodedTag.tagStr + "of" !== tag) {
+        return buffer.error('Failed to match tag: "' + tag + '"');
+      }
+      if (decodedTag.primitive || len !== null)
+        return buffer.skip(len, 'Failed to match body of: "' + tag + '"');
+      const state2 = buffer.save();
+      const res = this._skipUntilEnd(
+        buffer,
+        'Failed to skip indefinite length body: "' + this.tag + '"'
+      );
+      if (buffer.isError(res))
+        return res;
+      len = buffer.offset - state2.offset;
+      buffer.restore(state2);
+      return buffer.skip(len, 'Failed to match body of: "' + tag + '"');
+    };
+    DERNode.prototype._skipUntilEnd = function skipUntilEnd(buffer, fail) {
+      for (; ; ) {
+        const tag = derDecodeTag(buffer, fail);
+        if (buffer.isError(tag))
+          return tag;
+        const len = derDecodeLen(buffer, tag.primitive, fail);
+        if (buffer.isError(len))
+          return len;
+        let res;
+        if (tag.primitive || len !== null)
+          res = buffer.skip(len);
+        else
+          res = this._skipUntilEnd(buffer, fail);
+        if (buffer.isError(res))
+          return res;
+        if (tag.tagStr === "end")
+          break;
+      }
+    };
+    DERNode.prototype._decodeList = function decodeList(buffer, tag, decoder, options) {
+      const result = [];
+      while (!buffer.isEmpty()) {
+        const possibleEnd = this._peekTag(buffer, "end");
+        if (buffer.isError(possibleEnd))
+          return possibleEnd;
+        const res = decoder.decode(buffer, "der", options);
+        if (buffer.isError(res) && possibleEnd)
+          break;
+        result.push(res);
+      }
+      return result;
+    };
+    DERNode.prototype._decodeStr = function decodeStr(buffer, tag) {
+      if (tag === "bitstr") {
+        const unused = buffer.readUInt8();
+        if (buffer.isError(unused))
+          return unused;
+        return { unused, data: buffer.raw() };
+      } else if (tag === "bmpstr") {
+        const raw = buffer.raw();
+        if (raw.length % 2 === 1)
+          return buffer.error("Decoding of string type: bmpstr length mismatch");
+        let str = "";
+        for (let i5 = 0; i5 < raw.length / 2; i5++) {
+          str += String.fromCharCode(raw.readUInt16BE(i5 * 2));
+        }
+        return str;
+      } else if (tag === "numstr") {
+        const numstr = buffer.raw().toString("ascii");
+        if (!this._isNumstr(numstr)) {
+          return buffer.error("Decoding of string type: numstr unsupported characters");
+        }
+        return numstr;
+      } else if (tag === "octstr") {
+        return buffer.raw();
+      } else if (tag === "objDesc") {
+        return buffer.raw();
+      } else if (tag === "printstr") {
+        const printstr = buffer.raw().toString("ascii");
+        if (!this._isPrintstr(printstr)) {
+          return buffer.error("Decoding of string type: printstr unsupported characters");
+        }
+        return printstr;
+      } else if (/str$/.test(tag)) {
+        return buffer.raw().toString();
+      } else {
+        return buffer.error("Decoding of string type: " + tag + " unsupported");
+      }
+    };
+    DERNode.prototype._decodeObjid = function decodeObjid(buffer, values, relative) {
+      let result;
+      const identifiers = [];
+      let ident = 0;
+      let subident = 0;
+      while (!buffer.isEmpty()) {
+        subident = buffer.readUInt8();
+        ident <<= 7;
+        ident |= subident & 127;
+        if ((subident & 128) === 0) {
+          identifiers.push(ident);
+          ident = 0;
+        }
+      }
+      if (subident & 128)
+        identifiers.push(ident);
+      const first = identifiers[0] / 40 | 0;
+      const second = identifiers[0] % 40;
+      if (relative)
+        result = identifiers;
+      else
+        result = [first, second].concat(identifiers.slice(1));
+      if (values) {
+        let tmp = values[result.join(" ")];
+        if (tmp === void 0)
+          tmp = values[result.join(".")];
+        if (tmp !== void 0)
+          result = tmp;
+      }
+      return result;
+    };
+    DERNode.prototype._decodeTime = function decodeTime(buffer, tag) {
+      const str = buffer.raw().toString();
+      let year2;
+      let mon;
+      let day;
+      let hour;
+      let min;
+      let sec;
+      if (tag === "gentime") {
+        year2 = str.slice(0, 4) | 0;
+        mon = str.slice(4, 6) | 0;
+        day = str.slice(6, 8) | 0;
+        hour = str.slice(8, 10) | 0;
+        min = str.slice(10, 12) | 0;
+        sec = str.slice(12, 14) | 0;
+      } else if (tag === "utctime") {
+        year2 = str.slice(0, 2) | 0;
+        mon = str.slice(2, 4) | 0;
+        day = str.slice(4, 6) | 0;
+        hour = str.slice(6, 8) | 0;
+        min = str.slice(8, 10) | 0;
+        sec = str.slice(10, 12) | 0;
+        if (year2 < 70)
+          year2 = 2e3 + year2;
+        else
+          year2 = 1900 + year2;
+      } else {
+        return buffer.error("Decoding " + tag + " time is not supported yet");
+      }
+      return Date.UTC(year2, mon - 1, day, hour, min, sec, 0);
+    };
+    DERNode.prototype._decodeNull = function decodeNull() {
+      return null;
+    };
+    DERNode.prototype._decodeBool = function decodeBool(buffer) {
+      const res = buffer.readUInt8();
+      if (buffer.isError(res))
+        return res;
+      else
+        return res !== 0;
+    };
+    DERNode.prototype._decodeInt = function decodeInt(buffer, values) {
+      const raw = buffer.raw();
+      let res = new bignum(raw);
+      if (values)
+        res = values[res.toString(10)] || res;
+      return res;
+    };
+    DERNode.prototype._use = function use(entity, obj) {
+      if (typeof entity === "function")
+        entity = entity(obj);
+      return entity._getDecoder("der").tree;
+    };
+    function derDecodeTag(buf, fail) {
+      let tag = buf.readUInt8(fail);
+      if (buf.isError(tag))
+        return tag;
+      const cls = der.tagClass[tag >> 6];
+      const primitive = (tag & 32) === 0;
+      if ((tag & 31) === 31) {
+        let oct = tag;
+        tag = 0;
+        while ((oct & 128) === 128) {
+          oct = buf.readUInt8(fail);
+          if (buf.isError(oct))
+            return oct;
+          tag <<= 7;
+          tag |= oct & 127;
+        }
+      } else {
+        tag &= 31;
+      }
+      const tagStr = der.tag[tag];
+      return {
+        cls,
+        primitive,
+        tag,
+        tagStr
+      };
+    }
+    function derDecodeLen(buf, primitive, fail) {
+      let len = buf.readUInt8(fail);
+      if (buf.isError(len))
+        return len;
+      if (!primitive && len === 128)
+        return null;
+      if ((len & 128) === 0) {
+        return len;
+      }
+      const num = len & 127;
+      if (num > 4)
+        return buf.error("length octect is too long");
+      len = 0;
+      for (let i5 = 0; i5 < num; i5++) {
+        len <<= 8;
+        const j5 = buf.readUInt8(fail);
+        if (buf.isError(j5))
+          return j5;
+        len |= j5;
+      }
+      return len;
+    }
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/decoders/pem.js
+var require_pem2 = __commonJS({
+  "node_modules/asn1.js/lib/asn1/decoders/pem.js"(exports, module) {
+    "use strict";
+    var inherits2 = require_inherits();
+    var Buffer2 = require_safer().Buffer;
+    var DERDecoder = require_der3();
+    function PEMDecoder(entity) {
+      DERDecoder.call(this, entity);
+      this.enc = "pem";
+    }
+    inherits2(PEMDecoder, DERDecoder);
+    module.exports = PEMDecoder;
+    PEMDecoder.prototype.decode = function decode2(data, options) {
+      const lines = data.toString().split(/[\r\n]+/g);
+      const label = options.label.toUpperCase();
+      const re = /^-----(BEGIN|END) ([^-]+)-----$/;
+      let start = -1;
+      let end = -1;
+      for (let i5 = 0; i5 < lines.length; i5++) {
+        const match = lines[i5].match(re);
+        if (match === null)
+          continue;
+        if (match[2] !== label)
+          continue;
+        if (start === -1) {
+          if (match[1] !== "BEGIN")
+            break;
+          start = i5;
+        } else {
+          if (match[1] !== "END")
+            break;
+          end = i5;
+          break;
+        }
+      }
+      if (start === -1 || end === -1)
+        throw new Error("PEM section not found for: " + label);
+      const base64 = lines.slice(start + 1, end).join("");
+      base64.replace(/[^a-z0-9+/=]+/gi, "");
+      const input = Buffer2.from(base64, "base64");
+      return DERDecoder.prototype.decode.call(this, input, options);
+    };
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/decoders/index.js
+var require_decoders = __commonJS({
+  "node_modules/asn1.js/lib/asn1/decoders/index.js"(exports) {
+    "use strict";
+    var decoders = exports;
+    decoders.der = require_der3();
+    decoders.pem = require_pem2();
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/api.js
+var require_api = __commonJS({
+  "node_modules/asn1.js/lib/asn1/api.js"(exports) {
+    "use strict";
+    var encoders = require_encoders();
+    var decoders = require_decoders();
+    var inherits2 = require_inherits();
+    var api = exports;
+    api.define = function define(name2, body) {
+      return new Entity(name2, body);
+    };
+    function Entity(name2, body) {
+      this.name = name2;
+      this.body = body;
+      this.decoders = {};
+      this.encoders = {};
+    }
+    Entity.prototype._createNamed = function createNamed(Base) {
+      const name2 = this.name;
+      function Generated(entity) {
+        this._initNamed(entity, name2);
+      }
+      inherits2(Generated, Base);
+      Generated.prototype._initNamed = function _initNamed(entity, name3) {
+        Base.call(this, entity, name3);
+      };
+      return new Generated(this);
+    };
+    Entity.prototype._getDecoder = function _getDecoder(enc) {
+      enc = enc || "der";
+      if (!this.decoders.hasOwnProperty(enc))
+        this.decoders[enc] = this._createNamed(decoders[enc]);
+      return this.decoders[enc];
+    };
+    Entity.prototype.decode = function decode2(data, enc, options) {
+      return this._getDecoder(enc).decode(data, options);
+    };
+    Entity.prototype._getEncoder = function _getEncoder(enc) {
+      enc = enc || "der";
+      if (!this.encoders.hasOwnProperty(enc))
+        this.encoders[enc] = this._createNamed(encoders[enc]);
+      return this.encoders[enc];
+    };
+    Entity.prototype.encode = function encode6(data, enc, reporter) {
+      return this._getEncoder(enc).encode(data, reporter);
+    };
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/base/index.js
+var require_base = __commonJS({
+  "node_modules/asn1.js/lib/asn1/base/index.js"(exports) {
+    "use strict";
+    var base2 = exports;
+    base2.Reporter = require_reporter().Reporter;
+    base2.DecoderBuffer = require_buffer().DecoderBuffer;
+    base2.EncoderBuffer = require_buffer().EncoderBuffer;
+    base2.Node = require_node2();
+  }
+});
+
+// node_modules/asn1.js/lib/asn1/constants/index.js
+var require_constants2 = __commonJS({
+  "node_modules/asn1.js/lib/asn1/constants/index.js"(exports) {
+    "use strict";
+    var constants = exports;
+    constants._reverse = function reverse(map4) {
+      const res = {};
+      Object.keys(map4).forEach(function(key) {
+        if ((key | 0) == key)
+          key = key | 0;
+        const value = map4[key];
+        res[value] = key;
+      });
+      return res;
+    };
+    constants.der = require_der();
+  }
+});
+
+// node_modules/asn1.js/lib/asn1.js
+var require_asn1 = __commonJS({
+  "node_modules/asn1.js/lib/asn1.js"(exports) {
+    "use strict";
+    var asn12 = exports;
+    asn12.bignum = require_bn();
+    asn12.define = require_api().define;
+    asn12.base = require_base();
+    asn12.constants = require_constants2();
+    asn12.decoders = require_decoders();
+    asn12.encoders = require_encoders();
+  }
+});
+
+// node_modules/http_ece/ece.js
+var require_ece = __commonJS({
+  "node_modules/http_ece/ece.js"(exports, module) {
+    "use strict";
+    var crypto22 = __require("crypto");
+    var AES_GCM = "aes-128-gcm";
+    var PAD_SIZE = { "aes128gcm": 1, "aesgcm": 2 };
+    var TAG_LENGTH = 16;
+    var KEY_LENGTH = 16;
+    var NONCE_LENGTH = 12;
+    var SHA_256_LENGTH = 32;
+    var MODE_ENCRYPT = "encrypt";
+    var MODE_DECRYPT = "decrypt";
+    var keylog;
+    if (process.env.ECE_KEYLOG === "1") {
+      keylog = function(m3, k5) {
+        console.warn(m3 + " [" + k5.length + "]: " + k5.toString("base64url"));
+        return k5;
+      };
+    } else {
+      keylog = function(m3, k5) {
+        return k5;
+      };
+    }
+    function decode2(b6) {
+      if (typeof b6 === "string") {
+        return Buffer.from(b6, "base64url");
+      }
+      return b6;
+    }
+    function HMAC_hash(key, input) {
+      var hmac = crypto22.createHmac("sha256", key);
+      hmac.update(input);
+      return hmac.digest();
+    }
+    function HKDF_extract(salt, ikm) {
+      keylog("salt", salt);
+      keylog("ikm", ikm);
+      return keylog("extract", HMAC_hash(salt, ikm));
+    }
+    function HKDF_expand(prk, info2, l3) {
+      keylog("prk", prk);
+      keylog("info", info2);
+      var output = Buffer.alloc(0);
+      var T4 = Buffer.alloc(0);
+      info2 = Buffer.from(info2, "ascii");
+      var counter = 0;
+      var cbuf = Buffer.alloc(1);
+      while (output.length < l3) {
+        cbuf.writeUIntBE(++counter, 0, 1);
+        T4 = HMAC_hash(prk, Buffer.concat([T4, info2, cbuf]));
+        output = Buffer.concat([output, T4]);
+      }
+      return keylog("expand", output.slice(0, l3));
+    }
+    function HKDF(salt, ikm, info2, len) {
+      return HKDF_expand(HKDF_extract(salt, ikm), info2, len);
+    }
+    function info(base2, context) {
+      var result = Buffer.concat([
+        Buffer.from("Content-Encoding: " + base2 + "\0", "ascii"),
+        context
+      ]);
+      keylog("info " + base2, result);
+      return result;
+    }
+    function lengthPrefix(buffer) {
+      var b6 = Buffer.concat([Buffer.alloc(2), buffer]);
+      b6.writeUIntBE(buffer.length, 0, 2);
+      return b6;
+    }
+    function extractDH(header, mode) {
+      var key = header.privateKey;
+      var senderPubKey, receiverPubKey;
+      if (mode === MODE_ENCRYPT) {
+        senderPubKey = key.getPublicKey();
+        receiverPubKey = header.dh;
+      } else if (mode === MODE_DECRYPT) {
+        senderPubKey = header.dh;
+        receiverPubKey = key.getPublicKey();
+      } else {
+        throw new Error("Unknown mode only " + MODE_ENCRYPT + " and " + MODE_DECRYPT + " supported");
+      }
+      return {
+        secret: key.computeSecret(header.dh),
+        context: Buffer.concat([
+          Buffer.from(header.keylabel, "ascii"),
+          Buffer.from([0]),
+          lengthPrefix(receiverPubKey),
+          // user agent
+          lengthPrefix(senderPubKey)
+          // application server
+        ])
+      };
+    }
+    function extractSecretAndContext(header, mode) {
+      var result = { secret: null, context: Buffer.alloc(0) };
+      if (header.key) {
+        result.secret = header.key;
+        if (result.secret.length !== KEY_LENGTH) {
+          throw new Error("An explicit key must be " + KEY_LENGTH + " bytes");
+        }
+      } else if (header.dh) {
+        result = extractDH(header, mode);
+      } else if (typeof header.keyid !== void 0) {
+        result.secret = header.keymap[header.keyid];
+      }
+      if (!result.secret) {
+        throw new Error("Unable to determine key");
+      }
+      keylog("secret", result.secret);
+      keylog("context", result.context);
+      if (header.authSecret) {
+        result.secret = HKDF(
+          header.authSecret,
+          result.secret,
+          info("auth", Buffer.alloc(0)),
+          SHA_256_LENGTH
+        );
+        keylog("authsecret", result.secret);
+      }
+      return result;
+    }
+    function webpushSecret(header, mode) {
+      if (!header.authSecret) {
+        throw new Error("No authentication secret for webpush");
+      }
+      keylog("authsecret", header.authSecret);
+      var remotePubKey, senderPubKey, receiverPubKey;
+      if (mode === MODE_ENCRYPT) {
+        senderPubKey = header.privateKey.getPublicKey();
+        remotePubKey = receiverPubKey = header.dh;
+      } else if (mode === MODE_DECRYPT) {
+        remotePubKey = senderPubKey = header.keyid;
+        receiverPubKey = header.privateKey.getPublicKey();
+      } else {
+        throw new Error("Unknown mode only " + MODE_ENCRYPT + " and " + MODE_DECRYPT + " supported");
+      }
+      keylog("remote pubkey", remotePubKey);
+      keylog("sender pubkey", senderPubKey);
+      keylog("receiver pubkey", receiverPubKey);
+      return keylog(
+        "secret dh",
+        HKDF(
+          header.authSecret,
+          header.privateKey.computeSecret(remotePubKey),
+          Buffer.concat([
+            Buffer.from("WebPush: info\0"),
+            receiverPubKey,
+            senderPubKey
+          ]),
+          SHA_256_LENGTH
+        )
+      );
+    }
+    function extractSecret(header, mode, keyLookupCallback) {
+      if (keyLookupCallback) {
+        if (!isFunction4(keyLookupCallback)) {
+          throw new Error("Callback is not a function");
+        }
+      }
+      if (header.key) {
+        if (header.key.length !== KEY_LENGTH) {
+          throw new Error("An explicit key must be " + KEY_LENGTH + " bytes");
+        }
+        return keylog("secret key", header.key);
+      }
+      if (!header.privateKey) {
+        if (!keyLookupCallback) {
+          var key = header.keymap && header.keymap[header.keyid];
+        } else {
+          var key = keyLookupCallback(header.keyid);
+        }
+        if (!key) {
+          throw new Error('No saved key (keyid: "' + header.keyid + '")');
+        }
+        return key;
+      }
+      return webpushSecret(header, mode);
+    }
+    function deriveKeyAndNonce(header, mode, lookupKeyCallback) {
+      if (!header.salt) {
+        throw new Error("must include a salt parameter for " + header.version);
+      }
+      var keyInfo;
+      var nonceInfo;
+      var secret;
+      if (header.version === "aesgcm") {
+        var s2 = extractSecretAndContext(header, mode, lookupKeyCallback);
+        keyInfo = info("aesgcm", s2.context);
+        nonceInfo = info("nonce", s2.context);
+        secret = s2.secret;
+      } else if (header.version === "aes128gcm") {
+        keyInfo = Buffer.from("Content-Encoding: aes128gcm\0");
+        nonceInfo = Buffer.from("Content-Encoding: nonce\0");
+        secret = extractSecret(header, mode, lookupKeyCallback);
+      } else {
+        throw new Error("Unable to set context for mode " + header.version);
+      }
+      var prk = HKDF_extract(header.salt, secret);
+      var result = {
+        key: HKDF_expand(prk, keyInfo, KEY_LENGTH),
+        nonce: HKDF_expand(prk, nonceInfo, NONCE_LENGTH)
+      };
+      keylog("key", result.key);
+      keylog("nonce base", result.nonce);
+      return result;
+    }
+    function parseParams(params) {
+      var header = {};
+      header.version = params.version || "aes128gcm";
+      header.rs = parseInt(params.rs, 10);
+      if (isNaN(header.rs)) {
+        header.rs = 4096;
+      }
+      var overhead = PAD_SIZE[header.version];
+      if (header.version === "aes128gcm") {
+        overhead += TAG_LENGTH;
+      }
+      if (header.rs <= overhead) {
+        throw new Error("The rs parameter has to be greater than " + overhead);
+      }
+      if (params.salt) {
+        header.salt = decode2(params.salt);
+        if (header.salt.length !== KEY_LENGTH) {
+          throw new Error("The salt parameter must be " + KEY_LENGTH + " bytes");
+        }
+      }
+      header.keyid = params.keyid;
+      if (params.key) {
+        header.key = decode2(params.key);
+      } else {
+        header.privateKey = params.privateKey;
+        if (!header.privateKey) {
+          header.keymap = params.keymap;
+        }
+        if (header.version !== "aes128gcm") {
+          header.keylabel = params.keylabel || "P-256";
+        }
+        if (params.dh) {
+          header.dh = decode2(params.dh);
+        }
+      }
+      if (params.authSecret) {
+        header.authSecret = decode2(params.authSecret);
+      }
+      return header;
+    }
+    function generateNonce(base2, counter) {
+      var nonce = Buffer.from(base2);
+      var m3 = nonce.readUIntBE(nonce.length - 6, 6);
+      var x2 = ((m3 ^ counter) & 16777215) + ((m3 / 16777216 ^ counter / 16777216) & 16777215) * 16777216;
+      nonce.writeUIntBE(x2, nonce.length - 6, 6);
+      keylog("nonce" + counter, nonce);
+      return nonce;
+    }
+    function readHeader(buffer, header) {
+      var idsz = buffer.readUIntBE(20, 1);
+      header.salt = buffer.slice(0, KEY_LENGTH);
+      header.rs = buffer.readUIntBE(KEY_LENGTH, 4);
+      header.keyid = buffer.slice(21, 21 + idsz);
+      return 21 + idsz;
+    }
+    function unpadLegacy(data, version2) {
+      var padSize = PAD_SIZE[version2];
+      var pad = data.readUIntBE(0, padSize);
+      if (pad + padSize > data.length) {
+        throw new Error("padding exceeds block size");
+      }
+      keylog("padding", data.slice(0, padSize + pad));
+      var padCheck = Buffer.alloc(pad);
+      padCheck.fill(0);
+      if (padCheck.compare(data.slice(padSize, padSize + pad)) !== 0) {
+        throw new Error("invalid padding");
+      }
+      return data.slice(padSize + pad);
+    }
+    function unpad(data, last) {
+      var i5 = data.length - 1;
+      while (i5 >= 0) {
+        if (data[i5]) {
+          if (last) {
+            if (data[i5] !== 2) {
+              throw new Error("last record needs to start padding with a 2");
+            }
+          } else {
+            if (data[i5] !== 1) {
+              throw new Error("last record needs to start padding with a 2");
+            }
+          }
+          return data.slice(0, i5);
+        }
+        --i5;
+      }
+      throw new Error("all zero plaintext");
+    }
+    function decryptRecord(key, counter, buffer, header, last) {
+      keylog("decrypt", buffer);
+      var nonce = generateNonce(key.nonce, counter);
+      var gcm = crypto22.createDecipheriv(AES_GCM, key.key, nonce);
+      gcm.setAuthTag(buffer.slice(buffer.length - TAG_LENGTH));
+      var data = gcm.update(buffer.slice(0, buffer.length - TAG_LENGTH));
+      data = Buffer.concat([data, gcm.final()]);
+      keylog("decrypted", data);
+      if (header.version !== "aes128gcm") {
+        return unpadLegacy(data, header.version);
+      }
+      return unpad(data, last);
+    }
+    function decrypt(buffer, params, keyLookupCallback) {
+      var header = parseParams(params);
+      if (header.version === "aes128gcm") {
+        var headerLength = readHeader(buffer, header);
+        buffer = buffer.slice(headerLength);
+      }
+      var key = deriveKeyAndNonce(header, MODE_DECRYPT, keyLookupCallback);
+      var start = 0;
+      var result = Buffer.alloc(0);
+      var chunkSize = header.rs;
+      if (header.version !== "aes128gcm") {
+        chunkSize += TAG_LENGTH;
+      }
+      for (var i5 = 0; start < buffer.length; ++i5) {
+        var end = start + chunkSize;
+        if (header.version !== "aes128gcm" && end === buffer.length) {
+          throw new Error("Truncated payload");
+        }
+        end = Math.min(end, buffer.length);
+        if (end - start <= TAG_LENGTH) {
+          throw new Error("Invalid block: too small at " + i5);
+        }
+        var block = decryptRecord(
+          key,
+          i5,
+          buffer.slice(start, end),
+          header,
+          end >= buffer.length
+        );
+        result = Buffer.concat([result, block]);
+        start = end;
+      }
+      return result;
+    }
+    function encryptRecord(key, counter, buffer, pad, header, last) {
+      keylog("encrypt", buffer);
+      pad = pad || 0;
+      var nonce = generateNonce(key.nonce, counter);
+      var gcm = crypto22.createCipheriv(AES_GCM, key.key, nonce);
+      var ciphertext = [];
+      var padSize = PAD_SIZE[header.version];
+      var padding = Buffer.alloc(pad + padSize);
+      padding.fill(0);
+      if (header.version !== "aes128gcm") {
+        padding.writeUIntBE(pad, 0, padSize);
+        keylog("padding", padding);
+        ciphertext.push(gcm.update(padding));
+        ciphertext.push(gcm.update(buffer));
+        if (!last && padding.length + buffer.length < header.rs) {
+          throw new Error("Unable to pad to record size");
+        }
+      } else {
+        ciphertext.push(gcm.update(buffer));
+        padding.writeUIntBE(last ? 2 : 1, 0, 1);
+        keylog("padding", padding);
+        ciphertext.push(gcm.update(padding));
+      }
+      gcm.final();
+      var tag = gcm.getAuthTag();
+      if (tag.length !== TAG_LENGTH) {
+        throw new Error("invalid tag generated");
+      }
+      ciphertext.push(tag);
+      return keylog("encrypted", Buffer.concat(ciphertext));
+    }
+    function writeHeader(header) {
+      var ints = Buffer.alloc(5);
+      var keyid = Buffer.from(header.keyid || []);
+      if (keyid.length > 255) {
+        throw new Error("keyid is too large");
+      }
+      ints.writeUIntBE(header.rs, 0, 4);
+      ints.writeUIntBE(keyid.length, 4, 1);
+      return Buffer.concat([header.salt, ints, keyid]);
+    }
+    function encrypt2(buffer, params, keyLookupCallback) {
+      if (!Buffer.isBuffer(buffer)) {
+        throw new Error("buffer argument must be a Buffer");
+      }
+      var header = parseParams(params);
+      if (!header.salt) {
+        header.salt = crypto22.randomBytes(KEY_LENGTH);
+      }
+      var result;
+      if (header.version === "aes128gcm") {
+        if (header.privateKey && !header.keyid) {
+          header.keyid = header.privateKey.getPublicKey();
+        }
+        result = writeHeader(header);
+      } else {
+        result = Buffer.alloc(0);
+      }
+      var key = deriveKeyAndNonce(header, MODE_ENCRYPT, keyLookupCallback);
+      var start = 0;
+      var padSize = PAD_SIZE[header.version];
+      var overhead = padSize;
+      if (header.version === "aes128gcm") {
+        overhead += TAG_LENGTH;
+      }
+      var pad = isNaN(parseInt(params.pad, 10)) ? 0 : parseInt(params.pad, 10);
+      var counter = 0;
+      var last = false;
+      while (!last) {
+        var recordPad = Math.min(header.rs - overhead - 1, pad);
+        if (header.version !== "aes128gcm") {
+          recordPad = Math.min((1 << padSize * 8) - 1, recordPad);
+        }
+        if (pad > 0 && recordPad === 0) {
+          ++recordPad;
+        }
+        pad -= recordPad;
+        var end = start + header.rs - overhead - recordPad;
+        if (header.version !== "aes128gcm") {
+          last = end > buffer.length;
+        } else {
+          last = end >= buffer.length;
+        }
+        last = last && pad <= 0;
+        var block = encryptRecord(
+          key,
+          counter,
+          buffer.slice(start, end),
+          recordPad,
+          header,
+          last
+        );
+        result = Buffer.concat([result, block]);
+        start = end;
+        ++counter;
+      }
+      return result;
+    }
+    function isFunction4(object) {
+      return typeof object === "function";
+    }
+    module.exports = {
+      decrypt,
+      encrypt: encrypt2
+    };
+  }
+});
+
 // src/server/standalone.ts
-var import_express3 = __toESM(require_express2(), 1);
+var import_express4 = __toESM(require_express2(), 1);
 import path5 from "path";
 import fs6 from "fs";
 
 // src/server/index.ts
-var import_express2 = __toESM(require_express2(), 1);
+var import_express3 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_dotenv2 = __toESM(require_main(), 1);
 import fs5 from "fs";
 import path4 from "path";
-import crypto16 from "crypto";
+
+// node_modules/bcryptjs/index.js
+import nodeCrypto from "crypto";
+var randomFallback = null;
+function randomBytes(len) {
+  try {
+    return crypto.getRandomValues(new Uint8Array(len));
+  } catch {
+  }
+  try {
+    return nodeCrypto.randomBytes(len);
+  } catch {
+  }
+  if (!randomFallback) {
+    throw Error(
+      "Neither WebCryptoAPI nor a crypto module is available. Use bcrypt.setRandomFallback to set an alternative"
+    );
+  }
+  return randomFallback(len);
+}
+function setRandomFallback(random) {
+  randomFallback = random;
+}
+function genSaltSync(rounds, seed_length) {
+  rounds = rounds || GENSALT_DEFAULT_LOG2_ROUNDS;
+  if (typeof rounds !== "number")
+    throw Error(
+      "Illegal arguments: " + typeof rounds + ", " + typeof seed_length
+    );
+  if (rounds < 4) rounds = 4;
+  else if (rounds > 31) rounds = 31;
+  var salt = [];
+  salt.push("$2b$");
+  if (rounds < 10) salt.push("0");
+  salt.push(rounds.toString());
+  salt.push("$");
+  salt.push(base64_encode(randomBytes(BCRYPT_SALT_LEN), BCRYPT_SALT_LEN));
+  return salt.join("");
+}
+function genSalt(rounds, seed_length, callback) {
+  if (typeof seed_length === "function")
+    callback = seed_length, seed_length = void 0;
+  if (typeof rounds === "function") callback = rounds, rounds = void 0;
+  if (typeof rounds === "undefined") rounds = GENSALT_DEFAULT_LOG2_ROUNDS;
+  else if (typeof rounds !== "number")
+    throw Error("illegal arguments: " + typeof rounds);
+  function _async(callback2) {
+    nextTick(function() {
+      try {
+        callback2(null, genSaltSync(rounds));
+      } catch (err) {
+        callback2(err);
+      }
+    });
+  }
+  if (callback) {
+    if (typeof callback !== "function")
+      throw Error("Illegal callback: " + typeof callback);
+    _async(callback);
+  } else
+    return new Promise(function(resolve3, reject) {
+      _async(function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve3(res);
+      });
+    });
+}
+function hashSync(password, salt) {
+  if (typeof salt === "undefined") salt = GENSALT_DEFAULT_LOG2_ROUNDS;
+  if (typeof salt === "number") salt = genSaltSync(salt);
+  if (typeof password !== "string" || typeof salt !== "string")
+    throw Error("Illegal arguments: " + typeof password + ", " + typeof salt);
+  return _hash(password, salt);
+}
+function hash(password, salt, callback, progressCallback) {
+  function _async(callback2) {
+    if (typeof password === "string" && typeof salt === "number")
+      genSalt(salt, function(err, salt2) {
+        _hash(password, salt2, callback2, progressCallback);
+      });
+    else if (typeof password === "string" && typeof salt === "string")
+      _hash(password, salt, callback2, progressCallback);
+    else
+      nextTick(
+        callback2.bind(
+          this,
+          Error("Illegal arguments: " + typeof password + ", " + typeof salt)
+        )
+      );
+  }
+  if (callback) {
+    if (typeof callback !== "function")
+      throw Error("Illegal callback: " + typeof callback);
+    _async(callback);
+  } else
+    return new Promise(function(resolve3, reject) {
+      _async(function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve3(res);
+      });
+    });
+}
+function safeStringCompare(known, unknown) {
+  var diff = known.length ^ unknown.length;
+  for (var i5 = 0; i5 < known.length; ++i5) {
+    diff |= known.charCodeAt(i5) ^ unknown.charCodeAt(i5);
+  }
+  return diff === 0;
+}
+function compareSync(password, hash2) {
+  if (typeof password !== "string" || typeof hash2 !== "string")
+    throw Error("Illegal arguments: " + typeof password + ", " + typeof hash2);
+  if (hash2.length !== 60) return false;
+  return safeStringCompare(
+    hashSync(password, hash2.substring(0, hash2.length - 31)),
+    hash2
+  );
+}
+function compare(password, hashValue, callback, progressCallback) {
+  function _async(callback2) {
+    if (typeof password !== "string" || typeof hashValue !== "string") {
+      nextTick(
+        callback2.bind(
+          this,
+          Error(
+            "Illegal arguments: " + typeof password + ", " + typeof hashValue
+          )
+        )
+      );
+      return;
+    }
+    if (hashValue.length !== 60) {
+      nextTick(callback2.bind(this, null, false));
+      return;
+    }
+    hash(
+      password,
+      hashValue.substring(0, 29),
+      function(err, comp) {
+        if (err) callback2(err);
+        else callback2(null, safeStringCompare(comp, hashValue));
+      },
+      progressCallback
+    );
+  }
+  if (callback) {
+    if (typeof callback !== "function")
+      throw Error("Illegal callback: " + typeof callback);
+    _async(callback);
+  } else
+    return new Promise(function(resolve3, reject) {
+      _async(function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve3(res);
+      });
+    });
+}
+function getRounds(hash2) {
+  if (typeof hash2 !== "string")
+    throw Error("Illegal arguments: " + typeof hash2);
+  return parseInt(hash2.split("$")[2], 10);
+}
+function getSalt(hash2) {
+  if (typeof hash2 !== "string")
+    throw Error("Illegal arguments: " + typeof hash2);
+  if (hash2.length !== 60)
+    throw Error("Illegal hash length: " + hash2.length + " != 60");
+  return hash2.substring(0, 29);
+}
+function truncates(password) {
+  if (typeof password !== "string")
+    throw Error("Illegal arguments: " + typeof password);
+  return utf8Length(password) > 72;
+}
+var nextTick = typeof setImmediate === "function" ? setImmediate : typeof scheduler === "object" && typeof scheduler.postTask === "function" ? scheduler.postTask.bind(scheduler) : setTimeout;
+function utf8Length(string) {
+  var len = 0, c5 = 0;
+  for (var i5 = 0; i5 < string.length; ++i5) {
+    c5 = string.charCodeAt(i5);
+    if (c5 < 128) len += 1;
+    else if (c5 < 2048) len += 2;
+    else if ((c5 & 64512) === 55296 && (string.charCodeAt(i5 + 1) & 64512) === 56320) {
+      ++i5;
+      len += 4;
+    } else len += 3;
+  }
+  return len;
+}
+function utf8Array(string) {
+  var offset = 0, c1, c22;
+  var buffer = new Array(utf8Length(string));
+  for (var i5 = 0, k5 = string.length; i5 < k5; ++i5) {
+    c1 = string.charCodeAt(i5);
+    if (c1 < 128) {
+      buffer[offset++] = c1;
+    } else if (c1 < 2048) {
+      buffer[offset++] = c1 >> 6 | 192;
+      buffer[offset++] = c1 & 63 | 128;
+    } else if ((c1 & 64512) === 55296 && ((c22 = string.charCodeAt(i5 + 1)) & 64512) === 56320) {
+      c1 = 65536 + ((c1 & 1023) << 10) + (c22 & 1023);
+      ++i5;
+      buffer[offset++] = c1 >> 18 | 240;
+      buffer[offset++] = c1 >> 12 & 63 | 128;
+      buffer[offset++] = c1 >> 6 & 63 | 128;
+      buffer[offset++] = c1 & 63 | 128;
+    } else {
+      buffer[offset++] = c1 >> 12 | 224;
+      buffer[offset++] = c1 >> 6 & 63 | 128;
+      buffer[offset++] = c1 & 63 | 128;
+    }
+  }
+  return buffer;
+}
+var BASE64_CODE = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("");
+var BASE64_INDEX = [
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  0,
+  1,
+  54,
+  55,
+  56,
+  57,
+  58,
+  59,
+  60,
+  61,
+  62,
+  63,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  28,
+  29,
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  50,
+  51,
+  52,
+  53,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1
+];
+function base64_encode(b6, len) {
+  var off = 0, rs = [], c1, c22;
+  if (len <= 0 || len > b6.length) throw Error("Illegal len: " + len);
+  while (off < len) {
+    c1 = b6[off++] & 255;
+    rs.push(BASE64_CODE[c1 >> 2 & 63]);
+    c1 = (c1 & 3) << 4;
+    if (off >= len) {
+      rs.push(BASE64_CODE[c1 & 63]);
+      break;
+    }
+    c22 = b6[off++] & 255;
+    c1 |= c22 >> 4 & 15;
+    rs.push(BASE64_CODE[c1 & 63]);
+    c1 = (c22 & 15) << 2;
+    if (off >= len) {
+      rs.push(BASE64_CODE[c1 & 63]);
+      break;
+    }
+    c22 = b6[off++] & 255;
+    c1 |= c22 >> 6 & 3;
+    rs.push(BASE64_CODE[c1 & 63]);
+    rs.push(BASE64_CODE[c22 & 63]);
+  }
+  return rs.join("");
+}
+function base64_decode(s2, len) {
+  var off = 0, slen = s2.length, olen = 0, rs = [], c1, c22, c32, c42, o3, code;
+  if (len <= 0) throw Error("Illegal len: " + len);
+  while (off < slen - 1 && olen < len) {
+    code = s2.charCodeAt(off++);
+    c1 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    code = s2.charCodeAt(off++);
+    c22 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    if (c1 == -1 || c22 == -1) break;
+    o3 = c1 << 2 >>> 0;
+    o3 |= (c22 & 48) >> 4;
+    rs.push(String.fromCharCode(o3));
+    if (++olen >= len || off >= slen) break;
+    code = s2.charCodeAt(off++);
+    c32 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    if (c32 == -1) break;
+    o3 = (c22 & 15) << 4 >>> 0;
+    o3 |= (c32 & 60) >> 2;
+    rs.push(String.fromCharCode(o3));
+    if (++olen >= len || off >= slen) break;
+    code = s2.charCodeAt(off++);
+    c42 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    o3 = (c32 & 3) << 6 >>> 0;
+    o3 |= c42;
+    rs.push(String.fromCharCode(o3));
+    ++olen;
+  }
+  var res = [];
+  for (off = 0; off < olen; off++) res.push(rs[off].charCodeAt(0));
+  return res;
+}
+var BCRYPT_SALT_LEN = 16;
+var GENSALT_DEFAULT_LOG2_ROUNDS = 10;
+var BLOWFISH_NUM_ROUNDS = 16;
+var MAX_EXECUTION_TIME = 100;
+var P_ORIG = [
+  608135816,
+  2242054355,
+  320440878,
+  57701188,
+  2752067618,
+  698298832,
+  137296536,
+  3964562569,
+  1160258022,
+  953160567,
+  3193202383,
+  887688300,
+  3232508343,
+  3380367581,
+  1065670069,
+  3041331479,
+  2450970073,
+  2306472731
+];
+var S_ORIG = [
+  3509652390,
+  2564797868,
+  805139163,
+  3491422135,
+  3101798381,
+  1780907670,
+  3128725573,
+  4046225305,
+  614570311,
+  3012652279,
+  134345442,
+  2240740374,
+  1667834072,
+  1901547113,
+  2757295779,
+  4103290238,
+  227898511,
+  1921955416,
+  1904987480,
+  2182433518,
+  2069144605,
+  3260701109,
+  2620446009,
+  720527379,
+  3318853667,
+  677414384,
+  3393288472,
+  3101374703,
+  2390351024,
+  1614419982,
+  1822297739,
+  2954791486,
+  3608508353,
+  3174124327,
+  2024746970,
+  1432378464,
+  3864339955,
+  2857741204,
+  1464375394,
+  1676153920,
+  1439316330,
+  715854006,
+  3033291828,
+  289532110,
+  2706671279,
+  2087905683,
+  3018724369,
+  1668267050,
+  732546397,
+  1947742710,
+  3462151702,
+  2609353502,
+  2950085171,
+  1814351708,
+  2050118529,
+  680887927,
+  999245976,
+  1800124847,
+  3300911131,
+  1713906067,
+  1641548236,
+  4213287313,
+  1216130144,
+  1575780402,
+  4018429277,
+  3917837745,
+  3693486850,
+  3949271944,
+  596196993,
+  3549867205,
+  258830323,
+  2213823033,
+  772490370,
+  2760122372,
+  1774776394,
+  2652871518,
+  566650946,
+  4142492826,
+  1728879713,
+  2882767088,
+  1783734482,
+  3629395816,
+  2517608232,
+  2874225571,
+  1861159788,
+  326777828,
+  3124490320,
+  2130389656,
+  2716951837,
+  967770486,
+  1724537150,
+  2185432712,
+  2364442137,
+  1164943284,
+  2105845187,
+  998989502,
+  3765401048,
+  2244026483,
+  1075463327,
+  1455516326,
+  1322494562,
+  910128902,
+  469688178,
+  1117454909,
+  936433444,
+  3490320968,
+  3675253459,
+  1240580251,
+  122909385,
+  2157517691,
+  634681816,
+  4142456567,
+  3825094682,
+  3061402683,
+  2540495037,
+  79693498,
+  3249098678,
+  1084186820,
+  1583128258,
+  426386531,
+  1761308591,
+  1047286709,
+  322548459,
+  995290223,
+  1845252383,
+  2603652396,
+  3431023940,
+  2942221577,
+  3202600964,
+  3727903485,
+  1712269319,
+  422464435,
+  3234572375,
+  1170764815,
+  3523960633,
+  3117677531,
+  1434042557,
+  442511882,
+  3600875718,
+  1076654713,
+  1738483198,
+  4213154764,
+  2393238008,
+  3677496056,
+  1014306527,
+  4251020053,
+  793779912,
+  2902807211,
+  842905082,
+  4246964064,
+  1395751752,
+  1040244610,
+  2656851899,
+  3396308128,
+  445077038,
+  3742853595,
+  3577915638,
+  679411651,
+  2892444358,
+  2354009459,
+  1767581616,
+  3150600392,
+  3791627101,
+  3102740896,
+  284835224,
+  4246832056,
+  1258075500,
+  768725851,
+  2589189241,
+  3069724005,
+  3532540348,
+  1274779536,
+  3789419226,
+  2764799539,
+  1660621633,
+  3471099624,
+  4011903706,
+  913787905,
+  3497959166,
+  737222580,
+  2514213453,
+  2928710040,
+  3937242737,
+  1804850592,
+  3499020752,
+  2949064160,
+  2386320175,
+  2390070455,
+  2415321851,
+  4061277028,
+  2290661394,
+  2416832540,
+  1336762016,
+  1754252060,
+  3520065937,
+  3014181293,
+  791618072,
+  3188594551,
+  3933548030,
+  2332172193,
+  3852520463,
+  3043980520,
+  413987798,
+  3465142937,
+  3030929376,
+  4245938359,
+  2093235073,
+  3534596313,
+  375366246,
+  2157278981,
+  2479649556,
+  555357303,
+  3870105701,
+  2008414854,
+  3344188149,
+  4221384143,
+  3956125452,
+  2067696032,
+  3594591187,
+  2921233993,
+  2428461,
+  544322398,
+  577241275,
+  1471733935,
+  610547355,
+  4027169054,
+  1432588573,
+  1507829418,
+  2025931657,
+  3646575487,
+  545086370,
+  48609733,
+  2200306550,
+  1653985193,
+  298326376,
+  1316178497,
+  3007786442,
+  2064951626,
+  458293330,
+  2589141269,
+  3591329599,
+  3164325604,
+  727753846,
+  2179363840,
+  146436021,
+  1461446943,
+  4069977195,
+  705550613,
+  3059967265,
+  3887724982,
+  4281599278,
+  3313849956,
+  1404054877,
+  2845806497,
+  146425753,
+  1854211946,
+  1266315497,
+  3048417604,
+  3681880366,
+  3289982499,
+  290971e4,
+  1235738493,
+  2632868024,
+  2414719590,
+  3970600049,
+  1771706367,
+  1449415276,
+  3266420449,
+  422970021,
+  1963543593,
+  2690192192,
+  3826793022,
+  1062508698,
+  1531092325,
+  1804592342,
+  2583117782,
+  2714934279,
+  4024971509,
+  1294809318,
+  4028980673,
+  1289560198,
+  2221992742,
+  1669523910,
+  35572830,
+  157838143,
+  1052438473,
+  1016535060,
+  1802137761,
+  1753167236,
+  1386275462,
+  3080475397,
+  2857371447,
+  1040679964,
+  2145300060,
+  2390574316,
+  1461121720,
+  2956646967,
+  4031777805,
+  4028374788,
+  33600511,
+  2920084762,
+  1018524850,
+  629373528,
+  3691585981,
+  3515945977,
+  2091462646,
+  2486323059,
+  586499841,
+  988145025,
+  935516892,
+  3367335476,
+  2599673255,
+  2839830854,
+  265290510,
+  3972581182,
+  2759138881,
+  3795373465,
+  1005194799,
+  847297441,
+  406762289,
+  1314163512,
+  1332590856,
+  1866599683,
+  4127851711,
+  750260880,
+  613907577,
+  1450815602,
+  3165620655,
+  3734664991,
+  3650291728,
+  3012275730,
+  3704569646,
+  1427272223,
+  778793252,
+  1343938022,
+  2676280711,
+  2052605720,
+  1946737175,
+  3164576444,
+  3914038668,
+  3967478842,
+  3682934266,
+  1661551462,
+  3294938066,
+  4011595847,
+  840292616,
+  3712170807,
+  616741398,
+  312560963,
+  711312465,
+  1351876610,
+  322626781,
+  1910503582,
+  271666773,
+  2175563734,
+  1594956187,
+  70604529,
+  3617834859,
+  1007753275,
+  1495573769,
+  4069517037,
+  2549218298,
+  2663038764,
+  504708206,
+  2263041392,
+  3941167025,
+  2249088522,
+  1514023603,
+  1998579484,
+  1312622330,
+  694541497,
+  2582060303,
+  2151582166,
+  1382467621,
+  776784248,
+  2618340202,
+  3323268794,
+  2497899128,
+  2784771155,
+  503983604,
+  4076293799,
+  907881277,
+  423175695,
+  432175456,
+  1378068232,
+  4145222326,
+  3954048622,
+  3938656102,
+  3820766613,
+  2793130115,
+  2977904593,
+  26017576,
+  3274890735,
+  3194772133,
+  1700274565,
+  1756076034,
+  4006520079,
+  3677328699,
+  720338349,
+  1533947780,
+  354530856,
+  688349552,
+  3973924725,
+  1637815568,
+  332179504,
+  3949051286,
+  53804574,
+  2852348879,
+  3044236432,
+  1282449977,
+  3583942155,
+  3416972820,
+  4006381244,
+  1617046695,
+  2628476075,
+  3002303598,
+  1686838959,
+  431878346,
+  2686675385,
+  1700445008,
+  1080580658,
+  1009431731,
+  832498133,
+  3223435511,
+  2605976345,
+  2271191193,
+  2516031870,
+  1648197032,
+  4164389018,
+  2548247927,
+  300782431,
+  375919233,
+  238389289,
+  3353747414,
+  2531188641,
+  2019080857,
+  1475708069,
+  455242339,
+  2609103871,
+  448939670,
+  3451063019,
+  1395535956,
+  2413381860,
+  1841049896,
+  1491858159,
+  885456874,
+  4264095073,
+  4001119347,
+  1565136089,
+  3898914787,
+  1108368660,
+  540939232,
+  1173283510,
+  2745871338,
+  3681308437,
+  4207628240,
+  3343053890,
+  4016749493,
+  1699691293,
+  1103962373,
+  3625875870,
+  2256883143,
+  3830138730,
+  1031889488,
+  3479347698,
+  1535977030,
+  4236805024,
+  3251091107,
+  2132092099,
+  1774941330,
+  1199868427,
+  1452454533,
+  157007616,
+  2904115357,
+  342012276,
+  595725824,
+  1480756522,
+  206960106,
+  497939518,
+  591360097,
+  863170706,
+  2375253569,
+  3596610801,
+  1814182875,
+  2094937945,
+  3421402208,
+  1082520231,
+  3463918190,
+  2785509508,
+  435703966,
+  3908032597,
+  1641649973,
+  2842273706,
+  3305899714,
+  1510255612,
+  2148256476,
+  2655287854,
+  3276092548,
+  4258621189,
+  236887753,
+  3681803219,
+  274041037,
+  1734335097,
+  3815195456,
+  3317970021,
+  1899903192,
+  1026095262,
+  4050517792,
+  356393447,
+  2410691914,
+  3873677099,
+  3682840055,
+  3913112168,
+  2491498743,
+  4132185628,
+  2489919796,
+  1091903735,
+  1979897079,
+  3170134830,
+  3567386728,
+  3557303409,
+  857797738,
+  1136121015,
+  1342202287,
+  507115054,
+  2535736646,
+  337727348,
+  3213592640,
+  1301675037,
+  2528481711,
+  1895095763,
+  1721773893,
+  3216771564,
+  62756741,
+  2142006736,
+  835421444,
+  2531993523,
+  1442658625,
+  3659876326,
+  2882144922,
+  676362277,
+  1392781812,
+  170690266,
+  3921047035,
+  1759253602,
+  3611846912,
+  1745797284,
+  664899054,
+  1329594018,
+  3901205900,
+  3045908486,
+  2062866102,
+  2865634940,
+  3543621612,
+  3464012697,
+  1080764994,
+  553557557,
+  3656615353,
+  3996768171,
+  991055499,
+  499776247,
+  1265440854,
+  648242737,
+  3940784050,
+  980351604,
+  3713745714,
+  1749149687,
+  3396870395,
+  4211799374,
+  3640570775,
+  1161844396,
+  3125318951,
+  1431517754,
+  545492359,
+  4268468663,
+  3499529547,
+  1437099964,
+  2702547544,
+  3433638243,
+  2581715763,
+  2787789398,
+  1060185593,
+  1593081372,
+  2418618748,
+  4260947970,
+  69676912,
+  2159744348,
+  86519011,
+  2512459080,
+  3838209314,
+  1220612927,
+  3339683548,
+  133810670,
+  1090789135,
+  1078426020,
+  1569222167,
+  845107691,
+  3583754449,
+  4072456591,
+  1091646820,
+  628848692,
+  1613405280,
+  3757631651,
+  526609435,
+  236106946,
+  48312990,
+  2942717905,
+  3402727701,
+  1797494240,
+  859738849,
+  992217954,
+  4005476642,
+  2243076622,
+  3870952857,
+  3732016268,
+  765654824,
+  3490871365,
+  2511836413,
+  1685915746,
+  3888969200,
+  1414112111,
+  2273134842,
+  3281911079,
+  4080962846,
+  172450625,
+  2569994100,
+  980381355,
+  4109958455,
+  2819808352,
+  2716589560,
+  2568741196,
+  3681446669,
+  3329971472,
+  1835478071,
+  660984891,
+  3704678404,
+  4045999559,
+  3422617507,
+  3040415634,
+  1762651403,
+  1719377915,
+  3470491036,
+  2693910283,
+  3642056355,
+  3138596744,
+  1364962596,
+  2073328063,
+  1983633131,
+  926494387,
+  3423689081,
+  2150032023,
+  4096667949,
+  1749200295,
+  3328846651,
+  309677260,
+  2016342300,
+  1779581495,
+  3079819751,
+  111262694,
+  1274766160,
+  443224088,
+  298511866,
+  1025883608,
+  3806446537,
+  1145181785,
+  168956806,
+  3641502830,
+  3584813610,
+  1689216846,
+  3666258015,
+  3200248200,
+  1692713982,
+  2646376535,
+  4042768518,
+  1618508792,
+  1610833997,
+  3523052358,
+  4130873264,
+  2001055236,
+  3610705100,
+  2202168115,
+  4028541809,
+  2961195399,
+  1006657119,
+  2006996926,
+  3186142756,
+  1430667929,
+  3210227297,
+  1314452623,
+  4074634658,
+  4101304120,
+  2273951170,
+  1399257539,
+  3367210612,
+  3027628629,
+  1190975929,
+  2062231137,
+  2333990788,
+  2221543033,
+  2438960610,
+  1181637006,
+  548689776,
+  2362791313,
+  3372408396,
+  3104550113,
+  3145860560,
+  296247880,
+  1970579870,
+  3078560182,
+  3769228297,
+  1714227617,
+  3291629107,
+  3898220290,
+  166772364,
+  1251581989,
+  493813264,
+  448347421,
+  195405023,
+  2709975567,
+  677966185,
+  3703036547,
+  1463355134,
+  2715995803,
+  1338867538,
+  1343315457,
+  2802222074,
+  2684532164,
+  233230375,
+  2599980071,
+  2000651841,
+  3277868038,
+  1638401717,
+  4028070440,
+  3237316320,
+  6314154,
+  819756386,
+  300326615,
+  590932579,
+  1405279636,
+  3267499572,
+  3150704214,
+  2428286686,
+  3959192993,
+  3461946742,
+  1862657033,
+  1266418056,
+  963775037,
+  2089974820,
+  2263052895,
+  1917689273,
+  448879540,
+  3550394620,
+  3981727096,
+  150775221,
+  3627908307,
+  1303187396,
+  508620638,
+  2975983352,
+  2726630617,
+  1817252668,
+  1876281319,
+  1457606340,
+  908771278,
+  3720792119,
+  3617206836,
+  2455994898,
+  1729034894,
+  1080033504,
+  976866871,
+  3556439503,
+  2881648439,
+  1522871579,
+  1555064734,
+  1336096578,
+  3548522304,
+  2579274686,
+  3574697629,
+  3205460757,
+  3593280638,
+  3338716283,
+  3079412587,
+  564236357,
+  2993598910,
+  1781952180,
+  1464380207,
+  3163844217,
+  3332601554,
+  1699332808,
+  1393555694,
+  1183702653,
+  3581086237,
+  1288719814,
+  691649499,
+  2847557200,
+  2895455976,
+  3193889540,
+  2717570544,
+  1781354906,
+  1676643554,
+  2592534050,
+  3230253752,
+  1126444790,
+  2770207658,
+  2633158820,
+  2210423226,
+  2615765581,
+  2414155088,
+  3127139286,
+  673620729,
+  2805611233,
+  1269405062,
+  4015350505,
+  3341807571,
+  4149409754,
+  1057255273,
+  2012875353,
+  2162469141,
+  2276492801,
+  2601117357,
+  993977747,
+  3918593370,
+  2654263191,
+  753973209,
+  36408145,
+  2530585658,
+  25011837,
+  3520020182,
+  2088578344,
+  530523599,
+  2918365339,
+  1524020338,
+  1518925132,
+  3760827505,
+  3759777254,
+  1202760957,
+  3985898139,
+  3906192525,
+  674977740,
+  4174734889,
+  2031300136,
+  2019492241,
+  3983892565,
+  4153806404,
+  3822280332,
+  352677332,
+  2297720250,
+  60907813,
+  90501309,
+  3286998549,
+  1016092578,
+  2535922412,
+  2839152426,
+  457141659,
+  509813237,
+  4120667899,
+  652014361,
+  1966332200,
+  2975202805,
+  55981186,
+  2327461051,
+  676427537,
+  3255491064,
+  2882294119,
+  3433927263,
+  1307055953,
+  942726286,
+  933058658,
+  2468411793,
+  3933900994,
+  4215176142,
+  1361170020,
+  2001714738,
+  2830558078,
+  3274259782,
+  1222529897,
+  1679025792,
+  2729314320,
+  3714953764,
+  1770335741,
+  151462246,
+  3013232138,
+  1682292957,
+  1483529935,
+  471910574,
+  1539241949,
+  458788160,
+  3436315007,
+  1807016891,
+  3718408830,
+  978976581,
+  1043663428,
+  3165965781,
+  1927990952,
+  4200891579,
+  2372276910,
+  3208408903,
+  3533431907,
+  1412390302,
+  2931980059,
+  4132332400,
+  1947078029,
+  3881505623,
+  4168226417,
+  2941484381,
+  1077988104,
+  1320477388,
+  886195818,
+  18198404,
+  3786409e3,
+  2509781533,
+  112762804,
+  3463356488,
+  1866414978,
+  891333506,
+  18488651,
+  661792760,
+  1628790961,
+  3885187036,
+  3141171499,
+  876946877,
+  2693282273,
+  1372485963,
+  791857591,
+  2686433993,
+  3759982718,
+  3167212022,
+  3472953795,
+  2716379847,
+  445679433,
+  3561995674,
+  3504004811,
+  3574258232,
+  54117162,
+  3331405415,
+  2381918588,
+  3769707343,
+  4154350007,
+  1140177722,
+  4074052095,
+  668550556,
+  3214352940,
+  367459370,
+  261225585,
+  2610173221,
+  4209349473,
+  3468074219,
+  3265815641,
+  314222801,
+  3066103646,
+  3808782860,
+  282218597,
+  3406013506,
+  3773591054,
+  379116347,
+  1285071038,
+  846784868,
+  2669647154,
+  3771962079,
+  3550491691,
+  2305946142,
+  453669953,
+  1268987020,
+  3317592352,
+  3279303384,
+  3744833421,
+  2610507566,
+  3859509063,
+  266596637,
+  3847019092,
+  517658769,
+  3462560207,
+  3443424879,
+  370717030,
+  4247526661,
+  2224018117,
+  4143653529,
+  4112773975,
+  2788324899,
+  2477274417,
+  1456262402,
+  2901442914,
+  1517677493,
+  1846949527,
+  2295493580,
+  3734397586,
+  2176403920,
+  1280348187,
+  1908823572,
+  3871786941,
+  846861322,
+  1172426758,
+  3287448474,
+  3383383037,
+  1655181056,
+  3139813346,
+  901632758,
+  1897031941,
+  2986607138,
+  3066810236,
+  3447102507,
+  1393639104,
+  373351379,
+  950779232,
+  625454576,
+  3124240540,
+  4148612726,
+  2007998917,
+  544563296,
+  2244738638,
+  2330496472,
+  2058025392,
+  1291430526,
+  424198748,
+  50039436,
+  29584100,
+  3605783033,
+  2429876329,
+  2791104160,
+  1057563949,
+  3255363231,
+  3075367218,
+  3463963227,
+  1469046755,
+  985887462
+];
+var C_ORIG = [
+  1332899944,
+  1700884034,
+  1701343084,
+  1684370003,
+  1668446532,
+  1869963892
+];
+function _encipher(lr2, off, P, S2) {
+  var n3, l3 = lr2[off], r5 = lr2[off + 1];
+  l3 ^= P[0];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[1];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[2];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[3];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[4];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[5];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[6];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[7];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[8];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[9];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[10];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[11];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[12];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[13];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[14];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[15];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[16];
+  lr2[off] = r5 ^ P[BLOWFISH_NUM_ROUNDS + 1];
+  lr2[off + 1] = l3;
+  return lr2;
+}
+function _streamtoword(data, offp) {
+  for (var i5 = 0, word = 0; i5 < 4; ++i5)
+    word = word << 8 | data[offp] & 255, offp = (offp + 1) % data.length;
+  return { key: word, offp };
+}
+function _key(key, P, S2) {
+  var offset = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
+  for (var i5 = 0; i5 < plen; i5++)
+    sw = _streamtoword(key, offset), offset = sw.offp, P[i5] = P[i5] ^ sw.key;
+  for (i5 = 0; i5 < plen; i5 += 2)
+    lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
+  for (i5 = 0; i5 < slen; i5 += 2)
+    lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
+}
+function _ekskey(data, key, P, S2) {
+  var offp = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
+  for (var i5 = 0; i5 < plen; i5++)
+    sw = _streamtoword(key, offp), offp = sw.offp, P[i5] = P[i5] ^ sw.key;
+  offp = 0;
+  for (i5 = 0; i5 < plen; i5 += 2)
+    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
+  for (i5 = 0; i5 < slen; i5 += 2)
+    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
+}
+function _crypt(b6, salt, rounds, callback, progressCallback) {
+  var cdata = C_ORIG.slice(), clen = cdata.length, err;
+  if (rounds < 4 || rounds > 31) {
+    err = Error("Illegal number of rounds (4-31): " + rounds);
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  if (salt.length !== BCRYPT_SALT_LEN) {
+    err = Error(
+      "Illegal salt length: " + salt.length + " != " + BCRYPT_SALT_LEN
+    );
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  rounds = 1 << rounds >>> 0;
+  var P, S2, i5 = 0, j5;
+  if (typeof Int32Array === "function") {
+    P = new Int32Array(P_ORIG);
+    S2 = new Int32Array(S_ORIG);
+  } else {
+    P = P_ORIG.slice();
+    S2 = S_ORIG.slice();
+  }
+  _ekskey(salt, b6, P, S2);
+  function next() {
+    if (progressCallback) progressCallback(i5 / rounds);
+    if (i5 < rounds) {
+      var start = Date.now();
+      for (; i5 < rounds; ) {
+        i5 = i5 + 1;
+        _key(b6, P, S2);
+        _key(salt, P, S2);
+        if (Date.now() - start > MAX_EXECUTION_TIME) break;
+      }
+    } else {
+      for (i5 = 0; i5 < 64; i5++)
+        for (j5 = 0; j5 < clen >> 1; j5++) _encipher(cdata, j5 << 1, P, S2);
+      var ret = [];
+      for (i5 = 0; i5 < clen; i5++)
+        ret.push((cdata[i5] >> 24 & 255) >>> 0), ret.push((cdata[i5] >> 16 & 255) >>> 0), ret.push((cdata[i5] >> 8 & 255) >>> 0), ret.push((cdata[i5] & 255) >>> 0);
+      if (callback) {
+        callback(null, ret);
+        return;
+      } else return ret;
+    }
+    if (callback) nextTick(next);
+  }
+  if (typeof callback !== "undefined") {
+    next();
+  } else {
+    var res;
+    while (true) if (typeof (res = next()) !== "undefined") return res || [];
+  }
+}
+function _hash(password, salt, callback, progressCallback) {
+  var err;
+  if (typeof password !== "string" || typeof salt !== "string") {
+    err = Error("Invalid string / salt: Not a string");
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  var minor, offset;
+  if (salt.charAt(0) !== "$" || salt.charAt(1) !== "2") {
+    err = Error("Invalid salt version: " + salt.substring(0, 2));
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  if (salt.charAt(2) === "$") minor = String.fromCharCode(0), offset = 3;
+  else {
+    minor = salt.charAt(2);
+    if (minor !== "a" && minor !== "b" && minor !== "y" || salt.charAt(3) !== "$") {
+      err = Error("Invalid salt revision: " + salt.substring(2, 4));
+      if (callback) {
+        nextTick(callback.bind(this, err));
+        return;
+      } else throw err;
+    }
+    offset = 4;
+  }
+  if (salt.charAt(offset + 2) > "$") {
+    err = Error("Missing salt rounds");
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  var r1 = parseInt(salt.substring(offset, offset + 1), 10) * 10, r22 = parseInt(salt.substring(offset + 1, offset + 2), 10), rounds = r1 + r22, real_salt = salt.substring(offset + 3, offset + 25);
+  password += minor >= "a" ? "\0" : "";
+  var passwordb = utf8Array(password), saltb = base64_decode(real_salt, BCRYPT_SALT_LEN);
+  function finish(bytes) {
+    var res = [];
+    res.push("$2");
+    if (minor >= "a") res.push(minor);
+    res.push("$");
+    if (rounds < 10) res.push("0");
+    res.push(rounds.toString());
+    res.push("$");
+    res.push(base64_encode(saltb, saltb.length));
+    res.push(base64_encode(bytes, C_ORIG.length * 4 - 1));
+    return res.join("");
+  }
+  if (typeof callback == "undefined")
+    return finish(_crypt(passwordb, saltb, rounds));
+  else {
+    _crypt(
+      passwordb,
+      saltb,
+      rounds,
+      function(err2, bytes) {
+        if (err2) callback(err2, null);
+        else callback(null, finish(bytes));
+      },
+      progressCallback
+    );
+  }
+}
+function encodeBase64(bytes, length) {
+  return base64_encode(bytes, length);
+}
+function decodeBase64(string, length) {
+  return base64_decode(string, length);
+}
+var bcryptjs_default = {
+  setRandomFallback,
+  genSaltSync,
+  genSalt,
+  hashSync,
+  hash,
+  compareSync,
+  compare,
+  getRounds,
+  getSalt,
+  truncates,
+  encodeBase64,
+  decodeBase64
+};
+
+// src/server/index.ts
+import crypto21 from "crypto";
 
 // node_modules/@neondatabase/serverless/index.mjs
 var Po = Object.create;
@@ -88694,1740 +95201,29 @@ async function withTransaction(callback) {
 
 // src/server/auth/auth.ts
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
-
-// node_modules/bcryptjs/index.js
-import nodeCrypto from "crypto";
-var randomFallback = null;
-function randomBytes(len) {
-  try {
-    return crypto.getRandomValues(new Uint8Array(len));
-  } catch {
-  }
-  try {
-    return nodeCrypto.randomBytes(len);
-  } catch {
-  }
-  if (!randomFallback) {
-    throw Error(
-      "Neither WebCryptoAPI nor a crypto module is available. Use bcrypt.setRandomFallback to set an alternative"
-    );
-  }
-  return randomFallback(len);
-}
-function setRandomFallback(random) {
-  randomFallback = random;
-}
-function genSaltSync(rounds, seed_length) {
-  rounds = rounds || GENSALT_DEFAULT_LOG2_ROUNDS;
-  if (typeof rounds !== "number")
-    throw Error(
-      "Illegal arguments: " + typeof rounds + ", " + typeof seed_length
-    );
-  if (rounds < 4) rounds = 4;
-  else if (rounds > 31) rounds = 31;
-  var salt = [];
-  salt.push("$2b$");
-  if (rounds < 10) salt.push("0");
-  salt.push(rounds.toString());
-  salt.push("$");
-  salt.push(base64_encode(randomBytes(BCRYPT_SALT_LEN), BCRYPT_SALT_LEN));
-  return salt.join("");
-}
-function genSalt(rounds, seed_length, callback) {
-  if (typeof seed_length === "function")
-    callback = seed_length, seed_length = void 0;
-  if (typeof rounds === "function") callback = rounds, rounds = void 0;
-  if (typeof rounds === "undefined") rounds = GENSALT_DEFAULT_LOG2_ROUNDS;
-  else if (typeof rounds !== "number")
-    throw Error("illegal arguments: " + typeof rounds);
-  function _async(callback2) {
-    nextTick(function() {
-      try {
-        callback2(null, genSaltSync(rounds));
-      } catch (err) {
-        callback2(err);
-      }
-    });
-  }
-  if (callback) {
-    if (typeof callback !== "function")
-      throw Error("Illegal callback: " + typeof callback);
-    _async(callback);
-  } else
-    return new Promise(function(resolve3, reject) {
-      _async(function(err, res) {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve3(res);
-      });
-    });
-}
-function hashSync(password, salt) {
-  if (typeof salt === "undefined") salt = GENSALT_DEFAULT_LOG2_ROUNDS;
-  if (typeof salt === "number") salt = genSaltSync(salt);
-  if (typeof password !== "string" || typeof salt !== "string")
-    throw Error("Illegal arguments: " + typeof password + ", " + typeof salt);
-  return _hash(password, salt);
-}
-function hash(password, salt, callback, progressCallback) {
-  function _async(callback2) {
-    if (typeof password === "string" && typeof salt === "number")
-      genSalt(salt, function(err, salt2) {
-        _hash(password, salt2, callback2, progressCallback);
-      });
-    else if (typeof password === "string" && typeof salt === "string")
-      _hash(password, salt, callback2, progressCallback);
-    else
-      nextTick(
-        callback2.bind(
-          this,
-          Error("Illegal arguments: " + typeof password + ", " + typeof salt)
-        )
-      );
-  }
-  if (callback) {
-    if (typeof callback !== "function")
-      throw Error("Illegal callback: " + typeof callback);
-    _async(callback);
-  } else
-    return new Promise(function(resolve3, reject) {
-      _async(function(err, res) {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve3(res);
-      });
-    });
-}
-function safeStringCompare(known, unknown) {
-  var diff = known.length ^ unknown.length;
-  for (var i5 = 0; i5 < known.length; ++i5) {
-    diff |= known.charCodeAt(i5) ^ unknown.charCodeAt(i5);
-  }
-  return diff === 0;
-}
-function compareSync(password, hash2) {
-  if (typeof password !== "string" || typeof hash2 !== "string")
-    throw Error("Illegal arguments: " + typeof password + ", " + typeof hash2);
-  if (hash2.length !== 60) return false;
-  return safeStringCompare(
-    hashSync(password, hash2.substring(0, hash2.length - 31)),
-    hash2
-  );
-}
-function compare(password, hashValue, callback, progressCallback) {
-  function _async(callback2) {
-    if (typeof password !== "string" || typeof hashValue !== "string") {
-      nextTick(
-        callback2.bind(
-          this,
-          Error(
-            "Illegal arguments: " + typeof password + ", " + typeof hashValue
-          )
-        )
-      );
-      return;
-    }
-    if (hashValue.length !== 60) {
-      nextTick(callback2.bind(this, null, false));
-      return;
-    }
-    hash(
-      password,
-      hashValue.substring(0, 29),
-      function(err, comp) {
-        if (err) callback2(err);
-        else callback2(null, safeStringCompare(comp, hashValue));
-      },
-      progressCallback
-    );
-  }
-  if (callback) {
-    if (typeof callback !== "function")
-      throw Error("Illegal callback: " + typeof callback);
-    _async(callback);
-  } else
-    return new Promise(function(resolve3, reject) {
-      _async(function(err, res) {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve3(res);
-      });
-    });
-}
-function getRounds(hash2) {
-  if (typeof hash2 !== "string")
-    throw Error("Illegal arguments: " + typeof hash2);
-  return parseInt(hash2.split("$")[2], 10);
-}
-function getSalt(hash2) {
-  if (typeof hash2 !== "string")
-    throw Error("Illegal arguments: " + typeof hash2);
-  if (hash2.length !== 60)
-    throw Error("Illegal hash length: " + hash2.length + " != 60");
-  return hash2.substring(0, 29);
-}
-function truncates(password) {
-  if (typeof password !== "string")
-    throw Error("Illegal arguments: " + typeof password);
-  return utf8Length(password) > 72;
-}
-var nextTick = typeof setImmediate === "function" ? setImmediate : typeof scheduler === "object" && typeof scheduler.postTask === "function" ? scheduler.postTask.bind(scheduler) : setTimeout;
-function utf8Length(string) {
-  var len = 0, c5 = 0;
-  for (var i5 = 0; i5 < string.length; ++i5) {
-    c5 = string.charCodeAt(i5);
-    if (c5 < 128) len += 1;
-    else if (c5 < 2048) len += 2;
-    else if ((c5 & 64512) === 55296 && (string.charCodeAt(i5 + 1) & 64512) === 56320) {
-      ++i5;
-      len += 4;
-    } else len += 3;
-  }
-  return len;
-}
-function utf8Array(string) {
-  var offset = 0, c1, c22;
-  var buffer = new Array(utf8Length(string));
-  for (var i5 = 0, k5 = string.length; i5 < k5; ++i5) {
-    c1 = string.charCodeAt(i5);
-    if (c1 < 128) {
-      buffer[offset++] = c1;
-    } else if (c1 < 2048) {
-      buffer[offset++] = c1 >> 6 | 192;
-      buffer[offset++] = c1 & 63 | 128;
-    } else if ((c1 & 64512) === 55296 && ((c22 = string.charCodeAt(i5 + 1)) & 64512) === 56320) {
-      c1 = 65536 + ((c1 & 1023) << 10) + (c22 & 1023);
-      ++i5;
-      buffer[offset++] = c1 >> 18 | 240;
-      buffer[offset++] = c1 >> 12 & 63 | 128;
-      buffer[offset++] = c1 >> 6 & 63 | 128;
-      buffer[offset++] = c1 & 63 | 128;
-    } else {
-      buffer[offset++] = c1 >> 12 | 224;
-      buffer[offset++] = c1 >> 6 & 63 | 128;
-      buffer[offset++] = c1 & 63 | 128;
-    }
-  }
-  return buffer;
-}
-var BASE64_CODE = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("");
-var BASE64_INDEX = [
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  0,
-  1,
-  54,
-  55,
-  56,
-  57,
-  58,
-  59,
-  60,
-  61,
-  62,
-  63,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16,
-  17,
-  18,
-  19,
-  20,
-  21,
-  22,
-  23,
-  24,
-  25,
-  26,
-  27,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  28,
-  29,
-  30,
-  31,
-  32,
-  33,
-  34,
-  35,
-  36,
-  37,
-  38,
-  39,
-  40,
-  41,
-  42,
-  43,
-  44,
-  45,
-  46,
-  47,
-  48,
-  49,
-  50,
-  51,
-  52,
-  53,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1
-];
-function base64_encode(b6, len) {
-  var off = 0, rs = [], c1, c22;
-  if (len <= 0 || len > b6.length) throw Error("Illegal len: " + len);
-  while (off < len) {
-    c1 = b6[off++] & 255;
-    rs.push(BASE64_CODE[c1 >> 2 & 63]);
-    c1 = (c1 & 3) << 4;
-    if (off >= len) {
-      rs.push(BASE64_CODE[c1 & 63]);
-      break;
-    }
-    c22 = b6[off++] & 255;
-    c1 |= c22 >> 4 & 15;
-    rs.push(BASE64_CODE[c1 & 63]);
-    c1 = (c22 & 15) << 2;
-    if (off >= len) {
-      rs.push(BASE64_CODE[c1 & 63]);
-      break;
-    }
-    c22 = b6[off++] & 255;
-    c1 |= c22 >> 6 & 3;
-    rs.push(BASE64_CODE[c1 & 63]);
-    rs.push(BASE64_CODE[c22 & 63]);
-  }
-  return rs.join("");
-}
-function base64_decode(s2, len) {
-  var off = 0, slen = s2.length, olen = 0, rs = [], c1, c22, c32, c42, o3, code;
-  if (len <= 0) throw Error("Illegal len: " + len);
-  while (off < slen - 1 && olen < len) {
-    code = s2.charCodeAt(off++);
-    c1 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    code = s2.charCodeAt(off++);
-    c22 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    if (c1 == -1 || c22 == -1) break;
-    o3 = c1 << 2 >>> 0;
-    o3 |= (c22 & 48) >> 4;
-    rs.push(String.fromCharCode(o3));
-    if (++olen >= len || off >= slen) break;
-    code = s2.charCodeAt(off++);
-    c32 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    if (c32 == -1) break;
-    o3 = (c22 & 15) << 4 >>> 0;
-    o3 |= (c32 & 60) >> 2;
-    rs.push(String.fromCharCode(o3));
-    if (++olen >= len || off >= slen) break;
-    code = s2.charCodeAt(off++);
-    c42 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    o3 = (c32 & 3) << 6 >>> 0;
-    o3 |= c42;
-    rs.push(String.fromCharCode(o3));
-    ++olen;
-  }
-  var res = [];
-  for (off = 0; off < olen; off++) res.push(rs[off].charCodeAt(0));
-  return res;
-}
-var BCRYPT_SALT_LEN = 16;
-var GENSALT_DEFAULT_LOG2_ROUNDS = 10;
-var BLOWFISH_NUM_ROUNDS = 16;
-var MAX_EXECUTION_TIME = 100;
-var P_ORIG = [
-  608135816,
-  2242054355,
-  320440878,
-  57701188,
-  2752067618,
-  698298832,
-  137296536,
-  3964562569,
-  1160258022,
-  953160567,
-  3193202383,
-  887688300,
-  3232508343,
-  3380367581,
-  1065670069,
-  3041331479,
-  2450970073,
-  2306472731
-];
-var S_ORIG = [
-  3509652390,
-  2564797868,
-  805139163,
-  3491422135,
-  3101798381,
-  1780907670,
-  3128725573,
-  4046225305,
-  614570311,
-  3012652279,
-  134345442,
-  2240740374,
-  1667834072,
-  1901547113,
-  2757295779,
-  4103290238,
-  227898511,
-  1921955416,
-  1904987480,
-  2182433518,
-  2069144605,
-  3260701109,
-  2620446009,
-  720527379,
-  3318853667,
-  677414384,
-  3393288472,
-  3101374703,
-  2390351024,
-  1614419982,
-  1822297739,
-  2954791486,
-  3608508353,
-  3174124327,
-  2024746970,
-  1432378464,
-  3864339955,
-  2857741204,
-  1464375394,
-  1676153920,
-  1439316330,
-  715854006,
-  3033291828,
-  289532110,
-  2706671279,
-  2087905683,
-  3018724369,
-  1668267050,
-  732546397,
-  1947742710,
-  3462151702,
-  2609353502,
-  2950085171,
-  1814351708,
-  2050118529,
-  680887927,
-  999245976,
-  1800124847,
-  3300911131,
-  1713906067,
-  1641548236,
-  4213287313,
-  1216130144,
-  1575780402,
-  4018429277,
-  3917837745,
-  3693486850,
-  3949271944,
-  596196993,
-  3549867205,
-  258830323,
-  2213823033,
-  772490370,
-  2760122372,
-  1774776394,
-  2652871518,
-  566650946,
-  4142492826,
-  1728879713,
-  2882767088,
-  1783734482,
-  3629395816,
-  2517608232,
-  2874225571,
-  1861159788,
-  326777828,
-  3124490320,
-  2130389656,
-  2716951837,
-  967770486,
-  1724537150,
-  2185432712,
-  2364442137,
-  1164943284,
-  2105845187,
-  998989502,
-  3765401048,
-  2244026483,
-  1075463327,
-  1455516326,
-  1322494562,
-  910128902,
-  469688178,
-  1117454909,
-  936433444,
-  3490320968,
-  3675253459,
-  1240580251,
-  122909385,
-  2157517691,
-  634681816,
-  4142456567,
-  3825094682,
-  3061402683,
-  2540495037,
-  79693498,
-  3249098678,
-  1084186820,
-  1583128258,
-  426386531,
-  1761308591,
-  1047286709,
-  322548459,
-  995290223,
-  1845252383,
-  2603652396,
-  3431023940,
-  2942221577,
-  3202600964,
-  3727903485,
-  1712269319,
-  422464435,
-  3234572375,
-  1170764815,
-  3523960633,
-  3117677531,
-  1434042557,
-  442511882,
-  3600875718,
-  1076654713,
-  1738483198,
-  4213154764,
-  2393238008,
-  3677496056,
-  1014306527,
-  4251020053,
-  793779912,
-  2902807211,
-  842905082,
-  4246964064,
-  1395751752,
-  1040244610,
-  2656851899,
-  3396308128,
-  445077038,
-  3742853595,
-  3577915638,
-  679411651,
-  2892444358,
-  2354009459,
-  1767581616,
-  3150600392,
-  3791627101,
-  3102740896,
-  284835224,
-  4246832056,
-  1258075500,
-  768725851,
-  2589189241,
-  3069724005,
-  3532540348,
-  1274779536,
-  3789419226,
-  2764799539,
-  1660621633,
-  3471099624,
-  4011903706,
-  913787905,
-  3497959166,
-  737222580,
-  2514213453,
-  2928710040,
-  3937242737,
-  1804850592,
-  3499020752,
-  2949064160,
-  2386320175,
-  2390070455,
-  2415321851,
-  4061277028,
-  2290661394,
-  2416832540,
-  1336762016,
-  1754252060,
-  3520065937,
-  3014181293,
-  791618072,
-  3188594551,
-  3933548030,
-  2332172193,
-  3852520463,
-  3043980520,
-  413987798,
-  3465142937,
-  3030929376,
-  4245938359,
-  2093235073,
-  3534596313,
-  375366246,
-  2157278981,
-  2479649556,
-  555357303,
-  3870105701,
-  2008414854,
-  3344188149,
-  4221384143,
-  3956125452,
-  2067696032,
-  3594591187,
-  2921233993,
-  2428461,
-  544322398,
-  577241275,
-  1471733935,
-  610547355,
-  4027169054,
-  1432588573,
-  1507829418,
-  2025931657,
-  3646575487,
-  545086370,
-  48609733,
-  2200306550,
-  1653985193,
-  298326376,
-  1316178497,
-  3007786442,
-  2064951626,
-  458293330,
-  2589141269,
-  3591329599,
-  3164325604,
-  727753846,
-  2179363840,
-  146436021,
-  1461446943,
-  4069977195,
-  705550613,
-  3059967265,
-  3887724982,
-  4281599278,
-  3313849956,
-  1404054877,
-  2845806497,
-  146425753,
-  1854211946,
-  1266315497,
-  3048417604,
-  3681880366,
-  3289982499,
-  290971e4,
-  1235738493,
-  2632868024,
-  2414719590,
-  3970600049,
-  1771706367,
-  1449415276,
-  3266420449,
-  422970021,
-  1963543593,
-  2690192192,
-  3826793022,
-  1062508698,
-  1531092325,
-  1804592342,
-  2583117782,
-  2714934279,
-  4024971509,
-  1294809318,
-  4028980673,
-  1289560198,
-  2221992742,
-  1669523910,
-  35572830,
-  157838143,
-  1052438473,
-  1016535060,
-  1802137761,
-  1753167236,
-  1386275462,
-  3080475397,
-  2857371447,
-  1040679964,
-  2145300060,
-  2390574316,
-  1461121720,
-  2956646967,
-  4031777805,
-  4028374788,
-  33600511,
-  2920084762,
-  1018524850,
-  629373528,
-  3691585981,
-  3515945977,
-  2091462646,
-  2486323059,
-  586499841,
-  988145025,
-  935516892,
-  3367335476,
-  2599673255,
-  2839830854,
-  265290510,
-  3972581182,
-  2759138881,
-  3795373465,
-  1005194799,
-  847297441,
-  406762289,
-  1314163512,
-  1332590856,
-  1866599683,
-  4127851711,
-  750260880,
-  613907577,
-  1450815602,
-  3165620655,
-  3734664991,
-  3650291728,
-  3012275730,
-  3704569646,
-  1427272223,
-  778793252,
-  1343938022,
-  2676280711,
-  2052605720,
-  1946737175,
-  3164576444,
-  3914038668,
-  3967478842,
-  3682934266,
-  1661551462,
-  3294938066,
-  4011595847,
-  840292616,
-  3712170807,
-  616741398,
-  312560963,
-  711312465,
-  1351876610,
-  322626781,
-  1910503582,
-  271666773,
-  2175563734,
-  1594956187,
-  70604529,
-  3617834859,
-  1007753275,
-  1495573769,
-  4069517037,
-  2549218298,
-  2663038764,
-  504708206,
-  2263041392,
-  3941167025,
-  2249088522,
-  1514023603,
-  1998579484,
-  1312622330,
-  694541497,
-  2582060303,
-  2151582166,
-  1382467621,
-  776784248,
-  2618340202,
-  3323268794,
-  2497899128,
-  2784771155,
-  503983604,
-  4076293799,
-  907881277,
-  423175695,
-  432175456,
-  1378068232,
-  4145222326,
-  3954048622,
-  3938656102,
-  3820766613,
-  2793130115,
-  2977904593,
-  26017576,
-  3274890735,
-  3194772133,
-  1700274565,
-  1756076034,
-  4006520079,
-  3677328699,
-  720338349,
-  1533947780,
-  354530856,
-  688349552,
-  3973924725,
-  1637815568,
-  332179504,
-  3949051286,
-  53804574,
-  2852348879,
-  3044236432,
-  1282449977,
-  3583942155,
-  3416972820,
-  4006381244,
-  1617046695,
-  2628476075,
-  3002303598,
-  1686838959,
-  431878346,
-  2686675385,
-  1700445008,
-  1080580658,
-  1009431731,
-  832498133,
-  3223435511,
-  2605976345,
-  2271191193,
-  2516031870,
-  1648197032,
-  4164389018,
-  2548247927,
-  300782431,
-  375919233,
-  238389289,
-  3353747414,
-  2531188641,
-  2019080857,
-  1475708069,
-  455242339,
-  2609103871,
-  448939670,
-  3451063019,
-  1395535956,
-  2413381860,
-  1841049896,
-  1491858159,
-  885456874,
-  4264095073,
-  4001119347,
-  1565136089,
-  3898914787,
-  1108368660,
-  540939232,
-  1173283510,
-  2745871338,
-  3681308437,
-  4207628240,
-  3343053890,
-  4016749493,
-  1699691293,
-  1103962373,
-  3625875870,
-  2256883143,
-  3830138730,
-  1031889488,
-  3479347698,
-  1535977030,
-  4236805024,
-  3251091107,
-  2132092099,
-  1774941330,
-  1199868427,
-  1452454533,
-  157007616,
-  2904115357,
-  342012276,
-  595725824,
-  1480756522,
-  206960106,
-  497939518,
-  591360097,
-  863170706,
-  2375253569,
-  3596610801,
-  1814182875,
-  2094937945,
-  3421402208,
-  1082520231,
-  3463918190,
-  2785509508,
-  435703966,
-  3908032597,
-  1641649973,
-  2842273706,
-  3305899714,
-  1510255612,
-  2148256476,
-  2655287854,
-  3276092548,
-  4258621189,
-  236887753,
-  3681803219,
-  274041037,
-  1734335097,
-  3815195456,
-  3317970021,
-  1899903192,
-  1026095262,
-  4050517792,
-  356393447,
-  2410691914,
-  3873677099,
-  3682840055,
-  3913112168,
-  2491498743,
-  4132185628,
-  2489919796,
-  1091903735,
-  1979897079,
-  3170134830,
-  3567386728,
-  3557303409,
-  857797738,
-  1136121015,
-  1342202287,
-  507115054,
-  2535736646,
-  337727348,
-  3213592640,
-  1301675037,
-  2528481711,
-  1895095763,
-  1721773893,
-  3216771564,
-  62756741,
-  2142006736,
-  835421444,
-  2531993523,
-  1442658625,
-  3659876326,
-  2882144922,
-  676362277,
-  1392781812,
-  170690266,
-  3921047035,
-  1759253602,
-  3611846912,
-  1745797284,
-  664899054,
-  1329594018,
-  3901205900,
-  3045908486,
-  2062866102,
-  2865634940,
-  3543621612,
-  3464012697,
-  1080764994,
-  553557557,
-  3656615353,
-  3996768171,
-  991055499,
-  499776247,
-  1265440854,
-  648242737,
-  3940784050,
-  980351604,
-  3713745714,
-  1749149687,
-  3396870395,
-  4211799374,
-  3640570775,
-  1161844396,
-  3125318951,
-  1431517754,
-  545492359,
-  4268468663,
-  3499529547,
-  1437099964,
-  2702547544,
-  3433638243,
-  2581715763,
-  2787789398,
-  1060185593,
-  1593081372,
-  2418618748,
-  4260947970,
-  69676912,
-  2159744348,
-  86519011,
-  2512459080,
-  3838209314,
-  1220612927,
-  3339683548,
-  133810670,
-  1090789135,
-  1078426020,
-  1569222167,
-  845107691,
-  3583754449,
-  4072456591,
-  1091646820,
-  628848692,
-  1613405280,
-  3757631651,
-  526609435,
-  236106946,
-  48312990,
-  2942717905,
-  3402727701,
-  1797494240,
-  859738849,
-  992217954,
-  4005476642,
-  2243076622,
-  3870952857,
-  3732016268,
-  765654824,
-  3490871365,
-  2511836413,
-  1685915746,
-  3888969200,
-  1414112111,
-  2273134842,
-  3281911079,
-  4080962846,
-  172450625,
-  2569994100,
-  980381355,
-  4109958455,
-  2819808352,
-  2716589560,
-  2568741196,
-  3681446669,
-  3329971472,
-  1835478071,
-  660984891,
-  3704678404,
-  4045999559,
-  3422617507,
-  3040415634,
-  1762651403,
-  1719377915,
-  3470491036,
-  2693910283,
-  3642056355,
-  3138596744,
-  1364962596,
-  2073328063,
-  1983633131,
-  926494387,
-  3423689081,
-  2150032023,
-  4096667949,
-  1749200295,
-  3328846651,
-  309677260,
-  2016342300,
-  1779581495,
-  3079819751,
-  111262694,
-  1274766160,
-  443224088,
-  298511866,
-  1025883608,
-  3806446537,
-  1145181785,
-  168956806,
-  3641502830,
-  3584813610,
-  1689216846,
-  3666258015,
-  3200248200,
-  1692713982,
-  2646376535,
-  4042768518,
-  1618508792,
-  1610833997,
-  3523052358,
-  4130873264,
-  2001055236,
-  3610705100,
-  2202168115,
-  4028541809,
-  2961195399,
-  1006657119,
-  2006996926,
-  3186142756,
-  1430667929,
-  3210227297,
-  1314452623,
-  4074634658,
-  4101304120,
-  2273951170,
-  1399257539,
-  3367210612,
-  3027628629,
-  1190975929,
-  2062231137,
-  2333990788,
-  2221543033,
-  2438960610,
-  1181637006,
-  548689776,
-  2362791313,
-  3372408396,
-  3104550113,
-  3145860560,
-  296247880,
-  1970579870,
-  3078560182,
-  3769228297,
-  1714227617,
-  3291629107,
-  3898220290,
-  166772364,
-  1251581989,
-  493813264,
-  448347421,
-  195405023,
-  2709975567,
-  677966185,
-  3703036547,
-  1463355134,
-  2715995803,
-  1338867538,
-  1343315457,
-  2802222074,
-  2684532164,
-  233230375,
-  2599980071,
-  2000651841,
-  3277868038,
-  1638401717,
-  4028070440,
-  3237316320,
-  6314154,
-  819756386,
-  300326615,
-  590932579,
-  1405279636,
-  3267499572,
-  3150704214,
-  2428286686,
-  3959192993,
-  3461946742,
-  1862657033,
-  1266418056,
-  963775037,
-  2089974820,
-  2263052895,
-  1917689273,
-  448879540,
-  3550394620,
-  3981727096,
-  150775221,
-  3627908307,
-  1303187396,
-  508620638,
-  2975983352,
-  2726630617,
-  1817252668,
-  1876281319,
-  1457606340,
-  908771278,
-  3720792119,
-  3617206836,
-  2455994898,
-  1729034894,
-  1080033504,
-  976866871,
-  3556439503,
-  2881648439,
-  1522871579,
-  1555064734,
-  1336096578,
-  3548522304,
-  2579274686,
-  3574697629,
-  3205460757,
-  3593280638,
-  3338716283,
-  3079412587,
-  564236357,
-  2993598910,
-  1781952180,
-  1464380207,
-  3163844217,
-  3332601554,
-  1699332808,
-  1393555694,
-  1183702653,
-  3581086237,
-  1288719814,
-  691649499,
-  2847557200,
-  2895455976,
-  3193889540,
-  2717570544,
-  1781354906,
-  1676643554,
-  2592534050,
-  3230253752,
-  1126444790,
-  2770207658,
-  2633158820,
-  2210423226,
-  2615765581,
-  2414155088,
-  3127139286,
-  673620729,
-  2805611233,
-  1269405062,
-  4015350505,
-  3341807571,
-  4149409754,
-  1057255273,
-  2012875353,
-  2162469141,
-  2276492801,
-  2601117357,
-  993977747,
-  3918593370,
-  2654263191,
-  753973209,
-  36408145,
-  2530585658,
-  25011837,
-  3520020182,
-  2088578344,
-  530523599,
-  2918365339,
-  1524020338,
-  1518925132,
-  3760827505,
-  3759777254,
-  1202760957,
-  3985898139,
-  3906192525,
-  674977740,
-  4174734889,
-  2031300136,
-  2019492241,
-  3983892565,
-  4153806404,
-  3822280332,
-  352677332,
-  2297720250,
-  60907813,
-  90501309,
-  3286998549,
-  1016092578,
-  2535922412,
-  2839152426,
-  457141659,
-  509813237,
-  4120667899,
-  652014361,
-  1966332200,
-  2975202805,
-  55981186,
-  2327461051,
-  676427537,
-  3255491064,
-  2882294119,
-  3433927263,
-  1307055953,
-  942726286,
-  933058658,
-  2468411793,
-  3933900994,
-  4215176142,
-  1361170020,
-  2001714738,
-  2830558078,
-  3274259782,
-  1222529897,
-  1679025792,
-  2729314320,
-  3714953764,
-  1770335741,
-  151462246,
-  3013232138,
-  1682292957,
-  1483529935,
-  471910574,
-  1539241949,
-  458788160,
-  3436315007,
-  1807016891,
-  3718408830,
-  978976581,
-  1043663428,
-  3165965781,
-  1927990952,
-  4200891579,
-  2372276910,
-  3208408903,
-  3533431907,
-  1412390302,
-  2931980059,
-  4132332400,
-  1947078029,
-  3881505623,
-  4168226417,
-  2941484381,
-  1077988104,
-  1320477388,
-  886195818,
-  18198404,
-  3786409e3,
-  2509781533,
-  112762804,
-  3463356488,
-  1866414978,
-  891333506,
-  18488651,
-  661792760,
-  1628790961,
-  3885187036,
-  3141171499,
-  876946877,
-  2693282273,
-  1372485963,
-  791857591,
-  2686433993,
-  3759982718,
-  3167212022,
-  3472953795,
-  2716379847,
-  445679433,
-  3561995674,
-  3504004811,
-  3574258232,
-  54117162,
-  3331405415,
-  2381918588,
-  3769707343,
-  4154350007,
-  1140177722,
-  4074052095,
-  668550556,
-  3214352940,
-  367459370,
-  261225585,
-  2610173221,
-  4209349473,
-  3468074219,
-  3265815641,
-  314222801,
-  3066103646,
-  3808782860,
-  282218597,
-  3406013506,
-  3773591054,
-  379116347,
-  1285071038,
-  846784868,
-  2669647154,
-  3771962079,
-  3550491691,
-  2305946142,
-  453669953,
-  1268987020,
-  3317592352,
-  3279303384,
-  3744833421,
-  2610507566,
-  3859509063,
-  266596637,
-  3847019092,
-  517658769,
-  3462560207,
-  3443424879,
-  370717030,
-  4247526661,
-  2224018117,
-  4143653529,
-  4112773975,
-  2788324899,
-  2477274417,
-  1456262402,
-  2901442914,
-  1517677493,
-  1846949527,
-  2295493580,
-  3734397586,
-  2176403920,
-  1280348187,
-  1908823572,
-  3871786941,
-  846861322,
-  1172426758,
-  3287448474,
-  3383383037,
-  1655181056,
-  3139813346,
-  901632758,
-  1897031941,
-  2986607138,
-  3066810236,
-  3447102507,
-  1393639104,
-  373351379,
-  950779232,
-  625454576,
-  3124240540,
-  4148612726,
-  2007998917,
-  544563296,
-  2244738638,
-  2330496472,
-  2058025392,
-  1291430526,
-  424198748,
-  50039436,
-  29584100,
-  3605783033,
-  2429876329,
-  2791104160,
-  1057563949,
-  3255363231,
-  3075367218,
-  3463963227,
-  1469046755,
-  985887462
-];
-var C_ORIG = [
-  1332899944,
-  1700884034,
-  1701343084,
-  1684370003,
-  1668446532,
-  1869963892
-];
-function _encipher(lr2, off, P, S2) {
-  var n3, l3 = lr2[off], r5 = lr2[off + 1];
-  l3 ^= P[0];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[1];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[2];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[3];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[4];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[5];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[6];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[7];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[8];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[9];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[10];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[11];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[12];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[13];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[14];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[15];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[16];
-  lr2[off] = r5 ^ P[BLOWFISH_NUM_ROUNDS + 1];
-  lr2[off + 1] = l3;
-  return lr2;
-}
-function _streamtoword(data, offp) {
-  for (var i5 = 0, word = 0; i5 < 4; ++i5)
-    word = word << 8 | data[offp] & 255, offp = (offp + 1) % data.length;
-  return { key: word, offp };
-}
-function _key(key, P, S2) {
-  var offset = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
-  for (var i5 = 0; i5 < plen; i5++)
-    sw = _streamtoword(key, offset), offset = sw.offp, P[i5] = P[i5] ^ sw.key;
-  for (i5 = 0; i5 < plen; i5 += 2)
-    lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
-  for (i5 = 0; i5 < slen; i5 += 2)
-    lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
-}
-function _ekskey(data, key, P, S2) {
-  var offp = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
-  for (var i5 = 0; i5 < plen; i5++)
-    sw = _streamtoword(key, offp), offp = sw.offp, P[i5] = P[i5] ^ sw.key;
-  offp = 0;
-  for (i5 = 0; i5 < plen; i5 += 2)
-    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
-  for (i5 = 0; i5 < slen; i5 += 2)
-    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
-}
-function _crypt(b6, salt, rounds, callback, progressCallback) {
-  var cdata = C_ORIG.slice(), clen = cdata.length, err;
-  if (rounds < 4 || rounds > 31) {
-    err = Error("Illegal number of rounds (4-31): " + rounds);
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  if (salt.length !== BCRYPT_SALT_LEN) {
-    err = Error(
-      "Illegal salt length: " + salt.length + " != " + BCRYPT_SALT_LEN
-    );
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  rounds = 1 << rounds >>> 0;
-  var P, S2, i5 = 0, j5;
-  if (typeof Int32Array === "function") {
-    P = new Int32Array(P_ORIG);
-    S2 = new Int32Array(S_ORIG);
-  } else {
-    P = P_ORIG.slice();
-    S2 = S_ORIG.slice();
-  }
-  _ekskey(salt, b6, P, S2);
-  function next() {
-    if (progressCallback) progressCallback(i5 / rounds);
-    if (i5 < rounds) {
-      var start = Date.now();
-      for (; i5 < rounds; ) {
-        i5 = i5 + 1;
-        _key(b6, P, S2);
-        _key(salt, P, S2);
-        if (Date.now() - start > MAX_EXECUTION_TIME) break;
-      }
-    } else {
-      for (i5 = 0; i5 < 64; i5++)
-        for (j5 = 0; j5 < clen >> 1; j5++) _encipher(cdata, j5 << 1, P, S2);
-      var ret = [];
-      for (i5 = 0; i5 < clen; i5++)
-        ret.push((cdata[i5] >> 24 & 255) >>> 0), ret.push((cdata[i5] >> 16 & 255) >>> 0), ret.push((cdata[i5] >> 8 & 255) >>> 0), ret.push((cdata[i5] & 255) >>> 0);
-      if (callback) {
-        callback(null, ret);
-        return;
-      } else return ret;
-    }
-    if (callback) nextTick(next);
-  }
-  if (typeof callback !== "undefined") {
-    next();
-  } else {
-    var res;
-    while (true) if (typeof (res = next()) !== "undefined") return res || [];
-  }
-}
-function _hash(password, salt, callback, progressCallback) {
-  var err;
-  if (typeof password !== "string" || typeof salt !== "string") {
-    err = Error("Invalid string / salt: Not a string");
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  var minor, offset;
-  if (salt.charAt(0) !== "$" || salt.charAt(1) !== "2") {
-    err = Error("Invalid salt version: " + salt.substring(0, 2));
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  if (salt.charAt(2) === "$") minor = String.fromCharCode(0), offset = 3;
-  else {
-    minor = salt.charAt(2);
-    if (minor !== "a" && minor !== "b" && minor !== "y" || salt.charAt(3) !== "$") {
-      err = Error("Invalid salt revision: " + salt.substring(2, 4));
-      if (callback) {
-        nextTick(callback.bind(this, err));
-        return;
-      } else throw err;
-    }
-    offset = 4;
-  }
-  if (salt.charAt(offset + 2) > "$") {
-    err = Error("Missing salt rounds");
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  var r1 = parseInt(salt.substring(offset, offset + 1), 10) * 10, r22 = parseInt(salt.substring(offset + 1, offset + 2), 10), rounds = r1 + r22, real_salt = salt.substring(offset + 3, offset + 25);
-  password += minor >= "a" ? "\0" : "";
-  var passwordb = utf8Array(password), saltb = base64_decode(real_salt, BCRYPT_SALT_LEN);
-  function finish(bytes) {
-    var res = [];
-    res.push("$2");
-    if (minor >= "a") res.push(minor);
-    res.push("$");
-    if (rounds < 10) res.push("0");
-    res.push(rounds.toString());
-    res.push("$");
-    res.push(base64_encode(saltb, saltb.length));
-    res.push(base64_encode(bytes, C_ORIG.length * 4 - 1));
-    return res.join("");
-  }
-  if (typeof callback == "undefined")
-    return finish(_crypt(passwordb, saltb, rounds));
-  else {
-    _crypt(
-      passwordb,
-      saltb,
-      rounds,
-      function(err2, bytes) {
-        if (err2) callback(err2, null);
-        else callback(null, finish(bytes));
-      },
-      progressCallback
-    );
-  }
-}
-function encodeBase64(bytes, length) {
-  return base64_encode(bytes, length);
-}
-function decodeBase64(string, length) {
-  return base64_decode(string, length);
-}
-var bcryptjs_default = {
-  setRandomFallback,
-  genSaltSync,
-  genSalt,
-  hashSync,
-  hash,
-  compareSync,
-  compare,
-  getRounds,
-  getSalt,
-  truncates,
-  encodeBase64,
-  decodeBase64
-};
-
-// src/server/auth/auth.ts
 var JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || (() => {
   console.warn("\u26A0\uFE0F [SECURITY WARNING]: Neither JWT_SECRET nor AUTH_SECRET is set in environment. Using a fallback runtime secret. Please set JWT_SECRET in .env for production.");
   return "benixspace_sec_" + (process.env.NODE_ENV === "production" ? "prod_" : "dev_") + "secure_jwt_2026";
 })();
+function generateToken(user) {
+  return import_jsonwebtoken.default.sign(
+    { id: String(user.id), email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
 function verifyToken(token) {
   try {
     return import_jsonwebtoken.default.verify(token, JWT_SECRET);
   } catch (err) {
     return null;
+  }
+}
+async function comparePassword(password, hash2) {
+  try {
+    return await bcryptjs_default.compare(password, hash2);
+  } catch {
+    return false;
   }
 }
 async function hashPassword(password) {
@@ -90906,9 +95702,9 @@ var WalletService = class {
   }
 };
 
-// src/server/services/smmService.ts
-import http2 from "http";
+// src/server/services/withdrawalService.ts
 import https3 from "https";
+import crypto10 from "crypto";
 
 // src/server/services/emailService.ts
 import https2 from "https";
@@ -98422,12 +103218,12 @@ function httpProxyClient(proxyUrl, destinationPort, destinationHost, tlsOptions,
     host: proxy.hostname,
     port: Number(proxy.port) ? Number(proxy.port) : proxy.protocol === "https:" ? 443 : 80
   };
-  let connect;
+  let connect3;
   if (proxy.protocol === "https:") {
     connectOptions.rejectUnauthorized = tlsOptions.rejectUnauthorized !== false;
-    connect = tls.connect.bind(tls);
+    connect3 = tls.connect.bind(tls);
   } else {
-    connect = net5.connect.bind(net5);
+    connect3 = net5.connect.bind(net5);
   }
   const timeout = Number(tlsOptions.timeout) || httpProxyClient.timeout || 30 * 1e3;
   let socket;
@@ -98500,7 +103296,7 @@ function httpProxyClient(proxyUrl, destinationPort, destinationHost, tlsOptions,
     socket.on("newListener", resumeOnData);
     return done(null, socket);
   }
-  socket = connect(connectOptions, () => {
+  socket = connect3(connectOptions, () => {
     if (finished3) {
       return;
     }
@@ -99057,7 +103853,7 @@ var Mail = class extends EventEmitter {
             err2.code = EPROXY;
             return callback(err2);
           }
-          const connect = (ipaddress) => {
+          const connect3 = (ipaddress) => {
             const proxyV2 = !!this.meta.get("proxy_socks_module").SocksClient;
             const socksClient = proxyV2 ? this.meta.get("proxy_socks_module").SocksClient : this.meta.get("proxy_socks_module");
             const proxyType = Number(proxy.protocol.replace(/\D/g, "")) || 5;
@@ -99101,13 +103897,13 @@ var Mail = class extends EventEmitter {
             });
           };
           if (net6.isIP(proxy.hostname)) {
-            return connect(proxy.hostname);
+            return connect3(proxy.hostname);
           }
           return dns2.lookup(proxy.hostname, (err2, address) => {
             if (err2) {
               return callback(err2);
             }
-            connect(address);
+            connect3(address);
           });
         }
       }
@@ -103807,7 +108603,7 @@ ${html}
   }
 };
 
-// src/server/services/smmService.ts
+// src/server/services/withdrawalService.ts
 async function getSystemSetting(key, defaultValue) {
   const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
   if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
@@ -103820,6 +108616,523 @@ async function getSystemSetting(key, defaultValue) {
   return defaultValue !== void 0 ? defaultValue : null;
 }
 async function setSystemSetting(key, value) {
+  await query(
+    `INSERT INTO system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+  await query(
+    `INSERT INTO core_system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+}
+async function getFlutterwaveSecretKey() {
+  try {
+    const row = await query("SELECT secret_key FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    if (row.rowCount > 0 && row.rows[0].secret_key) {
+      return String(row.rows[0].secret_key).trim();
+    }
+  } catch {
+  }
+  return (process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
+}
+function callFlutterwaveApi(path6, method = "GET", data) {
+  return new Promise(async (resolve3, reject) => {
+    try {
+      const secretKey = await getFlutterwaveSecretKey();
+      const payload = data ? JSON.stringify(data) : null;
+      const req = https3.request(
+        {
+          hostname: "api.flutterwave.com",
+          port: 443,
+          path: path6,
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${secretKey}`,
+            ...payload ? { "Content-Length": Buffer.byteLength(payload) } : {}
+          }
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (c5) => body += c5);
+          res.on("end", () => {
+            try {
+              const parsed = JSON.parse(body);
+              resolve3(parsed);
+            } catch {
+              resolve3({ raw: body, statusCode: res.statusCode });
+            }
+          });
+        }
+      );
+      req.setTimeout(12e3, () => {
+        req.destroy(new Error("Flutterwave API timeout after 12s"));
+      });
+      req.on("error", (err) => reject(err));
+      if (payload) req.write(payload);
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+var WithdrawalService = class {
+  /**
+   * Get all withdrawals with joined user details and 4 summary KPI stats
+   */
+  static async listWithdrawals() {
+    const listRes = await query(`
+      SELECT w.*, 
+             u.name as user_name, 
+             u.email as user_email, 
+             u.phone as user_phone,
+             u.role as user_role
+      FROM core_withdrawals w
+      LEFT JOIN core_users u ON w.user_id = u.id
+      ORDER BY w.created_at DESC 
+      LIMIT 150
+    `);
+    const userWithdrawnRes = await query(`
+      SELECT COALESCE(SUM(COALESCE(w.net_amount, w.amount)), 0) as total 
+      FROM core_withdrawals w
+      LEFT JOIN core_users u ON w.user_id = u.id
+      WHERE w.status IN ('COMPLETED', 'PARTIAL') 
+        AND (u.role IS NULL OR u.role NOT IN ('superadmin', 'admin'))
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    const adminWithdrawnRes = await query(`
+      SELECT COALESCE(SUM(COALESCE(w.net_amount, w.amount)), 0) as total 
+      FROM core_withdrawals w
+      LEFT JOIN core_users u ON w.user_id = u.id
+      WHERE w.status IN ('COMPLETED', 'PARTIAL') 
+        AND u.role IN ('superadmin', 'admin')
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    const userBalancesRes = await query(`
+      SELECT COALESCE(SUM(balance), 0) as total 
+      FROM core_wallets
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    const userEarningsRes = await query(`
+      SELECT COALESCE(SUM(total_earnings), 0) as total 
+      FROM core_wallets
+    `).catch(() => ({ rows: [{ total: 0 }] }));
+    let flwBal = 0;
+    let flwCurrency = "RWF";
+    try {
+      const flwRes = await callFlutterwaveApi("/v3/balances");
+      if (flwRes?.data && Array.isArray(flwRes.data)) {
+        const rwfItem = flwRes.data.find((b6) => b6.currency === "RWF") || flwRes.data[0];
+        if (rwfItem) {
+          flwBal = Number(rwfItem.available_balance || rwfItem.ledger_balance || 0);
+          flwCurrency = rwfItem.currency || "RWF";
+        }
+      }
+    } catch {
+    }
+    const feeStr = await getSystemSetting("withdrawal_fee_percent", "3");
+    const defaultFeePercent = parseFloat(feeStr || "3") || 3;
+    const autoEnabledStr = await getSystemSetting("auto_withdraw_enabled", "true");
+    const autoWithdrawMaxAmount = parseFloat(await getSystemSetting("auto_withdraw_max_amount", "50000") || "50000") || 5e4;
+    const autoWithdrawBuffer = parseFloat(await getSystemSetting("auto_withdraw_buffer", "1000") || "1000") || 1e3;
+    return {
+      withdrawals: listRes.rows,
+      kpi: {
+        totalUserWithdrawn: Number(userWithdrawnRes.rows[0]?.total || 0),
+        totalAdminWithdrawn: Number(adminWithdrawnRes.rows[0]?.total || 0),
+        totalUserBalances: Number(userBalancesRes.rows[0]?.total || 0),
+        totalUserEarnings: Number(userEarningsRes.rows[0]?.total || 0),
+        flutterwaveBalance: flwBal,
+        flutterwaveCurrency: flwCurrency
+      },
+      settings: {
+        defaultFeePercent,
+        autoWithdrawEnabled: autoEnabledStr === "true",
+        autoWithdrawMaxAmount,
+        autoWithdrawBuffer
+      }
+    };
+  }
+  /**
+   * Approve a withdrawal (Full or Partial) with fee deduction and optional direct Flutterwave transfer
+   */
+  static async approveWithdrawal(id, approvedAmount, feePercent, sendViaFlutterwave = true, note) {
+    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
+    if (wRes.rowCount === 0) throw new Error("Withdrawal request not found.");
+    const w = wRes.rows[0];
+    if (w.status === "COMPLETED") throw new Error("Withdrawal is already completed.");
+    const reqAmount = Number(w.amount);
+    const appAmount = Math.min(reqAmount, Math.max(1, Number(approvedAmount)));
+    const feeRate = Math.max(0, Math.min(50, Number(feePercent) || 0));
+    const feeDeducted = Math.round(appAmount * (feeRate / 100));
+    const netAmount = Math.max(0, appAmount - feeDeducted);
+    const unapprovedRemainder = Math.max(0, reqAmount - appAmount);
+    const isPartial = unapprovedRemainder > 0;
+    let flwTransferRef = "";
+    let flwStatus = "manual";
+    if (sendViaFlutterwave && netAmount > 0) {
+      let accDetails = {};
+      try {
+        accDetails = typeof w.account_details === "string" ? JSON.parse(w.account_details) : w.account_details || {};
+      } catch {
+        if (typeof w.account_details === "string") {
+          accDetails = { phone: w.account_details };
+        }
+      }
+      let recipientNumber = String(accDetails.accountNumber || accDetails.phone || accDetails.number || "").trim();
+      if (!recipientNumber) {
+        throw new Error("Recipient account number/phone is missing in withdrawal details.");
+      }
+      const digitsOnly = recipientNumber.replace(/\D/g, "");
+      let formattedPhone = recipientNumber;
+      if (digitsOnly.startsWith("07") && digitsOnly.length === 10) {
+        formattedPhone = "250" + digitsOnly.slice(1);
+      } else if (digitsOnly.startsWith("2507") && digitsOnly.length === 12) {
+        formattedPhone = digitsOnly;
+      } else if (digitsOnly.length === 9 && digitsOnly.startsWith("7")) {
+        formattedPhone = "250" + digitsOnly;
+      }
+      try {
+        const balRes = await callFlutterwaveApi("/v3/balances");
+        if (balRes?.data && Array.isArray(balRes.data)) {
+          const rwfItem = balRes.data.find((b6) => b6.currency === "RWF") || balRes.data[0];
+          const available = rwfItem ? Number(rwfItem.available_balance || 0) : 0;
+          const totalNeeded = netAmount + 500;
+          if (available < totalNeeded) {
+            throw new Error(`Flutterwave account needs topup to approve this withdrawal. (Available: ${available.toLocaleString()} RWF, Needed: ${totalNeeded.toLocaleString()} RWF with transfer fee)`);
+          }
+        }
+      } catch (balErr) {
+        if (balErr.message.includes("Flutterwave account needs topup")) throw balErr;
+      }
+      const transferPayload = {
+        account_bank: "MPS",
+        account_number: formattedPhone,
+        amount: netAmount,
+        narration: `BenixSpace Withdrawal #${id}`,
+        currency: "RWF",
+        reference: `flw_tx_${id}_${Date.now()}`,
+        debit_currency: "RWF",
+        meta: [
+          {
+            beneficiary_country: "RW",
+            account_number: formattedPhone,
+            bank_name: "Mobile Money",
+            routing_number: "MPS",
+            sender: "BenixSpace",
+            sender_country: "RW"
+          }
+        ]
+      };
+      const flwResult = await callFlutterwaveApi("/v3/transfers", "POST", transferPayload);
+      if (flwResult?.status !== "success") {
+        const errMsg = flwResult?.message || "";
+        if (errMsg.toLowerCase().includes("ip whitelisting") || errMsg.toLowerCase().includes("whitelisting")) {
+          throw new Error('Flutterwave Transfer Blocked: IP Whitelisting is required by Flutterwave. Add server IP in Flutterwave Dashboard -> Settings -> Whitelisted IPs, or uncheck "Send via Flutterwave" to record manual payout.');
+        }
+        if (errMsg.toLowerCase().includes("insufficient") || errMsg.toLowerCase().includes("balance") || errMsg.toLowerCase().includes("funds")) {
+          throw new Error("Flutterwave account needs topup to approve this withdrawal. Live RWF balance is insufficient to cover amount and transfer fee.");
+        }
+        throw new Error(flwResult?.message || "Flutterwave transfer failed. Please verify credentials or top up.");
+      }
+      flwTransferRef = String(flwResult?.data?.id || flwResult?.data?.reference || "");
+      flwStatus = flwResult?.data?.status || "SUCCESSFUL";
+    }
+    await query(
+      `UPDATE core_withdrawals 
+       SET status = $1,
+           fee_percent = $2,
+           fee_deducted = $3,
+           net_amount = $4,
+           is_partial = $5,
+           flutterwave_ref = $6,
+           flutterwave_status = $7,
+           admin_note = $8,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9`,
+      [
+        isPartial ? "PARTIAL" : "COMPLETED",
+        feeRate,
+        feeDeducted,
+        netAmount,
+        isPartial,
+        flwTransferRef,
+        flwStatus,
+        note || (isPartial ? "Partial withdrawal approved" : "Approved by administrator"),
+        id
+      ]
+    );
+    await query(
+      `UPDATE core_wallets 
+       SET pending_balance = GREATEST(0, pending_balance - $1),
+           total_withdrawn = total_withdrawn + $2,
+           balance = balance + $3,
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $4`,
+      [reqAmount, appAmount, unapprovedRemainder, w.user_id]
+    );
+    await query(
+      `INSERT INTO core_wallet_transactions 
+       (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+       VALUES ($1, $2, $3, 'wallet', 'withdrawal_approved', $4, $5, 'RWF', 'completed', $6, $7)`,
+      [
+        "cwt-" + crypto10.randomUUID(),
+        w.wallet_id || "wallet-" + w.user_id,
+        w.user_id,
+        -netAmount,
+        feeDeducted,
+        flwTransferRef || `wd_payout_${id}`,
+        `Withdrawal Payout via ${w.payout_method} (Approved: ${appAmount} RWF, Fee: ${feeDeducted} RWF, Received: ${netAmount} RWF)`
+      ]
+    );
+    if (unapprovedRemainder > 0) {
+      await query(
+        `INSERT INTO core_wallet_transactions 
+         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+         VALUES ($1, $2, $3, 'wallet', 'withdrawal_partial_refund', $4, 0.00, 'RWF', 'completed', $5, $6)`,
+        [
+          "cwt-" + crypto10.randomUUID(),
+          w.wallet_id || "wallet-" + w.user_id,
+          w.user_id,
+          unapprovedRemainder,
+          `ref_part_${id}`,
+          `Partial Withdrawal Refund (${unapprovedRemainder.toLocaleString()} RWF refunded back to balance)`
+        ]
+      );
+    }
+    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
+    if (uRes.rowCount > 0) {
+      const u = uRes.rows[0];
+      EmailService.sendEmail({
+        to: u.email,
+        subject: `Payout Confirmation: ${netAmount.toLocaleString()} RWF sent to your ${w.payout_method}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+            <h2 style="color: #10B981; margin-top: 0;">\u{1F389} Withdrawal Payout Successful!</h2>
+            <p>Hello ${u.name},</p>
+            <p>Your withdrawal request #${id} has been approved and processed.</p>
+            <div style="background: #161D2E; padding: 16px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
+              <p style="margin: 6px 0;"><strong>Requested Amount:</strong> ${reqAmount.toLocaleString()} RWF</p>
+              <p style="margin: 6px 0;"><strong>Approved Amount:</strong> ${appAmount.toLocaleString()} RWF ${isPartial ? '<span style="color: #38BDF8;">(Partial)</span>' : ""}</p>
+              <p style="margin: 6px 0; color: #F87171;"><strong>Platform Fee (${feeRate}%):</strong> -${feeDeducted.toLocaleString()} RWF</p>
+              <hr style="border: 0; border-top: 1px solid #334155; margin: 10px 0;" />
+              <p style="margin: 6px 0; font-size: 16px; color: #34D399;"><strong>Final Amount Received:</strong> ${netAmount.toLocaleString()} RWF</p>
+              ${unapprovedRemainder > 0 ? `<p style="margin: 6px 0; color: #60A5FA;"><strong>Refunded to Real Wallet:</strong> ${unapprovedRemainder.toLocaleString()} RWF</p>` : ""}
+              <p style="margin: 6px 0; font-size: 12px; color: #94A3B8;">Payout Method: ${w.payout_method} \u2022 BenixSpace</p>
+            </div>
+            <p style="font-size: 13px; color: #94A3B8;">Thank you for being part of the BenixSpace creator ecosystem!</p>
+          </div>
+        `
+      }).catch(() => {
+      });
+    }
+    return {
+      success: true,
+      id,
+      requestedAmount: reqAmount,
+      approvedAmount: appAmount,
+      feeDeducted,
+      netAmount,
+      refundedToUser: unapprovedRemainder,
+      isPartial,
+      flutterwaveRef: flwTransferRef
+    };
+  }
+  /**
+   * Reject a withdrawal: full amount is refunded back to user's real wallet balance
+   */
+  static async rejectWithdrawal(id, reason) {
+    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
+    if (wRes.rowCount === 0) throw new Error("Withdrawal request not found.");
+    const w = wRes.rows[0];
+    if (w.status === "COMPLETED") throw new Error("Cannot reject an already completed withdrawal.");
+    const refundAmount = Number(w.amount);
+    await query(
+      "UPDATE core_withdrawals SET status = 'REJECTED', admin_note = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+      [reason || "Rejected by administrator", id]
+    );
+    await query(
+      `UPDATE core_wallets 
+       SET balance = balance + $1, 
+           pending_balance = GREATEST(0, pending_balance - $1),
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $2`,
+      [refundAmount, w.user_id]
+    );
+    await query(
+      `INSERT INTO core_wallet_transactions 
+       (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
+       VALUES ($1, $2, $3, 'wallet', 'withdrawal_refund', $4, 0.00, 'RWF', 'completed', $5, $6)`,
+      [
+        "cwt-" + crypto10.randomUUID(),
+        w.wallet_id || "wallet-" + w.user_id,
+        w.user_id,
+        refundAmount,
+        `tx_rej_${id}`,
+        `Withdrawal Rejected & Refunded: ${reason || "Administrator review"}`
+      ]
+    );
+    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
+    if (uRes.rowCount > 0) {
+      const u = uRes.rows[0];
+      EmailService.sendEmail({
+        to: u.email,
+        subject: `Update on Withdrawal Request #${id} - Refunded to Wallet`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+            <h2 style="color: #F87171; margin-top: 0;">Withdrawal Request Update</h2>
+            <p>Hello ${u.name},</p>
+            <p>Your withdrawal request for <strong>${refundAmount.toLocaleString()} RWF</strong> has been rejected by our compliance team.</p>
+            <div style="background: #161D2E; padding: 14px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
+              <p style="margin: 0;"><strong>Reason:</strong> ${reason || "Details could not be verified"}</p>
+            </div>
+            <p style="color: #34D399;"><strong>\u2705 The full amount of ${refundAmount.toLocaleString()} RWF has been returned to your wallet balance.</strong></p>
+            <p style="font-size: 13px; color: #94A3B8;">Please verify your phone number, account name, and payout method before re-submitting.</p>
+          </div>
+        `
+      }).catch(() => {
+      });
+    }
+    return {
+      success: true,
+      message: `Withdrawal #${id} rejected and ${refundAmount.toLocaleString()} RWF refunded back to user wallet.`
+    };
+  }
+  static async saveFeePercent(percent) {
+    const val = Math.max(0, Math.min(50, Number(percent) || 0));
+    await setSystemSetting("withdrawal_fee_percent", String(val));
+  }
+  /**
+   * Get auto-withdrawal settings & live Flutterwave balance
+   */
+  static async getAutoWithdrawSettings() {
+    const feeStr = await getSystemSetting("withdrawal_fee_percent", "3");
+    const autoEnabledStr = await getSystemSetting("auto_withdraw_enabled", "true");
+    const maxAmountStr = await getSystemSetting("auto_withdraw_max_amount", "50000");
+    const bufferStr = await getSystemSetting("auto_withdraw_buffer", "1000");
+    let flwBal = 0;
+    let flwCurrency = "RWF";
+    try {
+      const flwRes = await callFlutterwaveApi("/v3/balances");
+      if (flwRes?.data && Array.isArray(flwRes.data)) {
+        const rwfItem = flwRes.data.find((b6) => b6.currency === "RWF") || flwRes.data[0];
+        if (rwfItem) {
+          flwBal = Number(rwfItem.available_balance || rwfItem.ledger_balance || 0);
+          flwCurrency = rwfItem.currency || "RWF";
+        }
+      }
+    } catch {
+    }
+    return {
+      autoWithdrawEnabled: autoEnabledStr === "true",
+      autoWithdrawMaxAmount: parseFloat(maxAmountStr || "50000") || 5e4,
+      autoWithdrawBuffer: parseFloat(bufferStr || "1000") || 1e3,
+      defaultFeePercent: parseFloat(feeStr || "3") || 3,
+      flutterwaveBalance: flwBal,
+      flutterwaveCurrency: flwCurrency
+    };
+  }
+  /**
+   * Save auto-withdrawal and fee settings
+   */
+  static async saveWithdrawalSettings(settings) {
+    if (settings.feePercent !== void 0) {
+      await setSystemSetting("withdrawal_fee_percent", String(Math.max(0, Math.min(50, Number(settings.feePercent)))));
+    }
+    if (settings.autoWithdrawEnabled !== void 0) {
+      await setSystemSetting("auto_withdraw_enabled", settings.autoWithdrawEnabled ? "true" : "false");
+    }
+    if (settings.autoWithdrawMaxAmount !== void 0) {
+      await setSystemSetting("auto_withdraw_max_amount", String(Math.max(100, Number(settings.autoWithdrawMaxAmount))));
+    }
+    if (settings.autoWithdrawBuffer !== void 0) {
+      await setSystemSetting("auto_withdraw_buffer", String(Math.max(0, Number(settings.autoWithdrawBuffer))));
+    }
+  }
+  /**
+   * Attempt auto-withdrawal for a single withdrawal request if balance is sufficient
+   */
+  static async tryAutoWithdraw(withdrawalId) {
+    try {
+      const settings = await this.getAutoWithdrawSettings();
+      if (!settings.autoWithdrawEnabled) {
+        return { autoApproved: false, reason: "Auto-withdrawal is disabled" };
+      }
+      const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [withdrawalId]);
+      if (wRes.rowCount === 0) return { autoApproved: false, reason: "Withdrawal not found" };
+      const w = wRes.rows[0];
+      if (w.status !== "PENDING") return { autoApproved: false, reason: `Withdrawal status is ${w.status}` };
+      const amount = Number(w.amount);
+      if (amount > settings.autoWithdrawMaxAmount) {
+        return {
+          autoApproved: false,
+          reason: `Amount (${amount.toLocaleString()} RWF) exceeds maximum auto-approval limit (${settings.autoWithdrawMaxAmount.toLocaleString()} RWF)`
+        };
+      }
+      const feeRate = settings.defaultFeePercent;
+      const feeDeducted = Math.round(amount * (feeRate / 100));
+      const netAmount = Math.max(0, amount - feeDeducted);
+      const totalNeeded = netAmount + 500 + settings.autoWithdrawBuffer;
+      if (settings.flutterwaveBalance < totalNeeded) {
+        return {
+          autoApproved: false,
+          reason: `Flutterwave balance (${settings.flutterwaveBalance.toLocaleString()} RWF) insufficient for auto-withdrawal (needed: ${totalNeeded.toLocaleString()} RWF)`
+        };
+      }
+      const approvalResult = await this.approveWithdrawal(
+        withdrawalId,
+        amount,
+        feeRate,
+        true,
+        "Auto-approved via Flutterwave Transfer"
+      );
+      return { autoApproved: true, details: approvalResult };
+    } catch (err) {
+      console.warn(`[AutoWithdraw] Failed to auto-withdraw #${withdrawalId}:`, err.message);
+      return { autoApproved: false, reason: err.message };
+    }
+  }
+  /**
+   * Process all pending withdrawals eligible for auto-approval against live balance
+   */
+  static async processBatchAutoWithdrawals() {
+    const pendingRes = await query(
+      "SELECT id, amount, payout_method FROM core_withdrawals WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT 20"
+    );
+    let processed = 0;
+    let failed = 0;
+    const results = [];
+    for (const w of pendingRes.rows) {
+      const res = await this.tryAutoWithdraw(w.id);
+      results.push({ id: w.id, amount: w.amount, ...res });
+      if (res.autoApproved) {
+        processed++;
+      } else {
+        failed++;
+      }
+    }
+    return { processed, failed, results };
+  }
+};
+
+// src/server/services/smmService.ts
+import http2 from "http";
+import https4 from "https";
+async function getSystemSetting2(key, defaultValue) {
+  const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
+    return String(res.rows[0].value);
+  }
+  const coreRes = await query("SELECT value FROM core_system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (coreRes.rowCount > 0 && coreRes.rows[0].value !== null && coreRes.rows[0].value !== void 0 && String(coreRes.rows[0].value).trim() !== "") {
+    return String(coreRes.rows[0].value);
+  }
+  return defaultValue !== void 0 ? defaultValue : null;
+}
+async function setSystemSetting2(key, value) {
   await query(
     `INSERT INTO system_settings (key, value, updated_at)
      VALUES ($1, $2, NOW())
@@ -103895,7 +109208,7 @@ var SmmService = class {
     }
     try {
       const liveRate = await new Promise((resolve3, reject) => {
-        https3.get("https://open.er-api.com/v6/latest/USD", (res) => {
+        https4.get("https://open.er-api.com/v6/latest/USD", (res) => {
           let data = "";
           res.on("data", (c5) => data += c5);
           res.on("end", () => {
@@ -103914,11 +109227,11 @@ var SmmService = class {
         }).on("error", reject);
       });
       cachedRate = { rate: liveRate, timestamp: Date.now() };
-      await setSystemSetting("rwf_per_usd", String(liveRate));
+      await setSystemSetting2("rwf_per_usd", String(liveRate));
       return liveRate;
     } catch (err) {
       console.warn("Live exchange rate API failed, checking stored fallback:", err.message);
-      const dbRateStr = await getSystemSetting("rwf_per_usd", "1480");
+      const dbRateStr = await getSystemSetting2("rwf_per_usd", "1480");
       const fallback2 = parseFloat(dbRateStr || "1480") || 1480;
       cachedRate = { rate: fallback2, timestamp: Date.now() };
       return fallback2;
@@ -103987,8 +109300,8 @@ var SmmService = class {
     }
   }
   static async callApi(action, extraParams = {}) {
-    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
-    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
+    const apiKey = await getSystemSetting2("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting2("smm_api_url") || "https://smmfollows.com/api/v2";
     const params = new URLSearchParams({
       key: apiKey.trim(),
       action: action.trim(),
@@ -104001,7 +109314,7 @@ var SmmService = class {
       try {
         const urlObj = new URL(apiUrl);
         const isHttps2 = urlObj.protocol === "https:";
-        const client = isHttps2 ? https3 : http2;
+        const client = isHttps2 ? https4 : http2;
         const req = client.request(
           {
             hostname: urlObj.hostname,
@@ -104175,7 +109488,7 @@ var SmmService = class {
         error: services2?.error ? `SMM Provider response: ${services2.error}` : "Unable to sync live services. Initial services catalog active."
       };
     }
-    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
+    const defaultMarkup = Number(await getSystemSetting2("smm_default_markup_percent", "30")) || 30;
     const rwfRate = await this.getLiveExchangeRate();
     let syncedCount = 0;
     for (const s2 of services2) {
@@ -104265,16 +109578,16 @@ var SmmService = class {
     return res?.rows[0];
   }
   static async getSettings() {
-    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
-    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
-    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
+    const apiKey = await getSystemSetting2("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting2("smm_api_url") || "https://smmfollows.com/api/v2";
+    const defaultMarkup = Number(await getSystemSetting2("smm_default_markup_percent", "30")) || 30;
     const rwfPerUsd = await this.getLiveExchangeRate();
     return { apiKey, apiUrl, defaultMarkup, rwfPerUsd };
   }
   static async saveSettings(apiKey, defaultMarkup, rwfPerUsd) {
-    if (apiKey !== void 0) await setSystemSetting("smm_api_key", String(apiKey).trim());
-    if (defaultMarkup !== void 0) await setSystemSetting("smm_default_markup_percent", String(defaultMarkup));
-    if (rwfPerUsd !== void 0) await setSystemSetting("rwf_per_usd", String(rwfPerUsd));
+    if (apiKey !== void 0) await setSystemSetting2("smm_api_key", String(apiKey).trim());
+    if (defaultMarkup !== void 0) await setSystemSetting2("smm_default_markup_percent", String(defaultMarkup));
+    if (rwfPerUsd !== void 0) await setSystemSetting2("rwf_per_usd", String(rwfPerUsd));
     invalidateSmmServicesCache();
   }
   static async placeOrder(userId, serviceId, link, quantity) {
@@ -104460,7 +109773,7 @@ var SmmService = class {
 };
 
 // src/server/services/referralService.ts
-import crypto10 from "crypto";
+import crypto11 from "crypto";
 var ReferralService = class {
   /**
    * Generates or fetches unique referral code for a user
@@ -104470,7 +109783,7 @@ var ReferralService = class {
     if (res.rowCount > 0 && res.rows[0].referral_code) {
       return res.rows[0].referral_code;
     }
-    const code = "REF-" + crypto10.randomBytes(3).toString("hex").toUpperCase();
+    const code = "REF-" + crypto11.randomBytes(3).toString("hex").toUpperCase();
     await query("UPDATE core_users SET referral_code = $1 WHERE id = $2", [code, userId]);
     return code;
   }
@@ -104497,7 +109810,7 @@ var ReferralService = class {
     } catch (e5) {
       console.warn("Referral credit error:", e5);
     }
-    const refRecordId = "ref-" + crypto10.randomUUID();
+    const refRecordId = "ref-" + crypto11.randomUUID();
     await query(
       `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
        VALUES ($1, $2, $3, 'registration', $4, 'approved', CURRENT_TIMESTAMP)`,
@@ -104582,7 +109895,7 @@ var ReferralService = class {
       `Affiliate Commission (${Math.round(commissionRate * 100)}%): Shared link sale for "${itemTitle}"`,
       `tx_aff_${Date.now()}_${itemId}`
     );
-    const refRecordId = "ref-sale-" + crypto10.randomUUID();
+    const refRecordId = "ref-sale-" + crypto11.randomUUID();
     await query(
       `INSERT INTO core_referrals 
        (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
@@ -104605,8 +109918,8 @@ var ReferralService = class {
 };
 
 // src/server/services/translationService.ts
-import crypto11 from "crypto";
-import https4 from "https";
+import crypto12 from "crypto";
+import https5 from "https";
 var DICTIONARY = {
   rw: {
     "Home": "Ahabanza",
@@ -104720,7 +110033,7 @@ var TranslationService = class {
     if (DICTIONARY[targetLang] && DICTIONARY[targetLang][trimmed]) {
       return DICTIONARY[targetLang][trimmed];
     }
-    const textHash = crypto11.createHash("md5").update(trimmed).digest("hex");
+    const textHash = crypto12.createHash("md5").update(trimmed).digest("hex");
     const cached = await query(
       "SELECT translated_text FROM core_translations_cache WHERE source_hash = $1 AND target_lang = $2",
       [textHash, targetLang]
@@ -104762,7 +110075,7 @@ var TranslationService = class {
     return new Promise((resolve3) => {
       const encoded = encodeURIComponent(text.substring(0, 500));
       const url2 = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${from}|${to2}`;
-      const req = https4.get(url2, { timeout: 3e3 }, (res) => {
+      const req = https5.get(url2, { timeout: 3e3 }, (res) => {
         let data = "";
         res.on("data", (chunk) => data += chunk);
         res.on("end", () => {
@@ -104787,7 +110100,7 @@ var TranslationService = class {
 // src/server/services/storageService.ts
 var import_client_s3 = __toESM(require_dist_cjs16(), 1);
 var import_s3_request_presigner = __toESM(require_dist_cjs17(), 1);
-import crypto12 from "crypto";
+import crypto13 from "crypto";
 import path3 from "path";
 var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
   "image/jpeg",
@@ -104843,7 +110156,7 @@ var StorageService = class {
     const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "") || "media";
     const rawExt = path3.extname(fileName || "").toLowerCase();
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, "") || (cleanMime.startsWith("image/") ? ".jpg" : ".bin");
-    const randomHex = crypto12.randomBytes(8).toString("hex");
+    const randomHex = crypto13.randomBytes(8).toString("hex");
     const uniqueKey = `${safeFolder}/${Date.now()}_${randomHex}${safeExt}`;
     const command5 = new import_client_s3.PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -104868,7 +110181,7 @@ var StorageService = class {
     const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "") || "media";
     const rawExt = path3.extname(fileName || "").toLowerCase();
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, "") || ".bin";
-    const randomHex = crypto12.randomBytes(8).toString("hex");
+    const randomHex = crypto13.randomBytes(8).toString("hex");
     const uniqueKey = `${safeFolder}/${Date.now()}_${randomHex}${safeExt}`;
     const command5 = new import_client_s3.PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -107114,11 +112427,11 @@ var realVideos_default = [
 
 // src/server/routes/cloudRoutes.ts
 var import_express = __toESM(require_express2(), 1);
-import crypto15 from "crypto";
+import crypto16 from "crypto";
 import dns3 from "dns/promises";
 
 // src/server/services/cloud/cloudBillingService.ts
-import crypto13 from "crypto";
+import crypto14 from "crypto";
 var CloudBillingService = class {
   /**
    * Get active subscription and quotas for a customer
@@ -107179,7 +112492,7 @@ var CloudBillingService = class {
     }
     const trialPlan = planRes.rows[0];
     const trialDays = trialPlan.trial_duration_days || 60;
-    const subId = "csub-" + crypto13.randomUUID();
+    const subId = "csub-" + crypto14.randomUUID();
     const now = /* @__PURE__ */ new Date();
     const periodEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1e3);
     return await withTransaction(async (client) => {
@@ -107341,7 +112654,7 @@ var CloudBillingService = class {
       const baseMs = Math.max(now.getTime(), prevEnd);
       periodEndMs = baseMs + preview.durationDays * 24 * 60 * 60 * 1e3;
     }
-    const subId = "csub-" + crypto13.randomUUID();
+    const subId = "csub-" + crypto14.randomUUID();
     const periodEnd = new Date(periodEndMs);
     const sub = await withTransaction(async (client) => {
       await client.query("UPDATE cloud_subscriptions SET status = 'cancelled' WHERE user_id = $1", [userId]);
@@ -108919,7 +114232,7 @@ var transitional_default = {
 };
 
 // node_modules/axios/lib/platform/node/index.js
-import crypto14 from "crypto";
+import crypto15 from "crypto";
 
 // node_modules/axios/lib/platform/node/classes/URLSearchParams.js
 import url from "url";
@@ -108937,7 +114250,7 @@ var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
   let str = "";
   const { length } = alphabet;
   const randomValues = new Uint32Array(size);
-  crypto14.randomFillSync(randomValues);
+  crypto15.randomFillSync(randomValues);
   for (let i5 = 0; i5 < size; i5++) {
     str += alphabet[randomValues[i5] % length];
   }
@@ -109396,7 +114709,7 @@ function getEnv(key) {
 var import_https_proxy_agent = __toESM(require_dist5(), 1);
 var import_follow_redirects = __toESM(require_follow_redirects(), 1);
 import http3 from "http";
-import https5 from "https";
+import https6 from "https";
 import http23 from "http2";
 import util5 from "util";
 import { resolve as resolvePath } from "path";
@@ -110412,7 +115725,7 @@ function isNodeEnvProxyEnabled(agent, nodeVersion = process.versions && process.
   );
 }
 function getProxyEnvAgent(options, configHttpAgent, configHttpsAgent) {
-  return isHttps.test(options.protocol) ? configHttpsAgent || https5.globalAgent : configHttpAgent || http3.globalAgent;
+  return isHttps.test(options.protocol) ? configHttpsAgent || https6.globalAgent : configHttpAgent || http3.globalAgent;
 }
 function getTunnelingAgent(agentOptions, userHttpsAgent) {
   const key = agentOptions.protocol + "//" + agentOptions.hostname + ":" + (agentOptions.port || "") + "#" + (agentOptions.auth || "");
@@ -111049,7 +116362,7 @@ var http_default = isHttpAdapterSupported && function httpAdapter(config) {
       if (configTransport) {
         transport = configTransport;
       } else if (maxRedirects === 0) {
-        transport = isHttpsRequest ? https5 : http3;
+        transport = isHttpsRequest ? https6 : http3;
         isNativeTransport = true;
       } else {
         transportEnforcesMaxBodyLength = true;
@@ -111983,18 +117296,18 @@ var factory = (env2) => {
     },
     env2
   );
-  const { fetch: envFetch, Request, Response: Response2 } = env2;
+  const { fetch: envFetch, Request: Request2, Response: Response3 } = env2;
   const isFetchSupported = envFetch ? isFunction3(envFetch) : typeof fetch === "function";
-  const isRequestSupported = isFunction3(Request);
-  const isResponseSupported = isFunction3(Response2);
+  const isRequestSupported = isFunction3(Request2);
+  const isResponseSupported = isFunction3(Response3);
   if (!isFetchSupported) {
     return false;
   }
   const isReadableStreamSupported = isFetchSupported && isFunction3(ReadableStream2);
-  const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder2) => (str) => encoder2.encode(str))(new TextEncoder2()) : async (str) => new Uint8Array(await new Request(str).arrayBuffer()));
+  const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder2) => (str) => encoder2.encode(str))(new TextEncoder2()) : async (str) => new Uint8Array(await new Request2(str).arrayBuffer()));
   const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test23(() => {
     let duplexAccessed = false;
-    const request = new Request(platform_default.origin, {
+    const request = new Request2(platform_default.origin, {
       body: new ReadableStream2(),
       method: "POST",
       get duplex() {
@@ -112008,7 +117321,7 @@ var factory = (env2) => {
     }
     return duplexAccessed && !hasContentType;
   });
-  const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test23(() => utils_default.isReadableStream(new Response2("").body));
+  const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test23(() => utils_default.isReadableStream(new Response3("").body));
   const resolvers = {
     stream: supportsResponseStream && ((res) => res.body)
   };
@@ -112035,7 +117348,7 @@ var factory = (env2) => {
       return body.size;
     }
     if (utils_default.isSpecCompliantForm(body)) {
-      const _request = new Request(platform_default.origin, {
+      const _request = new Request2(platform_default.origin, {
         method: "POST",
         body
       });
@@ -112163,7 +117476,7 @@ var factory = (env2) => {
       if (supportsRequestStream && method !== "get" && method !== "head" && (onUploadProgress || mustEnforceStreamBody)) {
         requestContentLength = requestContentLength == null ? await resolveBodyLength(headers, data) : requestContentLength;
         if (requestContentLength !== 0 || mustEnforceStreamBody) {
-          let _request = new Request(url2, {
+          let _request = new Request2(url2, {
             method: "POST",
             body: data,
             duplex: "half"
@@ -112193,7 +117506,7 @@ var factory = (env2) => {
       if (!utils_default.isString(withCredentials)) {
         withCredentials = withCredentials ? "include" : "omit";
       }
-      const isCredentialsSupported = isRequestSupported && "credentials" in Request.prototype;
+      const isCredentialsSupported = isRequestSupported && "credentials" in Request2.prototype;
       if (utils_default.isFormData(data)) {
         const contentType = headers.getContentType();
         if (contentType && /^multipart\/form-data/i.test(contentType) && !/boundary=/i.test(contentType)) {
@@ -112237,7 +117550,7 @@ var factory = (env2) => {
           safeFetchOptions.redirect = "manual";
         }
       }
-      request = isRequestSupported && new Request(url2, resolvedOptions);
+      request = isRequestSupported && new Request2(url2, resolvedOptions);
       let response = await (isRequestSupported ? _fetch(request, safeFetchOptions) : _fetch(url2, resolvedOptions));
       const responseHeaders = AxiosHeaders_default.from(response.headers);
       if (hasMaxContentLength) {
@@ -112277,7 +117590,7 @@ var factory = (env2) => {
           }
           onProgress && onProgress(loadedBytes);
         };
-        response = new Response2(
+        response = new Response3(
           trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
             flush2 && flush2();
             unsubscribe && unsubscribe();
@@ -112370,8 +117683,8 @@ var factory = (env2) => {
 var seedCache = /* @__PURE__ */ new Map();
 var getFetch = (config) => {
   let env2 = config && config.env || {};
-  const { fetch: fetch2, Request, Response: Response2 } = env2;
-  const seeds = [Request, Response2, fetch2];
+  const { fetch: fetch2, Request: Request2, Response: Response3 } = env2;
+  const seeds = [Request2, Response3, fetch2];
   let len = seeds.length, i5 = len, seed, target, map4 = seedCache;
   while (i5--) {
     seed = seeds[i5];
@@ -113874,7 +119187,7 @@ cloudRouter.post("/projects", authenticateToken, async (req, res) => {
     const userId = req.user?.id;
     const { name: name2, description } = req.body;
     if (!name2) return res.status(400).json({ error: "Project name is required" });
-    const id = "cproj-" + crypto15.randomUUID();
+    const id = "cproj-" + crypto16.randomUUID();
     const slug = name2.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Math.random().toString(36).substring(2, 6);
     const result = await query(
       `INSERT INTO cloud_projects (id, user_id, name, slug, description)
@@ -114144,7 +119457,7 @@ cloudRouter.post("/deployments/:id/sync-webhook", authenticateToken, async (req,
       return res.status(400).json({ error: "Please connect your GitHub account first in the dashboard to install auto-sync webhooks." });
     }
     const token = ghRes.rows[0].access_token;
-    const secret = dep.webhook_secret || crypto15.randomBytes(16).toString("hex");
+    const secret = dep.webhook_secret || crypto16.randomBytes(16).toString("hex");
     const hookResult = await installGithubWebhookOnRepo(token, owner, repo, dep.id, secret);
     if (!hookResult.success) {
       return res.status(400).json({ error: hookResult.error || "Failed to install webhook on GitHub" });
@@ -115279,8 +120592,8 @@ cloudRouter.post("/deployments", authenticateToken, async (req, res) => {
       internalPort: Number(internalPort),
       envVariables
     });
-    const deploymentId = "cdep-" + crypto15.randomUUID();
-    const webhookSecret = crypto15.randomBytes(16).toString("hex");
+    const deploymentId = "cdep-" + crypto16.randomUUID();
+    const webhookSecret = crypto16.randomBytes(16).toString("hex");
     const safeName = name2.toLowerCase().replace(/[^a-z0-9]/g, "-");
     const subdomain = `${safeName}.apps.benix.space`;
     const directLiveUrl = `https://benix.space/l/${safeName}`;
@@ -115598,9 +120911,9 @@ cloudRouter.post("/databases", authenticateToken, async (req, res) => {
       }
     } catch {
     }
-    const generatedPassword = crypto15.randomBytes(8).toString("hex") + "A1!";
+    const generatedPassword = crypto16.randomBytes(8).toString("hex") + "A1!";
     const realConnUri = `postgresql://${realUser}:${generatedPassword}@${realHost}:${realPort}/${realDb}?options=-c%20search_path%3D${schemaName}&sslmode=require`;
-    const dbId = "cdb-" + crypto15.randomUUID();
+    const dbId = "cdb-" + crypto16.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_databases (
         id, project_id, user_id, server_id, name, engine, db_name, db_user,
@@ -116096,8 +121409,8 @@ cloudRouter.post("/domains", authenticateToken, async (req, res) => {
     if (!cleanDomain || !cleanDomain.includes(".")) {
       return res.status(400).json({ error: "Please enter a valid domain name (e.g. yoursite.com or app.yoursite.com)" });
     }
-    const verifyToken2 = "benix-verify-" + crypto15.randomBytes(8).toString("hex");
-    const domId = "cdom-" + crypto15.randomUUID();
+    const verifyToken2 = "benix-verify-" + crypto16.randomBytes(8).toString("hex");
+    const domId = "cdom-" + crypto16.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_domains (
         id, deployment_id, user_id, domain_name, verification_token, dns_verified, ssl_status
@@ -116239,7 +121552,7 @@ cloudRouter.post("/wallet/manual-deposit", authenticateToken, async (req, res) =
     const userRes = await query("SELECT name, email FROM core_users WHERE id = $1", [userId]);
     const userName = userRes.rows[0]?.name || "BenixSpace User";
     const userEmail = userRes.rows[0]?.email || "";
-    const depositId = "dep-manual-" + crypto15.randomUUID();
+    const depositId = "dep-manual-" + crypto16.randomUUID();
     await query(
       `INSERT INTO wallet_manual_deposits (
         id, user_id, user_email, user_name, amount, currency, payment_method,
@@ -116264,7 +121577,7 @@ cloudRouter.post("/wallet/manual-deposit", authenticateToken, async (req, res) =
         `INSERT INTO core_notifications (id, user_id, type, title, message, link, is_read)
          VALUES ($1, 'admin', 'deposit_pending', $2, $3, '/admin#deposits', false)`,
         [
-          "notif-" + crypto15.randomUUID(),
+          "notif-" + crypto16.randomUUID(),
           "New MTN MoMo Deposit Pending Verification",
           `${userName} submitted ${numAmount.toLocaleString()} RWF (Ref: ${transactionReference}) for review.`
         ]
@@ -116333,7 +121646,7 @@ cloudRouter.post("/admin/deposits/:id/approve", authenticateToken, requireStaffR
         `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
          VALUES ($1, $2, 'deposit_approved', $3, $4, false)`,
         [
-          "notif-" + crypto15.randomUUID(),
+          "notif-" + crypto16.randomUUID(),
           deposit.user_id,
           "Deposit Approved! \u{1F389}",
           `Your deposit of ${amount.toLocaleString()} RWF has been verified and added to your wallet balance.`
@@ -116372,7 +121685,7 @@ cloudRouter.post("/admin/deposits/:id/reject", authenticateToken, requireStaffRo
         `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
          VALUES ($1, $2, 'deposit_rejected', $3, $4, false)`,
         [
-          "notif-" + crypto15.randomUUID(),
+          "notif-" + crypto16.randomUUID(),
           deposit.user_id,
           "Deposit Verification Notice",
           `Your deposit submission of ${Number(deposit.amount).toLocaleString()} RWF was rejected: ${reason}`
@@ -116413,7 +121726,7 @@ cloudRouter.post("/admin/servers", authenticateToken, requireStaffRole, async (r
     if (!name2 || !publicIp) {
       return res.status(400).json({ error: "Server name and public IP are required" });
     }
-    const serverId = "srv-" + crypto15.randomUUID();
+    const serverId = "srv-" + crypto16.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_servers (
         id, name, provider, public_ip, ssh_port, region, coolify_api_url,
@@ -116521,9 +121834,2357 @@ cloudRouter.delete("/admin/servers/:id", authenticateToken, requireStaffRole, as
   }
 });
 
+// src/server/routes/benixPayRoutes.ts
+var import_express2 = __toESM(require_express2(), 1);
+import crypto20 from "crypto";
+import https9 from "https";
+
+// src/server/services/benixPayService.ts
+import crypto19 from "crypto";
+import http5 from "http";
+import https8 from "https";
+
+// node_modules/web-push/src/index.js
+var src_exports = {};
+__export(src_exports, {
+  WebPushError: () => WebPushError,
+  encrypt: () => encrypt,
+  generateRequestDetails: () => generateRequestDetails,
+  generateVAPIDKeys: () => generateVAPIDKeys,
+  getVapidHeaders: () => getVapidHeaders,
+  sendNotification: () => sendNotification,
+  setGCMAPIKey: () => setGCMAPIKey,
+  setVapidDetails: () => setVapidDetails,
+  supportedContentEncodings: () => supportedContentEncodings
+});
+
+// node_modules/web-push/src/web-push-lib.js
+import https7 from "node:https";
+
+// node_modules/web-push/node_modules/https-proxy-agent/dist/index.js
+var import_debug6 = __toESM(require_src(), 1);
+import * as net9 from "net";
+import * as tls3 from "tls";
+import assert from "assert";
+
+// node_modules/web-push/node_modules/agent-base/dist/index.js
+import * as net8 from "net";
+import * as http4 from "http";
+import { Agent as HttpsAgent } from "https";
+var INTERNAL = Symbol("AgentBaseInternalState");
+var Agent2 = class extends http4.Agent {
+  constructor(opts) {
+    super(opts);
+    this[INTERNAL] = {};
+  }
+  /**
+   * Determine whether this is an `http` or `https` request.
+   */
+  isSecureEndpoint(options) {
+    if (options) {
+      if (typeof options.secureEndpoint === "boolean") {
+        return options.secureEndpoint;
+      }
+      if (typeof options.protocol === "string") {
+        return options.protocol === "https:";
+      }
+    }
+    const { stack } = new Error();
+    if (typeof stack !== "string")
+      return false;
+    return stack.split("\n").some((l3) => l3.indexOf("(https.js:") !== -1 || l3.indexOf("node:https:") !== -1);
+  }
+  // In order to support async signatures in `connect()` and Node's native
+  // connection pooling in `http.Agent`, the array of sockets for each origin
+  // has to be updated synchronously. This is so the length of the array is
+  // accurate when `addRequest()` is next called. We achieve this by creating a
+  // fake socket and adding it to `sockets[origin]` and incrementing
+  // `totalSocketCount`.
+  incrementSockets(name2) {
+    if (this.maxSockets === Infinity && this.maxTotalSockets === Infinity) {
+      return null;
+    }
+    if (!this.sockets[name2]) {
+      this.sockets[name2] = [];
+    }
+    const fakeSocket = new net8.Socket({ writable: false });
+    this.sockets[name2].push(fakeSocket);
+    this.totalSocketCount++;
+    return fakeSocket;
+  }
+  decrementSockets(name2, socket) {
+    if (!this.sockets[name2] || socket === null) {
+      return;
+    }
+    const sockets = this.sockets[name2];
+    const index = sockets.indexOf(socket);
+    if (index !== -1) {
+      sockets.splice(index, 1);
+      this.totalSocketCount--;
+      if (sockets.length === 0) {
+        delete this.sockets[name2];
+      }
+    }
+  }
+  // In order to properly update the socket pool, we need to call `getName()` on
+  // the core `https.Agent` if it is a secureEndpoint.
+  getName(options) {
+    const secureEndpoint = this.isSecureEndpoint(options);
+    if (secureEndpoint) {
+      return HttpsAgent.prototype.getName.call(this, options);
+    }
+    return super.getName(options);
+  }
+  createSocket(req, options, cb) {
+    const connectOpts = {
+      ...options,
+      secureEndpoint: this.isSecureEndpoint(options)
+    };
+    const name2 = this.getName(connectOpts);
+    const fakeSocket = this.incrementSockets(name2);
+    Promise.resolve().then(() => this.connect(req, connectOpts)).then((socket) => {
+      this.decrementSockets(name2, fakeSocket);
+      if (typeof socket.addRequest === "function") {
+        try {
+          return socket.addRequest(req, connectOpts);
+        } catch (err) {
+          return cb(err);
+        }
+      }
+      this[INTERNAL].currentSocket = socket;
+      super.createSocket(req, options, cb);
+    }, (err) => {
+      this.decrementSockets(name2, fakeSocket);
+      cb(err);
+    });
+  }
+  createConnection() {
+    const socket = this[INTERNAL].currentSocket;
+    this[INTERNAL].currentSocket = void 0;
+    if (!socket) {
+      throw new Error("No socket was returned in the `connect()` function");
+    }
+    return socket;
+  }
+  get defaultPort() {
+    return this[INTERNAL].defaultPort ?? (this.protocol === "https:" ? 443 : 80);
+  }
+  set defaultPort(v2) {
+    if (this[INTERNAL]) {
+      this[INTERNAL].defaultPort = v2;
+    }
+  }
+  get protocol() {
+    return this[INTERNAL].protocol ?? (this.isSecureEndpoint() ? "https:" : "http:");
+  }
+  set protocol(v2) {
+    if (this[INTERNAL]) {
+      this[INTERNAL].protocol = v2;
+    }
+  }
+};
+
+// node_modules/web-push/node_modules/https-proxy-agent/dist/index.js
+import { URL as URL2 } from "url";
+
+// node_modules/web-push/node_modules/https-proxy-agent/dist/parse-proxy-response.js
+var import_debug5 = __toESM(require_src(), 1);
+var debug = (0, import_debug5.default)("https-proxy-agent:parse-proxy-response");
+function parseProxyResponse(socket) {
+  return new Promise((resolve3, reject) => {
+    let buffersLength = 0;
+    const buffers = [];
+    function read() {
+      const b6 = socket.read();
+      if (b6)
+        ondata(b6);
+      else
+        socket.once("readable", read);
+    }
+    function cleanup() {
+      socket.removeListener("end", onend);
+      socket.removeListener("error", onerror);
+      socket.removeListener("readable", read);
+    }
+    function onend() {
+      cleanup();
+      debug("onend");
+      reject(new Error("Proxy connection ended before receiving CONNECT response"));
+    }
+    function onerror(err) {
+      cleanup();
+      debug("onerror %o", err);
+      reject(err);
+    }
+    function ondata(b6) {
+      buffers.push(b6);
+      buffersLength += b6.length;
+      const buffered = Buffer.concat(buffers, buffersLength);
+      const endOfHeaders = buffered.indexOf("\r\n\r\n");
+      if (endOfHeaders === -1) {
+        debug("have not received end of HTTP headers yet...");
+        read();
+        return;
+      }
+      const headerParts = buffered.slice(0, endOfHeaders).toString("ascii").split("\r\n");
+      const firstLine = headerParts.shift();
+      if (!firstLine) {
+        socket.destroy();
+        return reject(new Error("No header received from proxy CONNECT response"));
+      }
+      const firstLineParts = firstLine.split(" ");
+      const statusCode = +firstLineParts[1];
+      const statusText = firstLineParts.slice(2).join(" ");
+      const headers = {};
+      for (const header of headerParts) {
+        if (!header)
+          continue;
+        const firstColon = header.indexOf(":");
+        if (firstColon === -1) {
+          socket.destroy();
+          return reject(new Error(`Invalid header from proxy CONNECT response: "${header}"`));
+        }
+        const key = header.slice(0, firstColon).toLowerCase();
+        const value = header.slice(firstColon + 1).trimStart();
+        const current = headers[key];
+        if (typeof current === "string") {
+          headers[key] = [current, value];
+        } else if (Array.isArray(current)) {
+          current.push(value);
+        } else {
+          headers[key] = value;
+        }
+      }
+      debug("got proxy server response: %o %o", firstLine, headers);
+      cleanup();
+      resolve3({
+        connect: {
+          statusCode,
+          statusText,
+          headers
+        },
+        buffered
+      });
+    }
+    socket.on("error", onerror);
+    socket.on("end", onend);
+    read();
+  });
+}
+
+// node_modules/proxy-agent-negotiate/dist/index.js
+function createNegotiateAuth() {
+  return async ({ response, scheme }) => {
+    if (scheme.toLowerCase() !== "negotiate") {
+      throw new Error(`Expected Negotiate scheme but got "${scheme}"`);
+    }
+    let kerberos;
+    try {
+      kerberos = await import("kerberos");
+    } catch {
+      throw new Error('The "kerberos" package is required for Negotiate proxy authentication. Install it with: npm install kerberos');
+    }
+    const proxyAuthenticate = response.headers["proxy-authenticate"] || "";
+    const challengeHeader = Array.isArray(proxyAuthenticate) ? proxyAuthenticate[0] : proxyAuthenticate;
+    const serverToken = typeof challengeHeader === "string" && challengeHeader.includes(" ") ? challengeHeader.split(" ").slice(1).join(" ") : void 0;
+    const client = await kerberos.initializeClient("HTTP@proxy", {
+      mechOID: kerberos.GSS_MECH_OID_SPNEGO
+    });
+    const token = await client.step(serverToken || "");
+    if (!token) {
+      throw new Error("Kerberos client.step() returned no token");
+    }
+    return {
+      headers: {
+        "Proxy-Authorization": `Negotiate ${token}`
+      }
+    };
+  };
+}
+
+// node_modules/web-push/node_modules/https-proxy-agent/dist/index.js
+var debug2 = (0, import_debug6.default)("https-proxy-agent");
+var setServernameFromNonIpHost = (options) => {
+  if (options.servername === void 0 && options.host && !net9.isIP(options.host)) {
+    return {
+      ...options,
+      servername: options.host
+    };
+  }
+  return options;
+};
+var HttpsProxyAgent2 = class extends Agent2 {
+  constructor(proxy, opts) {
+    super(opts);
+    this.options = { path: void 0 };
+    this.proxy = typeof proxy === "string" ? new URL2(proxy) : proxy;
+    this.proxyHeaders = opts?.headers ?? {};
+    debug2("Creating new HttpsProxyAgent instance: %o", this.proxy.href);
+    if (opts?.negotiate) {
+      this.onProxyAuth = createNegotiateAuth();
+    } else if (opts?.onProxyAuth) {
+      this.onProxyAuth = opts.onProxyAuth;
+    }
+    const host = (this.proxy.hostname || this.proxy.host).replace(/^\[|\]$/g, "");
+    const port = this.proxy.port ? parseInt(this.proxy.port, 10) : this.proxy.protocol === "https:" ? 443 : 80;
+    this.connectOpts = {
+      // Attempt to negotiate http/1.1 for proxy servers that support http/2
+      ALPNProtocols: ["http/1.1"],
+      ...opts ? omit(opts, "headers", "onProxyAuth", "negotiate") : null,
+      host,
+      port
+    };
+  }
+  /**
+   * Called when the node-core HTTP client library is creating a
+   * new HTTP request.
+   */
+  async connect(req, opts) {
+    const { proxy } = this;
+    if (!opts.host) {
+      throw new TypeError('No "host" provided');
+    }
+    let socket;
+    if (proxy.protocol === "https:") {
+      debug2("Creating `tls.Socket`: %o", this.connectOpts);
+      socket = tls3.connect(setServernameFromNonIpHost(this.connectOpts));
+    } else {
+      debug2("Creating `net.Socket`: %o", this.connectOpts);
+      socket = net9.connect(this.connectOpts);
+    }
+    const headers = typeof this.proxyHeaders === "function" ? this.proxyHeaders() : { ...this.proxyHeaders };
+    const host = net9.isIPv6(opts.host) ? `[${opts.host}]` : opts.host;
+    let payload = `CONNECT ${host}:${opts.port} HTTP/1.1\r
+`;
+    if (proxy.username || proxy.password) {
+      const auth = `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`;
+      headers["Proxy-Authorization"] = `Basic ${Buffer.from(auth).toString("base64")}`;
+    }
+    headers.Host = `${host}:${opts.port}`;
+    if (!headers["Proxy-Connection"]) {
+      headers["Proxy-Connection"] = this.keepAlive ? "Keep-Alive" : "close";
+    }
+    for (const name2 of Object.keys(headers)) {
+      payload += `${name2}: ${headers[name2]}\r
+`;
+    }
+    const proxyResponsePromise = parseProxyResponse(socket);
+    socket.write(`${payload}\r
+`);
+    const { connect: connect3, buffered } = await proxyResponsePromise;
+    req.emit("proxyConnect", connect3);
+    this.emit("proxyConnect", connect3, req);
+    req.emit("proxy", { proxy: this.proxy.href, socket });
+    if (connect3.statusCode === 200) {
+      req.once("socket", resume);
+      if (opts.secureEndpoint) {
+        debug2("Upgrading socket connection to TLS");
+        return tls3.connect({
+          ...omit(setServernameFromNonIpHost(opts), "host", "path", "port"),
+          socket
+        });
+      }
+      return socket;
+    }
+    if (connect3.statusCode === 407 && this.onProxyAuth) {
+      debug2("Got 407 response, invoking onProxyAuth callback");
+      socket.destroy();
+      const proxyAuthenticate = connect3.headers["proxy-authenticate"] || "";
+      const scheme = Array.isArray(proxyAuthenticate) ? proxyAuthenticate[0].split(/\s/)[0] : proxyAuthenticate.split(/\s/)[0];
+      const authResponse = await this.onProxyAuth({
+        response: connect3,
+        scheme
+      });
+      return this._connectWithAuth(req, opts, authResponse.headers);
+    }
+    socket.destroy();
+    const fakeSocket = new net9.Socket({ writable: false });
+    fakeSocket.readable = true;
+    req.once("socket", (s2) => {
+      debug2("Replaying proxy buffer for failed request");
+      assert(s2.listenerCount("data") > 0);
+      s2.push(buffered);
+      s2.push(null);
+    });
+    return fakeSocket;
+  }
+  /**
+   * Retry a CONNECT request with additional auth headers.
+   */
+  async _connectWithAuth(req, opts, authHeaders) {
+    const { proxy } = this;
+    let socket;
+    if (proxy.protocol === "https:") {
+      socket = tls3.connect(setServernameFromNonIpHost(this.connectOpts));
+    } else {
+      socket = net9.connect(this.connectOpts);
+    }
+    const headers = typeof this.proxyHeaders === "function" ? this.proxyHeaders() : { ...this.proxyHeaders };
+    const host = net9.isIPv6(opts.host) ? `[${opts.host}]` : opts.host;
+    let payload = `CONNECT ${host}:${opts.port} HTTP/1.1\r
+`;
+    if (proxy.username || proxy.password) {
+      const auth = `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`;
+      headers["Proxy-Authorization"] = `Basic ${Buffer.from(auth).toString("base64")}`;
+    }
+    Object.assign(headers, authHeaders);
+    headers.Host = `${host}:${opts.port}`;
+    if (!headers["Proxy-Connection"]) {
+      headers["Proxy-Connection"] = this.keepAlive ? "Keep-Alive" : "close";
+    }
+    for (const name2 of Object.keys(headers)) {
+      payload += `${name2}: ${headers[name2]}\r
+`;
+    }
+    const proxyResponsePromise = parseProxyResponse(socket);
+    socket.write(`${payload}\r
+`);
+    const { connect: connect3 } = await proxyResponsePromise;
+    req.emit("proxyConnect", connect3);
+    this.emit("proxyConnect", connect3, req);
+    if (connect3.statusCode === 200) {
+      req.once("socket", resume);
+      if (opts.secureEndpoint) {
+        debug2("Upgrading socket connection to TLS");
+        return tls3.connect({
+          ...omit(setServernameFromNonIpHost(opts), "host", "path", "port"),
+          socket
+        });
+      }
+      return socket;
+    }
+    socket.destroy();
+    throw new Error(`Proxy authentication failed with status ${connect3.statusCode} after retry`);
+  }
+};
+HttpsProxyAgent2.protocols = ["http", "https"];
+function resume(socket) {
+  setImmediate(() => {
+    socket.resume();
+  });
+}
+function omit(obj, ...keys) {
+  const ret = {};
+  let key;
+  for (key in obj) {
+    if (!keys.includes(key)) {
+      ret[key] = obj[key];
+    }
+  }
+  return ret;
+}
+
+// node_modules/web-push/src/web-push-error.js
+var WebPushError = class extends Error {
+  constructor(message, statusCode, headers, body, endpoint) {
+    super(message);
+    this.name = "WebPushError";
+    this.statusCode = statusCode;
+    this.headers = headers;
+    this.body = body;
+    this.endpoint = endpoint;
+  }
+};
+
+// node_modules/web-push/src/vapid-helper.js
+var import_asn1 = __toESM(require_asn1(), 1);
+var import_jws = __toESM(require_jws(), 1);
+import crypto17 from "node:crypto";
+import { URL as URL3 } from "node:url";
+
+// node_modules/web-push/src/web-push-constants.js
+var supportedContentEncodings = {
+  AES_GCM: "aesgcm",
+  AES_128_GCM: "aes128gcm"
+};
+var supportedUrgency = {
+  VERY_LOW: "very-low",
+  LOW: "low",
+  NORMAL: "normal",
+  HIGH: "high"
+};
+
+// node_modules/web-push/src/urlsafe-base64-helper.js
+function validate2(base64) {
+  return /^[A-Za-z0-9\-_]+$/.test(base64);
+}
+
+// node_modules/web-push/src/vapid-helper.js
+var DEFAULT_EXPIRATION_SECONDS = 12 * 60 * 60;
+var MAX_EXPIRATION_SECONDS = 24 * 60 * 60;
+var ECPrivateKeyASN = import_asn1.default.define("ECPrivateKey", function() {
+  this.seq().obj(
+    this.key("version").int(),
+    this.key("privateKey").octstr(),
+    this.key("parameters").explicit(0).objid().optional(),
+    this.key("publicKey").explicit(1).bitstr().optional()
+  );
+});
+function toPEM(key) {
+  return ECPrivateKeyASN.encode({
+    version: 1,
+    privateKey: key,
+    parameters: [1, 2, 840, 10045, 3, 1, 7]
+    // prime256v1
+  }, "pem", {
+    label: "EC PRIVATE KEY"
+  });
+}
+function generateVAPIDKeys() {
+  const curve = crypto17.createECDH("prime256v1");
+  curve.generateKeys();
+  let publicKeyBuffer = curve.getPublicKey();
+  let privateKeyBuffer = curve.getPrivateKey();
+  if (privateKeyBuffer.length < 32) {
+    const padding = Buffer.alloc(32 - privateKeyBuffer.length);
+    padding.fill(0);
+    privateKeyBuffer = Buffer.concat([padding, privateKeyBuffer]);
+  }
+  if (publicKeyBuffer.length < 65) {
+    const padding = Buffer.alloc(65 - publicKeyBuffer.length);
+    padding.fill(0);
+    publicKeyBuffer = Buffer.concat([padding, publicKeyBuffer]);
+  }
+  return {
+    publicKey: publicKeyBuffer.toString("base64url"),
+    privateKey: privateKeyBuffer.toString("base64url")
+  };
+}
+function validateSubject(subject) {
+  if (!subject) {
+    throw new Error("No subject set in vapidDetails.subject.");
+  }
+  if (typeof subject !== "string" || subject.length === 0) {
+    throw new Error("The subject value must be a string containing an https: URL or mailto: address. " + subject);
+  }
+  let subjectParseResult;
+  try {
+    subjectParseResult = new URL3(subject);
+  } catch (err) {
+    throw new Error(
+      "Vapid subject is not a valid URL. " + subject,
+      {
+        cause: err
+      }
+    );
+  }
+  if (!["https:", "mailto:"].includes(subjectParseResult.protocol)) {
+    throw new Error("Vapid subject is not an https: or mailto: URL. " + subject);
+  }
+  if (subjectParseResult.hostname === "localhost") {
+    console.warn("Vapid subject points to a localhost web URI, which is unsupported by Apple's push notification server and will result in a BadJwtToken error when sending notifications.");
+  }
+}
+function validatePublicKey(publicKey) {
+  if (!publicKey) {
+    throw new Error("No key set vapidDetails.publicKey");
+  }
+  if (typeof publicKey !== "string") {
+    throw new Error("Vapid public key is must be a URL safe Base 64 encoded string.");
+  }
+  if (!validate2(publicKey)) {
+    throw new Error('Vapid public key must be a URL safe Base 64 (without "=")');
+  }
+  publicKey = Buffer.from(publicKey, "base64url");
+  if (publicKey.length !== 65) {
+    throw new Error("Vapid public key should be 65 bytes long when decoded.");
+  }
+}
+function validatePrivateKey(privateKey) {
+  if (!privateKey) {
+    throw new Error("No key set in vapidDetails.privateKey");
+  }
+  if (typeof privateKey !== "string") {
+    throw new Error("Vapid private key must be a URL safe Base 64 encoded string.");
+  }
+  if (!validate2(privateKey)) {
+    throw new Error('Vapid private key must be a URL safe Base 64 (without "=")');
+  }
+  privateKey = Buffer.from(privateKey, "base64url");
+  if (privateKey.length !== 32) {
+    throw new Error("Vapid private key should be 32 bytes long when decoded.");
+  }
+}
+function getFutureExpirationTimestamp(numSeconds) {
+  const futureExp = /* @__PURE__ */ new Date();
+  futureExp.setSeconds(futureExp.getSeconds() + numSeconds);
+  return Math.floor(futureExp.getTime() / 1e3);
+}
+function validateExpiration(expiration) {
+  if (!Number.isInteger(expiration)) {
+    throw new Error("`expiration` value must be a number");
+  }
+  if (expiration < 0) {
+    throw new Error("`expiration` must be a positive integer");
+  }
+  const maxExpirationTimestamp = getFutureExpirationTimestamp(MAX_EXPIRATION_SECONDS);
+  if (expiration >= maxExpirationTimestamp) {
+    throw new Error("`expiration` value is greater than maximum of 24 hours");
+  }
+}
+function getVapidHeaders(audience, subject, publicKey, privateKey, contentEncoding, expiration) {
+  if (!audience) {
+    throw new Error("No audience could be generated for VAPID.");
+  }
+  if (typeof audience !== "string" || audience.length === 0) {
+    throw new Error("The audience value must be a string containing the origin of a push service. " + audience);
+  }
+  try {
+    new URL3(audience);
+  } catch (err) {
+    throw new Error(
+      "VAPID audience is not a url. " + audience,
+      {
+        cause: err
+      }
+    );
+  }
+  validateSubject(subject);
+  validatePublicKey(publicKey);
+  validatePrivateKey(privateKey);
+  privateKey = Buffer.from(privateKey, "base64url");
+  if (expiration) {
+    validateExpiration(expiration);
+  } else {
+    expiration = getFutureExpirationTimestamp(DEFAULT_EXPIRATION_SECONDS);
+  }
+  const header = {
+    typ: "JWT",
+    alg: "ES256"
+  };
+  const jwtPayload = {
+    aud: audience,
+    exp: expiration,
+    sub: subject
+  };
+  const jwt2 = import_jws.default.sign({
+    header,
+    payload: jwtPayload,
+    privateKey: toPEM(privateKey)
+  });
+  if (contentEncoding === supportedContentEncodings.AES_128_GCM) {
+    return {
+      Authorization: "vapid t=" + jwt2 + ", k=" + publicKey
+    };
+  }
+  if (contentEncoding === supportedContentEncodings.AES_GCM) {
+    return {
+      Authorization: "WebPush " + jwt2,
+      "Crypto-Key": "p256ecdsa=" + publicKey
+    };
+  }
+  throw new Error("Unsupported encoding type specified.");
+}
+
+// node_modules/web-push/src/encryption-helper.js
+var import_http_ece = __toESM(require_ece(), 1);
+import crypto18 from "node:crypto";
+function encrypt(userPublicKey, userAuth, payload, contentEncoding) {
+  if (!userPublicKey) {
+    throw new Error("No user public key provided for encryption.");
+  }
+  if (typeof userPublicKey !== "string") {
+    throw new Error("The subscription p256dh value must be a string.");
+  }
+  if (Buffer.from(userPublicKey, "base64url").length !== 65) {
+    throw new Error("The subscription p256dh value should be 65 bytes long.");
+  }
+  if (!userAuth) {
+    throw new Error("No user auth provided for encryption.");
+  }
+  if (typeof userAuth !== "string") {
+    throw new Error("The subscription auth key must be a string.");
+  }
+  if (Buffer.from(userAuth, "base64url").length < 16) {
+    throw new Error("The subscription auth key should be at least 16 bytes long");
+  }
+  if (typeof payload !== "string" && !Buffer.isBuffer(payload)) {
+    throw new Error("Payload must be either a string or a Node Buffer.");
+  }
+  if (typeof payload === "string" || payload instanceof String) {
+    payload = Buffer.from(payload);
+  }
+  const localCurve = crypto18.createECDH("prime256v1");
+  const localPublicKey = localCurve.generateKeys();
+  const salt = crypto18.randomBytes(16).toString("base64url");
+  const cipherText = import_http_ece.default.encrypt(payload, {
+    version: contentEncoding,
+    dh: userPublicKey,
+    privateKey: localCurve,
+    salt,
+    authSecret: userAuth
+  });
+  return {
+    localPublicKey,
+    salt,
+    cipherText
+  };
+}
+
+// node_modules/web-push/src/web-push-lib.js
+var DEFAULT_TTL = 2419200;
+var gcmAPIKey = "";
+var vapidDetails;
+var WebPushLib = class {
+  /**
+   * When sending messages to a GCM endpoint you need to set the GCM API key
+   * by either calling setGMAPIKey() or passing in the API key as an option
+   * to sendNotification().
+   * @param  {string} apiKey The API key to send with the GCM request.
+   */
+  setGCMAPIKey(apiKey) {
+    if (apiKey === null) {
+      gcmAPIKey = null;
+      return;
+    }
+    if (typeof apiKey === "undefined" || typeof apiKey !== "string" || apiKey.length === 0) {
+      throw new Error("The GCM API Key should be a non-empty string or null.");
+    }
+    gcmAPIKey = apiKey;
+  }
+  /**
+   * When making requests where you want to define VAPID details, call this
+   * method before sendNotification() or pass in the details and options to
+   * sendNotification.
+   * @param  {string} subject    This must be either a URL or a 'mailto:'
+   * address. For example: 'https://my-site.com/contact' or
+   * 'mailto: contact@my-site.com'
+   * @param  {string} publicKey  The public VAPID key, a URL safe, base64 encoded string
+   * @param  {string} privateKey The private VAPID key, a URL safe, base64 encoded string.
+   */
+  setVapidDetails(subject, publicKey, privateKey) {
+    if (arguments.length === 1 && arguments[0] === null) {
+      vapidDetails = null;
+      return;
+    }
+    validateSubject(subject);
+    validatePublicKey(publicKey);
+    validatePrivateKey(privateKey);
+    vapidDetails = {
+      subject,
+      publicKey,
+      privateKey
+    };
+  }
+  /**
+   * To get the details of a request to trigger a push message, without sending
+   * a push notification call this method.
+   *
+   * This method will throw an error if there is an issue with the input.
+   * @param  {PushSubscription} subscription The PushSubscription you wish to
+   * send the notification to.
+   * @param  {string|Buffer} [payload]       The payload you wish to send to the
+   * the user.
+   * @param  {Object} [options]              Options for the GCM API key and
+   * vapid keys can be passed in if they are unique for each notification you
+   * wish to send.
+   * @return {Object}                       This method returns an Object which
+   * contains 'endpoint', 'method', 'headers' and 'payload'.
+   */
+  generateRequestDetails(subscription, payload, options) {
+    if (!subscription || !subscription.endpoint) {
+      throw new Error("You must pass in a subscription with at least an endpoint.");
+    }
+    if (typeof subscription.endpoint !== "string" || subscription.endpoint.length === 0) {
+      throw new Error("The subscription endpoint must be a string with a valid URL.");
+    }
+    if (payload) {
+      if (typeof subscription !== "object" || !subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+        throw new Error("To send a message with a payload, the subscription must have 'auth' and 'p256dh' keys.");
+      }
+    }
+    let currentGCMAPIKey = gcmAPIKey;
+    let currentVapidDetails = vapidDetails;
+    let timeToLive = DEFAULT_TTL;
+    let extraHeaders = {};
+    let contentEncoding = supportedContentEncodings.AES_128_GCM;
+    let urgency = supportedUrgency.NORMAL;
+    let topic;
+    let proxy;
+    let agent;
+    let timeout;
+    if (options) {
+      const validOptionKeys = [
+        "headers",
+        "gcmAPIKey",
+        "vapidDetails",
+        "TTL",
+        "contentEncoding",
+        "urgency",
+        "topic",
+        "proxy",
+        "agent",
+        "timeout"
+      ];
+      const optionKeys = Object.keys(options);
+      for (let i5 = 0; i5 < optionKeys.length; i5 += 1) {
+        const optionKey = optionKeys[i5];
+        if (!validOptionKeys.includes(optionKey)) {
+          throw new Error("'" + optionKey + "' is an invalid option. The valid options are ['" + validOptionKeys.join("', '") + "'].");
+        }
+      }
+      if (options.headers) {
+        extraHeaders = options.headers;
+        let duplicates = Object.keys(extraHeaders).filter(function(header) {
+          return typeof options[header] !== "undefined";
+        });
+        if (duplicates.length > 0) {
+          throw new Error("Duplicated headers defined [" + duplicates.join(",") + "]. Please either define the header in thetop level options OR in the 'headers' key.");
+        }
+      }
+      if (options.gcmAPIKey) {
+        currentGCMAPIKey = options.gcmAPIKey;
+      }
+      if (options.vapidDetails !== void 0) {
+        currentVapidDetails = options.vapidDetails;
+      }
+      if (options.TTL !== void 0) {
+        timeToLive = Number(options.TTL);
+        if (timeToLive < 0) {
+          throw new Error("TTL should be a number and should be at least 0");
+        }
+      }
+      if (options.contentEncoding) {
+        if (options.contentEncoding === supportedContentEncodings.AES_128_GCM || options.contentEncoding === supportedContentEncodings.AES_GCM) {
+          contentEncoding = options.contentEncoding;
+        } else {
+          throw new Error("Unsupported content encoding specified.");
+        }
+      }
+      if (options.urgency) {
+        if (options.urgency === supportedUrgency.VERY_LOW || options.urgency === supportedUrgency.LOW || options.urgency === supportedUrgency.NORMAL || options.urgency === supportedUrgency.HIGH) {
+          urgency = options.urgency;
+        } else {
+          throw new Error("Unsupported urgency specified.");
+        }
+      }
+      if (options.topic) {
+        if (!validate2(options.topic)) {
+          throw new Error("Unsupported characters set use the URL or filename-safe Base64 characters set");
+        }
+        if (options.topic.length > 32) {
+          throw new Error("use maximum of 32 characters from the URL or filename-safe Base64 characters set");
+        }
+        topic = options.topic;
+      }
+      if (options.proxy) {
+        if (typeof options.proxy === "string" || typeof options.proxy.host === "string") {
+          proxy = options.proxy;
+        } else {
+          console.warn("Attempt to use proxy option, but invalid type it should be a string or proxy options object.");
+        }
+      }
+      if (options.agent) {
+        if (options.agent instanceof https7.Agent) {
+          if (proxy) {
+            console.warn("Agent option will be ignored because proxy option is defined.");
+          }
+          agent = options.agent;
+        } else {
+          console.warn("Wrong type for the agent option, it should be an instance of https.Agent.");
+        }
+      }
+      if (typeof options.timeout === "number") {
+        timeout = options.timeout;
+      }
+    }
+    if (typeof timeToLive === "undefined") {
+      timeToLive = DEFAULT_TTL;
+    }
+    const requestDetails = {
+      method: "POST",
+      headers: {
+        TTL: timeToLive
+      }
+    };
+    Object.keys(extraHeaders).forEach(function(header) {
+      requestDetails.headers[header] = extraHeaders[header];
+    });
+    let requestPayload = null;
+    if (payload) {
+      const encrypted = encrypt(subscription.keys.p256dh, subscription.keys.auth, payload, contentEncoding);
+      requestDetails.headers["Content-Length"] = encrypted.cipherText.length;
+      requestDetails.headers["Content-Type"] = "application/octet-stream";
+      if (contentEncoding === supportedContentEncodings.AES_128_GCM) {
+        requestDetails.headers["Content-Encoding"] = supportedContentEncodings.AES_128_GCM;
+      } else if (contentEncoding === supportedContentEncodings.AES_GCM) {
+        requestDetails.headers["Content-Encoding"] = supportedContentEncodings.AES_GCM;
+        requestDetails.headers.Encryption = "salt=" + encrypted.salt;
+        requestDetails.headers["Crypto-Key"] = "dh=" + encrypted.localPublicKey.toString("base64url");
+      }
+      requestPayload = encrypted.cipherText;
+    } else {
+      requestDetails.headers["Content-Length"] = 0;
+    }
+    const isGCM = subscription.endpoint.startsWith("https://android.googleapis.com/gcm/send");
+    const isFCM = subscription.endpoint.startsWith("https://fcm.googleapis.com/fcm/send");
+    if (isGCM) {
+      if (!currentGCMAPIKey) {
+        console.warn("Attempt to send push notification to GCM endpoint, but no GCM key is defined. Please use setGCMApiKey() or add 'gcmAPIKey' as an option.");
+      } else {
+        requestDetails.headers.Authorization = "key=" + currentGCMAPIKey;
+      }
+    } else if (currentVapidDetails) {
+      const parsedUrl = new URL(subscription.endpoint);
+      const audience = parsedUrl.protocol + "//" + parsedUrl.host;
+      const vapidHeaders = getVapidHeaders(
+        audience,
+        currentVapidDetails.subject,
+        currentVapidDetails.publicKey,
+        currentVapidDetails.privateKey,
+        contentEncoding
+      );
+      requestDetails.headers.Authorization = vapidHeaders.Authorization;
+      if (contentEncoding === supportedContentEncodings.AES_GCM) {
+        if (requestDetails.headers["Crypto-Key"]) {
+          requestDetails.headers["Crypto-Key"] += ";" + vapidHeaders["Crypto-Key"];
+        } else {
+          requestDetails.headers["Crypto-Key"] = vapidHeaders["Crypto-Key"];
+        }
+      }
+    } else if (isFCM && currentGCMAPIKey) {
+      requestDetails.headers.Authorization = "key=" + currentGCMAPIKey;
+    }
+    requestDetails.headers.Urgency = urgency;
+    if (topic) {
+      requestDetails.headers.Topic = topic;
+    }
+    requestDetails.body = requestPayload;
+    requestDetails.endpoint = subscription.endpoint;
+    if (proxy) {
+      requestDetails.proxy = proxy;
+    }
+    if (agent) {
+      requestDetails.agent = agent;
+    }
+    if (timeout) {
+      requestDetails.timeout = timeout;
+    }
+    return requestDetails;
+  }
+  /**
+   * To send a push notification call this method with a subscription, optional
+   * payload and any options.
+   * @param  {PushSubscription} subscription The PushSubscription you wish to
+   * send the notification to.
+   * @param  {string|Buffer} [payload]       The payload you wish to send to the
+   * the user.
+   * @param  {Object} [options]              Options for the GCM API key and
+   * vapid keys can be passed in if they are unique for each notification you
+   * wish to send.
+   * @return {Promise}                       This method returns a Promise which
+   * resolves if the sending of the notification was successful, otherwise it
+   * rejects.
+   */
+  sendNotification(subscription, payload, options) {
+    let requestDetails;
+    try {
+      requestDetails = this.generateRequestDetails(subscription, payload, options);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+    return new Promise(function(resolve3, reject) {
+      const httpsOptions = {};
+      const urlParts = new URL(requestDetails.endpoint);
+      httpsOptions.hostname = urlParts.hostname;
+      httpsOptions.port = urlParts.port;
+      httpsOptions.path = urlParts.pathname + urlParts.search;
+      httpsOptions.headers = requestDetails.headers;
+      httpsOptions.method = requestDetails.method;
+      if (requestDetails.timeout) {
+        httpsOptions.timeout = requestDetails.timeout;
+      }
+      if (requestDetails.agent) {
+        httpsOptions.agent = requestDetails.agent;
+      }
+      if (requestDetails.proxy) {
+        httpsOptions.agent = new HttpsProxyAgent2(requestDetails.proxy);
+      }
+      const pushRequest = https7.request(httpsOptions, function(pushResponse) {
+        let responseText = "";
+        pushResponse.on("data", function(chunk) {
+          responseText += chunk;
+        });
+        pushResponse.on("end", function() {
+          if (pushResponse.statusCode < 200 || pushResponse.statusCode > 299) {
+            reject(new WebPushError(
+              "Received unexpected response code",
+              pushResponse.statusCode,
+              pushResponse.headers,
+              responseText,
+              requestDetails.endpoint
+            ));
+          } else {
+            resolve3({
+              statusCode: pushResponse.statusCode,
+              body: responseText,
+              headers: pushResponse.headers
+            });
+          }
+        });
+      });
+      if (requestDetails.timeout) {
+        pushRequest.on("timeout", function() {
+          pushRequest.destroy(new Error("Socket timeout"));
+        });
+      }
+      pushRequest.on("error", function(e5) {
+        reject(e5);
+      });
+      if (requestDetails.body) {
+        pushRequest.write(requestDetails.body);
+      }
+      pushRequest.end();
+    });
+  }
+};
+
+// node_modules/web-push/src/index.js
+var webPush = new WebPushLib();
+var setGCMAPIKey = webPush.setGCMAPIKey;
+var setVapidDetails = webPush.setVapidDetails;
+var generateRequestDetails = webPush.generateRequestDetails;
+var sendNotification = webPush.sendNotification.bind(webPush);
+
+// src/server/services/benixPayNotificationService.ts
+var webpush = src_exports;
+var vapidInitialized = false;
+async function getSystemSetting3(key, defaultValue) {
+  const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
+  if (res.rowCount > 0 && res.rows[0].value) return String(res.rows[0].value);
+  return defaultValue || null;
+}
+async function setSystemSetting3(key, value) {
+  await query(
+    `INSERT INTO system_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  ).catch(() => {
+  });
+}
+async function initVapid() {
+  let pub = await getSystemSetting3("vapid_public_key");
+  let priv = await getSystemSetting3("vapid_private_key");
+  if (!pub || !priv) {
+    const keys = webpush.generateVAPIDKeys();
+    pub = keys.publicKey;
+    priv = keys.privateKey;
+    await setSystemSetting3("vapid_public_key", pub);
+    await setSystemSetting3("vapid_private_key", priv);
+  }
+  if (!vapidInitialized) {
+    webpush.setVapidDetails("mailto:support@benix.space", pub, priv);
+    vapidInitialized = true;
+  }
+  return { publicKey: pub, privateKey: priv };
+}
+var BenixPayNotificationService = class {
+  static async getVapidPublicKey() {
+    const { publicKey } = await initVapid();
+    return publicKey;
+  }
+  /**
+   * Dispatches multi-channel notification for payment.successful
+   */
+  static async notifyPaymentSuccess(params) {
+    const { merchant, transaction } = params;
+    const isSandbox = transaction.mode === "sandbox";
+    const modeBadge = isSandbox ? "[SANDBOX TEST]" : "[LIVE]";
+    const grossAmount = Number(transaction.amount);
+    const feeAmount = Number(transaction.fee_amount || 0);
+    const netAmount = Number(transaction.net_amount || grossAmount);
+    const currency = transaction.currency || "RWF";
+    await query(
+      `INSERT INTO core_notifications (user_id, type, title, message, link, is_read, created_at)
+       VALUES ($1, 'benixpay_payment', $2, $3, '/dashboard#pay', false, NOW())`,
+      [
+        merchant.user_id,
+        `\u{1F389} ${modeBadge} Payment Received: ${grossAmount.toLocaleString()} ${currency}`,
+        `You received ${grossAmount.toLocaleString()} ${currency} via Benix Pay for Order #${transaction.order_reference} (Net Wallet Credit: ${netAmount.toLocaleString()} ${currency}). Customer: ${transaction.customer_email || "N/A"}`
+      ]
+    ).catch(() => {
+    });
+    if (merchant.push_subscription && merchant.notify_on_payment !== false) {
+      try {
+        await initVapid();
+        const payload = JSON.stringify({
+          title: `Benix Pay: +${grossAmount.toLocaleString()} ${currency}`,
+          body: `Order #${transaction.order_reference} confirmed! Net credit: ${netAmount.toLocaleString()} ${currency}`,
+          icon: "/logo.png",
+          badge: "/favicon.png",
+          data: { url: "/dashboard#pay", txnId: transaction.id }
+        });
+        await webpush.sendNotification(merchant.push_subscription, payload).catch((err) => {
+          console.warn("[BenixPay Push] Push delivery failed:", err.message);
+        });
+      } catch (e5) {
+        console.warn("[BenixPay Push] Error:", e5.message);
+      }
+    }
+    if (merchant.business_email && merchant.notify_on_payment !== false) {
+      try {
+        await EmailService.sendEmail({
+          to: merchant.business_email,
+          subject: `${modeBadge} \u{1F389} Payment Received: ${grossAmount.toLocaleString()} ${currency} (Order #${transaction.order_reference})`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0e14; color: #f8fafc; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden;">
+              <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 28px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff;">Payment Successfully Received</h1>
+                <p style="margin: 6px 0 0; font-size: 14px; color: #d1fae5; font-weight: 600;">${merchant.business_name} \u2022 Benix Pay ${modeBadge}</p>
+              </div>
+
+              <div style="padding: 28px;">
+                <div style="background: #131926; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
+                    <span style="color: #94a3b8; font-size: 13px;">Transaction Reference:</span>
+                    <strong style="color: #f1f5f9; font-size: 13px; font-family: monospace;">${transaction.id}</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
+                    <span style="color: #94a3b8; font-size: 13px;">Order Reference:</span>
+                    <strong style="color: #38bdf8; font-size: 13px;">#${transaction.order_reference}</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
+                    <span style="color: #94a3b8; font-size: 13px;">Gross Customer Payment:</span>
+                    <strong style="color: #f1f5f9; font-size: 14px;">${grossAmount.toLocaleString()} ${currency}</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
+                    <span style="color: #94a3b8; font-size: 13px;">Platform Fee (${merchant.fee_percent || "4.5"}%):</span>
+                    <span style="color: #f87171; font-size: 13px;">-${feeAmount.toLocaleString()} ${currency}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding-top: 4px;">
+                    <span style="color: #34d399; font-weight: 700; font-size: 15px;">Net Credited to Wallet:</span>
+                    <strong style="color: #34d399; font-size: 18px; font-weight: 900;">+${netAmount.toLocaleString()} ${currency}</strong>
+                  </div>
+                </div>
+
+                <div style="background: #1a2234; border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+                  <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Customer Details</p>
+                  <p style="margin: 4px 0; font-size: 13px; color: #cbd5e1;"><strong>Email:</strong> ${transaction.customer_email || "Not provided"}</p>
+                  <p style="margin: 4px 0; font-size: 13px; color: #cbd5e1;"><strong>Phone:</strong> ${transaction.customer_phone || "Not provided"}</p>
+                  <p style="margin: 4px 0; font-size: 13px; color: #cbd5e1;"><strong>Payment Method:</strong> ${transaction.payment_method || "MoMo / Card"}</p>
+                </div>
+
+                <p style="text-align: center; margin: 0; font-size: 12px; color: #64748b;">
+                  Need assistance? Contact support at <a href="mailto:support@benix.space" style="color: #38bdf8;">support@benix.space</a>
+                </p>
+              </div>
+            </div>
+          `
+        });
+      } catch (err) {
+        console.warn("[BenixPay Email] Merchant email delivery failed:", err.message);
+      }
+    }
+    if (transaction.customer_email) {
+      try {
+        await EmailService.sendEmail({
+          to: transaction.customer_email,
+          subject: `${modeBadge} Payment Receipt for ${merchant.business_name} (Ref: ${transaction.id})`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0e14; color: #f8fafc; border-radius: 16px; border: 1px solid #1e293b; overflow: hidden;">
+              <div style="background: #1e293b; padding: 24px; text-align: center;">
+                <h2 style="margin: 0; color: #ffffff;">Payment Confirmation</h2>
+                <p style="margin: 4px 0 0; color: #94a3b8; font-size: 13px;">Paid to <strong>${merchant.business_name}</strong> via Benix Pay</p>
+              </div>
+
+              <div style="padding: 24px;">
+                <div style="text-align: center; padding: 20px 0; border-bottom: 1px solid #1e293b; margin-bottom: 20px;">
+                  <span style="font-size: 12px; text-transform: uppercase; color: #94a3b8; font-weight: 700;">Amount Paid</span>
+                  <div style="font-size: 32px; font-weight: 900; color: #10b981; margin: 8px 0;">
+                    ${grossAmount.toLocaleString()} ${currency}
+                  </div>
+                  <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background: #064e3b; color: #34d399; font-size: 12px; font-weight: 700;">
+                    Payment Successful
+                  </span>
+                </div>
+
+                <div style="font-size: 13px; line-height: 1.8; color: #cbd5e1;">
+                  <p style="margin: 4px 0;"><strong>Transaction ID:</strong> <span style="font-family: monospace;">${transaction.id}</span></p>
+                  <p style="margin: 4px 0;"><strong>Order Reference:</strong> #${transaction.order_reference}</p>
+                  <p style="margin: 4px 0;"><strong>Date:</strong> ${(/* @__PURE__ */ new Date()).toUTCString()}</p>
+                  <p style="margin: 4px 0;"><strong>Payment Method:</strong> ${transaction.payment_method || "Mobile Money / Card"}</p>
+                </div>
+
+                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #1e293b; text-align: center; font-size: 12px; color: #64748b;">
+                  This is an official payment confirmation generated by Benix Pay for ${merchant.business_name}.
+                </div>
+              </div>
+            </div>
+          `
+        });
+      } catch (err) {
+        console.warn("[BenixPay Email] Customer email delivery failed:", err.message);
+      }
+    }
+    await query(
+      `INSERT INTO admin_notifications (type, title, message, metadata, is_read, created_at)
+       VALUES ('benixpay_revenue', 'Benix Pay Fee Collected', $1, $2, false, NOW())`,
+      [
+        `+${feeAmount.toLocaleString()} ${currency} fee from txn ${transaction.id} (Merchant: ${merchant.business_name})`,
+        JSON.stringify({ transactionId: transaction.id, feeAmount, grossAmount, merchantId: merchant.id })
+      ]
+    ).catch(() => {
+    });
+    if (grossAmount >= 1e5 && !isSandbox) {
+      try {
+        const adminEmail = process.env.SUPERADMIN_EMAIL || "benirabok@gmail.com";
+        await EmailService.sendEmail({
+          to: adminEmail,
+          subject: `\u{1F6A8} [High Value] Benix Pay Txn: ${grossAmount.toLocaleString()} ${currency} (${merchant.business_name})`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; background: #0f172a; color: #f8fafc; border-radius: 12px;">
+              <h2 style="color: #38bdf8; margin-top: 0;">High Value Benix Pay Transaction Processed</h2>
+              <p>A transaction exceeding 100,000 RWF was settled successfully:</p>
+              <ul>
+                <li><strong>Merchant:</strong> ${merchant.business_name} (${merchant.id})</li>
+                <li><strong>Gross Amount:</strong> ${grossAmount.toLocaleString()} ${currency}</li>
+                <li><strong>Platform Fee:</strong> ${feeAmount.toLocaleString()} ${currency}</li>
+                <li><strong>Net Merchant Settlement:</strong> ${netAmount.toLocaleString()} ${currency}</li>
+                <li><strong>Order Reference:</strong> ${transaction.order_reference}</li>
+                <li><strong>Customer:</strong> ${transaction.customer_email || "N/A"}</li>
+              </ul>
+            </div>
+          `
+        });
+      } catch {
+      }
+    }
+  }
+  /**
+   * Dispatches notifications for payment.failed or cancelled
+   */
+  static async notifyPaymentFailure(params) {
+    const { merchant, transaction, status, reason = "Transaction failed or was cancelled" } = params;
+    const modeBadge = transaction.mode === "sandbox" ? "[SANDBOX TEST]" : "[LIVE]";
+    await query(
+      `INSERT INTO core_notifications (user_id, type, title, message, link, is_read, created_at)
+       VALUES ($1, 'benixpay_failed', $2, $3, '/dashboard#pay', false, NOW())`,
+      [
+        merchant.user_id,
+        `\u26A0\uFE0F ${modeBadge} Payment ${status.toUpperCase()}: Order #${transaction.order_reference}`,
+        `Payment of ${Number(transaction.amount).toLocaleString()} ${transaction.currency} ${status}. Reason: ${reason}`
+      ]
+    ).catch(() => {
+    });
+    if (transaction.customer_email) {
+      try {
+        await EmailService.sendEmail({
+          to: transaction.customer_email,
+          subject: `${modeBadge} Payment ${status === "cancelled" ? "Cancelled" : "Unsuccessful"}: Order #${transaction.order_reference}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 24px; background: #0f172a; color: #f8fafc; border-radius: 12px;">
+              <h3 style="color: #f87171; margin-top: 0;">Payment ${status === "cancelled" ? "Cancelled" : "Could Not Be Completed"}</h3>
+              <p>Your payment of <strong>${Number(transaction.amount).toLocaleString()} ${transaction.currency}</strong> for Order <strong>#${transaction.order_reference}</strong> to ${merchant.business_name} was not completed.</p>
+              <p style="background: #1e293b; padding: 12px; border-radius: 8px; color: #cbd5e1;">Reason: ${reason}</p>
+              <p style="font-size: 12px; color: #94a3b8;">If you believe this was in error, please initiate checkout again or contact ${merchant.business_name}.</p>
+            </div>
+          `
+        });
+      } catch {
+      }
+    }
+  }
+  /**
+   * Dispatches alerts when merchant submits KYC documents for live mode
+   */
+  static async notifyKycSubmitted(merchant) {
+    const adminEmail = process.env.SUPERADMIN_EMAIL || "benirabok@gmail.com";
+    await query(
+      `INSERT INTO admin_notifications (type, title, message, metadata, is_read, created_at)
+       VALUES ('benixpay_kyc', 'New Benix Pay KYC Submission', $1, $2, false, NOW())`,
+      [
+        `Merchant "${merchant.business_name}" submitted business verification documents for Live Mode approval.`,
+        JSON.stringify({ merchantId: merchant.id, businessName: merchant.business_name })
+      ]
+    ).catch(() => {
+    });
+    try {
+      await EmailService.sendEmail({
+        to: adminEmail,
+        subject: `\u{1F4CB} Action Required: Benix Pay KYC Review for ${merchant.business_name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; background: #0f172a; color: #f8fafc; border-radius: 12px;">
+            <h2 style="color: #38bdf8; margin-top: 0;">Merchant KYC Verification Requested</h2>
+            <p><strong>Merchant:</strong> ${merchant.business_name} (${merchant.id})</p>
+            <p><strong>Email:</strong> ${merchant.business_email || "N/A"}</p>
+            <p>Please log into the Admin Control Center to inspect business registration and approve Live API Keys.</p>
+          </div>
+        `
+      });
+    } catch {
+    }
+  }
+  /**
+   * Dispatches alerts when KYC is approved or rejected
+   */
+  static async notifyKycDecision(merchant, approved, notes) {
+    const statusText = approved ? "Approved & Live Mode Active" : "Declined / Action Required";
+    await query(
+      `INSERT INTO core_notifications (user_id, type, title, message, link, is_read, created_at)
+       VALUES ($1, 'benixpay_kyc_decision', $2, $3, '/dashboard#pay', false, NOW())`,
+      [
+        merchant.user_id,
+        approved ? "\u{1F389} Benix Pay Live Mode Approved!" : "\u26A0\uFE0F Benix Pay Live Verification Declined",
+        approved ? "Congratulations! Your Benix Pay Live API Keys are now active and ready to process real payments." : `Your Benix Pay Live verification was not approved. Reason: ${notes || "Documentation could not be verified"}.`
+      ]
+    ).catch(() => {
+    });
+    if (merchant.business_email) {
+      try {
+        await EmailService.sendEmail({
+          to: merchant.business_email,
+          subject: approved ? "\u{1F680} Benix Pay Live Mode Activated!" : "\u26A0\uFE0F Benix Pay KYC Application Update",
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 24px; background: #0f172a; color: #f8fafc; border-radius: 12px;">
+              <h2 style="color: ${approved ? "#34d399" : "#f87171"}; margin-top: 0;">${statusText}</h2>
+              <p>Hello ${merchant.business_name},</p>
+              <p>${approved ? "Your business account has been verified and your Live API Keys (bp_live_pub_... and bp_live_sec_...) are now enabled to accept real customer payments via Mobile Money and Credit Cards." : `We were unable to approve your application for live mode at this time. Notes: ${notes || "Incomplete documentation"}.`}</p>
+              <p style="margin-top: 20px;"><a href="https://benix.space/dashboard#pay" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open Benix Pay Dashboard</a></p>
+            </div>
+          `
+        });
+      } catch {
+      }
+    }
+  }
+  /**
+   * Dispatches alert when API keys are rotated
+   */
+  static async notifyKeysRotated(merchant, keyType) {
+    await query(
+      `INSERT INTO core_notifications (user_id, type, title, message, link, is_read, created_at)
+       VALUES ($1, 'benixpay_keys_rotated', $2, $3, '/dashboard#pay', false, NOW())`,
+      [
+        merchant.user_id,
+        `\u{1F511} Security Alert: ${keyType.toUpperCase()} API Keys Regenerated`,
+        `Your Benix Pay ${keyType.toUpperCase()} keys were rotated. Old secret keys have been revoked immediately.`
+      ]
+    ).catch(() => {
+    });
+    if (merchant.business_email) {
+      try {
+        await EmailService.sendEmail({
+          to: merchant.business_email,
+          subject: `\u{1F510} Security Alert: Benix Pay ${keyType.toUpperCase()} Keys Rotated`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 24px; background: #0f172a; color: #f8fafc; border-radius: 12px;">
+              <h3 style="color: #f59e0b; margin-top: 0;">API Keys Rotated</h3>
+              <p>The <strong>${keyType.toUpperCase()}</strong> credentials for ${merchant.business_name} were rotated on ${(/* @__PURE__ */ new Date()).toUTCString()}.</p>
+              <p>Please update your production and integration environments immediately with the newly generated keys.</p>
+            </div>
+          `
+        });
+      } catch {
+      }
+    }
+  }
+};
+
+// src/server/services/benixPayService.ts
+function isSafeWebhookUrl(inputUrl) {
+  try {
+    const parsed = new URL(inputUrl);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "0.0.0.0") return false;
+    if (hostname.endsWith(".local") || hostname.endsWith(".internal") || hostname.endsWith(".lan") || hostname.endsWith(".test")) return false;
+    if (/^10\./.test(hostname)) return false;
+    if (/^192\.168\./.test(hostname)) return false;
+    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)) return false;
+    if (/^169\.254\./.test(hostname)) return false;
+    if (/^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./.test(hostname)) return false;
+    if (/^127\./.test(hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+function maskSecretKey(key) {
+  if (!key) return "";
+  if (key.length <= 16) return "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+  return `${key.slice(0, 11)}\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022${key.slice(-4)}`;
+}
+function hashSecretKey(key) {
+  return crypto19.createHash("sha256").update(key.trim()).digest("hex");
+}
+function calculateBenixPayFee(amount, feePercent = 4.5, feeBearer = "merchant") {
+  const percent = Number(feePercent) || 4.5;
+  const rate = percent / 100;
+  if (feeBearer === "customer") {
+    const customerPays = Math.round(amount / (1 - rate) * 100) / 100;
+    const feeAmount = Math.round((customerPays - amount) * 100) / 100;
+    const netAmount = amount;
+    return { customerPays, feeAmount, netAmount };
+  } else {
+    const feeAmount = Math.round(amount * rate * 100) / 100;
+    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
+    const customerPays = amount;
+    return { customerPays, feeAmount, netAmount };
+  }
+}
+var BenixPayService = class {
+  static tablesReady = false;
+  static async ensureTables() {
+    if (this.tablesReady) return;
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS benixpay_merchants (
+          id VARCHAR(255) PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          business_name VARCHAR(255) NOT NULL,
+          business_email VARCHAR(255),
+          business_phone VARCHAR(50),
+          test_public_key VARCHAR(255) UNIQUE NOT NULL,
+          test_secret_key_hash VARCHAR(255) NOT NULL,
+          live_public_key VARCHAR(255) UNIQUE NOT NULL,
+          live_secret_key_hash VARCHAR(255) NOT NULL,
+          webhook_url TEXT,
+          webhook_secret VARCHAR(255),
+          fee_bearer VARCHAR(20) DEFAULT 'merchant',
+          fee_percent NUMERIC(5,2) DEFAULT 4.50,
+          is_live_enabled BOOLEAN DEFAULT false,
+          push_subscription JSONB,
+          notify_on_payment BOOLEAN DEFAULT true,
+          notify_email BOOLEAN DEFAULT true,
+          kyc_status VARCHAR(50) DEFAULT 'unsubmitted',
+          kyc_data JSONB,
+          kyc_submitted_at TIMESTAMP WITH TIME ZONE,
+          kyc_reviewed_at TIMESTAMP WITH TIME ZONE,
+          kyc_notes TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS benixpay_transactions (
+          id VARCHAR(255) PRIMARY KEY,
+          merchant_id VARCHAR(255) NOT NULL REFERENCES benixpay_merchants(id),
+          mode VARCHAR(20) NOT NULL,
+          order_reference VARCHAR(255) NOT NULL,
+          amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+          fee_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+          net_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+          customer_charged_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+          currency VARCHAR(10) DEFAULT 'RWF',
+          customer_email VARCHAR(255),
+          customer_phone VARCHAR(50),
+          payment_method VARCHAR(50),
+          status VARCHAR(50) DEFAULT 'pending',
+          flw_ref VARCHAR(255) UNIQUE,
+          redirect_url TEXT,
+          metadata JSONB,
+          failure_reason TEXT,
+          settled_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          CONSTRAINT unique_merchant_order UNIQUE (merchant_id, order_reference, mode)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bp_merchants_user ON benixpay_merchants(user_id);
+        CREATE INDEX IF NOT EXISTS idx_bp_merchants_test_pub ON benixpay_merchants(test_public_key);
+        CREATE INDEX IF NOT EXISTS idx_bp_merchants_live_pub ON benixpay_merchants(live_public_key);
+        CREATE INDEX IF NOT EXISTS idx_bp_txn_merchant ON benixpay_transactions(merchant_id);
+        CREATE INDEX IF NOT EXISTS idx_bp_txn_flw_ref ON benixpay_transactions(flw_ref);
+        CREATE INDEX IF NOT EXISTS idx_bp_txn_status ON benixpay_transactions(status);
+      `);
+      this.tablesReady = true;
+    } catch (err) {
+      console.warn("[BenixPay ensureTables]", err.message);
+    }
+  }
+  /**
+   * Generates secure API credentials for a merchant
+   */
+  static generateCredentials() {
+    const testPublicKey = `bp_test_pub_${crypto19.randomBytes(16).toString("hex")}`;
+    const testSecretKey = `bp_test_sec_${crypto19.randomBytes(24).toString("hex")}`;
+    const livePublicKey = `bp_live_pub_${crypto19.randomBytes(16).toString("hex")}`;
+    const liveSecretKey = `bp_live_sec_${crypto19.randomBytes(24).toString("hex")}`;
+    const webhookSecret = `bp_whsec_${crypto19.randomBytes(20).toString("hex")}`;
+    return { testPublicKey, testSecretKey, livePublicKey, liveSecretKey, webhookSecret };
+  }
+  /**
+   * Registers a new merchant or returns existing
+   */
+  static async registerMerchant(userId, businessName, businessEmail) {
+    await this.ensureTables();
+    const existing = await query("SELECT * FROM benixpay_merchants WHERE user_id = $1", [userId]);
+    if (existing.rowCount > 0) {
+      return { merchant: existing.rows[0] };
+    }
+    const merchantId = `bpm_${Date.now()}_${crypto19.randomBytes(4).toString("hex")}`;
+    const creds = this.generateCredentials();
+    const inserted = await query(
+      `INSERT INTO benixpay_merchants (
+        id, user_id, business_name, business_email,
+        test_public_key, test_secret_key_hash,
+        live_public_key, live_secret_key_hash,
+        webhook_secret, fee_bearer, fee_percent, is_live_enabled
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'merchant', 4.50, false)
+      RETURNING *`,
+      [
+        merchantId,
+        userId,
+        businessName.trim(),
+        businessEmail?.trim() || null,
+        creds.testPublicKey,
+        hashSecretKey(creds.testSecretKey),
+        creds.livePublicKey,
+        hashSecretKey(creds.liveSecretKey),
+        creds.webhookSecret
+      ]
+    );
+    return {
+      merchant: inserted.rows[0],
+      credentials: creds
+      // Plaintext shown once upon creation!
+    };
+  }
+  /**
+   * Retrieves merchant by User ID with masked secret keys
+   */
+  static async getMerchantByUserId(userId) {
+    await this.ensureTables();
+    const res = await query("SELECT * FROM benixpay_merchants WHERE user_id = $1", [userId]);
+    if (res.rowCount === 0) return null;
+    return res.rows[0];
+  }
+  /**
+   * Rotates Test or Live API keys
+   */
+  static async rotateKeys(merchantId, keyType) {
+    await this.ensureTables();
+    const merchantRes = await query("SELECT * FROM benixpay_merchants WHERE id = $1", [merchantId]);
+    if (merchantRes.rowCount === 0) throw new Error("Merchant not found.");
+    const merchant = merchantRes.rows[0];
+    let newPub = "";
+    let newSec = "";
+    if (keyType === "test") {
+      newPub = `bp_test_pub_${crypto19.randomBytes(16).toString("hex")}`;
+      newSec = `bp_test_sec_${crypto19.randomBytes(24).toString("hex")}`;
+      await query(
+        `UPDATE benixpay_merchants 
+         SET test_public_key = $1, test_secret_key_hash = $2, updated_at = NOW() 
+         WHERE id = $3`,
+        [newPub, hashSecretKey(newSec), merchantId]
+      );
+    } else {
+      newPub = `bp_live_pub_${crypto19.randomBytes(16).toString("hex")}`;
+      newSec = `bp_live_sec_${crypto19.randomBytes(24).toString("hex")}`;
+      await query(
+        `UPDATE benixpay_merchants 
+         SET live_public_key = $1, live_secret_key_hash = $2, updated_at = NOW() 
+         WHERE id = $3`,
+        [newPub, hashSecretKey(newSec), merchantId]
+      );
+    }
+    await BenixPayNotificationService.notifyKeysRotated(merchant, keyType);
+    return { publicKey: newPub, secretKey: newSec };
+  }
+  /**
+   * Authenticates a merchant by their Secret Key (Test or Live)
+   */
+  static async authenticateBySecretKey(secretKey) {
+    await this.ensureTables();
+    const key = (secretKey || "").trim();
+    if (!key) return null;
+    const hash2 = hashSecretKey(key);
+    if (key.startsWith("bp_test_sec_")) {
+      const res = await query("SELECT * FROM benixpay_merchants WHERE test_secret_key_hash = $1", [hash2]);
+      if (res.rowCount > 0) return { merchant: res.rows[0], mode: "sandbox" };
+    } else if (key.startsWith("bp_live_sec_")) {
+      const res = await query("SELECT * FROM benixpay_merchants WHERE live_secret_key_hash = $1", [hash2]);
+      if (res.rowCount > 0) return { merchant: res.rows[0], mode: "live" };
+    }
+    return null;
+  }
+  /**
+   * Creates a Benix Pay Checkout Transaction
+   */
+  static async createCheckoutTransaction(params) {
+    await this.ensureTables();
+    const { merchant, mode, amount, currency = "RWF", order_reference, customer_email, customer_phone, redirect_url, metadata } = params;
+    if (!amount || amount <= 0) {
+      throw new Error("Transaction amount must be greater than 0.");
+    }
+    if (!order_reference || !order_reference.trim()) {
+      throw new Error("order_reference is required.");
+    }
+    if (redirect_url && !isSafeWebhookUrl(redirect_url)) {
+      throw new Error("Invalid or unsafe redirect_url provided.");
+    }
+    if (mode === "live" && !merchant.is_live_enabled) {
+      throw new Error("Merchant account is not activated for Live processing. Please submit KYC verification.");
+    }
+    const dupCheck = await query(
+      "SELECT id, status FROM benixpay_transactions WHERE merchant_id = $1 AND order_reference = $2 AND mode = $3",
+      [merchant.id, order_reference.trim(), mode]
+    );
+    if (dupCheck.rowCount > 0) {
+      throw new Error(`Order reference "${order_reference}" already exists for this merchant (${dupCheck.rows[0].status}).`);
+    }
+    const feePercent = Number(merchant.fee_percent) || 4.5;
+    const feeBearer = merchant.fee_bearer === "customer" ? "customer" : "merchant";
+    const { customerPays, feeAmount, netAmount } = calculateBenixPayFee(amount, feePercent, feeBearer);
+    const txnId = `bp_txn_${Date.now()}_${crypto19.randomBytes(4).toString("hex")}`;
+    const inserted = await query(
+      `INSERT INTO benixpay_transactions (
+        id, merchant_id, mode, order_reference,
+        amount, fee_amount, net_amount, customer_charged_amount,
+        currency, customer_email, customer_phone,
+        status, redirect_url, metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, $13)
+      RETURNING *`,
+      [
+        txnId,
+        merchant.id,
+        mode,
+        order_reference.trim(),
+        amount,
+        feeAmount,
+        netAmount,
+        customerPays,
+        currency.toUpperCase(),
+        customer_email?.trim() || null,
+        customer_phone?.trim() || null,
+        redirect_url?.trim() || null,
+        metadata ? JSON.stringify(metadata) : null
+      ]
+    );
+    return inserted.rows[0];
+  }
+  /**
+   * Atomic Settlement for Benix Pay Transaction
+   * Prevents double credits and race conditions using strict atomic conditional updates
+   */
+  static async settleTransaction(params) {
+    await this.ensureTables();
+    const { transactionId, flwRef, paymentMethod = "momo_mtn" } = params;
+    const updateRes = await query(
+      `UPDATE benixpay_transactions
+       SET status = 'successful',
+           flw_ref = $1,
+           payment_method = $2,
+           settled_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING *`,
+      [flwRef, paymentMethod, transactionId]
+    );
+    if (updateRes.rowCount === 0) {
+      const current = await query("SELECT * FROM benixpay_transactions WHERE id = $1", [transactionId]);
+      return { success: true, transaction: current.rows[0], duplicateIgnored: true };
+    }
+    const settledTxn = updateRes.rows[0];
+    const mRes = await query("SELECT * FROM benixpay_merchants WHERE id = $1", [settledTxn.merchant_id]);
+    const merchant = mRes.rows[0];
+    if (settledTxn.mode === "live") {
+      await WalletService.credit(
+        merchant.user_id,
+        Number(settledTxn.net_amount),
+        "benixPay",
+        "merchant_settlement",
+        `Benix Pay: ${merchant.business_name} (Order #${settledTxn.order_reference})`,
+        settledTxn.flw_ref || settledTxn.id,
+        {
+          transactionId: settledTxn.id,
+          orderReference: settledTxn.order_reference,
+          feeAmount: settledTxn.fee_amount,
+          grossAmount: settledTxn.amount
+        }
+      );
+    }
+    await BenixPayNotificationService.notifyPaymentSuccess({
+      merchant,
+      transaction: settledTxn
+    });
+    if (merchant.webhook_url && isSafeWebhookUrl(merchant.webhook_url)) {
+      this.dispatchWebhook(merchant, "payment.successful", settledTxn).catch((err) => {
+        console.warn("[BenixPay Webhook Dispatch Error]", err.message);
+      });
+    }
+    return { success: true, transaction: settledTxn };
+  }
+  /**
+   * Marks a transaction failed or cancelled
+   */
+  static async failTransaction(params) {
+    await this.ensureTables();
+    const { transactionId, status, reason } = params;
+    const res = await query(
+      `UPDATE benixpay_transactions
+       SET status = $1, failure_reason = $2, updated_at = NOW()
+       WHERE id = $3 AND status = 'pending'
+       RETURNING *`,
+      [status, reason, transactionId]
+    );
+    if (res.rowCount === 0) return null;
+    const txn = res.rows[0];
+    const mRes = await query("SELECT * FROM benixpay_merchants WHERE id = $1", [txn.merchant_id]);
+    const merchant = mRes.rows[0];
+    await BenixPayNotificationService.notifyPaymentFailure({
+      merchant,
+      transaction: txn,
+      status,
+      reason
+    });
+    if (merchant.webhook_url && isSafeWebhookUrl(merchant.webhook_url)) {
+      this.dispatchWebhook(merchant, `payment.${status}`, txn).catch(() => {
+      });
+    }
+    return txn;
+  }
+  /**
+   * Outbound Webhook Dispatcher
+   * Cryptographically signs payload with HMAC-SHA256
+   */
+  static async dispatchWebhook(merchant, event, payloadData) {
+    if (!merchant.webhook_url || !isSafeWebhookUrl(merchant.webhook_url)) {
+      return { success: false };
+    }
+    const timestamp = Math.floor(Date.now() / 1e3);
+    const body = JSON.stringify({
+      event,
+      created_at: (/* @__PURE__ */ new Date()).toISOString(),
+      data: payloadData
+    });
+    const secret = merchant.webhook_secret || "bp_whsec_default";
+    const signaturePayload = `${timestamp}.${body}`;
+    const signature = crypto19.createHmac("sha256", secret).update(signaturePayload).digest("hex");
+    return new Promise((resolve3) => {
+      try {
+        const urlObj = new URL(merchant.webhook_url);
+        const isHttps2 = urlObj.protocol === "https:";
+        const client = isHttps2 ? https8 : http5;
+        const req = client.request(
+          {
+            hostname: urlObj.hostname,
+            port: urlObj.port || (isHttps2 ? 443 : 80),
+            path: urlObj.pathname + (urlObj.search || ""),
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(body),
+              "X-BenixPay-Signature": `t=${timestamp},v1=${signature}`,
+              "User-Agent": "BenixPay-Webhook/1.0"
+            }
+          },
+          (res) => {
+            resolve3({ success: res.statusCode ? res.statusCode >= 200 && res.statusCode < 300 : false, statusCode: res.statusCode });
+          }
+        );
+        req.setTimeout(8e3, () => {
+          req.destroy();
+          resolve3({ success: false });
+        });
+        req.on("error", () => {
+          resolve3({ success: false });
+        });
+        req.write(body);
+        req.end();
+      } catch {
+        resolve3({ success: false });
+      }
+    });
+  }
+};
+
+// src/server/routes/benixPayRoutes.ts
+var benixPayRouter = (0, import_express2.Router)();
+var rateLimitMap = /* @__PURE__ */ new Map();
+function rateLimiter(limit = 30, windowMs = 6e4) {
+  return (req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const entry = rateLimitMap.get(ip);
+    if (!entry || now > entry.resetAt) {
+      rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (entry.count >= limit) {
+      return res.status(429).json({
+        success: false,
+        error: "Too many requests. Please slow down."
+      });
+    }
+    entry.count++;
+    next();
+  };
+}
+async function authenticateBenixPaySecret(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        error: "Missing or invalid Authorization header. Expected Bearer <SECRET_KEY>"
+      });
+    }
+    const secretKey = authHeader.replace("Bearer ", "").trim();
+    const authResult = await BenixPayService.authenticateBySecretKey(secretKey);
+    if (!authResult) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid API Secret Key."
+      });
+    }
+    req.merchant = authResult.merchant;
+    req.payMode = authResult.mode;
+    next();
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+benixPayRouter.post("/api/v1/benixpay/checkout", rateLimiter(60, 6e4), authenticateBenixPaySecret, async (req, res) => {
+  try {
+    const merchant = req.merchant;
+    const mode = req.payMode;
+    const {
+      amount,
+      currency = "RWF",
+      order_reference,
+      customer_email,
+      customer_phone,
+      redirect_url,
+      metadata
+    } = req.body;
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, error: 'Field "amount" must be a positive number.' });
+    }
+    if (!order_reference || typeof order_reference !== "string") {
+      return res.status(400).json({ success: false, error: 'Field "order_reference" is required.' });
+    }
+    const transaction = await BenixPayService.createCheckoutTransaction({
+      merchant,
+      mode,
+      amount: Number(amount),
+      currency: String(currency).toUpperCase(),
+      order_reference,
+      customer_email,
+      customer_phone,
+      redirect_url,
+      metadata
+    });
+    const host = req.get("host") || "benix.space";
+    const protocol = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    const checkoutUrl = `${protocol}://${host}/pay/${transaction.id}`;
+    return res.status(201).json({
+      success: true,
+      mode: transaction.mode,
+      payment_id: transaction.id,
+      checkout_url: checkoutUrl,
+      amount: Number(transaction.amount),
+      customer_pays: Number(transaction.customer_charged_amount),
+      fee_amount: Number(transaction.fee_amount),
+      net_amount: Number(transaction.net_amount),
+      currency: transaction.currency,
+      order_reference: transaction.order_reference,
+      created_at: transaction.created_at
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.get("/api/v1/benixpay/transactions/:id", authenticateBenixPaySecret, async (req, res) => {
+  try {
+    const merchant = req.merchant;
+    const txnId = req.params.id;
+    const resTxn = await query(
+      "SELECT * FROM benixpay_transactions WHERE id = $1 AND merchant_id = $2",
+      [txnId, merchant.id]
+    );
+    if (resTxn.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Transaction not found." });
+    }
+    const t = resTxn.rows[0];
+    return res.json({
+      success: true,
+      transaction: {
+        id: t.id,
+        mode: t.mode,
+        order_reference: t.order_reference,
+        amount: Number(t.amount),
+        customer_charged_amount: Number(t.customer_charged_amount),
+        fee_amount: Number(t.fee_amount),
+        net_amount: Number(t.net_amount),
+        currency: t.currency,
+        status: t.status,
+        customer_email: t.customer_email,
+        customer_phone: t.customer_phone,
+        payment_method: t.payment_method,
+        settled_at: t.settled_at,
+        created_at: t.created_at,
+        metadata: t.metadata
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.get("/api/v1/benixpay/checkout/:id", async (req, res) => {
+  try {
+    await BenixPayService.ensureTables();
+    const txnId = req.params.id;
+    const resTxn = await query(
+      `SELECT t.*, m.business_name, m.business_email, m.is_live_enabled
+       FROM benixpay_transactions t
+       JOIN benixpay_merchants m ON t.merchant_id = m.id
+       WHERE t.id = $1`,
+      [txnId]
+    );
+    if (resTxn.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Checkout session not found or expired." });
+    }
+    const t = resTxn.rows[0];
+    return res.json({
+      success: true,
+      checkout: {
+        id: t.id,
+        merchant_name: t.business_name,
+        mode: t.mode,
+        order_reference: t.order_reference,
+        amount: Number(t.amount),
+        customer_charged_amount: Number(t.customer_charged_amount),
+        fee_amount: Number(t.fee_amount),
+        currency: t.currency,
+        customer_email: t.customer_email,
+        customer_phone: t.customer_phone,
+        status: t.status,
+        redirect_url: t.redirect_url,
+        settled_at: t.settled_at,
+        created_at: t.created_at
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/v1/benixpay/checkout/:id/simulate", rateLimiter(20, 6e4), async (req, res) => {
+  try {
+    const txnId = req.params.id;
+    const { outcome = "successful", payment_method = "momo_mtn", reason } = req.body;
+    const resTxn = await query("SELECT * FROM benixpay_transactions WHERE id = $1", [txnId]);
+    if (resTxn.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Checkout transaction not found." });
+    }
+    const txn = resTxn.rows[0];
+    if (txn.mode !== "sandbox") {
+      return res.status(400).json({ success: false, error: "Simulation is only permitted in Sandbox Mode." });
+    }
+    if (txn.status !== "pending") {
+      return res.status(400).json({ success: false, error: `Transaction is already ${txn.status}.` });
+    }
+    if (outcome === "successful") {
+      const flwRef = `sim_flw_${Date.now()}_${crypto20.randomBytes(3).toString("hex")}`;
+      const settlement = await BenixPayService.settleTransaction({
+        transactionId: txnId,
+        flwRef,
+        paymentMethod: payment_method
+      });
+      return res.json({
+        success: true,
+        status: "successful",
+        transaction: settlement.transaction,
+        redirect_url: txn.redirect_url
+      });
+    } else {
+      const failReason = reason || (outcome === "cancelled" ? "Payment cancelled by customer" : "Insufficient mobile money balance");
+      const failedTxn = await BenixPayService.failTransaction({
+        transactionId: txnId,
+        status: outcome === "cancelled" ? "cancelled" : "failed",
+        reason: failReason
+      });
+      return res.json({
+        success: true,
+        status: outcome,
+        transaction: failedTxn,
+        redirect_url: txn.redirect_url
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/v1/benixpay/checkout/:id/pay", rateLimiter(15, 6e4), async (req, res) => {
+  try {
+    const txnId = req.params.id;
+    const { phone_number, payment_method = "momo_mtn" } = req.body;
+    const resTxn = await query(
+      `SELECT t.*, m.business_name
+       FROM benixpay_transactions t
+       JOIN benixpay_merchants m ON t.merchant_id = m.id
+       WHERE t.id = $1`,
+      [txnId]
+    );
+    if (resTxn.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Transaction not found." });
+    }
+    const txn = resTxn.rows[0];
+    if (txn.status !== "pending") {
+      return res.status(400).json({ success: false, error: `Transaction is already ${txn.status}.` });
+    }
+    if (txn.mode === "sandbox") {
+      return res.json({
+        success: true,
+        mode: "sandbox",
+        requires_simulation: true,
+        message: "Sandbox transaction. Use the simulation controls to trigger test outcomes."
+      });
+    }
+    const flwSetting = await query("SELECT secret_key FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    const flwSecret = flwSetting.rows[0]?.secret_key || process.env.FLUTTERWAVE_SECRET_KEY;
+    if (!flwSecret) {
+      return res.status(500).json({ success: false, error: "Master payment gateway is currently unconfigured. Contact support." });
+    }
+    const customerCharged = Number(txn.customer_charged_amount || txn.amount);
+    const cleanPhone = (phone_number || txn.customer_phone || "").replace(/[^0-9]/g, "");
+    if (!cleanPhone || cleanPhone.length < 9) {
+      return res.status(400).json({ success: false, error: "A valid customer phone number is required for Mobile Money." });
+    }
+    const postData = JSON.stringify({
+      tx_ref: txn.id,
+      amount: customerCharged,
+      currency: txn.currency || "RWF",
+      email: txn.customer_email || "checkout@benix.space",
+      phone_number: cleanPhone,
+      fullname: `Customer (${txn.business_name})`,
+      order_id: txn.order_reference,
+      redirect_url: `https://benix.space/pay/${txn.id}`
+    });
+    const flwRes = await new Promise((resolve3, reject) => {
+      const flwReq = https9.request(
+        {
+          hostname: "api.flutterwave.com",
+          path: "/v3/charges?type=mobile_money_rwanda",
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${flwSecret}`,
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(postData)
+          }
+        },
+        (resp) => {
+          let data = "";
+          resp.on("data", (c5) => data += c5);
+          resp.on("end", () => {
+            try {
+              resolve3(JSON.parse(data));
+            } catch {
+              resolve3({ status: "error", message: data });
+            }
+          });
+        }
+      );
+      flwReq.on("error", reject);
+      flwReq.write(postData);
+      flwReq.end();
+    });
+    if (flwRes?.status === "success") {
+      return res.json({
+        success: true,
+        status: "pending",
+        message: "Payment prompt sent to customer phone. Please authorize with your MoMo PIN.",
+        flutterwave: flwRes
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: flwRes?.message || "Failed to initiate Mobile Money charge with network provider."
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/webhooks/benixpay/flutterwave", async (req, res) => {
+  try {
+    const signature = req.headers["verif-hash"];
+    const expectedSecret = process.env.FLUTTERWAVE_SECRET_HASH || "benix_pay_flw_secret";
+    if (signature && typeof signature === "string") {
+      const sigBuf = Buffer.from(signature);
+      const expBuf = Buffer.from(expectedSecret);
+      if (sigBuf.length !== expBuf.length || !crypto20.timingSafeEqual(sigBuf, expBuf)) {
+        console.warn("[BenixPay FLW Webhook] Invalid signature received.");
+        return res.status(401).send("Invalid signature");
+      }
+    }
+    const body = req.body;
+    const txRef = body?.data?.tx_ref;
+    const flwRef = String(body?.data?.flw_ref || body?.data?.id || `flw_${Date.now()}`);
+    const status = body?.data?.status;
+    if (!txRef || !txRef.startsWith("bp_txn_")) {
+      return res.status(200).send("Not Benix Pay reference, ignored");
+    }
+    if (status === "successful") {
+      await BenixPayService.settleTransaction({
+        transactionId: txRef,
+        flwRef,
+        paymentMethod: body?.data?.payment_type || "momo_mtn"
+      });
+    } else if (status === "failed" || status === "cancelled") {
+      await BenixPayService.failTransaction({
+        transactionId: txRef,
+        status: status === "cancelled" ? "cancelled" : "failed",
+        reason: body?.data?.processor_response || "Payment declined by processor"
+      });
+    }
+    return res.status(200).send("Webhook processed");
+  } catch (err) {
+    console.error("[BenixPay FLW Webhook Error]", err);
+    return res.status(500).send("Internal error");
+  }
+});
+benixPayRouter.get("/api/benixpay/merchant/me", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const merchant = await BenixPayService.getMerchantByUserId(userId);
+    if (!merchant) {
+      return res.json({ success: true, registered: false });
+    }
+    return res.json({
+      success: true,
+      registered: true,
+      merchant: {
+        ...merchant,
+        test_secret_key_masked: maskSecretKey(merchant.test_public_key.replace("_pub_", "_sec_")),
+        live_secret_key_masked: maskSecretKey(merchant.live_public_key.replace("_pub_", "_sec_"))
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/benixpay/merchant/register", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+    const { business_name, business_email = userEmail } = req.body;
+    if (!business_name || !business_name.trim()) {
+      return res.status(400).json({ success: false, error: "Business name is required." });
+    }
+    const result = await BenixPayService.registerMerchant(userId, business_name, business_email);
+    return res.status(201).json({
+      success: true,
+      merchant: result.merchant,
+      credentials: result.credentials
+      // Shown once on creation so merchant can save securely!
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/benixpay/merchant/rotate-keys", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { keyType = "test" } = req.body;
+    if (keyType !== "test" && keyType !== "live") {
+      return res.status(400).json({ success: false, error: 'keyType must be "test" or "live".' });
+    }
+    const merchant = await BenixPayService.getMerchantByUserId(userId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: "Merchant not registered." });
+    }
+    const creds = await BenixPayService.rotateKeys(merchant.id, keyType);
+    return res.json({
+      success: true,
+      keyType,
+      credentials: creds
+      // Plaintext shown once
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/benixpay/merchant/settings", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const merchant = await BenixPayService.getMerchantByUserId(userId);
+    if (!merchant) return res.status(404).json({ success: false, error: "Merchant not found." });
+    const {
+      business_name,
+      business_email,
+      webhook_url,
+      fee_bearer,
+      push_subscription,
+      notify_on_payment
+    } = req.body;
+    if (webhook_url && !isSafeWebhookUrl(webhook_url)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid or unsafe webhook URL. Localhost and private IP addresses are prohibited."
+      });
+    }
+    const updated = await query(
+      `UPDATE benixpay_merchants
+       SET business_name = COALESCE($1, business_name),
+           business_email = COALESCE($2, business_email),
+           webhook_url = COALESCE($3, webhook_url),
+           fee_bearer = COALESCE($4, fee_bearer),
+           push_subscription = COALESCE($5, push_subscription),
+           notify_on_payment = COALESCE($6, notify_on_payment),
+           updated_at = NOW()
+       WHERE id = $7
+       RETURNING *`,
+      [
+        business_name?.trim() || null,
+        business_email?.trim() || null,
+        webhook_url !== void 0 ? webhook_url.trim() : null,
+        fee_bearer === "customer" ? "customer" : fee_bearer === "merchant" ? "merchant" : null,
+        push_subscription ? JSON.stringify(push_subscription) : null,
+        notify_on_payment !== void 0 ? Boolean(notify_on_payment) : null,
+        merchant.id
+      ]
+    );
+    return res.json({
+      success: true,
+      merchant: updated.rows[0],
+      message: "Merchant settings saved successfully."
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/benixpay/merchant/kyc/submit", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const merchant = await BenixPayService.getMerchantByUserId(userId);
+    if (!merchant) return res.status(404).json({ success: false, error: "Merchant not found." });
+    const { business_reg_number, tin_number, owner_id_type, owner_id_number, document_urls, notes } = req.body;
+    if (!business_reg_number || !tin_number) {
+      return res.status(400).json({ success: false, error: "Business Registration Number and TIN are required." });
+    }
+    const kycPayload = {
+      business_reg_number,
+      tin_number,
+      owner_id_type,
+      owner_id_number,
+      document_urls: Array.isArray(document_urls) ? document_urls : [],
+      notes
+    };
+    const updated = await query(
+      `UPDATE benixpay_merchants
+       SET kyc_status = 'pending',
+           kyc_data = $1,
+           kyc_submitted_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [JSON.stringify(kycPayload), merchant.id]
+    );
+    await BenixPayNotificationService.notifyKycSubmitted(updated.rows[0]);
+    return res.json({
+      success: true,
+      merchant: updated.rows[0],
+      message: "KYC documents submitted. Our compliance team will review within 24 hours."
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.get("/api/benixpay/merchant/transactions", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const merchant = await BenixPayService.getMerchantByUserId(userId);
+    if (!merchant) return res.json({ success: true, transactions: [] });
+    const mode = req.query.mode;
+    const status = req.query.status;
+    const search = req.query.search;
+    let sql2 = "SELECT * FROM benixpay_transactions WHERE merchant_id = $1";
+    const params = [merchant.id];
+    if (mode && mode !== "all") {
+      params.push(mode);
+      sql2 += ` AND mode = $${params.length}`;
+    }
+    if (status && status !== "all") {
+      params.push(status);
+      sql2 += ` AND status = $${params.length}`;
+    }
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      sql2 += ` AND (LOWER(order_reference) LIKE $${params.length} OR LOWER(id) LIKE $${params.length} OR LOWER(customer_email) LIKE $${params.length})`;
+    }
+    sql2 += " ORDER BY created_at DESC LIMIT 100";
+    const txns = await query(sql2, params);
+    return res.json({ success: true, transactions: txns.rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/benixpay/merchant/test-webhook", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const merchant = await BenixPayService.getMerchantByUserId(userId);
+    if (!merchant) return res.status(404).json({ success: false, error: "Merchant not found." });
+    if (!merchant.webhook_url) {
+      return res.status(400).json({ success: false, error: "Please configure a Webhook URL first." });
+    }
+    const testPayload = {
+      test: true,
+      message: "This is a test webhook event from Benix Pay",
+      merchant_id: merchant.id,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const startTime = Date.now();
+    const result = await BenixPayService.dispatchWebhook(merchant, "test.ping", testPayload);
+    const duration = Date.now() - startTime;
+    return res.json({
+      success: result.success,
+      status_code: result.statusCode,
+      latency_ms: duration,
+      message: result.success ? `Test webhook delivered successfully in ${duration}ms (HTTP ${result.statusCode}).` : `Webhook endpoint returned HTTP ${result.statusCode || "timeout/error"}.`
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.get("/api/benixpay/vapid-public-key", async (_req, res) => {
+  try {
+    const key = await BenixPayNotificationService.getVapidPublicKey();
+    return res.json({ success: true, publicKey: key });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.get("/api/benixpay/admin/merchants", authenticateToken, requireAdminRole, async (_req, res) => {
+  try {
+    const merchants = await query("SELECT * FROM benixpay_merchants ORDER BY created_at DESC");
+    return res.json({ success: true, merchants: merchants.rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.post("/api/benixpay/admin/merchants/:id/kyc", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { approve, notes } = req.body;
+    const merchantId = req.params.id;
+    const mRes = await query("SELECT * FROM benixpay_merchants WHERE id = $1", [merchantId]);
+    if (mRes.rowCount === 0) return res.status(404).json({ success: false, error: "Merchant not found." });
+    const isApproved = Boolean(approve);
+    const updated = await query(
+      `UPDATE benixpay_merchants
+       SET is_live_enabled = $1,
+           kyc_status = $2,
+           kyc_reviewed_at = NOW(),
+           kyc_notes = $3,
+           updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [isApproved, isApproved ? "approved" : "rejected", notes || null, merchantId]
+    );
+    await BenixPayNotificationService.notifyKycDecision(updated.rows[0], isApproved, notes);
+    return res.json({
+      success: true,
+      merchant: updated.rows[0],
+      message: `Merchant KYC ${isApproved ? "Approved (Live Mode Active)" : "Declined"}.`
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // src/server/index.ts
 import_dotenv2.default.config();
-var app = (0, import_express2.default)();
+var app = (0, import_express3.default)();
 var PORT = process.env.PORT || 3001;
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -116723,8 +124384,8 @@ app.use("/apps", (req, res) => {
   const targetPath = req.url.startsWith("/") ? req.url : `/${req.url}`;
   return res.redirect(301, `/l${targetPath}`);
 });
-app.use(import_express2.default.json({ limit: "20mb" }));
-app.use(import_express2.default.urlencoded({ extended: true, limit: "20mb" }));
+app.use(import_express3.default.json({ limit: "20mb" }));
+app.use(import_express3.default.urlencoded({ extended: true, limit: "20mb" }));
 app.get("/api/health", (req, res) => {
   return res.json({
     status: "ok",
@@ -116768,6 +124429,9 @@ async function ensureSuperAdminUser() {
 ensureSuperAdminUser().catch((err) => console.warn("Superadmin auto-setup warning:", err.message));
 app.use("/api/cloud", cloudRouter);
 app.use("/api", cloudRouter);
+app.use(benixPayRouter);
+var verificationCodes = /* @__PURE__ */ new Map();
+var loginOtpCodes = /* @__PURE__ */ new Map();
 var initCoreNotificationsTable = async () => {
   try {
     await query(`
@@ -116791,7 +124455,1701 @@ var initCoreNotificationsTable = async () => {
   }
 };
 initCoreNotificationsTable();
-async function getSystemSetting2(key, defaultValue) {
+async function createNotification({
+  userId,
+  title,
+  message,
+  type = "activity",
+  recipientRole = "user",
+  actionUrl,
+  metadata
+}) {
+  try {
+    await query(
+      `INSERT INTO core_notifications (user_id, title, message, type, recipient_role, action_url, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        userId || null,
+        title,
+        message,
+        type,
+        recipientRole,
+        actionUrl || null,
+        metadata ? JSON.stringify(metadata) : null
+      ]
+    );
+  } catch (err) {
+    console.warn("Could not insert notification into core_notifications:", err?.message);
+  }
+}
+app.get("/api/auth/check-availability", async (req, res) => {
+  try {
+    const { email, phone } = req.query;
+    let emailAvailable = true;
+    let phoneAvailable = true;
+    if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      const existing = await query("SELECT id FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+      if (existing.rowCount > 0) {
+        emailAvailable = false;
+      }
+    }
+    if (phone) {
+      const cleanPhone = String(phone).trim().replace(/[^0-9]/g, "");
+      if (cleanPhone.length >= 8) {
+        const last8 = cleanPhone.slice(-8);
+        const existing = await query("SELECT id FROM core_users WHERE phone LIKE $1", [`%${last8}%`]);
+        if (existing.rowCount > 0) {
+          phoneAvailable = false;
+        }
+      }
+    }
+    return res.json({ emailAvailable, phoneAvailable });
+  } catch (err) {
+    return res.json({ emailAvailable: true, phoneAvailable: true });
+  }
+});
+app.post("/api/auth/send-verification", otpDispatchRateLimiter, async (req, res) => {
+  try {
+    const { email, name: name2 } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const existing = await query("SELECT id, is_verified FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+    if (existing.rowCount > 0 && existing.rows[0].is_verified) {
+      return res.status(400).json({ error: "An account with this email already exists and is verified. Please log in." });
+    }
+    const code = String(Math.floor(1e5 + Math.random() * 9e5));
+    verificationCodes.set(cleanEmail, {
+      code,
+      expiresAt: Date.now() + 15 * 60 * 1e3
+    });
+    await EmailService.sendEmail({
+      to: cleanEmail,
+      subject: `Benix.Space Verification Code: ${code}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+          <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name2 || "there"},</p>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Thank you for registering on Benix.Space. Use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not create this account, you can safely ignore this email.</p>
+        </div>
+      `
+    }).catch((e5) => console.warn("Verification email dispatch warning:", e5?.message));
+    return res.json({ success: true, message: `Verification code sent to ${cleanEmail}` });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to dispatch verification email." });
+  }
+});
+app.post("/api/auth/send-login-otp", otpDispatchRateLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email address is required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const isSuper = cleanEmail === "benirabok@gmail.com" || cleanEmail === "admin@benix.space";
+    let userRes = await query("SELECT id, name, email FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+    if (userRes.rowCount === 0 && !isSuper) {
+      return res.status(404).json({ error: "No account registered with this email. Please create an account first." });
+    }
+    const userName = userRes.rowCount > 0 ? userRes.rows[0].name : "Super Administrator";
+    const code = String(Math.floor(1e5 + Math.random() * 9e5));
+    loginOtpCodes.set(cleanEmail, {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1e3
+    });
+    await EmailService.sendEmail({
+      to: cleanEmail,
+      subject: `Your Benix.Space Login Code: ${code}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+          <h2 style="color: #10B981; font-size: 22px; margin-top: 0; font-weight: 800;">Passwordless Sign-In</h2>
+          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${userName},</p>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Enter this 6-digit login code to securely access your Benix.Space account without a password:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #059669, #10B981); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);">${code}</div>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code valid for 10 minutes. If you did not request this login code, no action is required.</p>
+        </div>
+      `
+    }).catch((e5) => console.warn("Login OTP email dispatch warning:", e5?.message));
+    return res.json({ success: true, message: `Login code dispatched to ${cleanEmail}.` });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to dispatch login code." });
+  }
+});
+app.post("/api/auth/verify-login-otp", authRateLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and 6-digit login code are required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+    const stored = loginOtpCodes.get(cleanEmail);
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid or expired login code. Please check your inbox or request a new one." });
+    }
+    loginOtpCodes.delete(cleanEmail);
+    const isSuper = cleanEmail === (process.env.SUPERADMIN_EMAIL || "benirange@gmail.com").toLowerCase();
+    if (isSuper) {
+      const token2 = generateToken({ id: "user-superadmin-benir", email: cleanEmail, role: "superadmin" });
+      return res.json({
+        token: token2,
+        user: {
+          id: "user-superadmin-benir",
+          email: cleanEmail,
+          name: "Benir Benjamin (Super Admin)",
+          role: "superadmin",
+          referral_code: "BENIX-SUPERADMIN",
+          selected_modules: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
+          app_profiles: {
+            kunda: { completed: true },
+            dating: { completed: true },
+            voxify: { completed: true },
+            music: { completed: true },
+            marketplace: { completed: true },
+            tv: { completed: true },
+            videos: { completed: true },
+            radio: { completed: true },
+            games: { completed: true },
+            calc: { completed: true }
+          }
+        },
+        wallet: { balance: 1e5, currency: "RWF" }
+      });
+    }
+    const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+    const user = userRes.rows[0];
+    let wallet = { balance: 100, currency: "RWF" };
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+    } catch (wErr) {
+      console.warn("Could not load wallet from DB, using fallback:", wErr?.message);
+    }
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
+        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
+        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
+      },
+      wallet: {
+        balance: Number(wallet.balance || 100),
+        currency: wallet.currency || "RWF"
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "OTP verification failed." });
+  }
+});
+app.post("/api/auth/verify-account", authRateLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and 6-digit verification code are required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+    const stored = verificationCodes.get(cleanEmail);
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
+    if (!isValid) {
+      return res.status(400).json({ error: "Invalid or expired verification code. Please check your inbox or request a new code." });
+    }
+    verificationCodes.delete(cleanEmail);
+    await query("UPDATE core_users SET is_verified = TRUE WHERE LOWER(email) = $1", [cleanEmail]);
+    const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+    const user = userRes.rows[0];
+    let wallet = { balance: 0, bonus_balance: 100, currency: "RWF" };
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+    } catch (wErr) {
+      console.warn("Could not load wallet from DB:", wErr?.message);
+    }
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
+        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
+        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
+      },
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 100),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 100),
+        currency: wallet.currency || "RWF"
+      },
+      message: "Account verified successfully! Welcome to Benix.Space."
+    });
+  } catch (err) {
+    console.error("Verify account error:", err);
+    return res.status(500).json({ error: err.message || "Verification failed." });
+  }
+});
+app.post("/api/auth/resend-verification", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const code = String(Math.floor(1e5 + Math.random() * 9e5));
+    verificationCodes.set(cleanEmail, {
+      code,
+      expiresAt: Date.now() + 15 * 60 * 1e3
+    });
+    await EmailService.sendEmail({
+      to: cleanEmail,
+      subject: `Benix.Space Verification Code: ${code}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+          <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Your new 6-digit verification code is:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code expires in 15 minutes.</p>
+        </div>
+      `
+    }).catch(() => {
+    });
+    return res.json({ success: true, message: `New verification code sent to ${cleanEmail}.` });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to resend code." });
+  }
+});
+app.post("/api/auth/register-wizard", authRateLimiter, async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      name: name2,
+      channel_name,
+      nickname,
+      phone,
+      country = "Rwanda",
+      phone_code = "+250",
+      verification_code,
+      selected_modules = ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
+      preferred_language = "en",
+      homepage_layout = { order: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"] },
+      referral_code
+    } = req.body;
+    if (!email || !password || !name2) {
+      return res.status(400).json({ error: "Email, password, and full name are required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanChannelName = String(channel_name || nickname || name2).trim().slice(0, 100);
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
+    });
+    const existing = await query("SELECT id, is_verified, name FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+    if (existing.rowCount > 0) {
+      const existingUser = existing.rows[0];
+      if (!existingUser.is_verified) {
+        const pwdHash2 = await hashPassword(password);
+        await query(
+          "UPDATE core_users SET password_hash = $1, name = $2, phone = $3, country = $4 WHERE id = $5",
+          [pwdHash2, name2.trim(), phone || null, country || "Rwanda", existingUser.id]
+        );
+        const code = String(Math.floor(1e5 + Math.random() * 9e5));
+        verificationCodes.set(cleanEmail, {
+          code,
+          expiresAt: Date.now() + 15 * 60 * 1e3,
+          data: { userId: existingUser.id }
+        });
+        EmailService.sendEmail({
+          to: cleanEmail,
+          subject: `Your Benix.Space Verification Code: ${code}`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+              <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+              <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name2.trim()},</p>
+              <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Please use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
+              <div style="text-align: center; margin: 32px 0;">
+                <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+              </div>
+              <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes.</p>
+            </div>
+          `
+        }).catch((e5) => console.warn("Verification email dispatch warning:", e5?.message));
+        return res.json({
+          requires_verification: true,
+          email: cleanEmail,
+          name: name2.trim(),
+          message: "Account registered. Please enter the 6-digit verification code sent to your email to activate your account."
+        });
+      }
+      return res.status(400).json({ error: "An account with this email address already exists. Please log in." });
+    }
+    const pwdHash = await hashPassword(password);
+    const userId = "usr_" + crypto21.randomUUID();
+    const userReferralCode = "REF-" + crypto21.randomBytes(3).toString("hex").toUpperCase();
+    let isVerified = false;
+    if (verification_code) {
+      const stored = verificationCodes.get(cleanEmail);
+      if (stored && stored.code === String(verification_code).trim() && Date.now() < stored.expiresAt) {
+        isVerified = true;
+        verificationCodes.delete(cleanEmail);
+      }
+    }
+    const userRes = await query(
+      `INSERT INTO core_users (
+        id, email, password_hash, name, channel_name, phone, country, preferred_language,
+        selected_modules, homepage_layout, referral_code, is_verified
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id, email, name, channel_name, role, phone, country, preferred_language, selected_modules, homepage_layout, referral_code, is_verified`,
+      [
+        userId,
+        cleanEmail,
+        pwdHash,
+        name2.trim(),
+        cleanChannelName,
+        phone || null,
+        country || "Rwanda",
+        preferred_language,
+        JSON.stringify(selected_modules),
+        JSON.stringify(homepage_layout),
+        userReferralCode,
+        isVerified
+      ]
+    );
+    const user = userRes.rows[0];
+    const wallet = await WalletService.getOrCreateWallet(user.id);
+    await WalletService.creditBonus(
+      user.id,
+      100,
+      "wallet",
+      "welcome_bonus",
+      "Benix.Space Welcome Bonus",
+      `tx_wb_${user.id}`
+    );
+    if (referral_code) {
+      await ReferralService.applyReferralCode(user.id, referral_code);
+    }
+    if (!isVerified) {
+      const code = String(Math.floor(1e5 + Math.random() * 9e5));
+      verificationCodes.set(cleanEmail, {
+        code,
+        expiresAt: Date.now() + 15 * 60 * 1e3,
+        data: { userId: user.id }
+      });
+      EmailService.sendEmail({
+        to: cleanEmail,
+        subject: `Your Benix.Space Verification Code: ${code}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+            <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+            <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name2.trim()},</p>
+            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Thank you for registering on Benix.Space. Use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
+            <div style="text-align: center; margin: 32px 0;">
+              <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+            </div>
+            <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not create this account, you can safely ignore this email.</p>
+          </div>
+        `
+      }).catch((e5) => console.warn("Verification email dispatch warning:", e5?.message));
+      return res.status(201).json({
+        requires_verification: true,
+        email: cleanEmail,
+        name: user.name,
+        message: "Account registered. Please enter the 6-digit verification code sent to your email to activate your account."
+      });
+    }
+    EmailService.sendEmail({
+      to: cleanEmail,
+      subject: "Welcome to Benix.Space Unified Platform!",
+      html: `<h2>Welcome to Benix.Space, ${name2}!</h2><p>Your unified super-account is ready. Your wallet has been credited with 100 RWF welcome bonus.</p>`
+    }).catch(() => {
+    });
+    createNotification({
+      recipientRole: "admin",
+      title: "\u{1F464} New User Registered",
+      message: `${name2} (${cleanEmail}) joined BenixSpace.`,
+      type: "user_registered",
+      actionUrl: "/admin/users",
+      metadata: { userId: user.id, email: user.email, name: user.name }
+    }).catch(() => {
+    });
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+    return res.status(201).json({
+      token,
+      user,
+      wallet: { balance: 0, bonus_balance: 100, total_balance: 100, currency: "RWF" },
+      message: "Account registered successfully!"
+    });
+  } catch (err) {
+    console.error("Registration Wizard Error:", err);
+    return res.status(500).json({ error: err.message || "Registration failed." });
+  }
+});
+app.post("/api/auth/login", authRateLimiter, async (req, res) => {
+  try {
+    console.log("\u{1F535} [SERVER_LOGIN_ATTEMPT]:", { email: req.body?.email, hasBody: !!req.body });
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      console.warn("\u26A0\uFE0F [SERVER_LOGIN_MISSING_CREDENTIALS]:", { email: !!email, password: !!password });
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    let user = null;
+    try {
+      const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+      if (userRes.rowCount > 0) {
+        user = userRes.rows[0];
+      }
+    } catch (dbErr) {
+      console.warn("Database lookup failed during login:", dbErr?.message);
+    }
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+    const match = await comparePassword(password, user.password_hash || "");
+    if (!match) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+    if (user.is_verified === false) {
+      const code = String(Math.floor(1e5 + Math.random() * 9e5));
+      verificationCodes.set(cleanEmail, {
+        code,
+        expiresAt: Date.now() + 15 * 60 * 1e3,
+        data: { userId: user.id }
+      });
+      EmailService.sendEmail({
+        to: cleanEmail,
+        subject: `Benix.Space Verification Code: ${code}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+            <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+            <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${user.name || "there"},</p>
+            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Your credentials are correct, but your account requires email verification. Use the 6-digit code below to activate your account and access all features:</p>
+            <div style="text-align: center; margin: 32px 0;">
+              <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+            </div>
+            <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code valid for 15 minutes.</p>
+          </div>
+        `
+      }).catch((e5) => console.warn("Verification dispatch warning:", e5?.message));
+      return res.json({
+        requires_verification: true,
+        unverified: true,
+        email: user.email,
+        name: user.name,
+        message: "Your account is not verified yet. A 6-digit verification code has been sent to your email."
+      });
+    }
+    let wallet = { balance: 0, bonus_balance: 0, currency: "RWF" };
+    let loginBonusResult = null;
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+      let dailyAmount = 10;
+      try {
+        const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+        if (sRes.rowCount && sRes.rows[0].services_json) {
+          const parsed = JSON.parse(sRes.rows[0].services_json);
+          if (parsed.daily_login_bonus_amount) {
+            dailyAmount = Number(parsed.daily_login_bonus_amount);
+          }
+        }
+      } catch {
+      }
+      loginBonusResult = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
+      if (loginBonusResult.claimed) {
+        wallet = await WalletService.getOrCreateWallet(user.id);
+      }
+    } catch (wErr) {
+      console.warn("Could not load wallet from DB, using fallback:", wErr?.message);
+    }
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
+        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
+        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
+      },
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        currency: wallet.currency || "RWF"
+      },
+      daily_login_bonus: loginBonusResult?.claimed ? loginBonusResult : null
+    });
+  } catch (err) {
+    console.error("\u{1F534} [SERVER_LOGIN_EXCEPTION_CAUGHT]:", err);
+    return res.status(500).json({
+      error: err.message || "Login failed due to an unexpected server error.",
+      code: err.code || "LOGIN_ERROR",
+      details: String(err)
+    });
+  }
+});
+app.get("/api/auth/me", authenticateToken, async (req, res) => {
+  try {
+    const userRes = await query(
+      "SELECT * FROM core_users WHERE id = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2)) LIMIT 1",
+      [req.user?.id, req.user?.email || ""]
+    );
+    if (userRes.rowCount === 0) {
+      if (req.user?.email === "benirabok@gmail.com" || req.user?.email === "admin@benix.space") {
+        return res.json({
+          user: {
+            id: req.user.id,
+            email: req.user.email,
+            name: "Benir Benjamin (Super Admin)",
+            role: "superadmin",
+            avatar_url: null,
+            channel_name: "Benix Official",
+            is_verified: true,
+            referral_code: "BENIX-SUPERADMIN",
+            selected_modules: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
+            app_profiles: {
+              kunda: { completed: true },
+              dating: { completed: true },
+              voxify: { completed: true },
+              music: { completed: true },
+              marketplace: { completed: true },
+              tv: { completed: true },
+              videos: { completed: true },
+              radio: { completed: true },
+              games: { completed: true },
+              calc: { completed: true }
+            }
+          },
+          wallet: { balance: 1e5, bonus_balance: 5e3, total_balance: 105e3, currency: "RWF" }
+        });
+      }
+      return res.status(404).json({ error: "User not found." });
+    }
+    const user = userRes.rows[0];
+    let wallet = { balance: 0, bonus_balance: 0, currency: "RWF" };
+    let dailyBonusAwarded = null;
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+      let dailyAmount = 10;
+      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+      if (sRes.rowCount && sRes.rows[0].services_json) {
+        const parsed = JSON.parse(sRes.rows[0].services_json);
+        if (parsed.daily_login_bonus_amount) {
+          dailyAmount = Number(parsed.daily_login_bonus_amount);
+        }
+      }
+      dailyBonusAwarded = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
+      if (dailyBonusAwarded.claimed) {
+        wallet = await WalletService.getOrCreateWallet(user.id);
+      }
+    } catch {
+    }
+    const refStats = await ReferralService.getStats(user.id);
+    return res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
+        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || "public",
+        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
+      },
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        pending_balance: Number(wallet.pending_balance || 0),
+        currency: wallet.currency || "RWF",
+        total_earnings: Number(wallet.total_earnings || 0),
+        total_withdrawn: Number(wallet.total_withdrawn || 0),
+        last_login_bonus_date: wallet.last_login_bonus_date
+      },
+      daily_login_bonus: dailyBonusAwarded?.claimed ? dailyBonusAwarded : null,
+      referrals: refStats
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.put("/api/auth/preferences", authenticateToken, async (req, res) => {
+  try {
+    const { selected_modules, preferred_language, homepage_layout } = req.body;
+    await query(
+      `UPDATE core_users SET
+        selected_modules = COALESCE($1, selected_modules),
+        preferred_language = COALESCE($2, preferred_language),
+        homepage_layout = COALESCE($3, homepage_layout),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [
+        selected_modules ? JSON.stringify(selected_modules) : null,
+        preferred_language || null,
+        homepage_layout ? JSON.stringify(homepage_layout) : null,
+        req.user?.id
+      ]
+    );
+    return res.json({ success: true, message: "Preferences updated successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.put("/api/auth/profile", authenticateToken, async (req, res) => {
+  try {
+    const { name: name2, phone, channel_name, avatar_url, avatar } = req.body;
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
+    });
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
+    });
+    const finalAvatar = avatar_url || avatar || null;
+    if (finalAvatar) {
+      await query(
+        `UPDATE core_users SET
+          name = COALESCE($1, name),
+          phone = COALESCE($2, phone),
+          channel_name = COALESCE($3, channel_name),
+          avatar_url = $4,
+          app_profiles = jsonb_set(
+            jsonb_set(
+              COALESCE(app_profiles, '{}'::jsonb),
+              '{avatar}',
+              to_jsonb($4::text)
+            ),
+            '{kunda,avatarUrl}',
+            to_jsonb($4::text)
+          ),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5 OR (email IS NOT NULL AND LOWER(email) = LOWER($6))`,
+        [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id, req.user?.email || ""]
+      );
+      await query("UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2", [finalAvatar, req.user?.id]).catch(() => {
+      });
+    } else {
+      await query(
+        `UPDATE core_users SET
+          name = COALESCE($1, name),
+          phone = COALESCE($2, phone),
+          channel_name = COALESCE($3, channel_name),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4 OR (email IS NOT NULL AND LOWER(email) = LOWER($5))`,
+        [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, req.user?.id, req.user?.email || ""]
+      );
+    }
+    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user?.id, req.user?.email || ""]);
+    return res.json({ success: true, user: updated.rows[0], message: "Channel profile updated successfully." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/auth/profile-photo", authenticateToken, async (req, res) => {
+  try {
+    const { avatarUrl, photoUrl, image } = req.body;
+    let finalPhoto = avatarUrl || photoUrl || image;
+    if (!finalPhoto) {
+      return res.status(400).json({ error: "Profile photo data or URL is required." });
+    }
+    await query(
+      `UPDATE core_users SET
+        avatar_url = $1,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
+      [finalPhoto, req.user.id, req.user.email || ""]
+    );
+    await query("UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2", [finalPhoto, req.user.id]).catch(() => {
+    });
+    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user.id, req.user.email || ""]);
+    return res.json({
+      success: true,
+      message: "Profile photo updated successfully!",
+      avatar_url: finalPhoto,
+      user: updated.rows[0]
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to update profile photo." });
+  }
+});
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ error: "Please enter your account email address." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
+    });
+    const userRes = await query("SELECT id, email, name FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
+    const legacyRes = userRes.rowCount === 0 ? await query("SELECT id, email, name FROM users WHERE LOWER(email) = $1", [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] })) : { rowCount: 0, rows: [] };
+    if (userRes.rowCount === 0 && legacyRes.rowCount === 0) {
+      return res.status(404).json({ error: "No account registered with this email address." });
+    }
+    const verificationCode = String(Math.floor(1e4 + Math.random() * 9e4));
+    await query(`
+      CREATE TABLE IF NOT EXISTS password_reset_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_pwd_resets_email ON password_reset_codes (email);
+    `).catch(() => {
+    });
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1e3);
+    await query(
+      `INSERT INTO password_reset_codes (email, code, expires_at) VALUES ($1, $2, $3)`,
+      [cleanEmail, verificationCode, expiresAt]
+    );
+    return res.json({
+      success: true,
+      message: `A 5-digit verification code has been generated for ${cleanEmail}.`,
+      verificationCode,
+      // Returned for instant UX delivery & in-app verification prompt
+      expiresInMinutes: 15
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to generate verification code." });
+  }
+});
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: "Email, 5-digit verification code, and new password are required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+    if (cleanCode.length !== 5) {
+      return res.status(400).json({ error: "Verification code must be exactly 5 digits." });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters long." });
+    }
+    const codeRes = await query(
+      `SELECT id, email, code, expires_at 
+       FROM password_reset_codes 
+       WHERE LOWER(email) = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP 
+       ORDER BY created_at DESC LIMIT 1`,
+      [cleanEmail, cleanCode]
+    );
+    if (codeRes.rowCount === 0) {
+      return res.status(400).json({ error: "Invalid or expired 5-digit verification code. Please request a new code." });
+    }
+    const salt = await bcryptjs_default.genSalt(10);
+    const passwordHash = await bcryptjs_default.hash(String(newPassword), salt);
+    await query("UPDATE core_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2", [passwordHash, cleanEmail]);
+    await query("UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2", [passwordHash, cleanEmail]).catch(() => {
+    });
+    await query("DELETE FROM password_reset_codes WHERE LOWER(email) = $1", [cleanEmail]).catch(() => {
+    });
+    return res.json({
+      success: true,
+      message: "Your password has been successfully updated! You can now sign in with your new password."
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to update password." });
+  }
+});
+app.get("/api/wallet", authenticateToken, async (req, res) => {
+  try {
+    const wallet = await WalletService.getOrCreateWallet(req.user.id);
+    const transactions = await WalletService.getTransactions(req.user.id, 20);
+    return res.json({
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        pending_balance: Number(wallet.pending_balance || 0),
+        currency: wallet.currency || "RWF",
+        total_earnings: Number(wallet.total_earnings || 0),
+        total_withdrawn: Number(wallet.total_withdrawn || 0),
+        last_login_bonus_date: wallet.last_login_bonus_date
+      },
+      transactions
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/wallet/claim-daily-bonus", authenticateToken, async (req, res) => {
+  try {
+    let dailyAmount = 10;
+    try {
+      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+      if (sRes.rowCount && sRes.rows[0].services_json) {
+        const parsed = JSON.parse(sRes.rows[0].services_json);
+        if (parsed.daily_login_bonus_amount) {
+          dailyAmount = Number(parsed.daily_login_bonus_amount);
+        }
+      }
+    } catch {
+    }
+    const result = await WalletService.claimDailyLoginBonus(req.user.id, dailyAmount);
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/wallets/set-bonus", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { userId, bonusAmount, reason } = req.body;
+    if (!userId || bonusAmount === void 0) {
+      return res.status(400).json({ error: "userId and bonusAmount are required." });
+    }
+    const result = await WalletService.adminSetBonus(userId, Number(bonusAmount), reason || "Admin bonus credit");
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/wallet/deposit", authenticateToken, async (req, res) => {
+  return res.status(400).json({
+    error: "Direct unverified deposits are disabled. Deposits must be verified through Flutterwave gateway (/api/wallet/flutterwave/initialize)."
+  });
+});
+app.post("/api/wallet/bet", authenticateToken, async (req, res) => {
+  try {
+    const { wager, prediction, targetPrediction } = req.body;
+    const numWager = parseFloat(wager);
+    if (!numWager || numWager < 50) {
+      return res.status(400).json({ error: "Minimum bet amount is 50 RWF." });
+    }
+    if (numWager > 5e4) {
+      return res.status(400).json({ error: "Maximum bet amount is 50,000 RWF per roll." });
+    }
+    const cleanPred = String(prediction || targetPrediction || "").toLowerCase().trim();
+    if (cleanPred !== "high" && cleanPred !== "low") {
+      return res.status(400).json({ error: 'Please choose either "high" (4-6) or "low" (1-3).' });
+    }
+    const debitRes = await WalletService.debit(
+      req.user.id,
+      numWager,
+      "games",
+      "dice_wager",
+      `RollDice Quick Wager: -${numWager.toLocaleString()} RWF (${cleanPred.toUpperCase()})`,
+      `tx_wgr_${Date.now()}_${crypto21.randomBytes(3).toString("hex")}`
+    );
+    const serverDice = Math.floor(Math.random() * 6) + 1;
+    const serverWon = cleanPred === "high" && serverDice >= 4 || cleanPred === "low" && serverDice <= 3;
+    let finalBalance = debitRes.newBalance;
+    let payout = 0;
+    if (serverWon) {
+      const multiplier = 1.95;
+      payout = Math.round(numWager * multiplier);
+      const creditRes = await WalletService.credit(
+        req.user.id,
+        payout,
+        "games",
+        "dice_win",
+        `RollDice Win: +${payout.toLocaleString()} RWF (Rolled ${serverDice} on ${cleanPred.toUpperCase()})`,
+        `tx_win_${Date.now()}_${crypto21.randomBytes(3).toString("hex")}`
+      );
+      finalBalance = creditRes.newBalance;
+    }
+    return res.json({
+      success: true,
+      won: serverWon,
+      dice: serverDice,
+      payout,
+      newBalance: finalBalance
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Bet placement failed." });
+  }
+});
+app.get("/api/wallet/search-recipient", authenticateToken, async (req, res) => {
+  try {
+    const q3 = String(req.query.q || "").trim();
+    if (!q3 || q3.length < 2) {
+      return res.json({ users: [] });
+    }
+    const term = `%${q3.toLowerCase()}%`;
+    const users = await query(
+      `SELECT id, name, email, phone, role
+       FROM core_users
+       WHERE (LOWER(email) LIKE $1 OR LOWER(name) LIKE $1)
+         AND id != $2
+       LIMIT 8`,
+      [term, req.user.id]
+    );
+    return res.json({ users: users.rows });
+  } catch (err) {
+    return res.status(500).json({ error: err.message, users: [] });
+  }
+});
+app.post("/api/wallet/transfer", authenticateToken, async (req, res) => {
+  try {
+    const { recipientEmail, amount, note = "" } = req.body;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: "Transfer amount must be greater than 0 RWF." });
+    }
+    if (!recipientEmail) {
+      return res.status(400).json({ error: "Recipient email is required." });
+    }
+    const cleanEmail = String(recipientEmail).trim().toLowerCase();
+    if (cleanEmail === req.user.email?.toLowerCase()) {
+      return res.status(400).json({ error: "You cannot transfer funds to yourself." });
+    }
+    const recipientRes = await query(
+      "SELECT id, name, email FROM core_users WHERE LOWER(email) = $1",
+      [cleanEmail]
+    );
+    if (recipientRes.rowCount === 0) {
+      return res.status(404).json({ error: "No registered user found with this email. Money can only be sent to verified Benix.Space accounts." });
+    }
+    const recipient = recipientRes.rows[0];
+    const senderWallet = await WalletService.getOrCreateWallet(req.user.id);
+    if (Number(senderWallet.balance) < numAmount) {
+      return res.status(400).json({
+        error: `Insufficient wallet balance. You have ${Number(senderWallet.balance).toLocaleString()} RWF, trying to transfer ${numAmount.toLocaleString()} RWF.`
+      });
+    }
+    const debitResult = await WalletService.debit(
+      req.user.id,
+      numAmount,
+      "wallet",
+      "transfer_out",
+      `Sent ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}${note ? ` ("${note}")` : ""}`,
+      `tx_trf_out_${Date.now()}`
+    );
+    await WalletService.credit(
+      recipient.id,
+      numAmount,
+      "wallet",
+      "transfer_in",
+      `Received ${numAmount.toLocaleString()} RWF from ${req.user.name || req.user.email}${note ? ` ("${note}")` : ""}`,
+      `tx_trf_in_${Date.now()}`
+    );
+    EmailService.sendEmail({
+      to: recipient.email,
+      subject: `You received ${numAmount.toLocaleString()} RWF on Benix.Space!`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px;">
+          <h2 style="color: #10B981;">Transfer Received!</h2>
+          <p>Hello ${recipient.name || "Member"},</p>
+          <p><strong>${req.user.name || req.user.email}</strong> has transferred <strong>${numAmount.toLocaleString()} RWF</strong> into your Benix.Space Central Wallet.</p>
+          ${note ? `<p style="padding: 12px; background: #1E293B; border-radius: 8px; color: #94A3B8;"><em>"${note}"</em></p>` : ""}
+          <p>You can use this balance across TV, live radio, dating, RollDice games, or withdraw directly to your MTN Mobile Money account.</p>
+        </div>
+      `
+    }).catch(() => {
+    });
+    createNotification({
+      userId: recipient.id,
+      title: "Money Received \u{1F4B8}",
+      message: `You received ${numAmount.toLocaleString()} RWF from ${req.user.name || req.user.email}.${note ? ` ("${note}")` : ""}`,
+      type: "wallet",
+      actionUrl: "/dashboard#wallet",
+      metadata: { from: req.user.id, amount: numAmount }
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      newBalance: debitResult.newBalance,
+      message: `Successfully transferred ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}.`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Transfer failed." });
+  }
+});
+app.get("/api/wallet/settings", async (req, res) => {
+  try {
+    const minWithdrawalStr = await getSystemSetting4("min_withdrawal_amount", "500");
+    const minWithdrawalAmount = Math.max(100, Number(minWithdrawalStr) || 500);
+    return res.json({ success: true, minWithdrawalAmount });
+  } catch {
+    return res.json({ success: true, minWithdrawalAmount: 500 });
+  }
+});
+app.post("/api/wallet/withdraw", authenticateToken, async (req, res) => {
+  try {
+    const { amount, payoutMethod = "MTN_MOMO", accountDetails } = req.body;
+    const numAmount = parseFloat(amount);
+    const minWithdrawalStr = await getSystemSetting4("min_withdrawal_amount", "500");
+    const minWithdrawal = Math.max(100, Number(minWithdrawalStr) || 500);
+    if (!numAmount || numAmount < minWithdrawal) {
+      return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal.toLocaleString()} RWF.` });
+    }
+    if (!accountDetails) {
+      return res.status(400).json({ error: "Account details / phone number is required." });
+    }
+    const result = await WalletService.requestWithdrawal(
+      req.user.id,
+      numAmount,
+      payoutMethod,
+      accountDetails
+    );
+    let autoWithdrawResult = null;
+    try {
+      autoWithdrawResult = await WithdrawalService.tryAutoWithdraw(result.withdrawalId);
+    } catch (autoErr) {
+      console.warn("[AutoWithdraw Trigger Warning]:", autoErr?.message);
+    }
+    if (autoWithdrawResult?.autoApproved) {
+      createNotification({
+        userId: req.user.id,
+        title: "Withdrawal Auto-Approved & Sent! \u26A1",
+        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent directly via Flutterwave to your ${payoutMethod}!`,
+        type: "withdrawal",
+        actionUrl: "/dashboard#wallet",
+        metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId, autoApproved: true }
+      }).catch(() => {
+      });
+      return res.json({
+        success: true,
+        autoApproved: true,
+        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent to your ${payoutMethod}!`,
+        withdrawalId: result.withdrawalId
+      });
+    }
+    const userEmail = req.user.email;
+    const adminEmail = process.env.SUPERADMIN_EMAIL || "benirabok@gmail.com";
+    const accountDetailsStr = typeof accountDetails === "string" ? accountDetails : JSON.stringify(accountDetails);
+    EmailService.sendEmail({
+      to: adminEmail,
+      subject: `[Action Required] New Withdrawal Request: ${numAmount.toLocaleString()} RWF from ${userEmail}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+          <h2 style="color: #38BDF8;">New Payout / Withdrawal Request</h2>
+          <p>A user has requested a withdrawal from their Benix Central Wallet:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; color: #CBD5E1;">
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>User:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${userEmail}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155; color: #10B981; font-weight: bold;">${numAmount.toLocaleString()} RWF</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Payout Method:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${payoutMethod}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Details:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${accountDetailsStr}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Withdrawal ID:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155; font-family: monospace;">${result.withdrawalId}</td></tr>
+          </table>
+          <p style="margin-top: 20px;">Log in to the Admin Dashboard to review and approve this payout.</p>
+        </div>
+      `
+    }).catch((e5) => console.warn("Admin withdrawal email warning:", e5?.message));
+    EmailService.sendEmail({
+      to: userEmail,
+      subject: `Your Benix.Space Withdrawal Request of ${numAmount.toLocaleString()} RWF`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+          <h2 style="color: #10B981;">Withdrawal Request Received</h2>
+          <p>Hello,</p>
+          <p>We have received your withdrawal request for <strong>${numAmount.toLocaleString()} RWF</strong> via <strong>${payoutMethod}</strong>.</p>
+          <p>Our finance team reviews all requests within 1-2 hours. You will receive an instant notification once the payout is sent to your account.</p>
+          <p style="color: #94A3B8; font-size: 12px; margin-top: 24px;">Withdrawal Reference ID: ${result.withdrawalId}</p>
+        </div>
+      `
+    }).catch((e5) => console.warn("User withdrawal email warning:", e5?.message));
+    createNotification({
+      userId: req.user.id,
+      title: "Withdrawal Pending Review",
+      message: `Your withdrawal request for ${numAmount.toLocaleString()} RWF via ${payoutMethod} has been submitted.`,
+      type: "withdrawal",
+      actionUrl: "/dashboard#wallet",
+      metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
+    }).catch(() => {
+    });
+    createNotification({
+      recipientRole: "admin",
+      title: "\u26A0\uFE0F Action Required: New Payout Request",
+      message: `${userEmail} requested withdrawal of ${numAmount.toLocaleString()} RWF via ${payoutMethod}.`,
+      type: "withdrawal",
+      actionUrl: "/admin#withdrawals",
+      metadata: { userId: req.user.id, email: userEmail, amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      message: "Withdrawal request submitted! Admin and user confirmation emails sent.",
+      withdrawalId: result.withdrawalId
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/admin/withdrawals", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const data = await WithdrawalService.listWithdrawals();
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/admin/withdrawals/:id/approve", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
+    const result = await WithdrawalService.approveWithdrawal(
+      id,
+      Number(approvedAmount),
+      Number(feePercent),
+      Boolean(sendViaFlutterwave),
+      note
+    );
+    query("SELECT user_id, amount, payout_method FROM core_withdrawals WHERE id = $1", [id]).then((wRes) => {
+      if (wRes.rows && wRes.rows[0]) {
+        const w = wRes.rows[0];
+        createNotification({
+          userId: w.user_id,
+          title: "Withdrawal Approved & Sent! \u{1F389}",
+          message: `Your withdrawal of ${Number(approvedAmount || w.amount).toLocaleString()} RWF has been approved and paid out to your ${w.payout_method || "account"}.`,
+          type: "withdrawal",
+          actionUrl: "/dashboard#wallet",
+          metadata: { withdrawalId: id, amount: approvedAmount || w.amount }
+        }).catch(() => {
+        });
+      }
+    }).catch(() => {
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.post("/api/admin/withdrawals/:id/reject", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const result = await WithdrawalService.rejectWithdrawal(id, reason);
+    query("SELECT user_id, amount FROM core_withdrawals WHERE id = $1", [id]).then((wRes) => {
+      if (wRes.rows && wRes.rows[0]) {
+        const w = wRes.rows[0];
+        createNotification({
+          userId: w.user_id,
+          title: "Withdrawal Declined & Refunded",
+          message: `Your withdrawal request of ${Number(w.amount).toLocaleString()} RWF was rejected (${reason || "Account issue"}). The funds have been refunded to your wallet.`,
+          type: "withdrawal",
+          actionUrl: "/dashboard#wallet",
+          metadata: { withdrawalId: id, amount: w.amount, reason }
+        }).catch(() => {
+        });
+      }
+    }).catch(() => {
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.post("/api/admin/withdrawals/settings", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { feePercent, autoWithdrawEnabled, autoWithdrawMaxAmount, autoWithdrawBuffer } = req.body;
+    await WithdrawalService.saveWithdrawalSettings({
+      feePercent: feePercent !== void 0 ? Number(feePercent) : void 0,
+      autoWithdrawEnabled: autoWithdrawEnabled !== void 0 ? Boolean(autoWithdrawEnabled) : void 0,
+      autoWithdrawMaxAmount: autoWithdrawMaxAmount !== void 0 ? Number(autoWithdrawMaxAmount) : void 0,
+      autoWithdrawBuffer: autoWithdrawBuffer !== void 0 ? Number(autoWithdrawBuffer) : void 0
+    });
+    const updated = await WithdrawalService.getAutoWithdrawSettings();
+    return res.json({ success: true, settings: updated });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.post("/api/admin/withdrawals/auto-process", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const result = await WithdrawalService.processBatchAutoWithdrawals();
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+async function getFlutterwaveConfig() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS payment_settings (
+        id VARCHAR(50) PRIMARY KEY,
+        provider VARCHAR(50) NOT NULL,
+        public_key TEXT,
+        secret_key TEXT,
+        encryption_key TEXT,
+        is_live BOOLEAN DEFAULT FALSE,
+        enabled BOOLEAN DEFAULT TRUE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    const row = await query("SELECT * FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    if (row.rowCount && row.rowCount > 0) {
+      const flw = row.rows[0];
+      const pk = (flw.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X").trim();
+      const sk = (flw.secret_key || process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim();
+      const ek = (flw.encryption_key || process.env.FLUTTERWAVE_ENCRYPTION_KEY || "").trim();
+      return {
+        publicKey: pk || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X",
+        secretKey: sk || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X",
+        encryptionKey: ek,
+        isLive: !!flw.is_live,
+        enabled: flw.enabled !== false
+      };
+    }
+  } catch (err) {
+    console.warn("Error fetching payment_settings:", err);
+  }
+  return {
+    publicKey: (process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X").trim(),
+    secretKey: (process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim(),
+    encryptionKey: (process.env.FLUTTERWAVE_ENCRYPTION_KEY || "").trim(),
+    isLive: true,
+    enabled: true
+  };
+}
+app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, res) => {
+  try {
+    const { amount, currency = "USD", email, phone, name: name2 } = req.body;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: "Valid deposit amount is required." });
+    }
+    const flwConfig = await getFlutterwaveConfig();
+    if (!flwConfig.enabled) {
+      return res.status(400).json({ error: "Flutterwave deposits are currently paused by the platform administrator." });
+    }
+    const effectiveKey = flwConfig.publicKey || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X";
+    const effectiveSecret = flwConfig.secretKey || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X";
+    const ratesToRwf = {
+      RWF: 1,
+      USD: 1420,
+      EUR: 1540,
+      GBP: 1810,
+      KES: 11,
+      UGX: 0.38,
+      NGN: 0.9,
+      TZS: 0.55
+    };
+    const rate = ratesToRwf[currency] || 1;
+    const convertedRwf = Math.round(numAmount * rate);
+    const txRef = `FLW-BENIX-${Date.now()}-${crypto21.randomBytes(3).toString("hex").toUpperCase()}`;
+    let customerEmail = (email || req.user?.email || "member@benix.space").trim();
+    let customerPhone = (phone || "0780000000").trim();
+    let customerName = (name2 || "Benix Member").trim();
+    try {
+      const userRes = await query("SELECT email, name, phone FROM core_users WHERE id = $1", [req.user.id]);
+      if (userRes.rowCount && userRes.rowCount > 0) {
+        const u = userRes.rows[0];
+        if (!email && u.email) customerEmail = u.email;
+        if (!name2 && u.name) customerName = u.name;
+        if (!phone && u.phone) customerPhone = u.phone;
+      }
+    } catch {
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS pending_flutterwave_deposits (
+        tx_ref VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        original_amount NUMERIC(14, 2) NOT NULL,
+        converted_rwf NUMERIC(14, 2) NOT NULL,
+        status VARCHAR(30) DEFAULT 'pending',
+        flw_ref VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO pending_flutterwave_deposits (tx_ref, user_id, currency, original_amount, converted_rwf)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tx_ref) DO UPDATE SET
+         currency = EXCLUDED.currency,
+         original_amount = EXCLUDED.original_amount,
+         converted_rwf = EXCLUDED.converted_rwf`,
+      [txRef, req.user.id, currency, numAmount, convertedRwf]
+    ).catch((e5) => console.warn("Record pending deposit warning:", e5.message));
+    const rawOrigin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : "") || "https://benix.space";
+    const redirectUrl = `${rawOrigin}/dashboard?flw_deposit=true&tx_ref=${txRef}`;
+    let paymentLink = null;
+    if (effectiveSecret) {
+      try {
+        const flwRes = await fetch("https://api.flutterwave.com/v3/payments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${effectiveSecret}`
+          },
+          body: JSON.stringify({
+            tx_ref: txRef,
+            amount: numAmount.toString(),
+            currency,
+            redirect_url: redirectUrl,
+            customer: {
+              email: customerEmail,
+              phonenumber: customerPhone,
+              name: customerName
+            },
+            customizations: {
+              title: "Benix.Space Central Wallet",
+              description: `Deposit ${numAmount} ${currency} (\u2248 ${convertedRwf.toLocaleString()} RWF)`,
+              logo: "https://benix.space/logo.png"
+            }
+          })
+        });
+        const flwData = await flwRes.json();
+        if (flwRes.ok && flwData.status === "success" && flwData.data?.link) {
+          paymentLink = flwData.data.link;
+        } else {
+          console.warn("Flutterwave standard payment init response:", flwData);
+          if (flwData?.message && !paymentLink) {
+            return res.status(400).json({ error: `Flutterwave error: ${flwData.message}` });
+          }
+        }
+      } catch (fErr) {
+        console.warn("Flutterwave fetch failure:", fErr.message);
+      }
+    }
+    return res.json({
+      success: true,
+      paymentLink,
+      payment_link: paymentLink,
+      txRef,
+      tx_ref: txRef,
+      publicKey: effectiveKey,
+      public_key: effectiveKey,
+      currency,
+      originalAmount: numAmount,
+      convertedRwf,
+      rate,
+      message: `${numAmount} ${currency} \u2248 ${convertedRwf.toLocaleString()} RWF will be credited to your central wallet.`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/wallet/flutterwave/cancel", authenticateToken, async (req, res) => {
+  try {
+    const { txRef } = req.body;
+    if (txRef) {
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+        [txRef]
+      ).catch(() => {
+      });
+    }
+    return res.json({ success: true, message: "Deposit recorded as cancelled." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/wallet/flutterwave/webhook", async (req, res) => {
+  try {
+    const payload = req.body;
+    const event = payload?.event;
+    const data = payload?.data;
+    const flwConfig = await getFlutterwaveConfig();
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
+    const incomingSignature = req.headers["verif-hash"];
+    if (secretHash && incomingSignature !== secretHash) {
+      console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Invalid signature header verif-hash");
+      return res.status(401).json({ error: "Invalid webhook signature." });
+    }
+    if (event === "charge.completed" && data?.status === "successful") {
+      const txRef = data.tx_ref;
+      const flwId = data.id;
+      if (!txRef) {
+        return res.status(200).json({ status: "ignored_missing_ref" });
+      }
+      const existingTx = await query(
+        "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
+        [txRef]
+      ).catch(() => ({ rowCount: 0, rows: [] }));
+      if (existingTx.rowCount && existingTx.rowCount > 0) {
+        return res.status(200).json({ status: "already_credited" });
+      }
+      const pendingRow = await query(
+        "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
+        [txRef]
+      ).catch(() => ({ rowCount: 0, rows: [] }));
+      if (!pendingRow.rowCount || pendingRow.rowCount === 0) {
+        return res.status(200).json({ status: "no_pending_deposit_found" });
+      }
+      const p4 = pendingRow.rows[0];
+      if (p4.status === "completed") {
+        return res.status(200).json({ status: "already_completed" });
+      }
+      const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
+      if (!effectiveSecret || !flwId) {
+        console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID");
+        return res.status(400).json({ error: "Cannot verify transaction with Flutterwave API" });
+      }
+      try {
+        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
+          headers: {
+            Authorization: `Bearer ${effectiveSecret}`,
+            "Content-Type": "application/json"
+          }
+        });
+        if (!verifyRes.ok) {
+          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_VERIFY_FAILED]: Flutterwave API returned non-OK status", verifyRes.status);
+          return res.status(400).json({ status: "verification_failed" });
+        }
+        const vData = await verifyRes.json();
+        if (vData?.status !== "success" || vData?.data?.status !== "successful") {
+          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_VERIFY_FAILED]: Webhook verification check failed with Flutterwave API:", vData);
+          return res.status(400).json({ status: "verification_failed" });
+        }
+        if (vData?.data?.tx_ref && vData.data.tx_ref !== txRef) {
+          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REF_MISMATCH]: Returned tx_ref does not match pending deposit");
+          return res.status(400).json({ status: "tx_ref_mismatch" });
+        }
+      } catch (vErr) {
+        console.error("\u{1F534} [FLW_WEBHOOK_EXCEPTION]: Direct verify check exception:", vErr.message);
+        return res.status(500).json({ status: "verification_error", error: vErr.message });
+      }
+      const convertedRwf = Number(p4.converted_rwf);
+      const originalAmount = Number(p4.original_amount);
+      const currency = p4.currency || "RWF";
+      await WalletService.credit(
+        p4.user_id,
+        convertedRwf,
+        "wallet",
+        "flutterwave_deposit",
+        `Flutterwave Deposit (${originalAmount} ${currency} \u2192 ${convertedRwf.toLocaleString()} RWF)`,
+        txRef,
+        { flwRef: flwId, originalAmount, currency, source: "webhook" }
+      );
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
+        [String(flwId || "flw_webhook"), txRef]
+      ).catch(() => {
+      });
+      try {
+        await ReferralService.triggerQualifyingEvent(p4.user_id, "first_deposit", "wallet");
+      } catch {
+      }
+      createNotification({
+        userId: p4.user_id,
+        title: "Deposit Received! \u{1F4B0}",
+        message: `Your deposit of ${convertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
+        type: "deposit",
+        actionUrl: "/dashboard#wallet",
+        metadata: { amount: convertedRwf, txRef }
+      }).catch(() => {
+      });
+      createNotification({
+        recipientRole: "admin",
+        title: "\u{1F4B0} New Deposit Credited",
+        message: `User ${p4.user_id} deposited ${convertedRwf.toLocaleString()} RWF via Flutterwave.`,
+        type: "deposit",
+        actionUrl: "/admin#withdrawals",
+        metadata: { userId: p4.user_id, amount: convertedRwf, txRef }
+      }).catch(() => {
+      });
+      return res.status(200).json({ status: "success", credited: true, txRef });
+    }
+    return res.status(200).json({ status: "ignored_unhandled_event" });
+  } catch (err) {
+    console.error("Flutterwave webhook processing error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/wallet/flutterwave/verify", authenticateToken, async (req, res) => {
+  try {
+    const { txRef, convertedRwf, currency = "RWF", originalAmount, flwRef, transactionId, status } = req.body;
+    if (!txRef) {
+      return res.status(400).json({ error: "Valid transaction reference (txRef) is required." });
+    }
+    if (status === "cancelled" || status === "failed") {
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+        [txRef]
+      ).catch(() => {
+      });
+      return res.status(400).json({ error: "Payment was cancelled. Wallet was not credited." });
+    }
+    const existingTx = await query(
+      "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
+      [txRef]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    if (existingTx.rowCount && existingTx.rowCount > 0) {
+      const wallet = await WalletService.getOrCreateWallet(req.user.id);
+      return res.json({
+        success: true,
+        newBalance: Number(wallet.balance || 0),
+        message: `Transaction ${txRef} has already been credited to your wallet.`
+      });
+    }
+    let finalConvertedRwf = parseFloat(convertedRwf);
+    let finalCurrency = currency;
+    let finalOriginalAmount = parseFloat(originalAmount);
+    const pendingRow = await query(
+      "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
+      [txRef]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    if (pendingRow.rowCount && pendingRow.rowCount > 0) {
+      const p4 = pendingRow.rows[0];
+      if (p4.status === "completed") {
+        const wallet = await WalletService.getOrCreateWallet(req.user.id);
+        return res.json({
+          success: true,
+          newBalance: Number(wallet.balance || 0),
+          message: `Transaction ${txRef} has already been credited to your wallet.`
+        });
+      }
+      if (p4.status === "cancelled" || p4.status === "rejected") {
+        return res.status(400).json({ error: `This deposit was marked as ${p4.status}. It cannot be credited.` });
+      }
+      if (!finalConvertedRwf || isNaN(finalConvertedRwf)) finalConvertedRwf = Number(p4.converted_rwf);
+      if (!finalOriginalAmount || isNaN(finalOriginalAmount)) finalOriginalAmount = Number(p4.original_amount);
+      if (!finalCurrency) finalCurrency = p4.currency;
+    }
+    if (!finalConvertedRwf || finalConvertedRwf < 100) {
+      return res.status(400).json({ error: "Minimum deposit is 100 RWF." });
+    }
+    const effectiveFlwRef = flwRef || transactionId;
+    const flwConfig = await getFlutterwaveConfig();
+    const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X";
+    let verifyUrl = "";
+    if (effectiveFlwRef && !effectiveFlwRef.toString().startsWith("fake_")) {
+      verifyUrl = `https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`;
+    } else if (txRef) {
+      verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`;
+    }
+    if (verifyUrl && effectiveSecret) {
+      try {
+        const verifyRes = await fetch(verifyUrl, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${effectiveSecret}`
+          }
+        });
+        if (!verifyRes.ok) {
+          const errBody = await verifyRes.text().catch(() => "");
+          console.warn(`Flutterwave direct API verification returned HTTP ${verifyRes.status}:`, errBody);
+          await query(
+            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+            [txRef]
+          ).catch(() => {
+          });
+          return res.status(400).json({
+            error: "Flutterwave verification failed. The transaction was cancelled or not completed on the payment gateway."
+          });
+        }
+        const verifyData = await verifyRes.json();
+        const flwStatus = (verifyData?.data?.status || "").toLowerCase();
+        if (verifyData?.status !== "success" || flwStatus !== "successful") {
+          if (flwStatus === "pending") {
+            return res.status(202).json({
+              pending: true,
+              status: "pending",
+              message: "Payment is currently being processed by your Mobile Money provider. Your wallet will update automatically once confirmed."
+            });
+          }
+          await query(
+            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+            [txRef]
+          ).catch(() => {
+          });
+          return res.status(400).json({
+            error: `Flutterwave payment status is '${flwStatus || verifyData?.status || "unsuccessful"}'. Not credited.`
+          });
+        }
+        const gatewayTxRef = verifyData?.data?.tx_ref;
+        if (gatewayTxRef && gatewayTxRef !== txRef) {
+          return res.status(400).json({ error: "Transaction reference mismatch." });
+        }
+      } catch (flwErr) {
+        console.warn("Flutterwave direct API verification exception:", flwErr.message);
+        return res.status(400).json({
+          error: "Unable to reach Flutterwave gateway for verification. Please retry."
+        });
+      }
+    } else {
+      return res.status(400).json({ error: "Missing Flutterwave verification parameters or gateway secret." });
+    }
+    const result = await WalletService.credit(
+      req.user.id,
+      finalConvertedRwf,
+      "wallet",
+      "flutterwave_deposit",
+      `Flutterwave Deposit (${finalOriginalAmount || finalConvertedRwf} ${finalCurrency} \u2192 ${finalConvertedRwf.toLocaleString()} RWF)`,
+      txRef,
+      { flwRef: effectiveFlwRef, originalAmount: finalOriginalAmount, currency: finalCurrency }
+    );
+    await query(
+      "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
+      [effectiveFlwRef || "flw_verified", txRef]
+    ).catch(() => {
+    });
+    try {
+      await ReferralService.triggerQualifyingEvent(req.user.id, "first_deposit", "wallet");
+    } catch (refErr) {
+      console.warn("Referral trigger non-fatal:", refErr);
+    }
+    createNotification({
+      userId: req.user.id,
+      title: "Deposit Received! \u{1F4B0}",
+      message: `Your deposit of ${finalConvertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
+      type: "deposit",
+      actionUrl: "/dashboard#wallet",
+      metadata: { amount: finalConvertedRwf, txRef }
+    }).catch(() => {
+    });
+    createNotification({
+      recipientRole: "admin",
+      title: "\u{1F4B0} New Deposit Credited",
+      message: `User ${req.user.name || req.user.email} deposited ${finalConvertedRwf.toLocaleString()} RWF via Flutterwave.`,
+      type: "deposit",
+      actionUrl: "/admin#withdrawals",
+      metadata: { userId: req.user.id, email: req.user.email, amount: finalConvertedRwf, txRef }
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      newBalance: result.newBalance,
+      message: `Successfully credited ${finalConvertedRwf.toLocaleString()} RWF to your wallet via Flutterwave!`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+async function getSystemSetting4(key, defaultValue) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -116841,7 +126199,7 @@ async function getSystemSetting2(key, defaultValue) {
   }
   return defaultValue;
 }
-async function setSystemSetting2(key, value) {
+async function setSystemSetting4(key, value) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -116875,10 +126233,10 @@ async function setSystemSetting2(key, value) {
 }
 app.get("/api/chat/settings", async (req, res) => {
   try {
-    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
-    const creatorRevSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
-    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
-    const freeMessages = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+    const contactUnlockPrice = Number(await getSystemSetting4("contact_unlock_price", "500")) || 500;
+    const creatorRevSharePct = Number(await getSystemSetting4("kunda_creator_rev_share_pct", "15")) || 15;
+    const messageCost = Number(await getSystemSetting4("kunda_message_cost", "50")) || 50;
+    const freeMessages = Number(await getSystemSetting4("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice,
@@ -116902,21 +126260,21 @@ app.post("/api/admin/settings/chat", authenticateToken, requireAdminRole, async 
   try {
     const { contactUnlockPrice, creatorRevSharePct, messageCost, freeMessages } = req.body;
     if (contactUnlockPrice !== void 0) {
-      await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
+      await setSystemSetting4("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
     }
     if (creatorRevSharePct !== void 0) {
-      await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
+      await setSystemSetting4("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
     }
     if (messageCost !== void 0) {
-      await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
+      await setSystemSetting4("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
     }
     if (freeMessages !== void 0) {
-      await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
+      await setSystemSetting4("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
     }
-    const currentPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
-    const currentShare = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
-    const currentCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
-    const currentFree = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+    const currentPrice = Number(await getSystemSetting4("contact_unlock_price", "500")) || 500;
+    const currentShare = Number(await getSystemSetting4("kunda_creator_rev_share_pct", "15")) || 15;
+    const currentCost = Number(await getSystemSetting4("kunda_message_cost", "50")) || 50;
+    const currentFree = Number(await getSystemSetting4("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice: currentPrice,
@@ -116959,10 +126317,10 @@ app.get("/api/chat/partner-status/:partnerId", authenticateToken, async (req, re
   try {
     const partnerId = req.params.partnerId;
     const senderId = req.user.id;
-    const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
-    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
-    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
-    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
+    const freeLimit = Number(await getSystemSetting4("kunda_free_messages", "3")) || 3;
+    const messageCost = Number(await getSystemSetting4("kunda_message_cost", "50")) || 50;
+    const revSharePct = Number(await getSystemSetting4("kunda_creator_rev_share_pct", "15")) || 15;
+    const contactUnlockPrice = Number(await getSystemSetting4("contact_unlock_price", "500")) || 500;
     let partnerPrivacy = "public";
     let partnerName = "Member";
     if (partnerId !== "support") {
@@ -117066,10 +126424,10 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         [senderId, recipientId]
       );
       const sentCount = Number(countRes.rows[0]?.count || 0);
-      const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
-      const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+      const freeLimit = Number(await getSystemSetting4("kunda_free_messages", "3")) || 3;
+      const messageCost = Number(await getSystemSetting4("kunda_message_cost", "50")) || 50;
       if (sentCount >= freeLimit && messageCost > 0) {
-        const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+        const revSharePct = Number(await getSystemSetting4("kunda_creator_rev_share_pct", "15")) || 15;
         creatorEarning = Math.round(messageCost * revSharePct / 100);
         amountPaid = messageCost;
         isPaid = true;
@@ -117150,7 +126508,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
   try {
     const { contactId } = req.body;
     if (!contactId) return res.status(400).json({ error: "contactId is required." });
-    const dbPriceStr = await getSystemSetting2("contact_unlock_price", "500");
+    const dbPriceStr = await getSystemSetting4("contact_unlock_price", "500");
     const unlockPrice = Math.max(0, Number(dbPriceStr) || 500);
     const userId = req.user.id;
     await WalletService.getOrCreateWallet(userId).catch(() => {
@@ -117163,7 +126521,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       `Unlocked direct contact phone number for member #${contactId}`,
       `tx_chat_unl_${Date.now()}`
     );
-    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const revSharePct = Number(await getSystemSetting4("kunda_creator_rev_share_pct", "15")) || 15;
     const creatorCut = Math.round(unlockPrice * revSharePct / 100);
     if (creatorCut > 0 && contactId !== "support" && contactId !== userId) {
       await WalletService.credit(
@@ -117225,7 +126583,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      const dbPrice = await getSystemSetting2("contact_unlock_price", "500");
+      const dbPrice = await getSystemSetting4("contact_unlock_price", "500");
       return res.status(400).json({
         error: "INSUFFICIENT_FUNDS",
         message: `Insufficient wallet balance. Unlocking contact requires ${dbPrice} RWF. Please top up your wallet.`
@@ -117892,7 +127250,7 @@ app.post("/api/media/upload-chunk", async (req, res) => {
     const buffers = chunksRes.rows.map((r5) => Buffer.from(r5.chunk_data, "base64"));
     const fullBuffer = Buffer.concat(buffers);
     const safeExt = path4.extname(fileName || "").toLowerCase() || (mimeType?.includes("video") ? ".mp4" : ".jpg");
-    const fileId = "med_" + Date.now() + "_" + crypto16.randomBytes(4).toString("hex");
+    const fileId = "med_" + Date.now() + "_" + crypto21.randomBytes(4).toString("hex");
     const safeFileName = `${fileId}${safeExt}`;
     const cleanMime = (mimeType || "application/octet-stream").split(";")[0].trim();
     await query(
@@ -118615,7 +127973,7 @@ app.post("/api/stories/:id/repost", authenticateToken, async (req, res) => {
     }
     const old = storyRes.rows[0];
     const newId = "story-" + Date.now();
-    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting4("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -118671,7 +128029,7 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
         console.warn("Story R2 upload notice:", err?.message);
       }
     }
-    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting4("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -119075,8 +128433,8 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
       [userId]
     );
     const currentSubscribers = Number(subRes.rows[0]?.count || 0);
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting4("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting4("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -119254,8 +128612,8 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
     ).catch(() => ({ rows: [{ story_count: 0, total_story_views: 0 }] }));
     const storyCount = Number(storiesRes.rows[0]?.story_count || 0);
     const totalStoryViews = Number(storiesRes.rows[0]?.total_story_views || 0);
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting4("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting4("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -119558,8 +128916,8 @@ app.post("/api/admin/videos/batch-import", authenticateToken, requireAdminRole, 
 });
 app.get("/api/admin/monetization/settings", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting4("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting4("monetization_required_subscribers", "30");
     return res.json({
       success: true,
       requiredWatchHours: Number(reqHoursStr) || 300,
@@ -119573,10 +128931,10 @@ app.post("/api/admin/monetization/settings", authenticateToken, requireAdminRole
   try {
     const { requiredWatchHours, requiredSubscribers } = req.body;
     if (requiredWatchHours !== void 0) {
-      await setSystemSetting2("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
+      await setSystemSetting4("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
     }
     if (requiredSubscribers !== void 0) {
-      await setSystemSetting2("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
+      await setSystemSetting4("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
     }
     return res.json({ success: true, message: "Monetization requirements updated in database." });
   } catch (err) {
@@ -119589,8 +128947,8 @@ app.get("/api/admin/creators/monetization", authenticateToken, requireAdminRole,
     });
     await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {
     });
-    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting4("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting4("monetization_required_subscribers", "30");
     const reqHours = Number(reqHoursStr) || 300;
     const reqSubs = Number(reqSubsStr) || 30;
     const creatorsRes = await query(`
@@ -121664,7 +131022,7 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
     );
     userUnlocked.add(video.id);
     unlockedVideosByUser.set(req.user.id, userUnlocked);
-    const platformCommissionPct = Number(await getSystemSetting2("video_affiliate_commission_pct", "15")) || 15;
+    const platformCommissionPct = Number(await getSystemSetting4("video_affiliate_commission_pct", "15")) || 15;
     const creatorCutPct = Math.max(0, 100 - platformCommissionPct);
     const creatorEarned = Math.round(video.price * creatorCutPct / 100);
     const videoCreatorId = video.userId || video.user_id;
@@ -122620,7 +131978,7 @@ var handleBonusSpin = async (req, res) => {
     const stake = Number(room.stake);
     const totalPot = stake * 2;
     const basePayout = totalPot - totalPot * 10 / 100;
-    const randNum = crypto16.randomBytes(4).readUInt32BE(0) % 1e5 + 1;
+    const randNum = crypto21.randomBytes(4).readUInt32BE(0) % 1e5 + 1;
     let selectedTier = MULTIPLIER_TIERS_SERVER[2];
     let tierIndex = 2;
     for (let i5 = 0; i5 < MULTIPLIER_TIERS_SERVER.length; i5++) {
@@ -122864,11 +132222,11 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     `, [JSON.stringify(payload)]);
     if (payload.adsense) {
       const a6 = payload.adsense;
-      if (a6.google_ad_view_payout !== void 0) await setSystemSetting2("google_ad_view_payout", String(a6.google_ad_view_payout));
-      if (a6.google_ad_click_payout !== void 0) await setSystemSetting2("google_ad_click_payout", String(a6.google_ad_click_payout));
-      if (a6.custom_ad_view_payout !== void 0) await setSystemSetting2("custom_ad_view_payout", String(a6.custom_ad_view_payout));
-      if (a6.custom_ad_click_payout !== void 0) await setSystemSetting2("custom_ad_click_payout", String(a6.custom_ad_click_payout));
-      if (a6.client_id !== void 0) await setSystemSetting2("adsense_client_id", String(a6.client_id));
+      if (a6.google_ad_view_payout !== void 0) await setSystemSetting4("google_ad_view_payout", String(a6.google_ad_view_payout));
+      if (a6.google_ad_click_payout !== void 0) await setSystemSetting4("google_ad_click_payout", String(a6.google_ad_click_payout));
+      if (a6.custom_ad_view_payout !== void 0) await setSystemSetting4("custom_ad_view_payout", String(a6.custom_ad_view_payout));
+      if (a6.custom_ad_click_payout !== void 0) await setSystemSetting4("custom_ad_click_payout", String(a6.custom_ad_click_payout));
+      if (a6.client_id !== void 0) await setSystemSetting4("adsense_client_id", String(a6.client_id));
     }
     if (payload.branding || payload.contacts) {
       const b6 = payload.branding || {};
@@ -122894,38 +132252,38 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     if (payload.modules) {
       const m3 = payload.modules;
       if (m3.kunda_contact_unlock_price !== void 0) {
-        await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(m3.kunda_contact_unlock_price) || 500)));
+        await setSystemSetting4("contact_unlock_price", String(Math.max(0, Number(m3.kunda_contact_unlock_price) || 500)));
       }
       if (m3.kunda_creator_rev_share_pct !== void 0) {
-        await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m3.kunda_creator_rev_share_pct) || 15))));
+        await setSystemSetting4("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m3.kunda_creator_rev_share_pct) || 15))));
       }
       if (m3.kunda_message_cost !== void 0) {
-        await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(m3.kunda_message_cost) || 50)));
+        await setSystemSetting4("kunda_message_cost", String(Math.max(0, Number(m3.kunda_message_cost) || 50)));
       }
       if (m3.kunda_free_messages !== void 0) {
-        await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(m3.kunda_free_messages) || 3)));
+        await setSystemSetting4("kunda_free_messages", String(Math.max(0, Number(m3.kunda_free_messages) || 3)));
       }
       if (m3.creator_watch_hours_goal !== void 0 || m3.min_watch_hours !== void 0) {
         const wh = String(Math.max(0, Number(m3.creator_watch_hours_goal ?? m3.min_watch_hours) || 300));
-        await setSystemSetting2("monetization_required_watch_hours", wh);
-        await setSystemSetting2("creator_watch_hours_goal", wh);
+        await setSystemSetting4("monetization_required_watch_hours", wh);
+        await setSystemSetting4("creator_watch_hours_goal", wh);
       }
       if (m3.creator_subscribers_goal !== void 0 || m3.min_subscribers !== void 0) {
         const sb = String(Math.max(0, Number(m3.creator_subscribers_goal ?? m3.min_subscribers) || 30));
-        await setSystemSetting2("monetization_required_subscribers", sb);
-        await setSystemSetting2("creator_subscribers_goal", sb);
+        await setSystemSetting4("monetization_required_subscribers", sb);
+        await setSystemSetting4("creator_subscribers_goal", sb);
       }
       if (m3.min_withdrawal_amount !== void 0) {
-        await setSystemSetting2("min_withdrawal_amount", String(Math.max(100, Number(m3.min_withdrawal_amount) || 500)));
+        await setSystemSetting4("min_withdrawal_amount", String(Math.max(100, Number(m3.min_withdrawal_amount) || 500)));
       }
       if (m3.creator_revenue_share_pct !== void 0 || m3.creatorSharePercent !== void 0) {
-        await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m3.creator_revenue_share_pct ?? m3.creatorSharePercent) || 70))));
+        await setSystemSetting4("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m3.creator_revenue_share_pct ?? m3.creatorSharePercent) || 70))));
       }
       if (m3.default_cpm_rwf !== void 0 || m3.defaultCpmRwf !== void 0) {
-        await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(m3.default_cpm_rwf ?? m3.defaultCpmRwf) || 1200)));
+        await setSystemSetting4("default_cpm_rwf", String(Math.max(100, Number(m3.default_cpm_rwf ?? m3.defaultCpmRwf) || 1200)));
       }
       if (m3.story_lifespan_hours !== void 0) {
-        await setSystemSetting2("story_lifespan_hours", String(Math.max(1, Number(m3.story_lifespan_hours) || 24)));
+        await setSystemSetting4("story_lifespan_hours", String(Math.max(1, Number(m3.story_lifespan_hours) || 24)));
       }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });
@@ -122936,10 +132294,10 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
 });
 app.get("/api/admin/settings/monetization", authenticateAdmin, async (req, res) => {
   try {
-    const minWatchHours = Number(await getSystemSetting2("monetization_required_watch_hours", "300")) || 300;
-    const minSubscribers = Number(await getSystemSetting2("monetization_required_subscribers", "30")) || 30;
-    const creatorSharePercent = Number(await getSystemSetting2("creator_revenue_share_pct", "70")) || 70;
-    const defaultCpmRwf = Number(await getSystemSetting2("default_cpm_rwf", "1200")) || 1200;
+    const minWatchHours = Number(await getSystemSetting4("monetization_required_watch_hours", "300")) || 300;
+    const minSubscribers = Number(await getSystemSetting4("monetization_required_subscribers", "30")) || 30;
+    const creatorSharePercent = Number(await getSystemSetting4("creator_revenue_share_pct", "70")) || 70;
+    const defaultCpmRwf = Number(await getSystemSetting4("default_cpm_rwf", "1200")) || 1200;
     return res.json({
       success: true,
       settings: {
@@ -122958,19 +132316,19 @@ app.post("/api/admin/settings/monetization", authenticateToken, requireAdminRole
     const { minWatchHours, minSubscribers, creatorSharePercent, defaultCpmRwf } = req.body;
     if (minWatchHours !== void 0) {
       const wh = String(Math.max(0, Number(minWatchHours)));
-      await setSystemSetting2("monetization_required_watch_hours", wh);
-      await setSystemSetting2("creator_watch_hours_goal", wh);
+      await setSystemSetting4("monetization_required_watch_hours", wh);
+      await setSystemSetting4("creator_watch_hours_goal", wh);
     }
     if (minSubscribers !== void 0) {
       const sb = String(Math.max(0, Number(minSubscribers)));
-      await setSystemSetting2("monetization_required_subscribers", sb);
-      await setSystemSetting2("creator_subscribers_goal", sb);
+      await setSystemSetting4("monetization_required_subscribers", sb);
+      await setSystemSetting4("creator_subscribers_goal", sb);
     }
     if (creatorSharePercent !== void 0) {
-      await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
+      await setSystemSetting4("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
     }
     if (defaultCpmRwf !== void 0) {
-      await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
+      await setSystemSetting4("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
     }
     const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     let currentSettings = {};
@@ -123708,7 +133066,7 @@ app.post("/api/admin/deposits/:txRef/approve", authenticateToken, requireAdminRo
           `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
            VALUES ($1, $2, 'deposit_approved', $3, $4, false)`,
           [
-            "notif-" + crypto16.randomUUID(),
+            "notif-" + crypto21.randomUUID(),
             deposit2.user_id,
             "Deposit Approved! \u{1F389}",
             `Your MTN MoMo deposit of ${rwfAmount2.toLocaleString()} RWF has been verified and added to your wallet balance.`
@@ -123774,7 +133132,7 @@ app.post("/api/admin/deposits/:txRef/reject", authenticateToken, requireAdminRol
           `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
            VALUES ($1, $2, 'deposit_rejected', $3, $4, false)`,
           [
-            "notif-" + crypto16.randomUUID(),
+            "notif-" + crypto21.randomUUID(),
             deposit.user_id,
             "Deposit Verification Notice",
             `Your deposit submission of ${Number(deposit.amount).toLocaleString()} RWF was rejected: ${finalReason}`
@@ -124236,7 +133594,7 @@ var possibleDistDirs = [
   path5.resolve(__dirname, "../..", "dist")
 ];
 var distDir = possibleDistDirs.find((d5) => fs6.existsSync(path5.join(d5, "index.html"))) || possibleDistDirs[0];
-index_default.use(import_express3.default.static(distDir, {
+index_default.use(import_express4.default.static(distDir, {
   maxAge: "1d",
   index: false
 }));

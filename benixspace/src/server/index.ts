@@ -30,6 +30,7 @@ import { checkInappropriateLanguage, checkKundaContactPolicy, checkContactModera
 import realVideosData from '../client/config/realVideos.json';
 import { cloudRouter, renderDeploymentRawAppHandler, serveDeploymentAssetHandler } from './routes/cloudRoutes';
 import { initCloudDb } from './db/initCloudDb';
+import { benixPayRouter } from './routes/benixPayRoutes';
 
 dotenv.config();
 
@@ -367,6 +368,9 @@ ensureSuperAdminUser().catch((err) => console.warn('Superadmin auto-setup warnin
 app.use('/api/cloud', cloudRouter);
 app.use('/api', cloudRouter);
 
+// Benix Pay Payment Gateway & Developer API
+app.use(benixPayRouter);
+
 // Verification & OTP In-Memory Cache (with 15-minute expiration)
 interface AuthCodeRecord {
   code: string;
@@ -439,7 +443,1984 @@ export async function createNotification({
 
 // ==================== 1. UNIFIED AUTH & ONBOARDING WIZARD ==================== //
 
-// [REMOVED] Kunda Dating endpoints
+/**
+ * Real-Time Availability Check (Email & Phone Auto-Validation)
+ */
+app.get('/api/auth/check-availability', async (req, res) => {
+  try {
+    const { email, phone } = req.query;
+    let emailAvailable = true;
+    let phoneAvailable = true;
+
+    if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      const existing = await query('SELECT id FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+      if (existing.rowCount > 0) {
+        emailAvailable = false;
+      }
+    }
+
+    if (phone) {
+      const cleanPhone = String(phone).trim().replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 8) {
+        const last8 = cleanPhone.slice(-8);
+        const existing = await query('SELECT id FROM core_users WHERE phone LIKE $1', [`%${last8}%`]);
+        if (existing.rowCount > 0) {
+          phoneAvailable = false;
+        }
+      }
+    }
+
+    return res.json({ emailAvailable, phoneAvailable });
+  } catch (err: any) {
+    return res.json({ emailAvailable: true, phoneAvailable: true });
+  }
+});
+
+/**
+ * Dispatch 6-Digit Email Verification Code for Registration
+ */
+app.post('/api/auth/send-verification', otpDispatchRateLimiter, async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    // Check if user already exists and is verified
+    const existing = await query('SELECT id, is_verified FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (existing.rowCount > 0 && existing.rows[0].is_verified) {
+      return res.status(400).json({ error: 'An account with this email already exists and is verified. Please log in.' });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    verificationCodes.set(cleanEmail, {
+      code,
+      expiresAt: Date.now() + 15 * 60 * 1000
+    });
+
+    // Send email from noreply@benix.space
+    await EmailService.sendEmail({
+      to: cleanEmail,
+      subject: `Benix.Space Verification Code: ${code}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+          <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name || 'there'},</p>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Thank you for registering on Benix.Space. Use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not create this account, you can safely ignore this email.</p>
+        </div>
+      `
+    }).catch((e) => console.warn('Verification email dispatch warning:', e?.message));
+
+    return res.json({ success: true, message: `Verification code sent to ${cleanEmail}` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to dispatch verification email.' });
+  }
+});
+
+/**
+ * Send Passwordless Login Code (OTP) to User Email
+ */
+app.post('/api/auth/send-login-otp', otpDispatchRateLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    // Fast-path check for super admin
+    const isSuper = cleanEmail === 'benirabok@gmail.com' || cleanEmail === 'admin@benix.space';
+
+    let userRes = await query('SELECT id, name, email FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (userRes.rowCount === 0 && !isSuper) {
+      return res.status(404).json({ error: 'No account registered with this email. Please create an account first.' });
+    }
+
+    const userName = userRes.rowCount > 0 ? userRes.rows[0].name : 'Super Administrator';
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    loginOtpCodes.set(cleanEmail, {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    await EmailService.sendEmail({
+      to: cleanEmail,
+      subject: `Your Benix.Space Login Code: ${code}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+          <h2 style="color: #10B981; font-size: 22px; margin-top: 0; font-weight: 800;">Passwordless Sign-In</h2>
+          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${userName},</p>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Enter this 6-digit login code to securely access your Benix.Space account without a password:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #059669, #10B981); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);">${code}</div>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code valid for 10 minutes. If you did not request this login code, no action is required.</p>
+        </div>
+      `
+    }).catch((e) => console.warn('Login OTP email dispatch warning:', e?.message));
+
+    return res.json({ success: true, message: `Login code dispatched to ${cleanEmail}.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to dispatch login code.' });
+  }
+});
+
+/**
+ * Verify Passwordless Login Code (OTP) & Log In Instantly
+ */
+app.post('/api/auth/verify-login-otp', authRateLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and 6-digit login code are required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    const stored = loginOtpCodes.get(cleanEmail);
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid or expired login code. Please check your inbox or request a new one.' });
+    }
+
+    loginOtpCodes.delete(cleanEmail);
+
+    const isSuper = cleanEmail === (process.env.SUPERADMIN_EMAIL || 'benirange@gmail.com').toLowerCase();
+    if (isSuper) {
+      const token = generateToken({ id: 'user-superadmin-benir', email: cleanEmail, role: 'superadmin' });
+      return res.json({
+        token,
+        user: {
+          id: 'user-superadmin-benir',
+          email: cleanEmail,
+          name: 'Benir Benjamin (Super Admin)',
+          role: 'superadmin',
+          referral_code: 'BENIX-SUPERADMIN',
+          selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
+          app_profiles: {
+            kunda: { completed: true },
+            dating: { completed: true },
+            voxify: { completed: true },
+            music: { completed: true },
+            marketplace: { completed: true },
+            tv: { completed: true },
+            videos: { completed: true },
+            radio: { completed: true },
+            games: { completed: true },
+            calc: { completed: true }
+          }
+        },
+        wallet: { balance: 100000.00, currency: 'RWF' }
+      });
+    }
+
+    const userRes = await query('SELECT * FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+    const user = userRes.rows[0];
+
+    let wallet: any = { balance: 100.00, currency: 'RWF' };
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+    } catch (wErr: any) {
+      console.warn('Could not load wallet from DB, using fallback:', wErr?.message);
+    }
+
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || 'public',
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
+      },
+      wallet: {
+        balance: Number(wallet.balance || 100.00),
+        currency: wallet.currency || 'RWF'
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'OTP verification failed.' });
+  }
+});
+
+/**
+ * Verify Account with 6-Digit Code and Activate (Log In)
+ */
+app.post('/api/auth/verify-account', authRateLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    const stored = verificationCodes.get(cleanEmail);
+    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid or expired verification code. Please check your inbox or request a new code.' });
+    }
+
+    verificationCodes.delete(cleanEmail);
+
+    // Activate user in database
+    await query('UPDATE core_users SET is_verified = TRUE WHERE LOWER(email) = $1', [cleanEmail]);
+
+    const userRes = await query('SELECT * FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+    const user = userRes.rows[0];
+
+    let wallet: any = { balance: 0.00, bonus_balance: 100.00, currency: 'RWF' };
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+    } catch (wErr: any) {
+      console.warn('Could not load wallet from DB:', wErr?.message);
+    }
+
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || 'public',
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
+      },
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 100.00),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 100.00),
+        currency: wallet.currency || 'RWF'
+      },
+      message: 'Account verified successfully! Welcome to Benix.Space.'
+    });
+  } catch (err: any) {
+    console.error('Verify account error:', err);
+    return res.status(500).json({ error: err.message || 'Verification failed.' });
+  }
+});
+
+/**
+ * Resend Verification Code
+ */
+app.post('/api/auth/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    verificationCodes.set(cleanEmail, {
+      code,
+      expiresAt: Date.now() + 15 * 60 * 1000
+    });
+
+    await EmailService.sendEmail({
+      to: cleanEmail,
+      subject: `Benix.Space Verification Code: ${code}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+          <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Your new 6-digit verification code is:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code expires in 15 minutes.</p>
+        </div>
+      `
+    }).catch(() => {});
+
+    return res.json({ success: true, message: `New verification code sent to ${cleanEmail}.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to resend code.' });
+  }
+});
+
+/**
+ * 4-Step Registration Wizard
+ */
+app.post('/api/auth/register-wizard', authRateLimiter, async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      name,
+      channel_name,
+      nickname,
+      phone,
+      country = 'Rwanda',
+      phone_code = '+250',
+      verification_code,
+      selected_modules = ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
+      preferred_language = 'en',
+      homepage_layout = { order: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'] },
+      referral_code
+    } = req.body;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Email, password, and full name are required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanChannelName = String(channel_name || nickname || name).trim().slice(0, 100);
+
+    // Ensure channel_name column exists
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);').catch(() => {});
+
+    // Check existing email
+    const existing = await query('SELECT id, is_verified, name FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (existing.rowCount > 0) {
+      const existingUser = existing.rows[0];
+      if (!existingUser.is_verified) {
+        // Unverified user already in DB: update password and details, dispatch fresh verification code
+        const pwdHash = await hashPassword(password);
+        await query(
+          'UPDATE core_users SET password_hash = $1, name = $2, phone = $3, country = $4 WHERE id = $5',
+          [pwdHash, name.trim(), phone || null, country || 'Rwanda', existingUser.id]
+        );
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        verificationCodes.set(cleanEmail, {
+          code,
+          expiresAt: Date.now() + 15 * 60 * 1000,
+          data: { userId: existingUser.id }
+        });
+
+        EmailService.sendEmail({
+          to: cleanEmail,
+          subject: `Your Benix.Space Verification Code: ${code}`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+              <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+              <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name.trim()},</p>
+              <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Please use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
+              <div style="text-align: center; margin: 32px 0;">
+                <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+              </div>
+              <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes.</p>
+            </div>
+          `
+        }).catch((e) => console.warn('Verification email dispatch warning:', e?.message));
+
+        return res.json({
+          requires_verification: true,
+          email: cleanEmail,
+          name: name.trim(),
+          message: 'Account registered. Please enter the 6-digit verification code sent to your email to activate your account.'
+        });
+      }
+      return res.status(400).json({ error: 'An account with this email address already exists. Please log in.' });
+    }
+
+    const pwdHash = await hashPassword(password);
+    const userId = 'usr_' + crypto.randomUUID();
+    const userReferralCode = 'REF-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+    // Verify code if provided directly
+    let isVerified = false;
+    if (verification_code) {
+      const stored = verificationCodes.get(cleanEmail);
+      if (stored && stored.code === String(verification_code).trim() && Date.now() < stored.expiresAt) {
+        isVerified = true;
+        verificationCodes.delete(cleanEmail);
+      }
+    }
+
+    // Insert user into core_users with is_verified status and creator channel_name
+    const userRes = await query(
+      `INSERT INTO core_users (
+        id, email, password_hash, name, channel_name, phone, country, preferred_language,
+        selected_modules, homepage_layout, referral_code, is_verified
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id, email, name, channel_name, role, phone, country, preferred_language, selected_modules, homepage_layout, referral_code, is_verified`,
+      [
+        userId, cleanEmail, pwdHash, name.trim(), cleanChannelName, phone || null, country || 'Rwanda', preferred_language,
+        JSON.stringify(selected_modules), JSON.stringify(homepage_layout), userReferralCode, isVerified
+      ]
+    );
+
+    const user = userRes.rows[0];
+
+    // Create Initial Central Wallet with welcome bonus (100 RWF) strictly into bonus_balance
+    const wallet = await WalletService.getOrCreateWallet(user.id);
+    await WalletService.creditBonus(
+      user.id,
+      100.00,
+      'wallet',
+      'welcome_bonus',
+      'Benix.Space Welcome Bonus',
+      `tx_wb_${user.id}`
+    );
+
+    // Apply Referral code if provided
+    if (referral_code) {
+      await ReferralService.applyReferralCode(user.id, referral_code);
+    }
+
+    // If not verified yet, send 6-digit code for email verification
+    if (!isVerified) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      verificationCodes.set(cleanEmail, {
+        code,
+        expiresAt: Date.now() + 15 * 60 * 1000,
+        data: { userId: user.id }
+      });
+
+      EmailService.sendEmail({
+        to: cleanEmail,
+        subject: `Your Benix.Space Verification Code: ${code}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+            <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+            <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name.trim()},</p>
+            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Thank you for registering on Benix.Space. Use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
+            <div style="text-align: center; margin: 32px 0;">
+              <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+            </div>
+            <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not create this account, you can safely ignore this email.</p>
+          </div>
+        `
+      }).catch((e) => console.warn('Verification email dispatch warning:', e?.message));
+
+      return res.status(201).json({
+        requires_verification: true,
+        email: cleanEmail,
+        name: user.name,
+        message: 'Account registered. Please enter the 6-digit verification code sent to your email to activate your account.'
+      });
+    }
+
+    // Send Welcome Email
+    EmailService.sendEmail({
+      to: cleanEmail,
+      subject: 'Welcome to Benix.Space Unified Platform!',
+      html: `<h2>Welcome to Benix.Space, ${name}!</h2><p>Your unified super-account is ready. Your wallet has been credited with 100 RWF welcome bonus.</p>`
+    }).catch(() => {});
+
+    // Notify Admin of new registration
+    createNotification({
+      recipientRole: 'admin',
+      title: '👤 New User Registered',
+      message: `${name} (${cleanEmail}) joined BenixSpace.`,
+      type: 'user_registered',
+      actionUrl: '/admin/users',
+      metadata: { userId: user.id, email: user.email, name: user.name }
+    }).catch(() => {});
+
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+    return res.status(201).json({
+      token,
+      user,
+      wallet: { balance: 0.00, bonus_balance: 100.00, total_balance: 100.00, currency: 'RWF' },
+      message: 'Account registered successfully!'
+    });
+  } catch (err: any) {
+    console.error('Registration Wizard Error:', err);
+    return res.status(500).json({ error: err.message || 'Registration failed.' });
+  }
+});
+
+/**
+ * Universal Login Endpoint (Strict cryptographic authentication against core_users)
+ */
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
+  try {
+    console.log('🔵 [SERVER_LOGIN_ATTEMPT]:', { email: req.body?.email, hasBody: !!req.body });
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      console.warn('⚠️ [SERVER_LOGIN_MISSING_CREDENTIALS]:', { email: !!email, password: !!password });
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    // Query core_users with safe case-insensitive lookup
+    let user: any = null;
+    try {
+      const userRes = await query('SELECT * FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+      if (userRes.rowCount > 0) {
+        user = userRes.rows[0];
+      }
+    } catch (dbErr: any) {
+      console.warn('Database lookup failed during login:', dbErr?.message);
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    // Verify Password Cryptographically
+    const match = await comparePassword(password, user.password_hash || '');
+    if (!match) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    // Check if user account is verified
+    if (user.is_verified === false) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      verificationCodes.set(cleanEmail, {
+        code,
+        expiresAt: Date.now() + 15 * 60 * 1000,
+        data: { userId: user.id }
+      });
+
+      // Send verification code email
+      EmailService.sendEmail({
+        to: cleanEmail,
+        subject: `Benix.Space Verification Code: ${code}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
+            <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
+            <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${user.name || 'there'},</p>
+            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Your credentials are correct, but your account requires email verification. Use the 6-digit code below to activate your account and access all features:</p>
+            <div style="text-align: center; margin: 32px 0;">
+              <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
+            </div>
+            <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code valid for 15 minutes.</p>
+          </div>
+        `
+      }).catch((e) => console.warn('Verification dispatch warning:', e?.message));
+
+      return res.json({
+        requires_verification: true,
+        unverified: true,
+        email: user.email,
+        name: user.name,
+        message: 'Your account is not verified yet. A 6-digit verification code has been sent to your email.'
+      });
+    }
+
+    // 4. Fetch Wallet & Auto-Claim Daily Login Bonus (200 RWF) into bonus_balance
+    let wallet: any = { balance: 0.00, bonus_balance: 0.00, currency: 'RWF' };
+    let loginBonusResult: any = null;
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+      
+      let dailyAmount = 10;
+      try {
+        const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+        if (sRes.rowCount && sRes.rows[0].services_json) {
+          const parsed = JSON.parse(sRes.rows[0].services_json);
+          if (parsed.daily_login_bonus_amount) {
+            dailyAmount = Number(parsed.daily_login_bonus_amount);
+          }
+        }
+      } catch {}
+
+      loginBonusResult = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
+      if (loginBonusResult.claimed) {
+        wallet = await WalletService.getOrCreateWallet(user.id);
+      }
+    } catch (wErr: any) {
+      console.warn('Could not load wallet from DB, using fallback:', wErr?.message);
+    }
+
+    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || 'public',
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
+      },
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        currency: wallet.currency || 'RWF'
+      },
+      daily_login_bonus: loginBonusResult?.claimed ? loginBonusResult : null
+    });
+  } catch (err: any) {
+    console.error('🔴 [SERVER_LOGIN_EXCEPTION_CAUGHT]:', err);
+    return res.status(500).json({
+      error: err.message || 'Login failed due to an unexpected server error.',
+      code: err.code || 'LOGIN_ERROR',
+      details: String(err)
+    });
+  }
+});
+
+/**
+ * Current User Profile & Unified State
+ */
+app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userRes = await query(
+      'SELECT * FROM core_users WHERE id = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2)) LIMIT 1',
+      [req.user?.id, req.user?.email || '']
+    );
+    if (userRes.rowCount === 0) {
+      if (req.user?.email === 'benirabok@gmail.com' || req.user?.email === 'admin@benix.space') {
+        return res.json({
+          user: {
+            id: req.user.id,
+            email: req.user.email,
+            name: 'Benir Benjamin (Super Admin)',
+            role: 'superadmin',
+            avatar_url: null,
+            channel_name: 'Benix Official',
+            is_verified: true,
+            referral_code: 'BENIX-SUPERADMIN',
+            selected_modules: ['videos', 'music', 'dating', 'marketplace', 'radio', 'games', 'calc', 'news'],
+            app_profiles: {
+              kunda: { completed: true },
+              dating: { completed: true },
+              voxify: { completed: true },
+              music: { completed: true },
+              marketplace: { completed: true },
+              tv: { completed: true },
+              videos: { completed: true },
+              radio: { completed: true },
+              games: { completed: true },
+              calc: { completed: true }
+            }
+          },
+          wallet: { balance: 100000.00, bonus_balance: 5000.00, total_balance: 105000.00, currency: 'RWF' }
+        });
+      }
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const user = userRes.rows[0];
+    let wallet: any = { balance: 0.00, bonus_balance: 0.00, currency: 'RWF' };
+    let dailyBonusAwarded: any = null;
+    try {
+      wallet = await WalletService.getOrCreateWallet(user.id);
+      let dailyAmount = 10;
+      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+      if (sRes.rowCount && sRes.rows[0].services_json) {
+        const parsed = JSON.parse(sRes.rows[0].services_json);
+        if (parsed.daily_login_bonus_amount) {
+          dailyAmount = Number(parsed.daily_login_bonus_amount);
+        }
+      }
+      dailyBonusAwarded = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
+      if (dailyBonusAwarded.claimed) {
+        wallet = await WalletService.getOrCreateWallet(user.id);
+      }
+    } catch {}
+
+    const refStats = await ReferralService.getStats(user.id);
+
+    return res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar_url: user.avatar_url || null,
+        channel_name: user.channel_name || null,
+        is_verified: user.is_verified ?? false,
+        preferred_language: user.preferred_language,
+        selected_modules: typeof user.selected_modules === 'string' ? JSON.parse(user.selected_modules || '[]') : (user.selected_modules || ['videos', 'radio', 'dating', 'music', 'marketplace', 'games', 'calc']),
+        homepage_layout: typeof user.homepage_layout === 'string' ? JSON.parse(user.homepage_layout || '{}') : (user.homepage_layout || {}),
+        referral_code: user.referral_code,
+        chat_privacy_mode: user.chat_privacy_mode || 'public',
+        app_profiles: typeof user.app_profiles === 'string' ? JSON.parse(user.app_profiles || '{}') : (user.app_profiles || {})
+      },
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        pending_balance: Number(wallet.pending_balance || 0),
+        currency: wallet.currency || 'RWF',
+        total_earnings: Number(wallet.total_earnings || 0),
+        total_withdrawn: Number(wallet.total_withdrawn || 0),
+        last_login_bonus_date: wallet.last_login_bonus_date
+      },
+      daily_login_bonus: dailyBonusAwarded?.claimed ? dailyBonusAwarded : null,
+      referrals: refStats
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update User Module & Layout Preferences
+ */
+app.put('/api/auth/preferences', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { selected_modules, preferred_language, homepage_layout } = req.body;
+    await query(
+      `UPDATE core_users SET
+        selected_modules = COALESCE($1, selected_modules),
+        preferred_language = COALESCE($2, preferred_language),
+        homepage_layout = COALESCE($3, homepage_layout),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [
+        selected_modules ? JSON.stringify(selected_modules) : null,
+        preferred_language || null,
+        homepage_layout ? JSON.stringify(homepage_layout) : null,
+        req.user?.id
+      ]
+    );
+    return res.json({ success: true, message: 'Preferences updated successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update User Profile & Channel Information
+ */
+app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, phone, channel_name, avatar_url, avatar } = req.body;
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);').catch(() => {});
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
+    const finalAvatar = avatar_url || avatar || null;
+
+    if (finalAvatar) {
+      await query(
+        `UPDATE core_users SET
+          name = COALESCE($1, name),
+          phone = COALESCE($2, phone),
+          channel_name = COALESCE($3, channel_name),
+          avatar_url = $4,
+          app_profiles = jsonb_set(
+            jsonb_set(
+              COALESCE(app_profiles, '{}'::jsonb),
+              '{avatar}',
+              to_jsonb($4::text)
+            ),
+            '{kunda,avatarUrl}',
+            to_jsonb($4::text)
+          ),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5 OR (email IS NOT NULL AND LOWER(email) = LOWER($6))`,
+        [name ? String(name).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id, req.user?.email || '']
+      );
+      await query('UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2', [finalAvatar, req.user?.id]).catch(() => {});
+    } else {
+      await query(
+        `UPDATE core_users SET
+          name = COALESCE($1, name),
+          phone = COALESCE($2, phone),
+          channel_name = COALESCE($3, channel_name),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4 OR (email IS NOT NULL AND LOWER(email) = LOWER($5))`,
+        [name ? String(name).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, req.user?.id, req.user?.email || '']
+      );
+    }
+
+    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)', [req.user?.id, req.user?.email || '']);
+    return res.json({ success: true, user: updated.rows[0], message: 'Channel profile updated successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Update User Profile Photo (Avatar) - Persisted permanently across all modules (Avatar, Channel, Kunda)
+ */
+app.post('/api/auth/profile-photo', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { avatarUrl, photoUrl, image } = req.body;
+    let finalPhoto = avatarUrl || photoUrl || image;
+    if (!finalPhoto) {
+      return res.status(400).json({ error: 'Profile photo data or URL is required.' });
+    }
+
+    await query(
+      `UPDATE core_users SET
+        avatar_url = $1,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
+      [finalPhoto, req.user!.id, req.user!.email || '']
+    );
+
+    // Also update channel_avatar for all creator videos uploaded by this user
+    await query('UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2', [finalPhoto, req.user!.id]).catch(() => {});
+
+    const updated = await query('SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)', [req.user!.id, req.user!.email || '']);
+    return res.json({
+      success: true,
+      message: 'Profile photo updated successfully!',
+      avatar_url: finalPhoto,
+      user: updated.rows[0]
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update profile photo.' });
+  }
+});
+
+/**
+ * Request Password Reset Verification Code (5-Digit Code)
+ */
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ error: 'Please enter your account email address.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    
+    // Check if user exists in core_users or users
+    await query('ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;').catch(() => {});
+    const userRes = await query('SELECT id, email, name FROM core_users WHERE LOWER(email) = $1', [cleanEmail]);
+    const legacyRes = userRes.rowCount === 0 ? await query('SELECT id, email, name FROM users WHERE LOWER(email) = $1', [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] })) : { rowCount: 0, rows: [] };
+
+    if (userRes.rowCount === 0 && legacyRes.rowCount === 0) {
+      return res.status(404).json({ error: 'No account registered with this email address.' });
+    }
+
+    // Generate 5-digit verification code
+    const verificationCode = String(Math.floor(10000 + Math.random() * 90000));
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS password_reset_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_pwd_resets_email ON password_reset_codes (email);
+    `).catch(() => {});
+
+    // Code valid for 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await query(
+      `INSERT INTO password_reset_codes (email, code, expires_at) VALUES ($1, $2, $3)`,
+      [cleanEmail, verificationCode, expiresAt]
+    );
+
+    return res.json({
+      success: true,
+      message: `A 5-digit verification code has been generated for ${cleanEmail}.`,
+      verificationCode, // Returned for instant UX delivery & in-app verification prompt
+      expiresInMinutes: 15
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to generate verification code.' });
+  }
+});
+
+/**
+ * Verify 5-Digit Code and Reset Password
+ */
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Email, 5-digit verification code, and new password are required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    if (cleanCode.length !== 5) {
+      return res.status(400).json({ error: 'Verification code must be exactly 5 digits.' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    // Check code in password_reset_codes table
+    const codeRes = await query(
+      `SELECT id, email, code, expires_at 
+       FROM password_reset_codes 
+       WHERE LOWER(email) = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP 
+       ORDER BY created_at DESC LIMIT 1`,
+      [cleanEmail, cleanCode]
+    );
+
+    if (codeRes.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid or expired 5-digit verification code. Please request a new code.' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(String(newPassword), salt);
+
+    // Update in core_users and legacy users
+    await query('UPDATE core_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2', [passwordHash, cleanEmail]);
+    await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2', [passwordHash, cleanEmail]).catch(() => {});
+
+    // Invalidate used code
+    await query('DELETE FROM password_reset_codes WHERE LOWER(email) = $1', [cleanEmail]).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: 'Your password has been successfully updated! You can now sign in with your new password.'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update password.' });
+  }
+});
+
+// ==================== 2. CENTRAL WALLET API ==================== //
+
+app.get('/api/wallet', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const wallet = await WalletService.getOrCreateWallet(req.user!.id);
+    const transactions = await WalletService.getTransactions(req.user!.id, 20);
+    return res.json({
+      wallet: {
+        balance: Number(wallet.balance || 0),
+        bonus_balance: Number(wallet.bonus_balance || 0),
+        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
+        pending_balance: Number(wallet.pending_balance || 0),
+        currency: wallet.currency || 'RWF',
+        total_earnings: Number(wallet.total_earnings || 0),
+        total_withdrawn: Number(wallet.total_withdrawn || 0),
+        last_login_bonus_date: wallet.last_login_bonus_date
+      },
+      transactions
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/wallet/claim-daily-bonus', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    let dailyAmount = 10;
+    try {
+      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
+      if (sRes.rowCount && sRes.rows[0].services_json) {
+        const parsed = JSON.parse(sRes.rows[0].services_json);
+        if (parsed.daily_login_bonus_amount) {
+          dailyAmount = Number(parsed.daily_login_bonus_amount);
+        }
+      }
+    } catch {}
+
+    const result = await WalletService.claimDailyLoginBonus(req.user!.id, dailyAmount);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/wallets/set-bonus', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { userId, bonusAmount, reason } = req.body;
+    if (!userId || bonusAmount === undefined) {
+      return res.status(400).json({ error: 'userId and bonusAmount are required.' });
+    }
+    const result = await WalletService.adminSetBonus(userId, Number(bonusAmount), reason || 'Admin bonus credit');
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/wallet/deposit', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  return res.status(400).json({
+    error: 'Direct unverified deposits are disabled. Deposits must be verified through Flutterwave gateway (/api/wallet/flutterwave/initialize).'
+  });
+});
+
+app.post('/api/wallet/bet', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { wager, prediction, targetPrediction } = req.body;
+    const numWager = parseFloat(wager);
+    if (!numWager || numWager < 50) {
+      return res.status(400).json({ error: 'Minimum bet amount is 50 RWF.' });
+    }
+    if (numWager > 50000) {
+      return res.status(400).json({ error: 'Maximum bet amount is 50,000 RWF per roll.' });
+    }
+
+    const cleanPred = String(prediction || targetPrediction || '').toLowerCase().trim();
+    if (cleanPred !== 'high' && cleanPred !== 'low') {
+      return res.status(400).json({ error: 'Please choose either "high" (4-6) or "low" (1-3).' });
+    }
+
+    // 1. Authoritative Server Debit: User MUST have sufficient balance
+    const debitRes = await WalletService.debit(
+      req.user!.id,
+      numWager,
+      'games',
+      'dice_wager',
+      `RollDice Quick Wager: -${numWager.toLocaleString()} RWF (${cleanPred.toUpperCase()})`,
+      `tx_wgr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
+    );
+
+    // 2. Authoritative Server-Side Die Roll (Anti-Cheat: Client cannot fake roll or outcome)
+    const serverDice = Math.floor(Math.random() * 6) + 1;
+    const serverWon = (cleanPred === 'high' && serverDice >= 4) || (cleanPred === 'low' && serverDice <= 3);
+
+    let finalBalance = debitRes.newBalance;
+    let payout = 0;
+
+    // 3. Credit payout only if server-side roll won
+    if (serverWon) {
+      const multiplier = 1.95;
+      payout = Math.round(numWager * multiplier);
+      const creditRes = await WalletService.credit(
+        req.user!.id,
+        payout,
+        'games',
+        'dice_win',
+        `RollDice Win: +${payout.toLocaleString()} RWF (Rolled ${serverDice} on ${cleanPred.toUpperCase()})`,
+        `tx_win_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
+      );
+      finalBalance = creditRes.newBalance;
+    }
+
+    return res.json({
+      success: true,
+      won: serverWon,
+      dice: serverDice,
+      payout,
+      newBalance: finalBalance
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Bet placement failed.' });
+  }
+});
+
+/**
+ * Real-Time Autocomplete Recipient Search
+ */
+app.get('/api/wallet/search-recipient', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q || q.length < 2) {
+      return res.json({ users: [] });
+    }
+
+    const term = `%${q.toLowerCase()}%`;
+    const users = await query(
+      `SELECT id, name, email, phone, role
+       FROM core_users
+       WHERE (LOWER(email) LIKE $1 OR LOWER(name) LIKE $1)
+         AND id != $2
+       LIMIT 8`,
+      [term, req.user!.id]
+    );
+
+    return res.json({ users: users.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message, users: [] });
+  }
+});
+
+/**
+ * Peer-to-Peer Wallet Transfer with Real-Time Recipient Validation & Email Notification
+ */
+app.post('/api/wallet/transfer', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { recipientEmail, amount, note = '' } = req.body;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: 'Transfer amount must be greater than 0 RWF.' });
+    }
+    if (!recipientEmail) {
+      return res.status(400).json({ error: 'Recipient email is required.' });
+    }
+
+    const cleanEmail = String(recipientEmail).trim().toLowerCase();
+    if (cleanEmail === req.user!.email?.toLowerCase()) {
+      return res.status(400).json({ error: 'You cannot transfer funds to yourself.' });
+    }
+
+    // Find recipient in core_users
+    const recipientRes = await query(
+      'SELECT id, name, email FROM core_users WHERE LOWER(email) = $1',
+      [cleanEmail]
+    );
+    if (recipientRes.rowCount === 0) {
+      return res.status(404).json({ error: 'No registered user found with this email. Money can only be sent to verified Benix.Space accounts.' });
+    }
+
+    const recipient = recipientRes.rows[0];
+
+    // Check sender balance
+    const senderWallet = await WalletService.getOrCreateWallet(req.user!.id);
+    if (Number(senderWallet.balance) < numAmount) {
+      return res.status(400).json({
+        error: `Insufficient wallet balance. You have ${Number(senderWallet.balance).toLocaleString()} RWF, trying to transfer ${numAmount.toLocaleString()} RWF.`
+      });
+    }
+
+    // Execute atomic transfer via WalletService
+    const debitResult = await WalletService.debit(
+      req.user!.id,
+      numAmount,
+      'wallet',
+      'transfer_out',
+      `Sent ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}${note ? ` ("${note}")` : ''}`,
+      `tx_trf_out_${Date.now()}`
+    );
+
+    await WalletService.credit(
+      recipient.id,
+      numAmount,
+      'wallet',
+      'transfer_in',
+      `Received ${numAmount.toLocaleString()} RWF from ${req.user!.name || req.user!.email}${note ? ` ("${note}")` : ''}`,
+      `tx_trf_in_${Date.now()}`
+    );
+
+    // Notify recipient via email
+    EmailService.sendEmail({
+      to: recipient.email,
+      subject: `You received ${numAmount.toLocaleString()} RWF on Benix.Space!`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px;">
+          <h2 style="color: #10B981;">Transfer Received!</h2>
+          <p>Hello ${recipient.name || 'Member'},</p>
+          <p><strong>${req.user!.name || req.user!.email}</strong> has transferred <strong>${numAmount.toLocaleString()} RWF</strong> into your Benix.Space Central Wallet.</p>
+          ${note ? `<p style="padding: 12px; background: #1E293B; border-radius: 8px; color: #94A3B8;"><em>"${note}"</em></p>` : ''}
+          <p>You can use this balance across TV, live radio, dating, RollDice games, or withdraw directly to your MTN Mobile Money account.</p>
+        </div>
+      `
+    }).catch(() => {});
+
+    // In-app & push notification to recipient
+    createNotification({
+      userId: recipient.id,
+      title: 'Money Received 💸',
+      message: `You received ${numAmount.toLocaleString()} RWF from ${req.user!.name || req.user!.email}.${note ? ` ("${note}")` : ''}`,
+      type: 'wallet',
+      actionUrl: '/dashboard#wallet',
+      metadata: { from: req.user!.id, amount: numAmount }
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      newBalance: debitResult.newBalance,
+      message: `Successfully transferred ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}.`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Transfer failed.' });
+  }
+});
+
+app.get('/api/wallet/settings', async (req, res) => {
+  try {
+    const minWithdrawalStr = await getSystemSetting('min_withdrawal_amount', '500');
+    const minWithdrawalAmount = Math.max(100, Number(minWithdrawalStr) || 500);
+    return res.json({ success: true, minWithdrawalAmount });
+  } catch {
+    return res.json({ success: true, minWithdrawalAmount: 500 });
+  }
+});
+
+app.post('/api/wallet/withdraw', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { amount, payoutMethod = 'MTN_MOMO', accountDetails } = req.body;
+    const numAmount = parseFloat(amount);
+    const minWithdrawalStr = await getSystemSetting('min_withdrawal_amount', '500');
+    const minWithdrawal = Math.max(100, Number(minWithdrawalStr) || 500);
+    if (!numAmount || numAmount < minWithdrawal) {
+      return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal.toLocaleString()} RWF.` });
+    }
+    if (!accountDetails) {
+      return res.status(400).json({ error: 'Account details / phone number is required.' });
+    }
+
+    const result = await WalletService.requestWithdrawal(
+      req.user!.id,
+      numAmount,
+      payoutMethod,
+      accountDetails
+    );
+
+    // Check if auto-withdrawal can immediately disburse funds via Flutterwave
+    let autoWithdrawResult: any = null;
+    try {
+      autoWithdrawResult = await WithdrawalService.tryAutoWithdraw(result.withdrawalId);
+    } catch (autoErr: any) {
+      console.warn('[AutoWithdraw Trigger Warning]:', autoErr?.message);
+    }
+
+    if (autoWithdrawResult?.autoApproved) {
+      createNotification({
+        userId: req.user!.id,
+        title: 'Withdrawal Auto-Approved & Sent! ⚡',
+        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent directly via Flutterwave to your ${payoutMethod}!`,
+        type: 'withdrawal',
+        actionUrl: '/dashboard#wallet',
+        metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId, autoApproved: true }
+      }).catch(() => {});
+
+      return res.json({
+        success: true,
+        autoApproved: true,
+        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent to your ${payoutMethod}!`,
+        withdrawalId: result.withdrawalId
+      });
+    }
+
+    const userEmail = req.user!.email;
+    const adminEmail = process.env.SUPERADMIN_EMAIL || 'benirabok@gmail.com';
+    const accountDetailsStr = typeof accountDetails === 'string' ? accountDetails : JSON.stringify(accountDetails);
+
+    // 1. Email Notification to Admin for approval
+    EmailService.sendEmail({
+      to: adminEmail,
+      subject: `[Action Required] New Withdrawal Request: ${numAmount.toLocaleString()} RWF from ${userEmail}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+          <h2 style="color: #38BDF8;">New Payout / Withdrawal Request</h2>
+          <p>A user has requested a withdrawal from their Benix Central Wallet:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; color: #CBD5E1;">
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>User:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${userEmail}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155; color: #10B981; font-weight: bold;">${numAmount.toLocaleString()} RWF</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Payout Method:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${payoutMethod}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Details:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${accountDetailsStr}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Withdrawal ID:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155; font-family: monospace;">${result.withdrawalId}</td></tr>
+          </table>
+          <p style="margin-top: 20px;">Log in to the Admin Dashboard to review and approve this payout.</p>
+        </div>
+      `
+    }).catch((e) => console.warn('Admin withdrawal email warning:', e?.message));
+
+    // 2. Email Confirmation to User
+    EmailService.sendEmail({
+      to: userEmail,
+      subject: `Your Benix.Space Withdrawal Request of ${numAmount.toLocaleString()} RWF`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
+          <h2 style="color: #10B981;">Withdrawal Request Received</h2>
+          <p>Hello,</p>
+          <p>We have received your withdrawal request for <strong>${numAmount.toLocaleString()} RWF</strong> via <strong>${payoutMethod}</strong>.</p>
+          <p>Our finance team reviews all requests within 1-2 hours. You will receive an instant notification once the payout is sent to your account.</p>
+          <p style="color: #94A3B8; font-size: 12px; margin-top: 24px;">Withdrawal Reference ID: ${result.withdrawalId}</p>
+        </div>
+      `
+    }).catch((e) => console.warn('User withdrawal email warning:', e?.message));
+
+    // In-app notification to requesting user
+    createNotification({
+      userId: req.user!.id,
+      title: 'Withdrawal Pending Review',
+      message: `Your withdrawal request for ${numAmount.toLocaleString()} RWF via ${payoutMethod} has been submitted.`,
+      type: 'withdrawal',
+      actionUrl: '/dashboard#wallet',
+      metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
+    }).catch(() => {});
+
+    // In-app notification to all admins
+    createNotification({
+      recipientRole: 'admin',
+      title: '⚠️ Action Required: New Payout Request',
+      message: `${userEmail} requested withdrawal of ${numAmount.toLocaleString()} RWF via ${payoutMethod}.`,
+      type: 'withdrawal',
+      actionUrl: '/admin#withdrawals',
+      metadata: { userId: req.user!.id, email: userEmail, amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: 'Withdrawal request submitted! Admin and user confirmation emails sent.',
+      withdrawalId: result.withdrawalId
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: List All Withdrawals with KPIs & Platform Fees
+ */
+app.get('/api/admin/withdrawals', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const data = await WithdrawalService.listWithdrawals();
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Approve & Payout Withdrawal (Full or Partial with Flutterwave direct transfer)
+ */
+app.post('/api/admin/withdrawals/:id/approve', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
+    const result = await WithdrawalService.approveWithdrawal(
+      id,
+      Number(approvedAmount),
+      Number(feePercent),
+      Boolean(sendViaFlutterwave),
+      note
+    );
+
+    // Notify user of approved payout
+    query('SELECT user_id, amount, payout_method FROM core_withdrawals WHERE id = $1', [id])
+      .then((wRes) => {
+        if (wRes.rows && wRes.rows[0]) {
+          const w = wRes.rows[0];
+          createNotification({
+            userId: w.user_id,
+            title: 'Withdrawal Approved & Sent! 🎉',
+            message: `Your withdrawal of ${Number(approvedAmount || w.amount).toLocaleString()} RWF has been approved and paid out to your ${w.payout_method || 'account'}.`,
+            type: 'withdrawal',
+            actionUrl: '/dashboard#wallet',
+            metadata: { withdrawalId: id, amount: approvedAmount || w.amount }
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Reject Withdrawal with immediate full refund to user wallet
+ */
+app.post('/api/admin/withdrawals/:id/reject', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const result = await WithdrawalService.rejectWithdrawal(id, reason);
+
+    // Notify user of declined withdrawal and instant refund
+    query('SELECT user_id, amount FROM core_withdrawals WHERE id = $1', [id])
+      .then((wRes) => {
+        if (wRes.rows && wRes.rows[0]) {
+          const w = wRes.rows[0];
+          createNotification({
+            userId: w.user_id,
+            title: 'Withdrawal Declined & Refunded',
+            message: `Your withdrawal request of ${Number(w.amount).toLocaleString()} RWF was rejected (${reason || 'Account issue'}). The funds have been refunded to your wallet.`,
+            type: 'withdrawal',
+            actionUrl: '/dashboard#wallet',
+            metadata: { withdrawalId: id, amount: w.amount, reason }
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Update withdrawal fee and auto-withdrawal settings
+ */
+app.post('/api/admin/withdrawals/settings', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { feePercent, autoWithdrawEnabled, autoWithdrawMaxAmount, autoWithdrawBuffer } = req.body;
+    await WithdrawalService.saveWithdrawalSettings({
+      feePercent: feePercent !== undefined ? Number(feePercent) : undefined,
+      autoWithdrawEnabled: autoWithdrawEnabled !== undefined ? Boolean(autoWithdrawEnabled) : undefined,
+      autoWithdrawMaxAmount: autoWithdrawMaxAmount !== undefined ? Number(autoWithdrawMaxAmount) : undefined,
+      autoWithdrawBuffer: autoWithdrawBuffer !== undefined ? Number(autoWithdrawBuffer) : undefined
+    });
+    const updated = await WithdrawalService.getAutoWithdrawSettings();
+    return res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Admin: Batch process pending withdrawals with auto-withdrawal logic against live balance
+ */
+app.post('/api/admin/withdrawals/auto-process', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await WithdrawalService.processBatchAutoWithdrawals();
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Helper to fetch central Flutterwave Payment Gateway credentials
+ */
+async function getFlutterwaveConfig(): Promise<{
+  publicKey: string;
+  secretKey: string;
+  encryptionKey: string;
+  isLive: boolean;
+  enabled: boolean;
+}> {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS payment_settings (
+        id VARCHAR(50) PRIMARY KEY,
+        provider VARCHAR(50) NOT NULL,
+        public_key TEXT,
+        secret_key TEXT,
+        encryption_key TEXT,
+        is_live BOOLEAN DEFAULT FALSE,
+        enabled BOOLEAN DEFAULT TRUE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    const row = await query("SELECT * FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
+    if (row.rowCount && row.rowCount > 0) {
+      const flw = row.rows[0];
+      const pk = (flw.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X').trim();
+      const sk = (flw.secret_key || process.env.FLUTTERWAVE_SECRET_KEY || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X').trim();
+      const ek = (flw.encryption_key || process.env.FLUTTERWAVE_ENCRYPTION_KEY || '').trim();
+      return {
+        publicKey: pk || 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X',
+        secretKey: sk || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X',
+        encryptionKey: ek,
+        isLive: !!flw.is_live,
+        enabled: flw.enabled !== false
+      };
+    }
+  } catch (err) {
+    console.warn('Error fetching payment_settings:', err);
+  }
+  return {
+    publicKey: (process.env.FLUTTERWAVE_PUBLIC_KEY || 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X').trim(),
+    secretKey: (process.env.FLUTTERWAVE_SECRET_KEY || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X').trim(),
+    encryptionKey: (process.env.FLUTTERWAVE_ENCRYPTION_KEY || '').trim(),
+    isLive: true,
+    enabled: true
+  };
+}
+
+/**
+ * Flutterwave Multi-Currency Deposit (RWF, UGX, KES, USD, EUR, NGN, TZS)
+ */
+app.post('/api/wallet/flutterwave/initialize', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { amount, currency = 'USD', email, phone, name } = req.body;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: 'Valid deposit amount is required.' });
+    }
+
+    const flwConfig = await getFlutterwaveConfig();
+    if (!flwConfig.enabled) {
+      return res.status(400).json({ error: 'Flutterwave deposits are currently paused by the platform administrator.' });
+    }
+
+    const effectiveKey = flwConfig.publicKey || 'FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X';
+    const effectiveSecret = flwConfig.secretKey || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X';
+
+    // Benchmark exchange rates to RWF
+    const ratesToRwf: Record<string, number> = {
+      RWF: 1.0,
+      USD: 1420.0,
+      EUR: 1540.0,
+      GBP: 1810.0,
+      KES: 11.0,
+      UGX: 0.38,
+      NGN: 0.90,
+      TZS: 0.55
+    };
+
+    const rate = ratesToRwf[currency] || 1.0;
+    const convertedRwf = Math.round(numAmount * rate);
+
+    const txRef = `FLW-BENIX-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+    // Get user contact info
+    let customerEmail = (email || req.user?.email || 'member@benix.space').trim();
+    let customerPhone = (phone || '0780000000').trim();
+    let customerName = (name || 'Benix Member').trim();
+
+    try {
+      const userRes = await query('SELECT email, name, phone FROM core_users WHERE id = $1', [req.user!.id]);
+      if (userRes.rowCount && userRes.rowCount > 0) {
+        const u = userRes.rows[0];
+        if (!email && u.email) customerEmail = u.email;
+        if (!name && u.name) customerName = u.name;
+        if (!phone && u.phone) customerPhone = u.phone;
+      }
+    } catch {}
+
+    // Ensure table for pending flutterwave deposits exists
+    await query(`
+      CREATE TABLE IF NOT EXISTS pending_flutterwave_deposits (
+        tx_ref VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        original_amount NUMERIC(14, 2) NOT NULL,
+        converted_rwf NUMERIC(14, 2) NOT NULL,
+        status VARCHAR(30) DEFAULT 'pending',
+        flw_ref VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    await query(
+      `INSERT INTO pending_flutterwave_deposits (tx_ref, user_id, currency, original_amount, converted_rwf)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tx_ref) DO UPDATE SET
+         currency = EXCLUDED.currency,
+         original_amount = EXCLUDED.original_amount,
+         converted_rwf = EXCLUDED.converted_rwf`,
+      [txRef, req.user!.id, currency, numAmount, convertedRwf]
+    ).catch((e) => console.warn('Record pending deposit warning:', e.message));
+
+    // Determine redirect origin
+    const rawOrigin = (req.headers.origin as string) || (req.headers.referer ? new URL(req.headers.referer as string).origin : '') || 'https://benix.space';
+    // Clean redirect without hash so query parameters are easily parsed on return
+    const redirectUrl = `${rawOrigin}/dashboard?flw_deposit=true&tx_ref=${txRef}`;
+
+    let paymentLink: string | null = null;
+    if (effectiveSecret) {
+      try {
+        const flwRes = await fetch('https://api.flutterwave.com/v3/payments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${effectiveSecret}`
+          },
+          body: JSON.stringify({
+            tx_ref: txRef,
+            amount: numAmount.toString(),
+            currency: currency,
+            redirect_url: redirectUrl,
+            customer: {
+              email: customerEmail,
+              phonenumber: customerPhone,
+              name: customerName
+            },
+            customizations: {
+              title: 'Benix.Space Central Wallet',
+              description: `Deposit ${numAmount} ${currency} (≈ ${convertedRwf.toLocaleString()} RWF)`,
+              logo: 'https://benix.space/logo.png'
+            }
+          })
+        });
+
+        const flwData: any = await flwRes.json();
+        if (flwRes.ok && flwData.status === 'success' && flwData.data?.link) {
+          paymentLink = flwData.data.link;
+        } else {
+          console.warn('Flutterwave standard payment init response:', flwData);
+          if (flwData?.message && !paymentLink) {
+            return res.status(400).json({ error: `Flutterwave error: ${flwData.message}` });
+          }
+        }
+      } catch (fErr: any) {
+        console.warn('Flutterwave fetch failure:', fErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      paymentLink,
+      payment_link: paymentLink,
+      txRef,
+      tx_ref: txRef,
+      publicKey: effectiveKey,
+      public_key: effectiveKey,
+      currency,
+      originalAmount: numAmount,
+      convertedRwf,
+      rate,
+      message: `${numAmount} ${currency} ≈ ${convertedRwf.toLocaleString()} RWF will be credited to your central wallet.`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Handle user payment cancellation (Marks deposit as cancelled to prevent lingering or crediting)
+ */
+app.post('/api/wallet/flutterwave/cancel', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { txRef } = req.body;
+    if (txRef) {
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+        [txRef]
+      ).catch(() => {});
+    }
+    return res.json({ success: true, message: 'Deposit recorded as cancelled.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Flutterwave Webhook Listener: Instant, Automated Direct Wallet Crediting
+ */
+app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
+  try {
+    const payload = req.body;
+    const event = payload?.event;
+    const data = payload?.data;
+
+    // Validate Webhook Signature if secret hash is configured
+    const flwConfig = await getFlutterwaveConfig();
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
+    const incomingSignature = req.headers['verif-hash'];
+
+    if (secretHash && incomingSignature !== secretHash) {
+      console.warn('⚠️ [FLW_WEBHOOK_REJECTED]: Invalid signature header verif-hash');
+      return res.status(401).json({ error: 'Invalid webhook signature.' });
+    }
+
+    if (event === 'charge.completed' && data?.status === 'successful') {
+      const txRef = data.tx_ref;
+      const flwId = data.id;
+
+      if (!txRef) {
+        return res.status(200).json({ status: 'ignored_missing_ref' });
+      }
+
+      // 1. Idempotency check: Already credited?
+      const existingTx = await query(
+        "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
+        [txRef]
+      ).catch(() => ({ rowCount: 0, rows: [] }));
+
+      if (existingTx.rowCount && existingTx.rowCount > 0) {
+        return res.status(200).json({ status: 'already_credited' });
+      }
+
+      // 2. Load pending deposit record
+      const pendingRow = await query(
+        "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
+        [txRef]
+      ).catch(() => ({ rowCount: 0, rows: [] }));
+
+      if (!pendingRow.rowCount || pendingRow.rowCount === 0) {
+        return res.status(200).json({ status: 'no_pending_deposit_found' });
+      }
+
+      const p = pendingRow.rows[0];
+      if (p.status === 'completed') {
+        return res.status(200).json({ status: 'already_completed' });
+      }
+
+      // 3. Strict Server-Side Verification with Flutterwave API
+      const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
+      if (!effectiveSecret || !flwId) {
+        console.warn('⚠️ [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID');
+        return res.status(400).json({ error: 'Cannot verify transaction with Flutterwave API' });
+      }
+
+      try {
+        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
+          headers: {
+            Authorization: `Bearer ${effectiveSecret}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!verifyRes.ok) {
+          console.warn('⚠️ [FLW_WEBHOOK_VERIFY_FAILED]: Flutterwave API returned non-OK status', verifyRes.status);
+          return res.status(400).json({ status: 'verification_failed' });
+        }
+        const vData: any = await verifyRes.json();
+        if (vData?.status !== 'success' || vData?.data?.status !== 'successful') {
+          console.warn('⚠️ [FLW_WEBHOOK_VERIFY_FAILED]: Webhook verification check failed with Flutterwave API:', vData);
+          return res.status(400).json({ status: 'verification_failed' });
+        }
+
+        if (vData?.data?.tx_ref && vData.data.tx_ref !== txRef) {
+          console.warn('⚠️ [FLW_WEBHOOK_REF_MISMATCH]: Returned tx_ref does not match pending deposit');
+          return res.status(400).json({ status: 'tx_ref_mismatch' });
+        }
+      } catch (vErr: any) {
+        console.error('🔴 [FLW_WEBHOOK_EXCEPTION]: Direct verify check exception:', vErr.message);
+        return res.status(500).json({ status: 'verification_error', error: vErr.message });
+      }
+
+      const convertedRwf = Number(p.converted_rwf);
+      const originalAmount = Number(p.original_amount);
+      const currency = p.currency || 'RWF';
+
+      // 4. Atomically credit the wallet
+      await WalletService.credit(
+        p.user_id,
+        convertedRwf,
+        'wallet',
+        'flutterwave_deposit',
+        `Flutterwave Deposit (${originalAmount} ${currency} → ${convertedRwf.toLocaleString()} RWF)`,
+        txRef,
+        { flwRef: flwId, originalAmount, currency, source: 'webhook' }
+      );
+
+      // 5. Update pending deposit to completed
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
+        [String(flwId || 'flw_webhook'), txRef]
+      ).catch(() => {});
+
+      // 6. Trigger referral reward if applicable
+      try {
+        await ReferralService.triggerQualifyingEvent(p.user_id, 'first_deposit', 'wallet');
+      } catch {}
+
+      // In-app notification to user
+      createNotification({
+        userId: p.user_id,
+        title: 'Deposit Received! 💰',
+        message: `Your deposit of ${convertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
+        type: 'deposit',
+        actionUrl: '/dashboard#wallet',
+        metadata: { amount: convertedRwf, txRef }
+      }).catch(() => {});
+
+      // In-app notification to admin
+      createNotification({
+        recipientRole: 'admin',
+        title: '💰 New Deposit Credited',
+        message: `User ${p.user_id} deposited ${convertedRwf.toLocaleString()} RWF via Flutterwave.`,
+        type: 'deposit',
+        actionUrl: '/admin#withdrawals',
+        metadata: { userId: p.user_id, amount: convertedRwf, txRef }
+      }).catch(() => {});
+
+      return res.status(200).json({ status: 'success', credited: true, txRef });
+    }
+
+    return res.status(200).json({ status: 'ignored_unhandled_event' });
+  } catch (err: any) {
+    console.error('Flutterwave webhook processing error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Flutterwave Deposit Verification & Instant Wallet Credit
+ */
+app.post('/api/wallet/flutterwave/verify', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { txRef, convertedRwf, currency = 'RWF', originalAmount, flwRef, transactionId, status } = req.body;
+
+    if (!txRef) {
+      return res.status(400).json({ error: 'Valid transaction reference (txRef) is required.' });
+    }
+
+    // Immediately reject and cancel if status from client indicates cancellation
+    if (status === 'cancelled' || status === 'failed') {
+      await query(
+        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+        [txRef]
+      ).catch(() => {});
+      return res.status(400).json({ error: 'Payment was cancelled. Wallet was not credited.' });
+    }
+
+    // Prevent duplicate credits using existing transaction record
+    const existingTx = await query(
+      "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
+      [txRef]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+
+    if (existingTx.rowCount && existingTx.rowCount > 0) {
+      const wallet = await WalletService.getOrCreateWallet(req.user!.id);
+      return res.json({
+        success: true,
+        newBalance: Number(wallet.balance || 0),
+        message: `Transaction ${txRef} has already been credited to your wallet.`
+      });
+    }
+
+    // Load from pending_flutterwave_deposits if present
+    let finalConvertedRwf = parseFloat(convertedRwf);
+    let finalCurrency = currency;
+    let finalOriginalAmount = parseFloat(originalAmount);
+
+    const pendingRow = await query(
+      "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
+      [txRef]
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+
+    if (pendingRow.rowCount && pendingRow.rowCount > 0) {
+      const p = pendingRow.rows[0];
+      if (p.status === 'completed') {
+        const wallet = await WalletService.getOrCreateWallet(req.user!.id);
+        return res.json({
+          success: true,
+          newBalance: Number(wallet.balance || 0),
+          message: `Transaction ${txRef} has already been credited to your wallet.`
+        });
+      }
+      if (p.status === 'cancelled' || p.status === 'rejected') {
+        return res.status(400).json({ error: `This deposit was marked as ${p.status}. It cannot be credited.` });
+      }
+      if (!finalConvertedRwf || isNaN(finalConvertedRwf)) finalConvertedRwf = Number(p.converted_rwf);
+      if (!finalOriginalAmount || isNaN(finalOriginalAmount)) finalOriginalAmount = Number(p.original_amount);
+      if (!finalCurrency) finalCurrency = p.currency;
+    }
+
+    if (!finalConvertedRwf || finalConvertedRwf < 100) {
+      return res.status(400).json({ error: 'Minimum deposit is 100 RWF.' });
+    }
+
+    const effectiveFlwRef = flwRef || transactionId;
+    const flwConfig = await getFlutterwaveConfig();
+    const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY || 'FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X';
+
+    // Strict verification against Flutterwave server-side API
+    let verifyUrl = '';
+    if (effectiveFlwRef && !effectiveFlwRef.toString().startsWith('fake_')) {
+      verifyUrl = `https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`;
+    } else if (txRef) {
+      verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`;
+    }
+
+    if (verifyUrl && effectiveSecret) {
+      try {
+        const verifyRes = await fetch(verifyUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${effectiveSecret}`
+          }
+        });
+
+        if (!verifyRes.ok) {
+          const errBody = await verifyRes.text().catch(() => '');
+          console.warn(`Flutterwave direct API verification returned HTTP ${verifyRes.status}:`, errBody);
+          await query(
+            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+            [txRef]
+          ).catch(() => {});
+          return res.status(400).json({
+            error: 'Flutterwave verification failed. The transaction was cancelled or not completed on the payment gateway.'
+          });
+        }
+
+        const verifyData: any = await verifyRes.json();
+        const flwStatus = (verifyData?.data?.status || '').toLowerCase();
+
+        if (verifyData?.status !== 'success' || flwStatus !== 'successful') {
+          if (flwStatus === 'pending') {
+            return res.status(202).json({
+              pending: true,
+              status: 'pending',
+              message: 'Payment is currently being processed by your Mobile Money provider. Your wallet will update automatically once confirmed.'
+            });
+          }
+          await query(
+            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
+            [txRef]
+          ).catch(() => {});
+          return res.status(400).json({
+            error: `Flutterwave payment status is '${flwStatus || verifyData?.status || 'unsuccessful'}'. Not credited.`
+          });
+        }
+
+        // Validate transaction reference returned by gateway
+        const gatewayTxRef = verifyData?.data?.tx_ref;
+        if (gatewayTxRef && gatewayTxRef !== txRef) {
+          return res.status(400).json({ error: 'Transaction reference mismatch.' });
+        }
+      } catch (flwErr: any) {
+        console.warn('Flutterwave direct API verification exception:', flwErr.message);
+        return res.status(400).json({
+          error: 'Unable to reach Flutterwave gateway for verification. Please retry.'
+        });
+      }
+    } else {
+      return res.status(400).json({ error: 'Missing Flutterwave verification parameters or gateway secret.' });
+    }
+
+    const result = await WalletService.credit(
+      req.user!.id,
+      finalConvertedRwf,
+      'wallet',
+      'flutterwave_deposit',
+      `Flutterwave Deposit (${finalOriginalAmount || finalConvertedRwf} ${finalCurrency} → ${finalConvertedRwf.toLocaleString()} RWF)`,
+      txRef,
+      { flwRef: effectiveFlwRef, originalAmount: finalOriginalAmount, currency: finalCurrency }
+    );
+
+    // Update pending deposit record to completed
+    await query(
+      "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
+      [effectiveFlwRef || 'flw_verified', txRef]
+    ).catch(() => {});
+
+    // Trigger qualifying referral reward non-blockingly
+    try {
+      await ReferralService.triggerQualifyingEvent(req.user!.id, 'first_deposit', 'wallet');
+    } catch (refErr) {
+      console.warn('Referral trigger non-fatal:', refErr);
+    }
+
+    // In-app notification to user
+    createNotification({
+      userId: req.user!.id,
+      title: 'Deposit Received! 💰',
+      message: `Your deposit of ${finalConvertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
+      type: 'deposit',
+      actionUrl: '/dashboard#wallet',
+      metadata: { amount: finalConvertedRwf, txRef }
+    }).catch(() => {});
+
+    // In-app notification to admin
+    createNotification({
+      recipientRole: 'admin',
+      title: '💰 New Deposit Credited',
+      message: `User ${req.user!.name || req.user!.email} deposited ${finalConvertedRwf.toLocaleString()} RWF via Flutterwave.`,
+      type: 'deposit',
+      actionUrl: '/admin#withdrawals',
+      metadata: { userId: req.user!.id, email: req.user!.email, amount: finalConvertedRwf, txRef }
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      newBalance: result.newBalance,
+      message: `Successfully credited ${finalConvertedRwf.toLocaleString()} RWF to your wallet via Flutterwave!`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ==================== SYSTEM SETTINGS (DYNAMIC CONFIGURATION) ==================== //
 

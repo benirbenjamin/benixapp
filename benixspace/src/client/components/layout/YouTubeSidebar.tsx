@@ -33,7 +33,9 @@ import {
   Download,
   LayoutDashboard,
   Rocket,
-  Cloud
+  Cloud,
+  CreditCard,
+  Code2
 } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
@@ -110,6 +112,14 @@ export const YouTubeSidebar: React.FC = () => {
       route: '/advertise',
       badge: 'From 100 RWF',
       color: 'text-amber-400 group-hover:text-amber-300'
+    },
+    {
+      id: 'benixpay',
+      name: 'Benix Pay',
+      icon: CreditCard,
+      route: '/dashboard#pay',
+      badge: 'Gateway',
+      color: 'text-emerald-400 group-hover:text-emerald-300'
     },
     {
       id: 'cloud',
@@ -202,6 +212,14 @@ export const YouTubeSidebar: React.FC = () => {
       action: 'create-ad',
       badge: 'From 100 RWF',
       color: 'text-amber-400'
+    },
+    {
+      id: 'docs',
+      name: 'Developer API Docs',
+      icon: Code2,
+      route: '/docs/benixpay',
+      badge: 'API v1',
+      color: 'text-indigo-400'
     },
     {
       id: 'projects',

@@ -11,8 +11,9 @@ import { DashboardCreatorBar } from '../components/dashboard/DashboardCreatorBar
 import { DashboardReceiptModal } from '../components/dashboard/DashboardReceiptModal';
 import { CreateMediaModal } from '../components/modals/CreateMediaModal';
 import { AppAccessWizardModal } from '../components/modals/AppAccessWizardModal';
+import { BenixPayMerchantTab } from '../components/dashboard/BenixPayMerchantTab';
 import {
-  LayoutDashboard, MessageCircle, Zap, Search,
+  LayoutDashboard, CreditCard, MessageCircle, Zap, Search,
   Wallet,
   Gift,
   Settings,
@@ -62,7 +63,7 @@ export const DashboardPage: React.FC = () => {
 
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads' | 'smm'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads' | 'smm' | 'pay'>('overview');
   const [referralRewardAmount, setReferralRewardAmount] = useState<number>(50);
   const [referralStats, setReferralStats] = useState<any>({ total_referrals: 0, approved_referrals: 0, total_earnings: 0, history: [] });
 
@@ -100,7 +101,7 @@ export const DashboardPage: React.FC = () => {
     const hash = (location.hash || '').replace('#', '').toLowerCase();
     const tabParam = (searchParams.get('tab') || '').toLowerCase();
     const candidate = hash || tabParam;
-    if (['wallet', 'overview', 'customizer', 'referrals', 'security', 'ads', 'smm'].includes(candidate)) {
+    if (['wallet', 'overview', 'customizer', 'referrals', 'security', 'ads', 'smm', 'pay'].includes(candidate)) {
       setActiveTab(candidate as any);
     }
   }, [location.hash, searchParams]);
@@ -721,6 +722,7 @@ export const DashboardPage: React.FC = () => {
           {[
             { id: 'overview', label: 'Overview & Apps', icon: LayoutDashboard },
             { id: 'smm', label: 'Buy Views on youtube and more', icon: Zap },
+            { id: 'pay', label: 'Benix Pay Gateway', icon: CreditCard },
             { id: 'wallet', label: 'Central Wallet & Ledger', icon: Wallet },
             { id: 'customizer', label: 'App Customizer', icon: Palette },
             { id: 'ads', label: 'Ad Campaigns & Analytics', icon: Megaphone },
@@ -751,6 +753,11 @@ export const DashboardPage: React.FC = () => {
             <CheckCircle2 className="w-4 h-4" />
             <span>{saveSuccess}</span>
           </div>
+        )}
+
+        {/* TAB 0: BENIX PAY GATEWAY */}
+        {activeTab === 'pay' && (
+          <BenixPayMerchantTab />
         )}
 
         {/* TAB 1: OVERVIEW & CONNECTED APPS */}

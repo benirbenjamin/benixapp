@@ -74,6 +74,8 @@ const AppLiveViewPage = lazyNamed(() => import('./client/pages/cloud/AppLiveView
 const MessagesPage = lazyNamed(() => import('./client/pages/MessagesPage'), 'MessagesPage');
 const CreatorStudioPage = lazyNamed(() => import('./client/pages/CreatorStudioPage'), 'CreatorStudioPage');
 const AdvertisePage = lazyNamed(() => import('./client/pages/AdvertisePage'), 'AdvertisePage');
+const BenixPayCheckoutPage = lazyNamed(() => import('./client/pages/pay/BenixPayCheckoutPage'), 'BenixPayCheckoutPage');
+const BenixPayDocsPage = lazyNamed(() => import('./client/pages/docs/BenixPayDocsPage'), 'BenixPayDocsPage');
 
 // Lazy Loaded Admin Pages
 const AdminLoginPage = lazyNamed(() => import('./client/pages/admin/AdminLoginPage'), 'AdminLoginPage');
@@ -277,6 +279,9 @@ export const App: React.FC = () => {
                                 }
                               />
 
+                              {/* Standalone Hosted Gateway Checkout (Focused Fullscreen Flow) */}
+                              <Route path="/pay/:txnId" element={<BenixPayCheckoutPage />} />
+
                               {/* Standalone Independent App Hosting Viewers (Zero Shell / No Navbar / Fullscreen) */}
                               <Route path="/l/:appName/*" element={<AppLiveViewPage />} />
                               <Route path="/l/:appName" element={<AppLiveViewPage />} />
@@ -326,6 +331,10 @@ export const App: React.FC = () => {
                                                   </ProtectedCustomerRoute>
                                                 }
                                               />
+
+                                              {/* Benix Pay Developer API Documentation */}
+                                              <Route path="/docs/benixpay" element={<BenixPayDocsPage />} />
+                                              <Route path="/pay/docs" element={<Navigate to="/docs/benixpay" replace />} />
 
                                               {/* Core Platform Pages */}
                                               <Route path="/projects" element={<ProjectsPage />} />
