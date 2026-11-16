@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './client/context/ThemeContext';
 import { AuthProvider, useAuth } from './client/context/AuthContext';
+import { CurrencyProvider } from './client/context/CurrencyContext';
 import { LanguageProvider } from './client/context/LanguageContext';
 import { SidebarProvider } from './client/context/SidebarContext';
 import { Navbar } from './client/components/layout/Navbar';
@@ -166,8 +167,9 @@ export const App: React.FC = () => {
         <LanguageProvider>
           <AuthProvider>
             <CoffeeProvider>
-              <PwaProvider>
-                <ActionNotificationProvider>
+              <CurrencyProvider>
+                <PwaProvider>
+                  <ActionNotificationProvider>
                   <PlayerProvider>
                     <UploadProvider>
                       <SidebarProvider>
@@ -366,7 +368,8 @@ export const App: React.FC = () => {
                   </PlayerProvider>
                 </ActionNotificationProvider>
               </PwaProvider>
-            </CoffeeProvider>
+            </CurrencyProvider>
+          </CoffeeProvider>
           </AuthProvider>
         </LanguageProvider>
       </ThemeProvider>

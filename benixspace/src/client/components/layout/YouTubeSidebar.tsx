@@ -99,7 +99,7 @@ export const YouTubeSidebar: React.FC = () => {
     },
     {
       id: 'smm',
-      name: 'Boost SMM Services',
+      name: 'Buy Views on youtube and more',
       icon: Rocket,
       route: '/dashboard#smm',
       badge: 'Boost',

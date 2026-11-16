@@ -11,14 +11,24 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/webp',
   'image/gif',
   'image/svg+xml',
+  'image/heic',
+  'image/heif',
+  'image/avif',
   'audio/mpeg',
   'audio/mp3',
   'audio/wav',
   'audio/aac',
   'audio/ogg',
   'audio/webm',
+  'audio/m4a',
   'video/mp4',
   'video/webm',
+  'video/quicktime',
+  'video/ogg',
+  'video/3gpp',
+  'video/x-m4v',
+  'video/x-msvideo',
+  'video/x-matroska',
   'application/pdf'
 ]);
 
@@ -53,7 +63,8 @@ export class StorageService {
     key: string;
     expiresIn: number;
   }> {
-    const cleanMime = (mimeType || 'application/octet-stream').toLowerCase().trim();
+    const baseMime = (mimeType || 'application/octet-stream').split(';')[0].toLowerCase().trim();
+    const cleanMime = baseMime === 'video/mov' ? 'video/quicktime' : baseMime;
 
     // Strict Security Whitelist Check
     if (!ALLOWED_MIME_TYPES.has(cleanMime)) {
@@ -96,7 +107,8 @@ export class StorageService {
     fileBuffer: Buffer,
     folder = 'media'
   ): Promise<{ fileUrl: string; fileId: string; provider: 'cloudflare_r2' }> {
-    const cleanMime = (mimeType || 'application/octet-stream').toLowerCase().trim();
+    const baseMime = (mimeType || 'application/octet-stream').split(';')[0].toLowerCase().trim();
+    const cleanMime = baseMime === 'video/mov' ? 'video/quicktime' : baseMime;
     const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, '') || 'media';
     const rawExt = path.extname(fileName || '').toLowerCase();
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, '') || '.bin';

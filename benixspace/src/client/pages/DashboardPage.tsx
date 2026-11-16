@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme, ThemeMode, AccentColor } from '../context/ThemeContext';
+import { useCurrency, CurrencyToggle } from '../context/CurrencyContext';
 import { SeoHead } from '../components/common/SeoHead';
 import { WalletModal } from '../components/modals/WalletModal';
 import { SubmitAdModal } from '../components/modals/SubmitAdModal';
@@ -55,12 +56,44 @@ import {
 
 export const DashboardPage: React.FC = () => {
   const { user, wallet, token, updateWalletBalance, updatePreferences, updateProfilePhoto } = useAuth();
+  const { formatAmount } = useCurrency();
   const { language, setLanguage, t } = useLanguage();
   const { mode, accent, setMode, setAccent } = useTheme();
 
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'customizer' | 'referrals' | 'security' | 'ads' | 'smm'>('overview');
+  const [referralRewardAmount, setReferralRewardAmount] = useState<number>(50);
+  const [referralStats, setReferralStats] = useState<any>({ total_referrals: 0, approved_referrals: 0, total_earnings: 0, history: [] });
+
+  // Load live referral configurations and stats
+  useEffect(() => {
+    fetch('/api/referrals/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.rewardAmount && !isNaN(Number(data.rewardAmount))) {
+          setReferralRewardAmount(Number(data.rewardAmount));
+        }
+      })
+      .catch(() => {});
+
+    const authToken = token || localStorage.getItem('token') || localStorage.getItem('benix_auth_token');
+    if (authToken) {
+      fetch('/api/referrals', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data === 'object') {
+            setReferralStats(data);
+            if (data.reward_amount) {
+              setReferralRewardAmount(Number(data.reward_amount));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token]);
 
   // React to hash (e.g. #wallet) or query param (e.g. ?tab=wallet)
   useEffect(() => {
@@ -612,28 +645,28 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           {/* Wallet Balance & Referral Action */}
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
             <div
               onClick={() => setShowWalletModal(true)}
-              className="p-3.5 rounded-2xl bg-[#162032] border border-slate-700/80 cursor-pointer hover:border-emerald-500/50 transition-all flex items-center gap-3 shadow-lg"
+              className="p-3 rounded-2xl bg-[#162032] border border-slate-700/80 cursor-pointer hover:border-emerald-500/50 transition-all flex items-center gap-2.5 shadow-lg shrink-0"
             >
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                <Wallet className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                <Wallet className="w-4 h-4" />
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-bold block">Real Balance</span>
-                <span className="text-lg font-black text-white">
-                  {Number(wallet?.balance || 0).toLocaleString()}{' '}
-                  <span className="text-xs text-emerald-400">{wallet?.currency || 'RWF'}</span>
+                <span className="text-base sm:text-lg font-black text-white">
+                  {formatAmount(wallet?.balance || 0)}
                 </span>
-                
               </div>
             </div>
+
+            <CurrencyToggle size="sm" className="shrink-0" />
 
             <Link
               to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com"
               title="Message System Admin for Support & Questions"
-              className="px-4 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95 shrink-0"
+              className="px-3.5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95 shrink-0"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Chat with Admin</span>
@@ -641,10 +674,10 @@ export const DashboardPage: React.FC = () => {
 
             <button
               onClick={handleCopyRef}
-              className="px-4 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 shrink-0"
+              className="px-3.5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-95 shrink-0"
             >
               <Gift className="w-4 h-4" />
-              <span>{copied ? 'Copied!' : 'Invite & Earn (50 RWF)'}</span>
+              <span>{copied ? 'Copied!' : `Invite & Earn (${formatAmount(referralRewardAmount, { compact: true })})`}</span>
             </button>
           </div>
         </div>
@@ -653,7 +686,7 @@ export const DashboardPage: React.FC = () => {
         <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto scrollbar-none">
           {[
             { id: 'overview', label: 'Overview & Apps', icon: LayoutDashboard },
-            { id: 'smm', label: 'Social Media Boost', icon: Zap },
+            { id: 'smm', label: 'Buy Views on youtube and more', icon: Zap },
             { id: 'wallet', label: 'Central Wallet & Ledger', icon: Wallet },
             { id: 'customizer', label: 'App Customizer', icon: Palette },
             { id: 'ads', label: 'Ad Campaigns & Analytics', icon: Megaphone },
@@ -744,31 +777,34 @@ export const DashboardPage: React.FC = () => {
         {/* TAB 2: CENTRAL WALLET & LEDGER */}
         {activeTab === 'wallet' && (
           <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-black text-white">Central Wallet Overview</h3>
                 <p className="text-xs text-slate-400">Universal balance shared across all Benix.Space mini-apps</p>
               </div>
-              <button
-                onClick={() => setShowWalletModal(true)}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all"
-              >
-                Open Full Wallet Controls
-              </button>
+              <div className="flex items-center gap-2">
+                <CurrencyToggle size="sm" />
+                <button
+                  onClick={() => setShowWalletModal(true)}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all"
+                >
+                  Open Full Wallet Controls
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl bg-gradient-to-br from-[#162032] to-[#0E1524] border border-slate-700/80 space-y-2">
                 <span className="text-xs text-slate-400 font-bold uppercase block">Available Balance</span>
-                <span className="text-3xl font-black text-white">{Number(wallet?.balance || 100).toLocaleString()} <span className="text-sm font-bold text-emerald-400">{wallet?.currency || 'RWF'}</span></span>
+                <span className="text-2xl sm:text-3xl font-black text-white">{formatAmount(wallet?.balance || 0)}</span>
               </div>
               <div className="p-5 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-2">
                 <span className="text-xs text-slate-400 font-bold uppercase block">Total Earnings</span>
-                <span className="text-3xl font-black text-emerald-400">{Number(wallet?.total_earnings || 100).toLocaleString()} <span className="text-sm font-bold text-emerald-400">RWF</span></span>
+                <span className="text-2xl sm:text-3xl font-black text-emerald-400">{formatAmount(wallet?.total_earnings || 0)}</span>
               </div>
               <div className="p-5 rounded-2xl bg-[#161D2E] border border-slate-800 space-y-2">
                 <span className="text-xs text-slate-400 font-bold uppercase block">Pending Withdrawals</span>
-                <span className="text-3xl font-black text-amber-400">{Number(wallet?.pending_balance || 0).toLocaleString()} <span className="text-sm font-bold text-amber-400">RWF</span></span>
+                <span className="text-2xl sm:text-3xl font-black text-amber-400">{formatAmount(wallet?.pending_balance || 0)}</span>
               </div>
             </div>
 
@@ -902,19 +938,53 @@ export const DashboardPage: React.FC = () => {
         {/* TAB 4: REFERRALS & EARNINGS */}
         {activeTab === 'referrals' && (
           <div className="p-6 sm:p-8 rounded-3xl bg-[#121824] border border-slate-800 space-y-6">
-            <div>
-              <h3 className="text-lg font-black text-white">Invite Friends & Earn Rewards</h3>
-              <p className="text-xs text-slate-400">Share your referral link to earn rewards directly in your central wallet.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-black text-white">Invite Friends & Earn Rewards</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Share your unique referral link to earn {formatAmount(referralRewardAmount)} credited directly to your central wallet for each verified friend!
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
+                <Gift className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Reward per Referral</span>
+                  <span className="text-lg font-black text-amber-400">{formatAmount(referralRewardAmount)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Referral Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-700/80">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Friends Invited</span>
+                <span className="text-2xl font-black text-white font-mono mt-1 block">
+                  {referralStats.total_referrals || 0}
+                </span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-700/80">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Active / Approved</span>
+                <span className="text-2xl font-black text-emerald-400 font-mono mt-1 block">
+                  {referralStats.approved_referrals || 0}
+                </span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#161D2E] border border-slate-700/80">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Referral Earnings</span>
+                <span className="text-2xl font-black text-amber-400 font-mono mt-1 block">
+                  {formatAmount(referralStats.total_earnings || 0)}
+                </span>
+              </div>
             </div>
 
             <div className="p-5 rounded-2xl bg-[#161D2E] border border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-bold block">Your Unique Referral Code</span>
                 <span className="text-2xl font-black text-white font-mono tracking-wider">{user?.referral_code || 'BENIX'}</span>
+                <p className="text-[11px] text-slate-400 mt-1 font-mono">https://benix.space/?ref={user?.referral_code || 'BENIX'}</p>
               </div>
               <button
                 onClick={handleCopyRef}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
               >
                 <Copy className="w-4 h-4" />
                 <span>{copied ? 'Copied to Clipboard!' : 'Copy Referral Link'}</span>
@@ -987,7 +1057,7 @@ export const DashboardPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
                   <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    SMM Boost & Growth Engine
+                    Buy Views on youtube and more
                   </span>
                   {smmProviderBalance !== null && (
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -996,7 +1066,7 @@ export const DashboardPage: React.FC = () => {
                   )}
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                  Social Media Boost Services 🚀
+                  Buy Views on youtube and more 🚀
                 </h2>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Grow your YouTube subscribers & views, Instagram followers & likes, TikTok engagement, Facebook pages, and Spotify streams. Orders are fulfilled automatically directly from your central wallet!
@@ -1007,7 +1077,7 @@ export const DashboardPage: React.FC = () => {
                 <div className="p-4 rounded-2xl bg-[#1A2234] border border-slate-700/80 text-right">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Available Balance</span>
                   <span className="text-xl font-black text-emerald-400">
-                    {Number(wallet?.balance || 0).toLocaleString()} <span className="text-xs font-bold text-white">RWF</span>
+                    {formatAmount(wallet?.balance || 0)}
                   </span>
                 </div>
                 <button
@@ -1174,7 +1244,7 @@ export const DashboardPage: React.FC = () => {
                       <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between text-xs text-slate-400">
                           <span>Unit Rate:</span>
-                          <span className="font-mono">{Number(selectedService.rate_rwf).toLocaleString()} RWF / 1,000</span>
+                          <span className="font-mono">{formatAmount(selectedService.rate_rwf)} / 1,000</span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-slate-400">
                           <span>Quantity:</span>
@@ -1183,7 +1253,7 @@ export const DashboardPage: React.FC = () => {
                         <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                           <span className="text-xs font-bold text-white">Total Cost (Debited from Real Wallet):</span>
                           <span className="text-lg font-black text-emerald-400 font-mono">
-                            {Math.ceil(Number(selectedService.rate_rwf) * (boostQuantity / 1000)).toLocaleString()} RWF
+                            {formatAmount(Math.ceil(Number(selectedService.rate_rwf) * (boostQuantity / 1000)))}
                           </span>
                         </div>
                       </div>

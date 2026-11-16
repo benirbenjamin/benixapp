@@ -4209,6 +4209,156 @@ app.post('/api/media/presigned-upload', async (req, res) => {
 });
 
 /**
+ * Resilient 512KB Chunked Media Upload Endpoint
+ * Guarantees zero 413 Payload Too Large errors across Vercel and slow mobile connections
+ */
+app.post('/api/media/upload-chunk', async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, chunkData, fileName, mimeType, folder = 'media' } = req.body;
+    if (!uploadId || chunkIndex === undefined || !totalChunks || !chunkData) {
+      return res.status(400).json({ error: 'uploadId, chunkIndex, totalChunks, and chunkData are required.' });
+    }
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS upload_chunks (
+        upload_id VARCHAR(255) NOT NULL,
+        chunk_index INT NOT NULL,
+        total_chunks INT NOT NULL,
+        chunk_data TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (upload_id, chunk_index)
+      );
+      CREATE TABLE IF NOT EXISTS stored_media_files (
+        id VARCHAR(255) PRIMARY KEY,
+        file_name VARCHAR(500) NOT NULL,
+        mime_type VARCHAR(255) NOT NULL,
+        file_data BYTEA NOT NULL,
+        file_size BIGINT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    // Save current chunk
+    await query(
+      `INSERT INTO upload_chunks (upload_id, chunk_index, total_chunks, chunk_data)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (upload_id, chunk_index) DO UPDATE SET chunk_data = EXCLUDED.chunk_data`,
+      [uploadId, Number(chunkIndex), Number(totalChunks), chunkData]
+    );
+
+    // If not final chunk, return progress confirmation
+    if (Number(chunkIndex) < Number(totalChunks) - 1) {
+      return res.json({ success: true, chunkReceived: Number(chunkIndex), totalChunks: Number(totalChunks) });
+    }
+
+    // Final chunk received: assemble all chunks in order
+    const chunksRes = await query(
+      `SELECT chunk_data FROM upload_chunks WHERE upload_id = $1 ORDER BY chunk_index ASC`,
+      [uploadId]
+    );
+
+    if (chunksRes.rowCount < Number(totalChunks)) {
+      return res.json({ success: true, message: 'Waiting for all chunks...', received: chunksRes.rowCount, total: totalChunks });
+    }
+
+    // Stitch chunks together
+    const buffers = chunksRes.rows.map((r: any) => Buffer.from(r.chunk_data, 'base64'));
+    const fullBuffer = Buffer.concat(buffers);
+
+    const safeExt = path.extname(fileName || '').toLowerCase() || (mimeType?.includes('video') ? '.mp4' : '.jpg');
+    const fileId = 'med_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex');
+    const safeFileName = `${fileId}${safeExt}`;
+    const cleanMime = (mimeType || 'application/octet-stream').split(';')[0].trim();
+
+    // 1. Store in PostgreSQL stored_media_files
+    await query(
+      `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [fileId, safeFileName, cleanMime, fullBuffer, fullBuffer.length]
+    );
+
+    // 2. Also try writing to local disk if public/uploads directory is writable
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadDir, safeFileName), fullBuffer);
+    } catch {}
+
+    // 3. Clean up temporary chunks
+    await query('DELETE FROM upload_chunks WHERE upload_id = $1', [uploadId]).catch(() => {});
+
+    const fileUrl = `/api/media/file/${fileId}`;
+    return res.json({
+      success: true,
+      fileUrl,
+      publicUrl: fileUrl,
+      fileId,
+      fileSize: fullBuffer.length
+    });
+  } catch (err: any) {
+    console.error('Upload chunk error:', err);
+    return res.status(500).json({ error: err.message || 'Chunk upload processing failed.' });
+  }
+});
+
+/**
+ * Stream Stored Media Files directly from PostgreSQL (HTTP 206 Partial Content Chunking)
+ */
+app.get('/api/media/file/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cleanId = path.basename(id).replace(/\.[^/.]+$/, ''); // Strip extension if present
+
+    const fileRes = await query(
+      `SELECT file_name, mime_type, file_data, file_size FROM stored_media_files WHERE id = $1 OR file_name = $2 LIMIT 1`,
+      [cleanId, id]
+    );
+
+    if (fileRes.rowCount === 0) {
+      // Check local disk fallback
+      const localPath = path.join(process.cwd(), 'public', 'uploads', 'media', id);
+      if (fs.existsSync(localPath)) {
+        return res.sendFile(localPath);
+      }
+      return res.status(404).send('Media file not found');
+    }
+
+    const row = fileRes.rows[0];
+    const buffer = Buffer.isBuffer(row.file_data) ? row.file_data : Buffer.from(row.file_data);
+    const totalSize = Number(row.file_size) || buffer.length;
+    const mimeType = row.mime_type || 'application/octet-stream';
+
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const parts = rangeHeader.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+      const chunksize = end - start + 1;
+      const chunk = buffer.subarray(start, end + 1);
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+        'Content-Length': chunksize,
+        'Content-Type': mimeType
+      });
+      return res.end(chunk);
+    }
+
+    res.writeHead(200, {
+      'Content-Length': totalSize,
+      'Content-Type': mimeType
+    });
+    return res.end(buffer);
+  } catch (err: any) {
+    return res.status(500).send('Error streaming media file');
+  }
+});
+
+/**
  * Deprecated Google Drive Streaming Endpoints (Retired in favor of Cloudflare R2 CDN & YouTube embeds)
  */
 app.get('/api/media/stream/:fileId', (req, res) => {
@@ -7403,10 +7553,40 @@ app.get('/api/admin/activities', authenticateToken, requireAdminRole, async (req
 
 // ==================== 3. CENTRAL REFERRALS API ==================== //
 
+app.get('/api/referrals/config', async (req, res) => {
+  try {
+    const settingRes = await query(
+      `SELECT value FROM system_settings WHERE key = 'referral_reward_amount' 
+       UNION 
+       SELECT value::text FROM core_system_settings WHERE key = 'referral_reward_amount' 
+       LIMIT 1`
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+
+    const rewardAmount = settingRes.rowCount > 0 && Number(settingRes.rows[0].value) > 0
+      ? Number(settingRes.rows[0].value)
+      : 50.00;
+
+    return res.json({ success: true, rewardAmount, currency: 'RWF' });
+  } catch (err: any) {
+    return res.json({ success: true, rewardAmount: 50.00, currency: 'RWF' });
+  }
+});
+
 app.get('/api/referrals', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const stats = await ReferralService.getStats(req.user!.id);
-    return res.json(stats);
+    const settingRes = await query(
+      `SELECT value FROM system_settings WHERE key = 'referral_reward_amount' 
+       UNION 
+       SELECT value::text FROM core_system_settings WHERE key = 'referral_reward_amount' 
+       LIMIT 1`
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+
+    const rewardAmount = settingRes.rowCount > 0 && Number(settingRes.rows[0].value) > 0
+      ? Number(settingRes.rows[0].value)
+      : 50.00;
+
+    return res.json({ ...stats, reward_amount: rewardAmount });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -8292,11 +8472,41 @@ const DUMMY_SAMPLE_VIDEOS: any[] = [
 
 const unlockedVideosByUser = new Map<string, Set<string>>();
 
-// Videos endpoints (supporting /api/modules/videos and /api/videos)
+// Videos endpoints (supporting /api/modules/videos and /api/videos with YouTube-style algorithmic ranking)
 app.get(['/api/modules/videos', '/api/videos'], async (req, res) => {
   try {
     const category = req.query.category as string;
+    const sort = (req.query.sort as string) || 'recommended';
     let list = SAMPLE_VIDEOS;
+
+    // Determine viewer identifier for personalized algorithmic feed
+    let viewerId = (req.query.viewerId as string) || (req.headers['x-visitor-id'] as string) || '';
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) viewerId = String(decoded.id);
+    }
+
+    // Load viewer subscriptions & affinities if logged in
+    const viewerSubscriptions = new Set<string>();
+    const viewerCategoryAffinities: Record<string, number> = {};
+    if (viewerId) {
+      try {
+        const [subsRes, interRes] = await Promise.all([
+          query('SELECT creator_id FROM creator_subscribers WHERE subscriber_id = $1', [viewerId]),
+          query('SELECT category, interaction_type FROM user_short_interactions WHERE user_id = $1 LIMIT 100', [viewerId])
+        ]);
+        subsRes.rows?.forEach((r: any) => {
+          if (r.creator_id) viewerSubscriptions.add(String(r.creator_id).toLowerCase());
+        });
+        interRes.rows?.forEach((r: any) => {
+          if (r.category) {
+            const cat = String(r.category).toLowerCase();
+            viewerCategoryAffinities[cat] = (viewerCategoryAffinities[cat] || 0) + 1;
+          }
+        });
+      } catch {}
+    }
 
     // Load persisted videos from user_videos table
     try {
@@ -8304,7 +8514,7 @@ app.get(['/api/modules/videos', '/api/videos'], async (req, res) => {
         CREATE TABLE IF NOT EXISTS user_videos (
           id VARCHAR(255) PRIMARY KEY,
           title VARCHAR(500) NOT NULL,
-          slug VARCHAR(500) NOT NULL,
+          slug VARCHAR(500),
           description TEXT,
           video_url TEXT NOT NULL,
           thumbnail_url TEXT,
@@ -8323,7 +8533,7 @@ app.get(['/api/modules/videos', '/api/videos'], async (req, res) => {
         );
       `).catch(() => {});
 
-      const dbVideosRes = await query('SELECT * FROM user_videos ORDER BY created_at DESC LIMIT 60');
+      const dbVideosRes = await query('SELECT * FROM user_videos ORDER BY created_at DESC LIMIT 150');
       const dbVideos = dbVideosRes.rows.map((r: any) => ({
         id: r.id,
         title: r.title,
@@ -8380,7 +8590,64 @@ app.get(['/api/modules/videos', '/api/videos'], async (req, res) => {
       });
     } catch {}
 
-    return res.json({ videos: list });
+    // Algorithmic YouTube-Style Multi-Signal Ranking Engine
+    const now = Date.now();
+    const scoredList = list.map((v: any) => {
+      const views = Number(v.views) || 0;
+      const likes = Number(v.likes) || 0;
+      const createdTime = v.createdAt ? new Date(v.createdAt).getTime() : now - 86400000;
+      const ageHours = Math.max(0.1, (now - createdTime) / (1000 * 60 * 60));
+
+      // 1. Engagement Signal (Logarithmic views, logarithmic likes, and engagement ratio)
+      const viewsSignal = Math.log10(views + 1) * 35;
+      const likesSignal = Math.log10(likes + 1) * 55;
+      const engagementRatio = views > 0 ? (likes / Math.max(views, 20)) * 200 : 0;
+      const rawEngagement = viewsSignal + likesSignal + engagementRatio;
+
+      // 2. YouTube Exponential Half-Life Time Decay (gentle log decay so top hits stay evergreen)
+      const decayFactor = 1 / Math.pow(Math.max(1, ageHours / 24) + 1, 0.42);
+      const decayedScore = rawEngagement * decayFactor;
+
+      // 3. Fresh Discovery Impression Window (boost fresh uploads under 48 hours)
+      const freshDiscoveryBoost = Math.max(0, 45 - (ageHours * 0.9));
+
+      // 4. Creator Authority & Verified Partner Multiplier
+      const verifiedBonus = v.isVerified ? 30 : 0;
+      const qualityThumbBonus = v.thumbnailUrl && !v.thumbnailUrl.includes('/logo.png') ? 15 : 0;
+
+      // 5. Personalization (Subscribed channels & Category affinity)
+      let personalizedBoost = 0;
+      const channelKey = String(v.userId || v.channelName || '').toLowerCase();
+      if (viewerSubscriptions.has(channelKey)) {
+        personalizedBoost += 60;
+      }
+      const catKey = String(v.category || '').toLowerCase();
+      if (viewerCategoryAffinities[catKey]) {
+        personalizedBoost += Math.min(40, viewerCategoryAffinities[catKey] * 8);
+      }
+
+      // 6. Hourly Session Diversity Jitter (Deterministic rotation avoids static repetition)
+      const sessionSeed = (v.id.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0) + (new Date().getHours())) % 25;
+      const diversityJitter = sessionSeed * 0.6;
+
+      const algorithmicScore = decayedScore + freshDiscoveryBoost + verifiedBonus + qualityThumbBonus + personalizedBoost + diversityJitter;
+
+      return {
+        ...v,
+        algorithmicScore: Number(algorithmicScore.toFixed(2))
+      };
+    });
+
+    if (sort === 'latest') {
+      scoredList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    } else if (sort === 'views') {
+      scoredList.sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0));
+    } else {
+      // Default: YouTube-style Algorithmic Feed Ranking
+      scoredList.sort((a, b) => b.algorithmicScore - a.algorithmicScore);
+    }
+
+    return res.json({ videos: scoredList });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

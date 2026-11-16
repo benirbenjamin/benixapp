@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useCurrency, CurrencyToggle } from '../context/CurrencyContext';
+import { uploadFileInChunks } from '../utils/chunkedUpload';
 import { SeoHead } from '../components/common/SeoHead';
 import {
   Megaphone,
@@ -30,6 +32,7 @@ const BUDGET_PRESETS = [100, 250, 500, 1000, 2500, 5000];
 export const AdvertisePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, wallet, token, updateWalletBalance, refreshMe } = useAuth();
+  const { formatAmount } = useCurrency();
   const { t } = useLanguage();
 
   const [title, setTitle] = useState('');
@@ -79,18 +82,21 @@ export const AdvertisePage: React.FC = () => {
     });
   }, [dailyBudget, durationDays, cpmBid, cpcBid, targetMode, targetQuota]);
 
-  // Client-side automatic Canvas image compressor (prevents 403 Forbidden / ERR_CONNECTION_RESET)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Client-side automatic Canvas image compressor & resilient chunked video upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.type.startsWith('video/')) {
       setMediaType('video');
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) setMediaUrl(event.target.result as string);
-      };
-      reader.readAsDataURL(file);
+      setStatusMsg({ text: 'Uploading video media...' });
+      try {
+        const uploadedUrl = await uploadFileInChunks(file, { folder: 'ads' });
+        setMediaUrl(uploadedUrl);
+        setStatusMsg({ text: 'Video media uploaded successfully!' });
+      } catch (err: any) {
+        setStatusMsg({ text: err.message || 'Failed to upload video.', error: true });
+      }
       return;
     }
 

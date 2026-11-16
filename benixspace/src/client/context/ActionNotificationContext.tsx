@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import axios from 'axios';
 import { useAuth } from './AuthContext';
 import { usePwa } from './PwaContext';
+import { useCurrency } from './CurrencyContext';
 import { notificationSound } from '../utils/notificationSound';
 import { getAuthToken } from '../services/api';
 
@@ -59,6 +60,20 @@ const ActionNotificationContext = createContext<ActionNotificationContextType>({
 export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, wallet, hasAppProfile } = useAuth();
   const { setBadgeCount, showTrayNotification } = usePwa();
+  const { formatAmount } = useCurrency();
+  const [referralRewardAmount, setReferralRewardAmount] = useState<number>(50);
+
+  // Load configured referral reward from database/system settings
+  useEffect(() => {
+    fetch('/api/referrals/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.rewardAmount && !isNaN(Number(data.rewardAmount))) {
+          setReferralRewardAmount(Number(data.rewardAmount));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Read dismissed actions/read notifications from localStorage
   const [readIds, setReadIds] = useState<string[]>(() => {
@@ -118,7 +133,7 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
       list.push({
         id: 'act_bonus_ready',
         title: 'Activate Your Bonus Balance',
-        body: `You have ${Number(wallet.bonus_balance).toLocaleString()} RWF bonus ready to spend on videos, TV & games.`,
+        body: `You have ${formatAmount(wallet.bonus_balance)} bonus ready to spend on videos, TV & games.`,
         time: 'Wallet Action',
         category: 'wallet',
         route: '/dashboard#wallet',
@@ -145,9 +160,10 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
 
     // 4. Invite friends referral reward action
     if (user && user.referral_code) {
+      const rewardFormatted = formatAmount(referralRewardAmount);
       list.push({
         id: 'act_referral_reward',
-        title: 'Earn 1,000 RWF per Referral',
+        title: `Earn ${rewardFormatted} per Referral`,
         body: `Share your referral code "${user.referral_code}" with friends to receive instant bonuses on each invite.`,
         time: 'Reward Action',
         category: 'reward',
@@ -175,7 +191,7 @@ export const ActionNotificationProvider: React.FC<{ children: React.ReactNode }>
     }
 
     return list;
-  }, [user, wallet?.bonus_balance, hasAppProfile, readIds]);
+  }, [user, wallet?.bonus_balance, hasAppProfile, readIds, referralRewardAmount, formatAmount]);
 
   // Server-side real notifications (withdrawals, deposits, transfers, admin alerts)
   const [serverNotifications, setServerNotifications] = useState<InAppActionItem[]>([]);

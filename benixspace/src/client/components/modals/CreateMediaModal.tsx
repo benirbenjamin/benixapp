@@ -231,8 +231,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
 
         video.onloadedmetadata = () => {
           try {
-            const width = Math.min(video.videoWidth || 720, 720);
-            const height = Math.round((width * (video.videoHeight || 1280)) / (video.videoWidth || 720));
+            const width = Math.min(video.videoWidth || 540, 540);
+            const height = Math.round((width * (video.videoHeight || 960)) / (video.videoWidth || 540));
 
             const canvas = document.createElement('canvas');
             canvas.width = width;
@@ -244,7 +244,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
               return;
             }
 
-            const stream = canvas.captureStream ? canvas.captureStream(25) : null;
+            const stream = canvas.captureStream ? canvas.captureStream(24) : null;
             if (!stream || typeof MediaRecorder === 'undefined') {
               URL.revokeObjectURL(objectUrl);
               resolve(file);
@@ -261,7 +261,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             try {
               recorder = new MediaRecorder(stream, {
                 mimeType,
-                videoBitsPerSecond: 1200000 // Compressed mobile 1.2 Mbps
+                videoBitsPerSecond: 800000 // Compressed mobile 800 kbps for high speed
               });
             } catch {
               URL.revokeObjectURL(objectUrl);
@@ -281,7 +281,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
               URL.revokeObjectURL(objectUrl);
               const blob = new Blob(chunks, { type: mimeType });
               const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-              const trimmedFile = new File([blob], `story_${Date.now()}.${ext}`, { type: mimeType });
+              const cleanType = mimeType.split(';')[0];
+              const trimmedFile = new File([blob], `story_${Date.now()}.${ext}`, { type: cleanType });
               resolve(trimmedFile);
             };
 
@@ -394,16 +395,16 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     startUpload(title, 'story', async (updateProgress) => {
       let finalMediaUrl = fallbackUrl;
 
-      // If local file selected, cut/compress if video > 45s, then upload in resilient chunks
+      // If local file selected, cut/compress video or optimize photo, then upload in resilient chunks
       if (fileToUpload) {
         let processedFile = fileToUpload;
         const isVidStory = fileToUpload.type.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(fileToUpload.name);
 
-        if (isVidStory && storyTotalDuration > 45) {
+        if (isVidStory && (storyTotalDuration > 45 || fileToUpload.size > 2 * 1024 * 1024)) {
           setIsCompressingStory(true);
           updateProgress(5);
           try {
-            processedFile = await trimAndCompressVideo(fileToUpload, storyClipStart, 45, (pct) => {
+            processedFile = await trimAndCompressVideo(fileToUpload, storyClipStart, Math.min(45, storyTotalDuration || 45), (pct) => {
               updateProgress(Math.round(5 + pct * 0.2));
             });
           } catch (e) {
@@ -419,14 +420,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             folder: 'stories',
             onProgress: (pct) => updateProgress(Math.round(25 + pct * 0.65))
           });
-        } catch (uploadErr) {
-          console.warn('Chunk upload failed, falling back to data URL:', uploadErr);
-          const reader = new FileReader();
-          finalMediaUrl = await new Promise<string>((resolve, reject) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(processedFile);
-          });
+        } catch (uploadErr: any) {
+          console.error('Story chunked upload error:', uploadErr);
+          throw new Error('Failed to upload media: ' + (uploadErr?.message || 'Please check your connection and retry.'));
         }
       }
 

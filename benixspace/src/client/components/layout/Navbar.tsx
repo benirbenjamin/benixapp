@@ -43,6 +43,7 @@ import { SubmitAdModal } from '../modals/SubmitAdModal';
 import { usePwa } from '../../context/PwaContext';
 import { useInAppActions } from '../../context/ActionNotificationContext';
 import { useSidebar } from '../../context/SidebarContext';
+import { useCurrency, CurrencyToggle } from '../../context/CurrencyContext';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
 
 export const Navbar: React.FC = () => {
@@ -69,6 +70,7 @@ export const Navbar: React.FC = () => {
   }, []);
 
   const { user, wallet, logout, hasAppProfile } = useAuth();
+  const { formatAmount } = useCurrency();
   const { isInstalled, installApp, hasUpdate, applyUpdate } = usePwa();
   const { totalBadgeCount, inboxBadgeCount } = useInAppActions();
   const { toggleExpanded, openMobile } = useSidebar();
@@ -198,15 +200,18 @@ export const Navbar: React.FC = () => {
                 </Link>
               )}
 
+              {/* Global Currency Toggle (USD <-> RWF) */}
+              <CurrencyToggle className="shrink-0" />
+
               {/* Wallet Pill if Logged In - Redirects to /dashboard#wallet */}
               {user && (
                 <button
                   onClick={() => navigate('/dashboard#wallet')}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all"
+                  className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-all shrink-0"
                   title="View Central Wallet & Transactions"
                 >
                   <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[11px] sm:text-xs font-bold">{formatCurrencyCompact(Number(wallet?.balance ?? 0))}</span>
+                  <span className="text-[11px] sm:text-xs font-bold">{formatAmount(wallet?.balance ?? 0, { compact: true })}</span>
                 </button>
               )}
 
@@ -302,8 +307,12 @@ export const Navbar: React.FC = () => {
                             }}
                             className="text-xs font-black text-emerald-400 hover:text-emerald-300"
                           >
-                            {Number(wallet?.balance ?? 0).toLocaleString()} RWF
+                            {formatAmount(wallet?.balance ?? 0)}
                           </button>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">Display Currency:</span>
+                          <CurrencyToggle size="sm" />
                         </div>
                       </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { SeoHead } from '../../components/common/SeoHead';
 import { WalletModal } from '../../components/modals/WalletModal';
 import { AppAccessWizardModal } from '../../components/modals/AppAccessWizardModal';
@@ -120,6 +121,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
   const [searchParams] = useSearchParams();
   const { id: routeVideoId } = useParams();
   const { user, wallet, refreshMe, updateWalletBalance } = useAuth();
+  const { formatAmount } = useCurrency();
   const { setActivePipMedia } = usePlayer();
 
   const [currentMediaTab, setCurrentMediaTab] = useState<'videos' | 'shorts'>(initialTab);
@@ -1176,10 +1178,10 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
               className="px-3.5 py-1.5 rounded-xl bg-[#121824] border border-slate-800 hover:border-purple-500/50 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-2 transition-all shadow-md"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Wallet: {(wallet?.balance || 0).toLocaleString()} RWF</span>
+              <span>Wallet: {formatAmount(wallet?.balance || 0)}</span>
               {Boolean(wallet?.bonus_balance) && (
                 <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-black border border-amber-500/30">
-                  +{(wallet?.bonus_balance || 0).toLocaleString()} Bonus
+                  +{formatAmount(wallet?.bonus_balance || 0, { compact: true })} Bonus
                 </span>
               )}
             </button>
@@ -1303,7 +1305,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
                       className="mt-5 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 hover:from-amber-400 hover:to-amber-500 transition scale-100 hover:scale-105 flex items-center gap-2 cursor-pointer"
                     >
                       <Unlock className="w-4 h-4 inline-block mr-1" />
-                      <span>{unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock Video for ${activeVideo.price.toLocaleString()} RWF`}</span>
+                      <span>{unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock Video for ${formatAmount(activeVideo.price)}`}</span>
                     </button>
                   </div>
                 )}
@@ -1597,7 +1599,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
                       className="px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20"
                     >
                       <Unlock className="w-3.5 h-3.5" />
-                      <span>{unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock (${activeVideo.price} RWF)`}</span>
+                      <span>{unlockingId === activeVideo.id ? 'Unlocking...' : `Unlock (${formatAmount(activeVideo.price)})`}</span>
                     </button>
                   )}
                 </div>
@@ -1803,7 +1805,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
                           ) : (
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
                               <Lock className="w-3 h-3" />
-                              {video.price.toLocaleString()} RWF
+                              {formatAmount(video.price)}
                             </span>
                           )}
                         </div>
@@ -1907,7 +1909,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
             <div className="p-4 rounded-2xl bg-[#1C1236]/80 border border-purple-500/30 text-xs text-purple-200 space-y-1">
               <p className="font-bold">How it works:</p>
               <p className="text-slate-300">
-                When anyone clicks your link and unlocks this video ({shareVideo.price > 0 ? `${shareVideo.price} RWF` : 'paid catalog items'}), you instantly receive <strong className="text-amber-400">15% cash commission</strong> directly credited to your real withdrawal wallet!
+                When anyone clicks your link and unlocks this video ({shareVideo.price > 0 ? formatAmount(shareVideo.price) : 'paid catalog items'}), you instantly receive <strong className="text-amber-400">15% cash commission</strong> directly credited to your real withdrawal wallet!
               </p>
             </div>
 

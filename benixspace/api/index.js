@@ -105224,14 +105224,24 @@ var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
   "image/webp",
   "image/gif",
   "image/svg+xml",
+  "image/heic",
+  "image/heif",
+  "image/avif",
   "audio/mpeg",
   "audio/mp3",
   "audio/wav",
   "audio/aac",
   "audio/ogg",
   "audio/webm",
+  "audio/m4a",
   "video/mp4",
   "video/webm",
+  "video/quicktime",
+  "video/ogg",
+  "video/3gpp",
+  "video/x-m4v",
+  "video/x-msvideo",
+  "video/x-matroska",
   "application/pdf"
 ]);
 var r2Endpoint = (process.env.R2_ENDPOINT || "https://94cacdb0e304740d0c178fad46d60af9.r2.cloudflarestorage.com").trim();
@@ -105253,7 +105263,8 @@ var StorageService = class {
    * Browser uploads directly via HTTP PUT with 0 MB Node.js RAM and 0 server bandwidth
    */
   static async generatePresignedUploadUrl(fileName, mimeType, folder = "media") {
-    const cleanMime = (mimeType || "application/octet-stream").toLowerCase().trim();
+    const baseMime = (mimeType || "application/octet-stream").split(";")[0].toLowerCase().trim();
+    const cleanMime = baseMime === "video/mov" ? "video/quicktime" : baseMime;
     if (!ALLOWED_MIME_TYPES.has(cleanMime)) {
       throw new Error(`File type '${cleanMime}' is not permitted. Only standard images, audio, and media are allowed.`);
     }
@@ -105280,7 +105291,8 @@ var StorageService = class {
    * Direct server-side upload to Cloudflare R2 (for automated server tasks)
    */
   static async uploadFile(fileName, mimeType, fileBuffer, folder = "media") {
-    const cleanMime = (mimeType || "application/octet-stream").toLowerCase().trim();
+    const baseMime = (mimeType || "application/octet-stream").split(";")[0].toLowerCase().trim();
+    const cleanMime = baseMime === "video/mov" ? "video/quicktime" : baseMime;
     const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "") || "media";
     const rawExt = path3.extname(fileName || "").toLowerCase();
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, "") || ".bin";
@@ -120424,6 +120436,124 @@ app.post("/api/media/presigned-upload", async (req, res) => {
     return res.status(400).json({ error: err.message || "Failed to generate presigned upload link." });
   }
 });
+app.post("/api/media/upload-chunk", async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, chunkData, fileName, mimeType, folder = "media" } = req.body;
+    if (!uploadId || chunkIndex === void 0 || !totalChunks || !chunkData) {
+      return res.status(400).json({ error: "uploadId, chunkIndex, totalChunks, and chunkData are required." });
+    }
+    await query(`
+      CREATE TABLE IF NOT EXISTS upload_chunks (
+        upload_id VARCHAR(255) NOT NULL,
+        chunk_index INT NOT NULL,
+        total_chunks INT NOT NULL,
+        chunk_data TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (upload_id, chunk_index)
+      );
+      CREATE TABLE IF NOT EXISTS stored_media_files (
+        id VARCHAR(255) PRIMARY KEY,
+        file_name VARCHAR(500) NOT NULL,
+        mime_type VARCHAR(255) NOT NULL,
+        file_data BYTEA NOT NULL,
+        file_size BIGINT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {
+    });
+    await query(
+      `INSERT INTO upload_chunks (upload_id, chunk_index, total_chunks, chunk_data)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (upload_id, chunk_index) DO UPDATE SET chunk_data = EXCLUDED.chunk_data`,
+      [uploadId, Number(chunkIndex), Number(totalChunks), chunkData]
+    );
+    if (Number(chunkIndex) < Number(totalChunks) - 1) {
+      return res.json({ success: true, chunkReceived: Number(chunkIndex), totalChunks: Number(totalChunks) });
+    }
+    const chunksRes = await query(
+      `SELECT chunk_data FROM upload_chunks WHERE upload_id = $1 ORDER BY chunk_index ASC`,
+      [uploadId]
+    );
+    if (chunksRes.rowCount < Number(totalChunks)) {
+      return res.json({ success: true, message: "Waiting for all chunks...", received: chunksRes.rowCount, total: totalChunks });
+    }
+    const buffers = chunksRes.rows.map((r5) => Buffer.from(r5.chunk_data, "base64"));
+    const fullBuffer = Buffer.concat(buffers);
+    const safeExt = path4.extname(fileName || "").toLowerCase() || (mimeType?.includes("video") ? ".mp4" : ".jpg");
+    const fileId = "med_" + Date.now() + "_" + crypto17.randomBytes(4).toString("hex");
+    const safeFileName = `${fileId}${safeExt}`;
+    const cleanMime = (mimeType || "application/octet-stream").split(";")[0].trim();
+    await query(
+      `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [fileId, safeFileName, cleanMime, fullBuffer, fullBuffer.length]
+    );
+    try {
+      const uploadDir = path4.join(process.cwd(), "public", "uploads", "media");
+      if (!fs5.existsSync(uploadDir)) fs5.mkdirSync(uploadDir, { recursive: true });
+      fs5.writeFileSync(path4.join(uploadDir, safeFileName), fullBuffer);
+    } catch {
+    }
+    await query("DELETE FROM upload_chunks WHERE upload_id = $1", [uploadId]).catch(() => {
+    });
+    const fileUrl = `/api/media/file/${fileId}`;
+    return res.json({
+      success: true,
+      fileUrl,
+      publicUrl: fileUrl,
+      fileId,
+      fileSize: fullBuffer.length
+    });
+  } catch (err) {
+    console.error("Upload chunk error:", err);
+    return res.status(500).json({ error: err.message || "Chunk upload processing failed." });
+  }
+});
+app.get("/api/media/file/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cleanId = path4.basename(id).replace(/\.[^/.]+$/, "");
+    const fileRes = await query(
+      `SELECT file_name, mime_type, file_data, file_size FROM stored_media_files WHERE id = $1 OR file_name = $2 LIMIT 1`,
+      [cleanId, id]
+    );
+    if (fileRes.rowCount === 0) {
+      const localPath = path4.join(process.cwd(), "public", "uploads", "media", id);
+      if (fs5.existsSync(localPath)) {
+        return res.sendFile(localPath);
+      }
+      return res.status(404).send("Media file not found");
+    }
+    const row = fileRes.rows[0];
+    const buffer = Buffer.isBuffer(row.file_data) ? row.file_data : Buffer.from(row.file_data);
+    const totalSize = Number(row.file_size) || buffer.length;
+    const mimeType = row.mime_type || "application/octet-stream";
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const parts = rangeHeader.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+      const chunksize = end - start + 1;
+      const chunk = buffer.subarray(start, end + 1);
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+        "Content-Length": chunksize,
+        "Content-Type": mimeType
+      });
+      return res.end(chunk);
+    }
+    res.writeHead(200, {
+      "Content-Length": totalSize,
+      "Content-Type": mimeType
+    });
+    return res.end(buffer);
+  } catch (err) {
+    return res.status(500).send("Error streaming media file");
+  }
+});
 app.get("/api/media/stream/:fileId", (req, res) => {
   return res.status(410).json({
     error: "Google Drive proxy streaming has been retired. Media is delivered directly via high-speed Cloudflare R2 CDN."
@@ -123194,10 +123324,31 @@ app.get("/api/admin/activities", authenticateToken, requireAdminRole, async (req
     return res.json({ success: true, activities: [], pendingWithdrawalsCount: 0, unreadCount: 0 });
   }
 });
+app.get("/api/referrals/config", async (req, res) => {
+  try {
+    const settingRes = await query(
+      `SELECT value FROM system_settings WHERE key = 'referral_reward_amount' 
+       UNION 
+       SELECT value::text FROM core_system_settings WHERE key = 'referral_reward_amount' 
+       LIMIT 1`
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    const rewardAmount = settingRes.rowCount > 0 && Number(settingRes.rows[0].value) > 0 ? Number(settingRes.rows[0].value) : 50;
+    return res.json({ success: true, rewardAmount, currency: "RWF" });
+  } catch (err) {
+    return res.json({ success: true, rewardAmount: 50, currency: "RWF" });
+  }
+});
 app.get("/api/referrals", authenticateToken, async (req, res) => {
   try {
     const stats = await ReferralService.getStats(req.user.id);
-    return res.json(stats);
+    const settingRes = await query(
+      `SELECT value FROM system_settings WHERE key = 'referral_reward_amount' 
+       UNION 
+       SELECT value::text FROM core_system_settings WHERE key = 'referral_reward_amount' 
+       LIMIT 1`
+    ).catch(() => ({ rowCount: 0, rows: [] }));
+    const rewardAmount = settingRes.rowCount > 0 && Number(settingRes.rows[0].value) > 0 ? Number(settingRes.rows[0].value) : 50;
+    return res.json({ ...stats, reward_amount: rewardAmount });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -123824,13 +123975,40 @@ var unlockedVideosByUser = /* @__PURE__ */ new Map();
 app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
   try {
     const category = req.query.category;
+    const sort = req.query.sort || "recommended";
     let list2 = SAMPLE_VIDEOS;
+    let viewerId = req.query.viewerId || req.headers["x-visitor-id"] || "";
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const decoded = verifyToken(authHeader.substring(7));
+      if (decoded?.id) viewerId = String(decoded.id);
+    }
+    const viewerSubscriptions = /* @__PURE__ */ new Set();
+    const viewerCategoryAffinities = {};
+    if (viewerId) {
+      try {
+        const [subsRes, interRes] = await Promise.all([
+          query("SELECT creator_id FROM creator_subscribers WHERE subscriber_id = $1", [viewerId]),
+          query("SELECT category, interaction_type FROM user_short_interactions WHERE user_id = $1 LIMIT 100", [viewerId])
+        ]);
+        subsRes.rows?.forEach((r5) => {
+          if (r5.creator_id) viewerSubscriptions.add(String(r5.creator_id).toLowerCase());
+        });
+        interRes.rows?.forEach((r5) => {
+          if (r5.category) {
+            const cat = String(r5.category).toLowerCase();
+            viewerCategoryAffinities[cat] = (viewerCategoryAffinities[cat] || 0) + 1;
+          }
+        });
+      } catch {
+      }
+    }
     try {
       await query(`
         CREATE TABLE IF NOT EXISTS user_videos (
           id VARCHAR(255) PRIMARY KEY,
           title VARCHAR(500) NOT NULL,
-          slug VARCHAR(500) NOT NULL,
+          slug VARCHAR(500),
           description TEXT,
           video_url TEXT NOT NULL,
           thumbnail_url TEXT,
@@ -123849,7 +124027,7 @@ app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
         );
       `).catch(() => {
       });
-      const dbVideosRes = await query("SELECT * FROM user_videos ORDER BY created_at DESC LIMIT 60");
+      const dbVideosRes = await query("SELECT * FROM user_videos ORDER BY created_at DESC LIMIT 150");
       const dbVideos = dbVideosRes.rows.map((r5) => ({
         id: r5.id,
         title: r5.title,
@@ -123903,7 +124081,46 @@ app.get(["/api/modules/videos", "/api/videos"], async (req, res) => {
       });
     } catch {
     }
-    return res.json({ videos: list2 });
+    const now = Date.now();
+    const scoredList = list2.map((v2) => {
+      const views = Number(v2.views) || 0;
+      const likes = Number(v2.likes) || 0;
+      const createdTime = v2.createdAt ? new Date(v2.createdAt).getTime() : now - 864e5;
+      const ageHours = Math.max(0.1, (now - createdTime) / (1e3 * 60 * 60));
+      const viewsSignal = Math.log10(views + 1) * 35;
+      const likesSignal = Math.log10(likes + 1) * 55;
+      const engagementRatio = views > 0 ? likes / Math.max(views, 20) * 200 : 0;
+      const rawEngagement = viewsSignal + likesSignal + engagementRatio;
+      const decayFactor = 1 / Math.pow(Math.max(1, ageHours / 24) + 1, 0.42);
+      const decayedScore = rawEngagement * decayFactor;
+      const freshDiscoveryBoost = Math.max(0, 45 - ageHours * 0.9);
+      const verifiedBonus = v2.isVerified ? 30 : 0;
+      const qualityThumbBonus = v2.thumbnailUrl && !v2.thumbnailUrl.includes("/logo.png") ? 15 : 0;
+      let personalizedBoost = 0;
+      const channelKey = String(v2.userId || v2.channelName || "").toLowerCase();
+      if (viewerSubscriptions.has(channelKey)) {
+        personalizedBoost += 60;
+      }
+      const catKey = String(v2.category || "").toLowerCase();
+      if (viewerCategoryAffinities[catKey]) {
+        personalizedBoost += Math.min(40, viewerCategoryAffinities[catKey] * 8);
+      }
+      const sessionSeed = (v2.id.split("").reduce((acc, c5) => acc + c5.charCodeAt(0), 0) + (/* @__PURE__ */ new Date()).getHours()) % 25;
+      const diversityJitter = sessionSeed * 0.6;
+      const algorithmicScore = decayedScore + freshDiscoveryBoost + verifiedBonus + qualityThumbBonus + personalizedBoost + diversityJitter;
+      return {
+        ...v2,
+        algorithmicScore: Number(algorithmicScore.toFixed(2))
+      };
+    });
+    if (sort === "latest") {
+      scoredList.sort((a6, b6) => new Date(b6.createdAt || 0).getTime() - new Date(a6.createdAt || 0).getTime());
+    } else if (sort === "views") {
+      scoredList.sort((a6, b6) => (Number(b6.views) || 0) - (Number(a6.views) || 0));
+    } else {
+      scoredList.sort((a6, b6) => b6.algorithmicScore - a6.algorithmicScore);
+    }
+    return res.json({ videos: scoredList });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

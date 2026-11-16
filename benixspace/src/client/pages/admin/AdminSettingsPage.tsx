@@ -644,7 +644,7 @@ export const AdminSettingsPage: React.FC = () => {
     { key: 'branding', label: 'Logo & Branding', icon: Image },
     { key: 'contacts', label: 'Contacts & Dynamic Footer', icon: Phone },
     { key: 'adsense', label: 'Google AdSense Monetization', icon: DollarSign },
-    { key: 'smm', label: 'SMM Follows Boost & Services', icon: Zap },
+    { key: 'smm', label: 'Buy Views on youtube and more (SMM)', icon: Zap },
     { key: 'drive', label: 'Google Drive Multi-Storage', icon: HardDrive },
     { key: 'flutterwave', label: 'Flutterwave Payment Gateway', icon: ShieldCheck },
     { key: 'email', label: 'Resend & Email Relay', icon: Mail },
