@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useInAppActions } from '../../context/ActionNotificationContext';
-import { Home, Zap, Plus, Video, Tv, MessageSquare, Music } from 'lucide-react';
+import { Home, Zap, Plus, Video, Tv, MessageSquare, Radio } from 'lucide-react';
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { CreateMediaModal } from '../modals/CreateMediaModal';
 
@@ -58,16 +58,16 @@ export const BottomNav: React.FC = () => {
           <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Shorts</span>
         </Link>
 
-        {/* 3. Music (Links to Voxify) */}
+        {/* 3. Live Radio */}
         <Link
-          to="/voxify"
+          to="/radio"
           className={`flex flex-col items-center justify-center flex-1 min-w-0 py-0.5 transition-all ${
-            isActive('/voxify') || isActive('/music') ? 'text-cyan-400 font-black' : 'text-slate-400 hover:text-white'
+            isActive('/radio') ? 'text-cyan-400 font-black' : 'text-slate-400 hover:text-white'
           }`}
-          title="Voxify Music"
+          title="Live Radio"
         >
-          <Music className="w-5 h-5" />
-          <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Music</span>
+          <Radio className="w-5 h-5" />
+          <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Radio</span>
         </Link>
 
         {/* 4. Elevated Center Action Button (+) - Post Story or Video */}

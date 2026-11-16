@@ -619,11 +619,13 @@ cloudRouter.post('/deployments/:id/manual-sync', authenticateToken, async (req: 
     const now = new Date().toISOString();
     const newLogs = `${dep.last_logs || ''}\n[${now}] 🔄 [Manual Sync] Pulled latest commit #${commitHash} ("${commitMessage}") from ${owner}/${repo} (${branch}) by ${commitAuthor}. Application updated and live!`;
 
+    const safeName = (dep.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const liveUrl = `https://benix.space/l/${safeName}`;
     await query(
       `UPDATE cloud_deployments
-       SET git_commit_hash = $1, last_logs = $2, last_deployed_at = CURRENT_TIMESTAMP, status = 'running', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [commitHash, newLogs, depId]
+       SET git_commit_hash = $1, last_logs = $2, last_deployed_at = CURRENT_TIMESTAMP, status = 'running', live_url = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [commitHash, newLogs, liveUrl, depId]
     );
 
     return res.json({
@@ -1698,15 +1700,18 @@ cloudRouter.post('/webhooks/github', async (req, res) => {
         `[${now}] 🌐 Edge proxy routing reloaded. Application live at ${dep.live_url}.\n` +
         `[${now}] ✅ Auto-deploy completed successfully. Status: RUNNING.`;
 
+      const safeName = (dep.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const liveUrl = `https://benix.space/l/${safeName}`;
       await query(
         `UPDATE cloud_deployments
          SET status = 'running',
              git_commit_hash = $1,
              last_deployed_at = CURRENT_TIMESTAMP,
              last_logs = $2,
+             live_url = $3,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3`,
-        [shortSha, updatedLogs, deploymentId]
+         WHERE id = $4`,
+        [shortSha, updatedLogs, liveUrl, deploymentId]
       );
 
       return res.json({
@@ -1784,7 +1789,7 @@ cloudRouter.post('/deployments', authenticateToken, async (req: AuthenticatedReq
     const webhookSecret = crypto.randomBytes(16).toString('hex');
     const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const subdomain = `${safeName}.apps.benix.space`;
-    const directLiveUrl = `https://${safeName}.apps.benix.space`;
+    const directLiveUrl = `https://benix.space/l/${safeName}`;
     const envCount = Object.keys(envVariables || {}).length;
     const now = new Date().toISOString();
 
@@ -1907,7 +1912,7 @@ cloudRouter.put('/deployments/:id/settings', authenticateToken, async (req: Auth
 
     const safeName = updatedName.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const subdomain = `${safeName}.apps.benix.space`;
-    const liveUrl = `https://${safeName}.apps.benix.space`;
+    const liveUrl = `https://benix.space/l/${safeName}`;
 
     const now = new Date().toISOString();
     const parsedEnv = typeof envVariables === 'object' && envVariables ? envVariables : (updatedEnv ? JSON.parse(updatedEnv) : {});
@@ -1993,11 +1998,13 @@ cloudRouter.post('/deployments/:id/redeploy', authenticateToken, async (req: Aut
       }
     }
 
+    const safeName = (dep.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const liveUrl = `https://benix.space/l/${safeName}`;
     const result = await query(
       `UPDATE cloud_deployments
-       SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 RETURNING *`,
-      [updatedLogs, depId]
+       SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, live_url = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 RETURNING *`,
+      [updatedLogs, liveUrl, depId]
     );
 
     return res.json({ success: true, message: '🎉 Application redeployed successfully!', deployment: result.rows[0] });
@@ -2076,15 +2083,18 @@ cloudRouter.post('/deployments/:id/action', authenticateToken, async (req: Authe
 
     const now = new Date().toISOString();
 
+    const safeName = (dep.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const liveUrl = `https://benix.space/l/${safeName}`;
+
     if (action === 'restart') {
       const logs = `${dep.last_logs || ''}\n[${now}] 🔄 Service restarted on port ${dep.internal_port}.`;
-      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1 WHERE id = $2", [logs, depId]);
+      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, live_url = $2 WHERE id = $3", [logs, liveUrl, depId]);
     } else if (action === 'stop') {
       const logs = `${dep.last_logs || ''}\n[${now}] 🛑 Service stopped by user.`;
       await query("UPDATE cloud_deployments SET status = 'stopped', last_logs = $1 WHERE id = $2", [logs, depId]);
     } else if (action === 'redeploy') {
       const logs = `${dep.last_logs || ''}\n[${now}] 🔄 Clean build and redeploy completed.`;
-      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1 WHERE id = $2", [logs, depId]);
+      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, live_url = $2 WHERE id = $3", [logs, liveUrl, depId]);
     }
 
     return res.json({ success: true, message: `Container action [${action}] executed successfully!` });
@@ -2916,7 +2926,7 @@ cloudRouter.delete('/domains/:id', authenticateToken, async (req: AuthenticatedR
       const depRes = await query('SELECT name FROM cloud_deployments WHERE id = $1', [depId]);
       if (depRes.rowCount > 0 && depRes.rows[0].name) {
         const safeName = depRes.rows[0].name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        await query('UPDATE cloud_deployments SET live_url = $1, assigned_subdomain = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3', [`https://${safeName}.apps.benix.space`, `${safeName}.apps.benix.space`, depId]);
+        await query('UPDATE cloud_deployments SET live_url = $1, assigned_subdomain = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3', [`https://benix.space/l/${safeName}`, `${safeName}.apps.benix.space`, depId]);
       }
     }
 

@@ -65,10 +65,6 @@ const TvPage = lazyNamed(() => import('./client/pages/modules/TvPage'), 'TvPage'
 const VideosPage = lazyNamed(() => import('./client/pages/modules/VideosPage'), 'VideosPage');
 const RadioPage = lazyNamed(() => import('./client/pages/modules/RadioPage'), 'RadioPage');
 const GamesPage = lazyNamed(() => import('./client/pages/modules/GamesPage'), 'GamesPage');
-const MarketplacePage = lazyNamed(() => import('./client/pages/modules/MarketplacePage'), 'MarketplacePage');
-const VoxifyPage = lazyNamed(() => import('./client/pages/modules/VoxifyPage'), 'VoxifyPage');
-const KundaPage = lazyNamed(() => import('./client/pages/modules/KundaPage'), 'KundaPage');
-const EasyCalcPage = lazyNamed(() => import('./client/pages/modules/EasyCalcPage'), 'EasyCalcPage');
 const CloudLandingPage = lazyNamed(() => import('./client/pages/modules/CloudLandingPage'), 'CloudLandingPage');
 const CloudLoginPage = lazyNamed(() => import('./client/pages/cloud/CloudAuthPages'), 'CloudLoginPage');
 const CloudRegisterPage = lazyNamed(() => import('./client/pages/cloud/CloudAuthPages'), 'CloudRegisterPage');
@@ -282,6 +278,8 @@ export const App: React.FC = () => {
                               />
 
                               {/* Standalone Independent App Hosting Viewers (Zero Shell / No Navbar / Fullscreen) */}
+                              <Route path="/l/:appName/*" element={<AppLiveViewPage />} />
+                              <Route path="/l/:appName" element={<AppLiveViewPage />} />
                               <Route path="/apps/:appName/*" element={<AppLiveViewPage />} />
                               <Route path="/apps/:appName" element={<AppLiveViewPage />} />
                               <Route path="/live/:deploymentId/*" element={<AppLiveViewPage />} />
@@ -319,14 +317,6 @@ export const App: React.FC = () => {
                                               <Route path="/radio" element={<RadioPage />} />
                                               <Route path="/games" element={<GamesPage />} />
                                               <Route path="/dice" element={<GamesPage />} />
-                                              <Route path="/marketplace" element={<MarketplacePage />} />
-                                              <Route path="/shop" element={<MarketplacePage />} />
-                                              <Route path="/music" element={<VoxifyPage />} />
-                                              <Route path="/voxify" element={<VoxifyPage />} />
-                                              <Route path="/dating" element={<KundaPage />} />
-                                              <Route path="/kunda" element={<KundaPage />} />
-                                              <Route path="/calc" element={<EasyCalcPage />} />
-                                              <Route path="/calculators" element={<EasyCalcPage />} />
                                               <Route path="/cloud" element={<CloudLandingPage />} />
                                               <Route
                                                 path="/cloud/dashboard"

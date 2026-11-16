@@ -896,11 +896,7 @@ export const DashboardPage: React.FC = () => {
               {[
                 { id: 'videos', name: 'Benix Space TV', icon: Tv, desc: 'Watch streaming TV and live channels' },
                 { id: 'radio', name: 'Live Radio FM', icon: Radio, desc: '24/7 digital radio broadcasts' },
-                { id: 'dating', name: 'Kunda Space Dating', icon: Heart, desc: 'Connect with verified matches' },
-                { id: 'music', name: 'Voxify Choir & Music', icon: Music, desc: 'Choir practice and vocal audio' },
-                { id: 'marketplace', name: 'Benix Marketplace', icon: ShoppingBag, desc: 'Digital products & freelance services' },
-                { id: 'games', name: 'RollDice Games', icon: Dices, desc: 'Multiplayer dice challenge' },
-                { id: 'calc', name: 'EasyCalc Smart Utilities', icon: Calculator, desc: 'Instant financial calculators' }
+                { id: 'games', name: 'RollDice Games', icon: Dices, desc: 'Multiplayer dice challenge' }
               ].map((m) => {
                 const Icon = m.icon;
                 const isChecked = modules.includes(m.id);

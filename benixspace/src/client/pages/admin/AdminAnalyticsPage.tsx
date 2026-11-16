@@ -623,7 +623,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                   <p className="text-slate-400 text-sm">Verified profiles, swipe interactions, mutual matching rate, and secure encrypted contact unlocks.</p>
                 </div>
                 <Link
-                  to="/kunda"
+                  to="/dashboard"
                   target="_blank"
                   className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-lg shadow-rose-600/30"
                 >
@@ -670,7 +670,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                   <p className="text-slate-400 text-sm">Gospel audio streaming playback, active choir registrations, and RollDice multiplayer wager games.</p>
                 </div>
                 <Link
-                  to="/voxify"
+                  to="/dashboard"
                   target="_blank"
                   className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-lg shadow-indigo-600/30"
                 >

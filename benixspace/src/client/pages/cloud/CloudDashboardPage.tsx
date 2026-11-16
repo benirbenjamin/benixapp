@@ -1722,7 +1722,7 @@ export const CloudDashboardPage: React.FC = () => {
                   const envCount = dep.env_variables ? Object.keys(typeof dep.env_variables === 'string' ? JSON.parse(dep.env_variables || '{}') : dep.env_variables).length : 0;
                   const linkedDomain = domains.find((d) => d.deployment_id === dep.id && d.dns_verified);
                   const safeName = (dep.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
-                  const effectiveLiveUrl = linkedDomain ? `https://${linkedDomain.domain_name}` : (dep.live_url || `https://${safeName}.apps.benix.space`);
+                  const effectiveLiveUrl = linkedDomain ? `https://${linkedDomain.domain_name}` : (dep.live_url || `https://benix.space/l/${safeName}`);
 
                   return (
                     <div key={dep.id} className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 space-y-4">
@@ -1766,13 +1766,13 @@ export const CloudDashboardPage: React.FC = () => {
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
                           <a
-                            href={`https://benix.space/apps/${safeName}`}
+                            href={`https://benix.space/l/${safeName}`}
                             target="_blank"
                             rel="noreferrer"
                             className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1 text-[11px] transition"
                             title="Direct Cloud Route (Guaranteed No-DNS Fallback)"
                           >
-                            <span>Direct Link</span>
+                            <span>Open App</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                           <a

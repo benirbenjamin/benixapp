@@ -2073,11 +2073,7 @@ export const AdminSettingsPage: React.FC = () => {
                     { key: 'enable_videos', label: 'Creator Studio & Videos Hub', icon: Film, color: 'text-purple-400' },
                     { key: 'enable_tv', label: 'Live TV Streaming (17 channels)', icon: Tv, color: 'text-blue-400' },
                     { key: 'enable_radio', label: 'Live Radio FM (19 stations)', icon: Radio, color: 'text-purple-400' },
-                    { key: 'enable_kunda', label: 'Kunda Space Dating', icon: Heart, color: 'text-rose-400' },
-                    { key: 'enable_voxify', label: 'Voxify Choirs & Gospel', icon: Music, color: 'text-indigo-400' },
-                    { key: 'enable_marketplace', label: 'Benix Marketplace', icon: ShoppingBag, color: 'text-emerald-400' },
                     { key: 'enable_games', label: 'RollDice Arena Gaming', icon: Dices, color: 'text-amber-400' },
-                    { key: 'enable_calc', label: 'EasyCalc Smart Calculators', icon: Calculator, color: 'text-teal-400' },
                   ].map((m) => {
                     const Icon = m.icon;
                     const isEnabled = modules[m.key as keyof typeof modules] as boolean;
@@ -2297,7 +2293,7 @@ export const AdminSettingsPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link
-                        to="/dating"
+                        to="/dashboard"
                         target="_blank"
                         className="px-2.5 py-1 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 text-[11px] font-bold flex items-center gap-1 border border-rose-500/30 transition-colors"
                       >
@@ -2418,7 +2414,7 @@ export const AdminSettingsPage: React.FC = () => {
                       </div>
                     </div>
                     <Link
-                      to="/music"
+                      to="/dashboard"
                       target="_blank"
                       className="px-2.5 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-[11px] font-bold flex items-center gap-1 border border-indigo-500/30 transition-colors"
                     >
@@ -2537,7 +2533,7 @@ export const AdminSettingsPage: React.FC = () => {
                       </div>
                     </div>
                     <Link
-                      to="/calculators"
+                      to="/dashboard"
                       target="_blank"
                       className="px-2.5 py-1 rounded-xl bg-teal-600/20 hover:bg-teal-600/30 text-teal-400 text-[11px] font-bold flex items-center gap-1 border border-teal-500/30 transition-colors"
                     >
@@ -2599,7 +2595,7 @@ export const AdminSettingsPage: React.FC = () => {
                       </div>
                     </div>
                     <Link
-                      to="/marketplace"
+                      to="/dashboard"
                       target="_blank"
                       className="px-2.5 py-1 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-[11px] font-bold flex items-center gap-1 border border-emerald-500/30 transition-colors"
                     >

@@ -19253,14 +19253,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto18 = __require("crypto");
+    var crypto17 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString3 = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto18.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto17.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -22826,17 +22826,17 @@ var require_content_disposition = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports) {
-    var crypto18 = __require("crypto");
+    var crypto17 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto18.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto17.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(input, secret) {
       if ("string" != typeof input) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input.slice(0, input.lastIndexOf(".")), expectedInput = exports.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input);
-      return expectedBuffer.length === inputBuffer.length && crypto18.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto17.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -24469,7 +24469,7 @@ var require_main = __commonJS({
     var fs6 = __require("fs");
     var path5 = __require("path");
     var os4 = __require("os");
-    var crypto18 = __require("crypto");
+    var crypto17 = __require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -24713,7 +24713,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto18.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto17.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error3) {
@@ -25090,14 +25090,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports, module) {
     var Buffer2 = require_safe_buffer().Buffer;
-    var crypto18 = __require("crypto");
+    var crypto17 = __require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util6 = __require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto18.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto17.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -25187,17 +25187,17 @@ var require_jwa = __commonJS({
       return function sign5(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto18.createHmac("sha" + bits, secret);
+        var hmac = crypto17.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase642(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual = "timingSafeEqual" in crypto18 ? function timingSafeEqual2(a6, b6) {
+    var timingSafeEqual = "timingSafeEqual" in crypto17 ? function timingSafeEqual2(a6, b6) {
       if (a6.byteLength !== b6.byteLength) {
         return false;
       }
-      return crypto18.timingSafeEqual(a6, b6);
+      return crypto17.timingSafeEqual(a6, b6);
     } : function timingSafeEqual2(a6, b6) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -25214,7 +25214,7 @@ var require_jwa = __commonJS({
       return function sign5(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto18.createSign("RSA-SHA" + bits);
+        var signer = crypto17.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase642(sig);
       };
@@ -25224,7 +25224,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase643(signature);
-        var verifier = crypto18.createVerify("RSA-SHA" + bits);
+        var verifier = crypto17.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -25233,11 +25233,11 @@ var require_jwa = __commonJS({
       return function sign5(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto18.createSign("RSA-SHA" + bits);
+        var signer = crypto17.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto18.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto18.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto17.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto17.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase642(sig);
       };
@@ -25247,12 +25247,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase643(signature);
-        var verifier = crypto18.createVerify("RSA-SHA" + bits);
+        var verifier = crypto17.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto18.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto18.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto17.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto17.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -76719,11 +76719,11 @@ var require_form_data = __commonJS({
     var util6 = __require("util");
     var path5 = __require("path");
     var http4 = __require("http");
-    var https7 = __require("https");
+    var https6 = __require("https");
     var parseUrl3 = __require("url").parse;
     var fs6 = __require("fs");
     var Stream2 = __require("stream").Stream;
-    var crypto18 = __require("crypto");
+    var crypto17 = __require("crypto");
     var mime = require_mime_types2();
     var asynckit = require_asynckit();
     var setToStringTag = require_es_set_tostringtag();
@@ -76932,7 +76932,7 @@ var require_form_data = __commonJS({
       return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
     };
     FormData3.prototype._generateBoundary = function() {
-      this._boundary = "--------------------------" + crypto18.randomBytes(12).toString("hex");
+      this._boundary = "--------------------------" + crypto17.randomBytes(12).toString("hex");
     };
     FormData3.prototype.getLengthSync = function() {
       var knownLength = this._overheadLength + this._valueLength;
@@ -76991,7 +76991,7 @@ var require_form_data = __commonJS({
       }
       options.headers = this.getHeaders(params.headers);
       if (options.protocol === "https:") {
-        request = https7.request(options);
+        request = https6.request(options);
       } else {
         request = http4.request(options);
       }
@@ -77509,7 +77509,7 @@ var require_follow_redirects = __commonJS({
     var url2 = __require("url");
     var URL2 = url2.URL;
     var http4 = __require("http");
-    var https7 = __require("https");
+    var https6 = __require("https");
     var Writable4 = __require("stream").Writable;
     var assert = __require("assert");
     var debug = require_debug2();
@@ -78015,7 +78015,7 @@ var require_follow_redirects = __commonJS({
     function escapeRegex(regex) {
       return regex.replace(/[[\]\\/()*+?.^$|]/g, "\\$&");
     }
-    module.exports = wrap2({ http: http4, https: https7 });
+    module.exports = wrap2({ http: http4, https: https6 });
     module.exports.wrap = wrap2;
   }
 });
@@ -79337,7 +79337,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "node_modules/pg/lib/crypto/sasl.js"(exports, module) {
     "use strict";
-    var crypto18 = require_utils5();
+    var crypto17 = require_utils5();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function saslprep(password) {
       const nonAsciiSpace = /[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g;
@@ -79355,7 +79355,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream4.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto18.randomBytes(18).toString("base64");
+      const clientNonce = crypto17.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream4 ? "y" : "n";
       return {
         mechanism,
@@ -79397,20 +79397,20 @@ var require_sasl = __commonJS({
         const peerCert = stream4.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto18.hashByName(hashName, peerCert);
+        const certHash = await crypto17.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto18.deriveKey(saslprep(password), saltBytes, sv.iteration);
-      const clientKey = await crypto18.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto18.sha256(clientKey);
-      const clientSignature = await crypto18.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto17.deriveKey(saslprep(password), saltBytes, sv.iteration);
+      const clientKey = await crypto17.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto17.sha256(clientKey);
+      const clientSignature = await crypto17.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto18.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto18.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto17.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto17.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -81644,7 +81644,7 @@ var require_client = __commonJS({
     var Query2 = require_query();
     var defaults3 = require_defaults();
     var Connection2 = require_connection();
-    var crypto18 = require_utils5();
+    var crypto17 = require_utils5();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -81899,7 +81899,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto18.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto17.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e5) {
             this.emit("error", e5);
@@ -83336,1732 +83336,7 @@ var import_cors = __toESM(require_lib3(), 1);
 var import_dotenv2 = __toESM(require_main(), 1);
 import fs5 from "fs";
 import path4 from "path";
-
-// node_modules/bcryptjs/index.js
-import nodeCrypto from "crypto";
-var randomFallback = null;
-function randomBytes(len) {
-  try {
-    return crypto.getRandomValues(new Uint8Array(len));
-  } catch {
-  }
-  try {
-    return nodeCrypto.randomBytes(len);
-  } catch {
-  }
-  if (!randomFallback) {
-    throw Error(
-      "Neither WebCryptoAPI nor a crypto module is available. Use bcrypt.setRandomFallback to set an alternative"
-    );
-  }
-  return randomFallback(len);
-}
-function setRandomFallback(random) {
-  randomFallback = random;
-}
-function genSaltSync(rounds, seed_length) {
-  rounds = rounds || GENSALT_DEFAULT_LOG2_ROUNDS;
-  if (typeof rounds !== "number")
-    throw Error(
-      "Illegal arguments: " + typeof rounds + ", " + typeof seed_length
-    );
-  if (rounds < 4) rounds = 4;
-  else if (rounds > 31) rounds = 31;
-  var salt = [];
-  salt.push("$2b$");
-  if (rounds < 10) salt.push("0");
-  salt.push(rounds.toString());
-  salt.push("$");
-  salt.push(base64_encode(randomBytes(BCRYPT_SALT_LEN), BCRYPT_SALT_LEN));
-  return salt.join("");
-}
-function genSalt(rounds, seed_length, callback) {
-  if (typeof seed_length === "function")
-    callback = seed_length, seed_length = void 0;
-  if (typeof rounds === "function") callback = rounds, rounds = void 0;
-  if (typeof rounds === "undefined") rounds = GENSALT_DEFAULT_LOG2_ROUNDS;
-  else if (typeof rounds !== "number")
-    throw Error("illegal arguments: " + typeof rounds);
-  function _async(callback2) {
-    nextTick(function() {
-      try {
-        callback2(null, genSaltSync(rounds));
-      } catch (err) {
-        callback2(err);
-      }
-    });
-  }
-  if (callback) {
-    if (typeof callback !== "function")
-      throw Error("Illegal callback: " + typeof callback);
-    _async(callback);
-  } else
-    return new Promise(function(resolve3, reject) {
-      _async(function(err, res) {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve3(res);
-      });
-    });
-}
-function hashSync(password, salt) {
-  if (typeof salt === "undefined") salt = GENSALT_DEFAULT_LOG2_ROUNDS;
-  if (typeof salt === "number") salt = genSaltSync(salt);
-  if (typeof password !== "string" || typeof salt !== "string")
-    throw Error("Illegal arguments: " + typeof password + ", " + typeof salt);
-  return _hash(password, salt);
-}
-function hash(password, salt, callback, progressCallback) {
-  function _async(callback2) {
-    if (typeof password === "string" && typeof salt === "number")
-      genSalt(salt, function(err, salt2) {
-        _hash(password, salt2, callback2, progressCallback);
-      });
-    else if (typeof password === "string" && typeof salt === "string")
-      _hash(password, salt, callback2, progressCallback);
-    else
-      nextTick(
-        callback2.bind(
-          this,
-          Error("Illegal arguments: " + typeof password + ", " + typeof salt)
-        )
-      );
-  }
-  if (callback) {
-    if (typeof callback !== "function")
-      throw Error("Illegal callback: " + typeof callback);
-    _async(callback);
-  } else
-    return new Promise(function(resolve3, reject) {
-      _async(function(err, res) {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve3(res);
-      });
-    });
-}
-function safeStringCompare(known, unknown) {
-  var diff = known.length ^ unknown.length;
-  for (var i5 = 0; i5 < known.length; ++i5) {
-    diff |= known.charCodeAt(i5) ^ unknown.charCodeAt(i5);
-  }
-  return diff === 0;
-}
-function compareSync(password, hash2) {
-  if (typeof password !== "string" || typeof hash2 !== "string")
-    throw Error("Illegal arguments: " + typeof password + ", " + typeof hash2);
-  if (hash2.length !== 60) return false;
-  return safeStringCompare(
-    hashSync(password, hash2.substring(0, hash2.length - 31)),
-    hash2
-  );
-}
-function compare(password, hashValue, callback, progressCallback) {
-  function _async(callback2) {
-    if (typeof password !== "string" || typeof hashValue !== "string") {
-      nextTick(
-        callback2.bind(
-          this,
-          Error(
-            "Illegal arguments: " + typeof password + ", " + typeof hashValue
-          )
-        )
-      );
-      return;
-    }
-    if (hashValue.length !== 60) {
-      nextTick(callback2.bind(this, null, false));
-      return;
-    }
-    hash(
-      password,
-      hashValue.substring(0, 29),
-      function(err, comp) {
-        if (err) callback2(err);
-        else callback2(null, safeStringCompare(comp, hashValue));
-      },
-      progressCallback
-    );
-  }
-  if (callback) {
-    if (typeof callback !== "function")
-      throw Error("Illegal callback: " + typeof callback);
-    _async(callback);
-  } else
-    return new Promise(function(resolve3, reject) {
-      _async(function(err, res) {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve3(res);
-      });
-    });
-}
-function getRounds(hash2) {
-  if (typeof hash2 !== "string")
-    throw Error("Illegal arguments: " + typeof hash2);
-  return parseInt(hash2.split("$")[2], 10);
-}
-function getSalt(hash2) {
-  if (typeof hash2 !== "string")
-    throw Error("Illegal arguments: " + typeof hash2);
-  if (hash2.length !== 60)
-    throw Error("Illegal hash length: " + hash2.length + " != 60");
-  return hash2.substring(0, 29);
-}
-function truncates(password) {
-  if (typeof password !== "string")
-    throw Error("Illegal arguments: " + typeof password);
-  return utf8Length(password) > 72;
-}
-var nextTick = typeof setImmediate === "function" ? setImmediate : typeof scheduler === "object" && typeof scheduler.postTask === "function" ? scheduler.postTask.bind(scheduler) : setTimeout;
-function utf8Length(string) {
-  var len = 0, c5 = 0;
-  for (var i5 = 0; i5 < string.length; ++i5) {
-    c5 = string.charCodeAt(i5);
-    if (c5 < 128) len += 1;
-    else if (c5 < 2048) len += 2;
-    else if ((c5 & 64512) === 55296 && (string.charCodeAt(i5 + 1) & 64512) === 56320) {
-      ++i5;
-      len += 4;
-    } else len += 3;
-  }
-  return len;
-}
-function utf8Array(string) {
-  var offset = 0, c1, c22;
-  var buffer = new Array(utf8Length(string));
-  for (var i5 = 0, k5 = string.length; i5 < k5; ++i5) {
-    c1 = string.charCodeAt(i5);
-    if (c1 < 128) {
-      buffer[offset++] = c1;
-    } else if (c1 < 2048) {
-      buffer[offset++] = c1 >> 6 | 192;
-      buffer[offset++] = c1 & 63 | 128;
-    } else if ((c1 & 64512) === 55296 && ((c22 = string.charCodeAt(i5 + 1)) & 64512) === 56320) {
-      c1 = 65536 + ((c1 & 1023) << 10) + (c22 & 1023);
-      ++i5;
-      buffer[offset++] = c1 >> 18 | 240;
-      buffer[offset++] = c1 >> 12 & 63 | 128;
-      buffer[offset++] = c1 >> 6 & 63 | 128;
-      buffer[offset++] = c1 & 63 | 128;
-    } else {
-      buffer[offset++] = c1 >> 12 | 224;
-      buffer[offset++] = c1 >> 6 & 63 | 128;
-      buffer[offset++] = c1 & 63 | 128;
-    }
-  }
-  return buffer;
-}
-var BASE64_CODE = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("");
-var BASE64_INDEX = [
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  0,
-  1,
-  54,
-  55,
-  56,
-  57,
-  58,
-  59,
-  60,
-  61,
-  62,
-  63,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16,
-  17,
-  18,
-  19,
-  20,
-  21,
-  22,
-  23,
-  24,
-  25,
-  26,
-  27,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1,
-  28,
-  29,
-  30,
-  31,
-  32,
-  33,
-  34,
-  35,
-  36,
-  37,
-  38,
-  39,
-  40,
-  41,
-  42,
-  43,
-  44,
-  45,
-  46,
-  47,
-  48,
-  49,
-  50,
-  51,
-  52,
-  53,
-  -1,
-  -1,
-  -1,
-  -1,
-  -1
-];
-function base64_encode(b6, len) {
-  var off = 0, rs = [], c1, c22;
-  if (len <= 0 || len > b6.length) throw Error("Illegal len: " + len);
-  while (off < len) {
-    c1 = b6[off++] & 255;
-    rs.push(BASE64_CODE[c1 >> 2 & 63]);
-    c1 = (c1 & 3) << 4;
-    if (off >= len) {
-      rs.push(BASE64_CODE[c1 & 63]);
-      break;
-    }
-    c22 = b6[off++] & 255;
-    c1 |= c22 >> 4 & 15;
-    rs.push(BASE64_CODE[c1 & 63]);
-    c1 = (c22 & 15) << 2;
-    if (off >= len) {
-      rs.push(BASE64_CODE[c1 & 63]);
-      break;
-    }
-    c22 = b6[off++] & 255;
-    c1 |= c22 >> 6 & 3;
-    rs.push(BASE64_CODE[c1 & 63]);
-    rs.push(BASE64_CODE[c22 & 63]);
-  }
-  return rs.join("");
-}
-function base64_decode(s2, len) {
-  var off = 0, slen = s2.length, olen = 0, rs = [], c1, c22, c32, c42, o3, code;
-  if (len <= 0) throw Error("Illegal len: " + len);
-  while (off < slen - 1 && olen < len) {
-    code = s2.charCodeAt(off++);
-    c1 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    code = s2.charCodeAt(off++);
-    c22 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    if (c1 == -1 || c22 == -1) break;
-    o3 = c1 << 2 >>> 0;
-    o3 |= (c22 & 48) >> 4;
-    rs.push(String.fromCharCode(o3));
-    if (++olen >= len || off >= slen) break;
-    code = s2.charCodeAt(off++);
-    c32 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    if (c32 == -1) break;
-    o3 = (c22 & 15) << 4 >>> 0;
-    o3 |= (c32 & 60) >> 2;
-    rs.push(String.fromCharCode(o3));
-    if (++olen >= len || off >= slen) break;
-    code = s2.charCodeAt(off++);
-    c42 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
-    o3 = (c32 & 3) << 6 >>> 0;
-    o3 |= c42;
-    rs.push(String.fromCharCode(o3));
-    ++olen;
-  }
-  var res = [];
-  for (off = 0; off < olen; off++) res.push(rs[off].charCodeAt(0));
-  return res;
-}
-var BCRYPT_SALT_LEN = 16;
-var GENSALT_DEFAULT_LOG2_ROUNDS = 10;
-var BLOWFISH_NUM_ROUNDS = 16;
-var MAX_EXECUTION_TIME = 100;
-var P_ORIG = [
-  608135816,
-  2242054355,
-  320440878,
-  57701188,
-  2752067618,
-  698298832,
-  137296536,
-  3964562569,
-  1160258022,
-  953160567,
-  3193202383,
-  887688300,
-  3232508343,
-  3380367581,
-  1065670069,
-  3041331479,
-  2450970073,
-  2306472731
-];
-var S_ORIG = [
-  3509652390,
-  2564797868,
-  805139163,
-  3491422135,
-  3101798381,
-  1780907670,
-  3128725573,
-  4046225305,
-  614570311,
-  3012652279,
-  134345442,
-  2240740374,
-  1667834072,
-  1901547113,
-  2757295779,
-  4103290238,
-  227898511,
-  1921955416,
-  1904987480,
-  2182433518,
-  2069144605,
-  3260701109,
-  2620446009,
-  720527379,
-  3318853667,
-  677414384,
-  3393288472,
-  3101374703,
-  2390351024,
-  1614419982,
-  1822297739,
-  2954791486,
-  3608508353,
-  3174124327,
-  2024746970,
-  1432378464,
-  3864339955,
-  2857741204,
-  1464375394,
-  1676153920,
-  1439316330,
-  715854006,
-  3033291828,
-  289532110,
-  2706671279,
-  2087905683,
-  3018724369,
-  1668267050,
-  732546397,
-  1947742710,
-  3462151702,
-  2609353502,
-  2950085171,
-  1814351708,
-  2050118529,
-  680887927,
-  999245976,
-  1800124847,
-  3300911131,
-  1713906067,
-  1641548236,
-  4213287313,
-  1216130144,
-  1575780402,
-  4018429277,
-  3917837745,
-  3693486850,
-  3949271944,
-  596196993,
-  3549867205,
-  258830323,
-  2213823033,
-  772490370,
-  2760122372,
-  1774776394,
-  2652871518,
-  566650946,
-  4142492826,
-  1728879713,
-  2882767088,
-  1783734482,
-  3629395816,
-  2517608232,
-  2874225571,
-  1861159788,
-  326777828,
-  3124490320,
-  2130389656,
-  2716951837,
-  967770486,
-  1724537150,
-  2185432712,
-  2364442137,
-  1164943284,
-  2105845187,
-  998989502,
-  3765401048,
-  2244026483,
-  1075463327,
-  1455516326,
-  1322494562,
-  910128902,
-  469688178,
-  1117454909,
-  936433444,
-  3490320968,
-  3675253459,
-  1240580251,
-  122909385,
-  2157517691,
-  634681816,
-  4142456567,
-  3825094682,
-  3061402683,
-  2540495037,
-  79693498,
-  3249098678,
-  1084186820,
-  1583128258,
-  426386531,
-  1761308591,
-  1047286709,
-  322548459,
-  995290223,
-  1845252383,
-  2603652396,
-  3431023940,
-  2942221577,
-  3202600964,
-  3727903485,
-  1712269319,
-  422464435,
-  3234572375,
-  1170764815,
-  3523960633,
-  3117677531,
-  1434042557,
-  442511882,
-  3600875718,
-  1076654713,
-  1738483198,
-  4213154764,
-  2393238008,
-  3677496056,
-  1014306527,
-  4251020053,
-  793779912,
-  2902807211,
-  842905082,
-  4246964064,
-  1395751752,
-  1040244610,
-  2656851899,
-  3396308128,
-  445077038,
-  3742853595,
-  3577915638,
-  679411651,
-  2892444358,
-  2354009459,
-  1767581616,
-  3150600392,
-  3791627101,
-  3102740896,
-  284835224,
-  4246832056,
-  1258075500,
-  768725851,
-  2589189241,
-  3069724005,
-  3532540348,
-  1274779536,
-  3789419226,
-  2764799539,
-  1660621633,
-  3471099624,
-  4011903706,
-  913787905,
-  3497959166,
-  737222580,
-  2514213453,
-  2928710040,
-  3937242737,
-  1804850592,
-  3499020752,
-  2949064160,
-  2386320175,
-  2390070455,
-  2415321851,
-  4061277028,
-  2290661394,
-  2416832540,
-  1336762016,
-  1754252060,
-  3520065937,
-  3014181293,
-  791618072,
-  3188594551,
-  3933548030,
-  2332172193,
-  3852520463,
-  3043980520,
-  413987798,
-  3465142937,
-  3030929376,
-  4245938359,
-  2093235073,
-  3534596313,
-  375366246,
-  2157278981,
-  2479649556,
-  555357303,
-  3870105701,
-  2008414854,
-  3344188149,
-  4221384143,
-  3956125452,
-  2067696032,
-  3594591187,
-  2921233993,
-  2428461,
-  544322398,
-  577241275,
-  1471733935,
-  610547355,
-  4027169054,
-  1432588573,
-  1507829418,
-  2025931657,
-  3646575487,
-  545086370,
-  48609733,
-  2200306550,
-  1653985193,
-  298326376,
-  1316178497,
-  3007786442,
-  2064951626,
-  458293330,
-  2589141269,
-  3591329599,
-  3164325604,
-  727753846,
-  2179363840,
-  146436021,
-  1461446943,
-  4069977195,
-  705550613,
-  3059967265,
-  3887724982,
-  4281599278,
-  3313849956,
-  1404054877,
-  2845806497,
-  146425753,
-  1854211946,
-  1266315497,
-  3048417604,
-  3681880366,
-  3289982499,
-  290971e4,
-  1235738493,
-  2632868024,
-  2414719590,
-  3970600049,
-  1771706367,
-  1449415276,
-  3266420449,
-  422970021,
-  1963543593,
-  2690192192,
-  3826793022,
-  1062508698,
-  1531092325,
-  1804592342,
-  2583117782,
-  2714934279,
-  4024971509,
-  1294809318,
-  4028980673,
-  1289560198,
-  2221992742,
-  1669523910,
-  35572830,
-  157838143,
-  1052438473,
-  1016535060,
-  1802137761,
-  1753167236,
-  1386275462,
-  3080475397,
-  2857371447,
-  1040679964,
-  2145300060,
-  2390574316,
-  1461121720,
-  2956646967,
-  4031777805,
-  4028374788,
-  33600511,
-  2920084762,
-  1018524850,
-  629373528,
-  3691585981,
-  3515945977,
-  2091462646,
-  2486323059,
-  586499841,
-  988145025,
-  935516892,
-  3367335476,
-  2599673255,
-  2839830854,
-  265290510,
-  3972581182,
-  2759138881,
-  3795373465,
-  1005194799,
-  847297441,
-  406762289,
-  1314163512,
-  1332590856,
-  1866599683,
-  4127851711,
-  750260880,
-  613907577,
-  1450815602,
-  3165620655,
-  3734664991,
-  3650291728,
-  3012275730,
-  3704569646,
-  1427272223,
-  778793252,
-  1343938022,
-  2676280711,
-  2052605720,
-  1946737175,
-  3164576444,
-  3914038668,
-  3967478842,
-  3682934266,
-  1661551462,
-  3294938066,
-  4011595847,
-  840292616,
-  3712170807,
-  616741398,
-  312560963,
-  711312465,
-  1351876610,
-  322626781,
-  1910503582,
-  271666773,
-  2175563734,
-  1594956187,
-  70604529,
-  3617834859,
-  1007753275,
-  1495573769,
-  4069517037,
-  2549218298,
-  2663038764,
-  504708206,
-  2263041392,
-  3941167025,
-  2249088522,
-  1514023603,
-  1998579484,
-  1312622330,
-  694541497,
-  2582060303,
-  2151582166,
-  1382467621,
-  776784248,
-  2618340202,
-  3323268794,
-  2497899128,
-  2784771155,
-  503983604,
-  4076293799,
-  907881277,
-  423175695,
-  432175456,
-  1378068232,
-  4145222326,
-  3954048622,
-  3938656102,
-  3820766613,
-  2793130115,
-  2977904593,
-  26017576,
-  3274890735,
-  3194772133,
-  1700274565,
-  1756076034,
-  4006520079,
-  3677328699,
-  720338349,
-  1533947780,
-  354530856,
-  688349552,
-  3973924725,
-  1637815568,
-  332179504,
-  3949051286,
-  53804574,
-  2852348879,
-  3044236432,
-  1282449977,
-  3583942155,
-  3416972820,
-  4006381244,
-  1617046695,
-  2628476075,
-  3002303598,
-  1686838959,
-  431878346,
-  2686675385,
-  1700445008,
-  1080580658,
-  1009431731,
-  832498133,
-  3223435511,
-  2605976345,
-  2271191193,
-  2516031870,
-  1648197032,
-  4164389018,
-  2548247927,
-  300782431,
-  375919233,
-  238389289,
-  3353747414,
-  2531188641,
-  2019080857,
-  1475708069,
-  455242339,
-  2609103871,
-  448939670,
-  3451063019,
-  1395535956,
-  2413381860,
-  1841049896,
-  1491858159,
-  885456874,
-  4264095073,
-  4001119347,
-  1565136089,
-  3898914787,
-  1108368660,
-  540939232,
-  1173283510,
-  2745871338,
-  3681308437,
-  4207628240,
-  3343053890,
-  4016749493,
-  1699691293,
-  1103962373,
-  3625875870,
-  2256883143,
-  3830138730,
-  1031889488,
-  3479347698,
-  1535977030,
-  4236805024,
-  3251091107,
-  2132092099,
-  1774941330,
-  1199868427,
-  1452454533,
-  157007616,
-  2904115357,
-  342012276,
-  595725824,
-  1480756522,
-  206960106,
-  497939518,
-  591360097,
-  863170706,
-  2375253569,
-  3596610801,
-  1814182875,
-  2094937945,
-  3421402208,
-  1082520231,
-  3463918190,
-  2785509508,
-  435703966,
-  3908032597,
-  1641649973,
-  2842273706,
-  3305899714,
-  1510255612,
-  2148256476,
-  2655287854,
-  3276092548,
-  4258621189,
-  236887753,
-  3681803219,
-  274041037,
-  1734335097,
-  3815195456,
-  3317970021,
-  1899903192,
-  1026095262,
-  4050517792,
-  356393447,
-  2410691914,
-  3873677099,
-  3682840055,
-  3913112168,
-  2491498743,
-  4132185628,
-  2489919796,
-  1091903735,
-  1979897079,
-  3170134830,
-  3567386728,
-  3557303409,
-  857797738,
-  1136121015,
-  1342202287,
-  507115054,
-  2535736646,
-  337727348,
-  3213592640,
-  1301675037,
-  2528481711,
-  1895095763,
-  1721773893,
-  3216771564,
-  62756741,
-  2142006736,
-  835421444,
-  2531993523,
-  1442658625,
-  3659876326,
-  2882144922,
-  676362277,
-  1392781812,
-  170690266,
-  3921047035,
-  1759253602,
-  3611846912,
-  1745797284,
-  664899054,
-  1329594018,
-  3901205900,
-  3045908486,
-  2062866102,
-  2865634940,
-  3543621612,
-  3464012697,
-  1080764994,
-  553557557,
-  3656615353,
-  3996768171,
-  991055499,
-  499776247,
-  1265440854,
-  648242737,
-  3940784050,
-  980351604,
-  3713745714,
-  1749149687,
-  3396870395,
-  4211799374,
-  3640570775,
-  1161844396,
-  3125318951,
-  1431517754,
-  545492359,
-  4268468663,
-  3499529547,
-  1437099964,
-  2702547544,
-  3433638243,
-  2581715763,
-  2787789398,
-  1060185593,
-  1593081372,
-  2418618748,
-  4260947970,
-  69676912,
-  2159744348,
-  86519011,
-  2512459080,
-  3838209314,
-  1220612927,
-  3339683548,
-  133810670,
-  1090789135,
-  1078426020,
-  1569222167,
-  845107691,
-  3583754449,
-  4072456591,
-  1091646820,
-  628848692,
-  1613405280,
-  3757631651,
-  526609435,
-  236106946,
-  48312990,
-  2942717905,
-  3402727701,
-  1797494240,
-  859738849,
-  992217954,
-  4005476642,
-  2243076622,
-  3870952857,
-  3732016268,
-  765654824,
-  3490871365,
-  2511836413,
-  1685915746,
-  3888969200,
-  1414112111,
-  2273134842,
-  3281911079,
-  4080962846,
-  172450625,
-  2569994100,
-  980381355,
-  4109958455,
-  2819808352,
-  2716589560,
-  2568741196,
-  3681446669,
-  3329971472,
-  1835478071,
-  660984891,
-  3704678404,
-  4045999559,
-  3422617507,
-  3040415634,
-  1762651403,
-  1719377915,
-  3470491036,
-  2693910283,
-  3642056355,
-  3138596744,
-  1364962596,
-  2073328063,
-  1983633131,
-  926494387,
-  3423689081,
-  2150032023,
-  4096667949,
-  1749200295,
-  3328846651,
-  309677260,
-  2016342300,
-  1779581495,
-  3079819751,
-  111262694,
-  1274766160,
-  443224088,
-  298511866,
-  1025883608,
-  3806446537,
-  1145181785,
-  168956806,
-  3641502830,
-  3584813610,
-  1689216846,
-  3666258015,
-  3200248200,
-  1692713982,
-  2646376535,
-  4042768518,
-  1618508792,
-  1610833997,
-  3523052358,
-  4130873264,
-  2001055236,
-  3610705100,
-  2202168115,
-  4028541809,
-  2961195399,
-  1006657119,
-  2006996926,
-  3186142756,
-  1430667929,
-  3210227297,
-  1314452623,
-  4074634658,
-  4101304120,
-  2273951170,
-  1399257539,
-  3367210612,
-  3027628629,
-  1190975929,
-  2062231137,
-  2333990788,
-  2221543033,
-  2438960610,
-  1181637006,
-  548689776,
-  2362791313,
-  3372408396,
-  3104550113,
-  3145860560,
-  296247880,
-  1970579870,
-  3078560182,
-  3769228297,
-  1714227617,
-  3291629107,
-  3898220290,
-  166772364,
-  1251581989,
-  493813264,
-  448347421,
-  195405023,
-  2709975567,
-  677966185,
-  3703036547,
-  1463355134,
-  2715995803,
-  1338867538,
-  1343315457,
-  2802222074,
-  2684532164,
-  233230375,
-  2599980071,
-  2000651841,
-  3277868038,
-  1638401717,
-  4028070440,
-  3237316320,
-  6314154,
-  819756386,
-  300326615,
-  590932579,
-  1405279636,
-  3267499572,
-  3150704214,
-  2428286686,
-  3959192993,
-  3461946742,
-  1862657033,
-  1266418056,
-  963775037,
-  2089974820,
-  2263052895,
-  1917689273,
-  448879540,
-  3550394620,
-  3981727096,
-  150775221,
-  3627908307,
-  1303187396,
-  508620638,
-  2975983352,
-  2726630617,
-  1817252668,
-  1876281319,
-  1457606340,
-  908771278,
-  3720792119,
-  3617206836,
-  2455994898,
-  1729034894,
-  1080033504,
-  976866871,
-  3556439503,
-  2881648439,
-  1522871579,
-  1555064734,
-  1336096578,
-  3548522304,
-  2579274686,
-  3574697629,
-  3205460757,
-  3593280638,
-  3338716283,
-  3079412587,
-  564236357,
-  2993598910,
-  1781952180,
-  1464380207,
-  3163844217,
-  3332601554,
-  1699332808,
-  1393555694,
-  1183702653,
-  3581086237,
-  1288719814,
-  691649499,
-  2847557200,
-  2895455976,
-  3193889540,
-  2717570544,
-  1781354906,
-  1676643554,
-  2592534050,
-  3230253752,
-  1126444790,
-  2770207658,
-  2633158820,
-  2210423226,
-  2615765581,
-  2414155088,
-  3127139286,
-  673620729,
-  2805611233,
-  1269405062,
-  4015350505,
-  3341807571,
-  4149409754,
-  1057255273,
-  2012875353,
-  2162469141,
-  2276492801,
-  2601117357,
-  993977747,
-  3918593370,
-  2654263191,
-  753973209,
-  36408145,
-  2530585658,
-  25011837,
-  3520020182,
-  2088578344,
-  530523599,
-  2918365339,
-  1524020338,
-  1518925132,
-  3760827505,
-  3759777254,
-  1202760957,
-  3985898139,
-  3906192525,
-  674977740,
-  4174734889,
-  2031300136,
-  2019492241,
-  3983892565,
-  4153806404,
-  3822280332,
-  352677332,
-  2297720250,
-  60907813,
-  90501309,
-  3286998549,
-  1016092578,
-  2535922412,
-  2839152426,
-  457141659,
-  509813237,
-  4120667899,
-  652014361,
-  1966332200,
-  2975202805,
-  55981186,
-  2327461051,
-  676427537,
-  3255491064,
-  2882294119,
-  3433927263,
-  1307055953,
-  942726286,
-  933058658,
-  2468411793,
-  3933900994,
-  4215176142,
-  1361170020,
-  2001714738,
-  2830558078,
-  3274259782,
-  1222529897,
-  1679025792,
-  2729314320,
-  3714953764,
-  1770335741,
-  151462246,
-  3013232138,
-  1682292957,
-  1483529935,
-  471910574,
-  1539241949,
-  458788160,
-  3436315007,
-  1807016891,
-  3718408830,
-  978976581,
-  1043663428,
-  3165965781,
-  1927990952,
-  4200891579,
-  2372276910,
-  3208408903,
-  3533431907,
-  1412390302,
-  2931980059,
-  4132332400,
-  1947078029,
-  3881505623,
-  4168226417,
-  2941484381,
-  1077988104,
-  1320477388,
-  886195818,
-  18198404,
-  3786409e3,
-  2509781533,
-  112762804,
-  3463356488,
-  1866414978,
-  891333506,
-  18488651,
-  661792760,
-  1628790961,
-  3885187036,
-  3141171499,
-  876946877,
-  2693282273,
-  1372485963,
-  791857591,
-  2686433993,
-  3759982718,
-  3167212022,
-  3472953795,
-  2716379847,
-  445679433,
-  3561995674,
-  3504004811,
-  3574258232,
-  54117162,
-  3331405415,
-  2381918588,
-  3769707343,
-  4154350007,
-  1140177722,
-  4074052095,
-  668550556,
-  3214352940,
-  367459370,
-  261225585,
-  2610173221,
-  4209349473,
-  3468074219,
-  3265815641,
-  314222801,
-  3066103646,
-  3808782860,
-  282218597,
-  3406013506,
-  3773591054,
-  379116347,
-  1285071038,
-  846784868,
-  2669647154,
-  3771962079,
-  3550491691,
-  2305946142,
-  453669953,
-  1268987020,
-  3317592352,
-  3279303384,
-  3744833421,
-  2610507566,
-  3859509063,
-  266596637,
-  3847019092,
-  517658769,
-  3462560207,
-  3443424879,
-  370717030,
-  4247526661,
-  2224018117,
-  4143653529,
-  4112773975,
-  2788324899,
-  2477274417,
-  1456262402,
-  2901442914,
-  1517677493,
-  1846949527,
-  2295493580,
-  3734397586,
-  2176403920,
-  1280348187,
-  1908823572,
-  3871786941,
-  846861322,
-  1172426758,
-  3287448474,
-  3383383037,
-  1655181056,
-  3139813346,
-  901632758,
-  1897031941,
-  2986607138,
-  3066810236,
-  3447102507,
-  1393639104,
-  373351379,
-  950779232,
-  625454576,
-  3124240540,
-  4148612726,
-  2007998917,
-  544563296,
-  2244738638,
-  2330496472,
-  2058025392,
-  1291430526,
-  424198748,
-  50039436,
-  29584100,
-  3605783033,
-  2429876329,
-  2791104160,
-  1057563949,
-  3255363231,
-  3075367218,
-  3463963227,
-  1469046755,
-  985887462
-];
-var C_ORIG = [
-  1332899944,
-  1700884034,
-  1701343084,
-  1684370003,
-  1668446532,
-  1869963892
-];
-function _encipher(lr2, off, P, S2) {
-  var n3, l3 = lr2[off], r5 = lr2[off + 1];
-  l3 ^= P[0];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[1];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[2];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[3];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[4];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[5];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[6];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[7];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[8];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[9];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[10];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[11];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[12];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[13];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[14];
-  n3 = S2[l3 >>> 24];
-  n3 += S2[256 | l3 >> 16 & 255];
-  n3 ^= S2[512 | l3 >> 8 & 255];
-  n3 += S2[768 | l3 & 255];
-  r5 ^= n3 ^ P[15];
-  n3 = S2[r5 >>> 24];
-  n3 += S2[256 | r5 >> 16 & 255];
-  n3 ^= S2[512 | r5 >> 8 & 255];
-  n3 += S2[768 | r5 & 255];
-  l3 ^= n3 ^ P[16];
-  lr2[off] = r5 ^ P[BLOWFISH_NUM_ROUNDS + 1];
-  lr2[off + 1] = l3;
-  return lr2;
-}
-function _streamtoword(data, offp) {
-  for (var i5 = 0, word = 0; i5 < 4; ++i5)
-    word = word << 8 | data[offp] & 255, offp = (offp + 1) % data.length;
-  return { key: word, offp };
-}
-function _key(key, P, S2) {
-  var offset = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
-  for (var i5 = 0; i5 < plen; i5++)
-    sw = _streamtoword(key, offset), offset = sw.offp, P[i5] = P[i5] ^ sw.key;
-  for (i5 = 0; i5 < plen; i5 += 2)
-    lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
-  for (i5 = 0; i5 < slen; i5 += 2)
-    lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
-}
-function _ekskey(data, key, P, S2) {
-  var offp = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
-  for (var i5 = 0; i5 < plen; i5++)
-    sw = _streamtoword(key, offp), offp = sw.offp, P[i5] = P[i5] ^ sw.key;
-  offp = 0;
-  for (i5 = 0; i5 < plen; i5 += 2)
-    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
-  for (i5 = 0; i5 < slen; i5 += 2)
-    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
-}
-function _crypt(b6, salt, rounds, callback, progressCallback) {
-  var cdata = C_ORIG.slice(), clen = cdata.length, err;
-  if (rounds < 4 || rounds > 31) {
-    err = Error("Illegal number of rounds (4-31): " + rounds);
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  if (salt.length !== BCRYPT_SALT_LEN) {
-    err = Error(
-      "Illegal salt length: " + salt.length + " != " + BCRYPT_SALT_LEN
-    );
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  rounds = 1 << rounds >>> 0;
-  var P, S2, i5 = 0, j5;
-  if (typeof Int32Array === "function") {
-    P = new Int32Array(P_ORIG);
-    S2 = new Int32Array(S_ORIG);
-  } else {
-    P = P_ORIG.slice();
-    S2 = S_ORIG.slice();
-  }
-  _ekskey(salt, b6, P, S2);
-  function next() {
-    if (progressCallback) progressCallback(i5 / rounds);
-    if (i5 < rounds) {
-      var start = Date.now();
-      for (; i5 < rounds; ) {
-        i5 = i5 + 1;
-        _key(b6, P, S2);
-        _key(salt, P, S2);
-        if (Date.now() - start > MAX_EXECUTION_TIME) break;
-      }
-    } else {
-      for (i5 = 0; i5 < 64; i5++)
-        for (j5 = 0; j5 < clen >> 1; j5++) _encipher(cdata, j5 << 1, P, S2);
-      var ret = [];
-      for (i5 = 0; i5 < clen; i5++)
-        ret.push((cdata[i5] >> 24 & 255) >>> 0), ret.push((cdata[i5] >> 16 & 255) >>> 0), ret.push((cdata[i5] >> 8 & 255) >>> 0), ret.push((cdata[i5] & 255) >>> 0);
-      if (callback) {
-        callback(null, ret);
-        return;
-      } else return ret;
-    }
-    if (callback) nextTick(next);
-  }
-  if (typeof callback !== "undefined") {
-    next();
-  } else {
-    var res;
-    while (true) if (typeof (res = next()) !== "undefined") return res || [];
-  }
-}
-function _hash(password, salt, callback, progressCallback) {
-  var err;
-  if (typeof password !== "string" || typeof salt !== "string") {
-    err = Error("Invalid string / salt: Not a string");
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  var minor, offset;
-  if (salt.charAt(0) !== "$" || salt.charAt(1) !== "2") {
-    err = Error("Invalid salt version: " + salt.substring(0, 2));
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  if (salt.charAt(2) === "$") minor = String.fromCharCode(0), offset = 3;
-  else {
-    minor = salt.charAt(2);
-    if (minor !== "a" && minor !== "b" && minor !== "y" || salt.charAt(3) !== "$") {
-      err = Error("Invalid salt revision: " + salt.substring(2, 4));
-      if (callback) {
-        nextTick(callback.bind(this, err));
-        return;
-      } else throw err;
-    }
-    offset = 4;
-  }
-  if (salt.charAt(offset + 2) > "$") {
-    err = Error("Missing salt rounds");
-    if (callback) {
-      nextTick(callback.bind(this, err));
-      return;
-    } else throw err;
-  }
-  var r1 = parseInt(salt.substring(offset, offset + 1), 10) * 10, r22 = parseInt(salt.substring(offset + 1, offset + 2), 10), rounds = r1 + r22, real_salt = salt.substring(offset + 3, offset + 25);
-  password += minor >= "a" ? "\0" : "";
-  var passwordb = utf8Array(password), saltb = base64_decode(real_salt, BCRYPT_SALT_LEN);
-  function finish(bytes) {
-    var res = [];
-    res.push("$2");
-    if (minor >= "a") res.push(minor);
-    res.push("$");
-    if (rounds < 10) res.push("0");
-    res.push(rounds.toString());
-    res.push("$");
-    res.push(base64_encode(saltb, saltb.length));
-    res.push(base64_encode(bytes, C_ORIG.length * 4 - 1));
-    return res.join("");
-  }
-  if (typeof callback == "undefined")
-    return finish(_crypt(passwordb, saltb, rounds));
-  else {
-    _crypt(
-      passwordb,
-      saltb,
-      rounds,
-      function(err2, bytes) {
-        if (err2) callback(err2, null);
-        else callback(null, finish(bytes));
-      },
-      progressCallback
-    );
-  }
-}
-function encodeBase64(bytes, length) {
-  return base64_encode(bytes, length);
-}
-function decodeBase64(string, length) {
-  return base64_decode(string, length);
-}
-var bcryptjs_default = {
-  setRandomFallback,
-  genSaltSync,
-  genSalt,
-  hashSync,
-  hash,
-  compareSync,
-  compare,
-  getRounds,
-  getSalt,
-  truncates,
-  encodeBase64,
-  decodeBase64
-};
-
-// src/server/index.ts
-import crypto17 from "crypto";
+import crypto16 from "crypto";
 
 // node_modules/@neondatabase/serverless/index.mjs
 var Po = Object.create;
@@ -90409,29 +88684,1740 @@ async function withTransaction(callback) {
 
 // src/server/auth/auth.ts
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
+
+// node_modules/bcryptjs/index.js
+import nodeCrypto from "crypto";
+var randomFallback = null;
+function randomBytes(len) {
+  try {
+    return crypto.getRandomValues(new Uint8Array(len));
+  } catch {
+  }
+  try {
+    return nodeCrypto.randomBytes(len);
+  } catch {
+  }
+  if (!randomFallback) {
+    throw Error(
+      "Neither WebCryptoAPI nor a crypto module is available. Use bcrypt.setRandomFallback to set an alternative"
+    );
+  }
+  return randomFallback(len);
+}
+function setRandomFallback(random) {
+  randomFallback = random;
+}
+function genSaltSync(rounds, seed_length) {
+  rounds = rounds || GENSALT_DEFAULT_LOG2_ROUNDS;
+  if (typeof rounds !== "number")
+    throw Error(
+      "Illegal arguments: " + typeof rounds + ", " + typeof seed_length
+    );
+  if (rounds < 4) rounds = 4;
+  else if (rounds > 31) rounds = 31;
+  var salt = [];
+  salt.push("$2b$");
+  if (rounds < 10) salt.push("0");
+  salt.push(rounds.toString());
+  salt.push("$");
+  salt.push(base64_encode(randomBytes(BCRYPT_SALT_LEN), BCRYPT_SALT_LEN));
+  return salt.join("");
+}
+function genSalt(rounds, seed_length, callback) {
+  if (typeof seed_length === "function")
+    callback = seed_length, seed_length = void 0;
+  if (typeof rounds === "function") callback = rounds, rounds = void 0;
+  if (typeof rounds === "undefined") rounds = GENSALT_DEFAULT_LOG2_ROUNDS;
+  else if (typeof rounds !== "number")
+    throw Error("illegal arguments: " + typeof rounds);
+  function _async(callback2) {
+    nextTick(function() {
+      try {
+        callback2(null, genSaltSync(rounds));
+      } catch (err) {
+        callback2(err);
+      }
+    });
+  }
+  if (callback) {
+    if (typeof callback !== "function")
+      throw Error("Illegal callback: " + typeof callback);
+    _async(callback);
+  } else
+    return new Promise(function(resolve3, reject) {
+      _async(function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve3(res);
+      });
+    });
+}
+function hashSync(password, salt) {
+  if (typeof salt === "undefined") salt = GENSALT_DEFAULT_LOG2_ROUNDS;
+  if (typeof salt === "number") salt = genSaltSync(salt);
+  if (typeof password !== "string" || typeof salt !== "string")
+    throw Error("Illegal arguments: " + typeof password + ", " + typeof salt);
+  return _hash(password, salt);
+}
+function hash(password, salt, callback, progressCallback) {
+  function _async(callback2) {
+    if (typeof password === "string" && typeof salt === "number")
+      genSalt(salt, function(err, salt2) {
+        _hash(password, salt2, callback2, progressCallback);
+      });
+    else if (typeof password === "string" && typeof salt === "string")
+      _hash(password, salt, callback2, progressCallback);
+    else
+      nextTick(
+        callback2.bind(
+          this,
+          Error("Illegal arguments: " + typeof password + ", " + typeof salt)
+        )
+      );
+  }
+  if (callback) {
+    if (typeof callback !== "function")
+      throw Error("Illegal callback: " + typeof callback);
+    _async(callback);
+  } else
+    return new Promise(function(resolve3, reject) {
+      _async(function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve3(res);
+      });
+    });
+}
+function safeStringCompare(known, unknown) {
+  var diff = known.length ^ unknown.length;
+  for (var i5 = 0; i5 < known.length; ++i5) {
+    diff |= known.charCodeAt(i5) ^ unknown.charCodeAt(i5);
+  }
+  return diff === 0;
+}
+function compareSync(password, hash2) {
+  if (typeof password !== "string" || typeof hash2 !== "string")
+    throw Error("Illegal arguments: " + typeof password + ", " + typeof hash2);
+  if (hash2.length !== 60) return false;
+  return safeStringCompare(
+    hashSync(password, hash2.substring(0, hash2.length - 31)),
+    hash2
+  );
+}
+function compare(password, hashValue, callback, progressCallback) {
+  function _async(callback2) {
+    if (typeof password !== "string" || typeof hashValue !== "string") {
+      nextTick(
+        callback2.bind(
+          this,
+          Error(
+            "Illegal arguments: " + typeof password + ", " + typeof hashValue
+          )
+        )
+      );
+      return;
+    }
+    if (hashValue.length !== 60) {
+      nextTick(callback2.bind(this, null, false));
+      return;
+    }
+    hash(
+      password,
+      hashValue.substring(0, 29),
+      function(err, comp) {
+        if (err) callback2(err);
+        else callback2(null, safeStringCompare(comp, hashValue));
+      },
+      progressCallback
+    );
+  }
+  if (callback) {
+    if (typeof callback !== "function")
+      throw Error("Illegal callback: " + typeof callback);
+    _async(callback);
+  } else
+    return new Promise(function(resolve3, reject) {
+      _async(function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve3(res);
+      });
+    });
+}
+function getRounds(hash2) {
+  if (typeof hash2 !== "string")
+    throw Error("Illegal arguments: " + typeof hash2);
+  return parseInt(hash2.split("$")[2], 10);
+}
+function getSalt(hash2) {
+  if (typeof hash2 !== "string")
+    throw Error("Illegal arguments: " + typeof hash2);
+  if (hash2.length !== 60)
+    throw Error("Illegal hash length: " + hash2.length + " != 60");
+  return hash2.substring(0, 29);
+}
+function truncates(password) {
+  if (typeof password !== "string")
+    throw Error("Illegal arguments: " + typeof password);
+  return utf8Length(password) > 72;
+}
+var nextTick = typeof setImmediate === "function" ? setImmediate : typeof scheduler === "object" && typeof scheduler.postTask === "function" ? scheduler.postTask.bind(scheduler) : setTimeout;
+function utf8Length(string) {
+  var len = 0, c5 = 0;
+  for (var i5 = 0; i5 < string.length; ++i5) {
+    c5 = string.charCodeAt(i5);
+    if (c5 < 128) len += 1;
+    else if (c5 < 2048) len += 2;
+    else if ((c5 & 64512) === 55296 && (string.charCodeAt(i5 + 1) & 64512) === 56320) {
+      ++i5;
+      len += 4;
+    } else len += 3;
+  }
+  return len;
+}
+function utf8Array(string) {
+  var offset = 0, c1, c22;
+  var buffer = new Array(utf8Length(string));
+  for (var i5 = 0, k5 = string.length; i5 < k5; ++i5) {
+    c1 = string.charCodeAt(i5);
+    if (c1 < 128) {
+      buffer[offset++] = c1;
+    } else if (c1 < 2048) {
+      buffer[offset++] = c1 >> 6 | 192;
+      buffer[offset++] = c1 & 63 | 128;
+    } else if ((c1 & 64512) === 55296 && ((c22 = string.charCodeAt(i5 + 1)) & 64512) === 56320) {
+      c1 = 65536 + ((c1 & 1023) << 10) + (c22 & 1023);
+      ++i5;
+      buffer[offset++] = c1 >> 18 | 240;
+      buffer[offset++] = c1 >> 12 & 63 | 128;
+      buffer[offset++] = c1 >> 6 & 63 | 128;
+      buffer[offset++] = c1 & 63 | 128;
+    } else {
+      buffer[offset++] = c1 >> 12 | 224;
+      buffer[offset++] = c1 >> 6 & 63 | 128;
+      buffer[offset++] = c1 & 63 | 128;
+    }
+  }
+  return buffer;
+}
+var BASE64_CODE = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("");
+var BASE64_INDEX = [
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  0,
+  1,
+  54,
+  55,
+  56,
+  57,
+  58,
+  59,
+  60,
+  61,
+  62,
+  63,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1,
+  28,
+  29,
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  50,
+  51,
+  52,
+  53,
+  -1,
+  -1,
+  -1,
+  -1,
+  -1
+];
+function base64_encode(b6, len) {
+  var off = 0, rs = [], c1, c22;
+  if (len <= 0 || len > b6.length) throw Error("Illegal len: " + len);
+  while (off < len) {
+    c1 = b6[off++] & 255;
+    rs.push(BASE64_CODE[c1 >> 2 & 63]);
+    c1 = (c1 & 3) << 4;
+    if (off >= len) {
+      rs.push(BASE64_CODE[c1 & 63]);
+      break;
+    }
+    c22 = b6[off++] & 255;
+    c1 |= c22 >> 4 & 15;
+    rs.push(BASE64_CODE[c1 & 63]);
+    c1 = (c22 & 15) << 2;
+    if (off >= len) {
+      rs.push(BASE64_CODE[c1 & 63]);
+      break;
+    }
+    c22 = b6[off++] & 255;
+    c1 |= c22 >> 6 & 3;
+    rs.push(BASE64_CODE[c1 & 63]);
+    rs.push(BASE64_CODE[c22 & 63]);
+  }
+  return rs.join("");
+}
+function base64_decode(s2, len) {
+  var off = 0, slen = s2.length, olen = 0, rs = [], c1, c22, c32, c42, o3, code;
+  if (len <= 0) throw Error("Illegal len: " + len);
+  while (off < slen - 1 && olen < len) {
+    code = s2.charCodeAt(off++);
+    c1 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    code = s2.charCodeAt(off++);
+    c22 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    if (c1 == -1 || c22 == -1) break;
+    o3 = c1 << 2 >>> 0;
+    o3 |= (c22 & 48) >> 4;
+    rs.push(String.fromCharCode(o3));
+    if (++olen >= len || off >= slen) break;
+    code = s2.charCodeAt(off++);
+    c32 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    if (c32 == -1) break;
+    o3 = (c22 & 15) << 4 >>> 0;
+    o3 |= (c32 & 60) >> 2;
+    rs.push(String.fromCharCode(o3));
+    if (++olen >= len || off >= slen) break;
+    code = s2.charCodeAt(off++);
+    c42 = code < BASE64_INDEX.length ? BASE64_INDEX[code] : -1;
+    o3 = (c32 & 3) << 6 >>> 0;
+    o3 |= c42;
+    rs.push(String.fromCharCode(o3));
+    ++olen;
+  }
+  var res = [];
+  for (off = 0; off < olen; off++) res.push(rs[off].charCodeAt(0));
+  return res;
+}
+var BCRYPT_SALT_LEN = 16;
+var GENSALT_DEFAULT_LOG2_ROUNDS = 10;
+var BLOWFISH_NUM_ROUNDS = 16;
+var MAX_EXECUTION_TIME = 100;
+var P_ORIG = [
+  608135816,
+  2242054355,
+  320440878,
+  57701188,
+  2752067618,
+  698298832,
+  137296536,
+  3964562569,
+  1160258022,
+  953160567,
+  3193202383,
+  887688300,
+  3232508343,
+  3380367581,
+  1065670069,
+  3041331479,
+  2450970073,
+  2306472731
+];
+var S_ORIG = [
+  3509652390,
+  2564797868,
+  805139163,
+  3491422135,
+  3101798381,
+  1780907670,
+  3128725573,
+  4046225305,
+  614570311,
+  3012652279,
+  134345442,
+  2240740374,
+  1667834072,
+  1901547113,
+  2757295779,
+  4103290238,
+  227898511,
+  1921955416,
+  1904987480,
+  2182433518,
+  2069144605,
+  3260701109,
+  2620446009,
+  720527379,
+  3318853667,
+  677414384,
+  3393288472,
+  3101374703,
+  2390351024,
+  1614419982,
+  1822297739,
+  2954791486,
+  3608508353,
+  3174124327,
+  2024746970,
+  1432378464,
+  3864339955,
+  2857741204,
+  1464375394,
+  1676153920,
+  1439316330,
+  715854006,
+  3033291828,
+  289532110,
+  2706671279,
+  2087905683,
+  3018724369,
+  1668267050,
+  732546397,
+  1947742710,
+  3462151702,
+  2609353502,
+  2950085171,
+  1814351708,
+  2050118529,
+  680887927,
+  999245976,
+  1800124847,
+  3300911131,
+  1713906067,
+  1641548236,
+  4213287313,
+  1216130144,
+  1575780402,
+  4018429277,
+  3917837745,
+  3693486850,
+  3949271944,
+  596196993,
+  3549867205,
+  258830323,
+  2213823033,
+  772490370,
+  2760122372,
+  1774776394,
+  2652871518,
+  566650946,
+  4142492826,
+  1728879713,
+  2882767088,
+  1783734482,
+  3629395816,
+  2517608232,
+  2874225571,
+  1861159788,
+  326777828,
+  3124490320,
+  2130389656,
+  2716951837,
+  967770486,
+  1724537150,
+  2185432712,
+  2364442137,
+  1164943284,
+  2105845187,
+  998989502,
+  3765401048,
+  2244026483,
+  1075463327,
+  1455516326,
+  1322494562,
+  910128902,
+  469688178,
+  1117454909,
+  936433444,
+  3490320968,
+  3675253459,
+  1240580251,
+  122909385,
+  2157517691,
+  634681816,
+  4142456567,
+  3825094682,
+  3061402683,
+  2540495037,
+  79693498,
+  3249098678,
+  1084186820,
+  1583128258,
+  426386531,
+  1761308591,
+  1047286709,
+  322548459,
+  995290223,
+  1845252383,
+  2603652396,
+  3431023940,
+  2942221577,
+  3202600964,
+  3727903485,
+  1712269319,
+  422464435,
+  3234572375,
+  1170764815,
+  3523960633,
+  3117677531,
+  1434042557,
+  442511882,
+  3600875718,
+  1076654713,
+  1738483198,
+  4213154764,
+  2393238008,
+  3677496056,
+  1014306527,
+  4251020053,
+  793779912,
+  2902807211,
+  842905082,
+  4246964064,
+  1395751752,
+  1040244610,
+  2656851899,
+  3396308128,
+  445077038,
+  3742853595,
+  3577915638,
+  679411651,
+  2892444358,
+  2354009459,
+  1767581616,
+  3150600392,
+  3791627101,
+  3102740896,
+  284835224,
+  4246832056,
+  1258075500,
+  768725851,
+  2589189241,
+  3069724005,
+  3532540348,
+  1274779536,
+  3789419226,
+  2764799539,
+  1660621633,
+  3471099624,
+  4011903706,
+  913787905,
+  3497959166,
+  737222580,
+  2514213453,
+  2928710040,
+  3937242737,
+  1804850592,
+  3499020752,
+  2949064160,
+  2386320175,
+  2390070455,
+  2415321851,
+  4061277028,
+  2290661394,
+  2416832540,
+  1336762016,
+  1754252060,
+  3520065937,
+  3014181293,
+  791618072,
+  3188594551,
+  3933548030,
+  2332172193,
+  3852520463,
+  3043980520,
+  413987798,
+  3465142937,
+  3030929376,
+  4245938359,
+  2093235073,
+  3534596313,
+  375366246,
+  2157278981,
+  2479649556,
+  555357303,
+  3870105701,
+  2008414854,
+  3344188149,
+  4221384143,
+  3956125452,
+  2067696032,
+  3594591187,
+  2921233993,
+  2428461,
+  544322398,
+  577241275,
+  1471733935,
+  610547355,
+  4027169054,
+  1432588573,
+  1507829418,
+  2025931657,
+  3646575487,
+  545086370,
+  48609733,
+  2200306550,
+  1653985193,
+  298326376,
+  1316178497,
+  3007786442,
+  2064951626,
+  458293330,
+  2589141269,
+  3591329599,
+  3164325604,
+  727753846,
+  2179363840,
+  146436021,
+  1461446943,
+  4069977195,
+  705550613,
+  3059967265,
+  3887724982,
+  4281599278,
+  3313849956,
+  1404054877,
+  2845806497,
+  146425753,
+  1854211946,
+  1266315497,
+  3048417604,
+  3681880366,
+  3289982499,
+  290971e4,
+  1235738493,
+  2632868024,
+  2414719590,
+  3970600049,
+  1771706367,
+  1449415276,
+  3266420449,
+  422970021,
+  1963543593,
+  2690192192,
+  3826793022,
+  1062508698,
+  1531092325,
+  1804592342,
+  2583117782,
+  2714934279,
+  4024971509,
+  1294809318,
+  4028980673,
+  1289560198,
+  2221992742,
+  1669523910,
+  35572830,
+  157838143,
+  1052438473,
+  1016535060,
+  1802137761,
+  1753167236,
+  1386275462,
+  3080475397,
+  2857371447,
+  1040679964,
+  2145300060,
+  2390574316,
+  1461121720,
+  2956646967,
+  4031777805,
+  4028374788,
+  33600511,
+  2920084762,
+  1018524850,
+  629373528,
+  3691585981,
+  3515945977,
+  2091462646,
+  2486323059,
+  586499841,
+  988145025,
+  935516892,
+  3367335476,
+  2599673255,
+  2839830854,
+  265290510,
+  3972581182,
+  2759138881,
+  3795373465,
+  1005194799,
+  847297441,
+  406762289,
+  1314163512,
+  1332590856,
+  1866599683,
+  4127851711,
+  750260880,
+  613907577,
+  1450815602,
+  3165620655,
+  3734664991,
+  3650291728,
+  3012275730,
+  3704569646,
+  1427272223,
+  778793252,
+  1343938022,
+  2676280711,
+  2052605720,
+  1946737175,
+  3164576444,
+  3914038668,
+  3967478842,
+  3682934266,
+  1661551462,
+  3294938066,
+  4011595847,
+  840292616,
+  3712170807,
+  616741398,
+  312560963,
+  711312465,
+  1351876610,
+  322626781,
+  1910503582,
+  271666773,
+  2175563734,
+  1594956187,
+  70604529,
+  3617834859,
+  1007753275,
+  1495573769,
+  4069517037,
+  2549218298,
+  2663038764,
+  504708206,
+  2263041392,
+  3941167025,
+  2249088522,
+  1514023603,
+  1998579484,
+  1312622330,
+  694541497,
+  2582060303,
+  2151582166,
+  1382467621,
+  776784248,
+  2618340202,
+  3323268794,
+  2497899128,
+  2784771155,
+  503983604,
+  4076293799,
+  907881277,
+  423175695,
+  432175456,
+  1378068232,
+  4145222326,
+  3954048622,
+  3938656102,
+  3820766613,
+  2793130115,
+  2977904593,
+  26017576,
+  3274890735,
+  3194772133,
+  1700274565,
+  1756076034,
+  4006520079,
+  3677328699,
+  720338349,
+  1533947780,
+  354530856,
+  688349552,
+  3973924725,
+  1637815568,
+  332179504,
+  3949051286,
+  53804574,
+  2852348879,
+  3044236432,
+  1282449977,
+  3583942155,
+  3416972820,
+  4006381244,
+  1617046695,
+  2628476075,
+  3002303598,
+  1686838959,
+  431878346,
+  2686675385,
+  1700445008,
+  1080580658,
+  1009431731,
+  832498133,
+  3223435511,
+  2605976345,
+  2271191193,
+  2516031870,
+  1648197032,
+  4164389018,
+  2548247927,
+  300782431,
+  375919233,
+  238389289,
+  3353747414,
+  2531188641,
+  2019080857,
+  1475708069,
+  455242339,
+  2609103871,
+  448939670,
+  3451063019,
+  1395535956,
+  2413381860,
+  1841049896,
+  1491858159,
+  885456874,
+  4264095073,
+  4001119347,
+  1565136089,
+  3898914787,
+  1108368660,
+  540939232,
+  1173283510,
+  2745871338,
+  3681308437,
+  4207628240,
+  3343053890,
+  4016749493,
+  1699691293,
+  1103962373,
+  3625875870,
+  2256883143,
+  3830138730,
+  1031889488,
+  3479347698,
+  1535977030,
+  4236805024,
+  3251091107,
+  2132092099,
+  1774941330,
+  1199868427,
+  1452454533,
+  157007616,
+  2904115357,
+  342012276,
+  595725824,
+  1480756522,
+  206960106,
+  497939518,
+  591360097,
+  863170706,
+  2375253569,
+  3596610801,
+  1814182875,
+  2094937945,
+  3421402208,
+  1082520231,
+  3463918190,
+  2785509508,
+  435703966,
+  3908032597,
+  1641649973,
+  2842273706,
+  3305899714,
+  1510255612,
+  2148256476,
+  2655287854,
+  3276092548,
+  4258621189,
+  236887753,
+  3681803219,
+  274041037,
+  1734335097,
+  3815195456,
+  3317970021,
+  1899903192,
+  1026095262,
+  4050517792,
+  356393447,
+  2410691914,
+  3873677099,
+  3682840055,
+  3913112168,
+  2491498743,
+  4132185628,
+  2489919796,
+  1091903735,
+  1979897079,
+  3170134830,
+  3567386728,
+  3557303409,
+  857797738,
+  1136121015,
+  1342202287,
+  507115054,
+  2535736646,
+  337727348,
+  3213592640,
+  1301675037,
+  2528481711,
+  1895095763,
+  1721773893,
+  3216771564,
+  62756741,
+  2142006736,
+  835421444,
+  2531993523,
+  1442658625,
+  3659876326,
+  2882144922,
+  676362277,
+  1392781812,
+  170690266,
+  3921047035,
+  1759253602,
+  3611846912,
+  1745797284,
+  664899054,
+  1329594018,
+  3901205900,
+  3045908486,
+  2062866102,
+  2865634940,
+  3543621612,
+  3464012697,
+  1080764994,
+  553557557,
+  3656615353,
+  3996768171,
+  991055499,
+  499776247,
+  1265440854,
+  648242737,
+  3940784050,
+  980351604,
+  3713745714,
+  1749149687,
+  3396870395,
+  4211799374,
+  3640570775,
+  1161844396,
+  3125318951,
+  1431517754,
+  545492359,
+  4268468663,
+  3499529547,
+  1437099964,
+  2702547544,
+  3433638243,
+  2581715763,
+  2787789398,
+  1060185593,
+  1593081372,
+  2418618748,
+  4260947970,
+  69676912,
+  2159744348,
+  86519011,
+  2512459080,
+  3838209314,
+  1220612927,
+  3339683548,
+  133810670,
+  1090789135,
+  1078426020,
+  1569222167,
+  845107691,
+  3583754449,
+  4072456591,
+  1091646820,
+  628848692,
+  1613405280,
+  3757631651,
+  526609435,
+  236106946,
+  48312990,
+  2942717905,
+  3402727701,
+  1797494240,
+  859738849,
+  992217954,
+  4005476642,
+  2243076622,
+  3870952857,
+  3732016268,
+  765654824,
+  3490871365,
+  2511836413,
+  1685915746,
+  3888969200,
+  1414112111,
+  2273134842,
+  3281911079,
+  4080962846,
+  172450625,
+  2569994100,
+  980381355,
+  4109958455,
+  2819808352,
+  2716589560,
+  2568741196,
+  3681446669,
+  3329971472,
+  1835478071,
+  660984891,
+  3704678404,
+  4045999559,
+  3422617507,
+  3040415634,
+  1762651403,
+  1719377915,
+  3470491036,
+  2693910283,
+  3642056355,
+  3138596744,
+  1364962596,
+  2073328063,
+  1983633131,
+  926494387,
+  3423689081,
+  2150032023,
+  4096667949,
+  1749200295,
+  3328846651,
+  309677260,
+  2016342300,
+  1779581495,
+  3079819751,
+  111262694,
+  1274766160,
+  443224088,
+  298511866,
+  1025883608,
+  3806446537,
+  1145181785,
+  168956806,
+  3641502830,
+  3584813610,
+  1689216846,
+  3666258015,
+  3200248200,
+  1692713982,
+  2646376535,
+  4042768518,
+  1618508792,
+  1610833997,
+  3523052358,
+  4130873264,
+  2001055236,
+  3610705100,
+  2202168115,
+  4028541809,
+  2961195399,
+  1006657119,
+  2006996926,
+  3186142756,
+  1430667929,
+  3210227297,
+  1314452623,
+  4074634658,
+  4101304120,
+  2273951170,
+  1399257539,
+  3367210612,
+  3027628629,
+  1190975929,
+  2062231137,
+  2333990788,
+  2221543033,
+  2438960610,
+  1181637006,
+  548689776,
+  2362791313,
+  3372408396,
+  3104550113,
+  3145860560,
+  296247880,
+  1970579870,
+  3078560182,
+  3769228297,
+  1714227617,
+  3291629107,
+  3898220290,
+  166772364,
+  1251581989,
+  493813264,
+  448347421,
+  195405023,
+  2709975567,
+  677966185,
+  3703036547,
+  1463355134,
+  2715995803,
+  1338867538,
+  1343315457,
+  2802222074,
+  2684532164,
+  233230375,
+  2599980071,
+  2000651841,
+  3277868038,
+  1638401717,
+  4028070440,
+  3237316320,
+  6314154,
+  819756386,
+  300326615,
+  590932579,
+  1405279636,
+  3267499572,
+  3150704214,
+  2428286686,
+  3959192993,
+  3461946742,
+  1862657033,
+  1266418056,
+  963775037,
+  2089974820,
+  2263052895,
+  1917689273,
+  448879540,
+  3550394620,
+  3981727096,
+  150775221,
+  3627908307,
+  1303187396,
+  508620638,
+  2975983352,
+  2726630617,
+  1817252668,
+  1876281319,
+  1457606340,
+  908771278,
+  3720792119,
+  3617206836,
+  2455994898,
+  1729034894,
+  1080033504,
+  976866871,
+  3556439503,
+  2881648439,
+  1522871579,
+  1555064734,
+  1336096578,
+  3548522304,
+  2579274686,
+  3574697629,
+  3205460757,
+  3593280638,
+  3338716283,
+  3079412587,
+  564236357,
+  2993598910,
+  1781952180,
+  1464380207,
+  3163844217,
+  3332601554,
+  1699332808,
+  1393555694,
+  1183702653,
+  3581086237,
+  1288719814,
+  691649499,
+  2847557200,
+  2895455976,
+  3193889540,
+  2717570544,
+  1781354906,
+  1676643554,
+  2592534050,
+  3230253752,
+  1126444790,
+  2770207658,
+  2633158820,
+  2210423226,
+  2615765581,
+  2414155088,
+  3127139286,
+  673620729,
+  2805611233,
+  1269405062,
+  4015350505,
+  3341807571,
+  4149409754,
+  1057255273,
+  2012875353,
+  2162469141,
+  2276492801,
+  2601117357,
+  993977747,
+  3918593370,
+  2654263191,
+  753973209,
+  36408145,
+  2530585658,
+  25011837,
+  3520020182,
+  2088578344,
+  530523599,
+  2918365339,
+  1524020338,
+  1518925132,
+  3760827505,
+  3759777254,
+  1202760957,
+  3985898139,
+  3906192525,
+  674977740,
+  4174734889,
+  2031300136,
+  2019492241,
+  3983892565,
+  4153806404,
+  3822280332,
+  352677332,
+  2297720250,
+  60907813,
+  90501309,
+  3286998549,
+  1016092578,
+  2535922412,
+  2839152426,
+  457141659,
+  509813237,
+  4120667899,
+  652014361,
+  1966332200,
+  2975202805,
+  55981186,
+  2327461051,
+  676427537,
+  3255491064,
+  2882294119,
+  3433927263,
+  1307055953,
+  942726286,
+  933058658,
+  2468411793,
+  3933900994,
+  4215176142,
+  1361170020,
+  2001714738,
+  2830558078,
+  3274259782,
+  1222529897,
+  1679025792,
+  2729314320,
+  3714953764,
+  1770335741,
+  151462246,
+  3013232138,
+  1682292957,
+  1483529935,
+  471910574,
+  1539241949,
+  458788160,
+  3436315007,
+  1807016891,
+  3718408830,
+  978976581,
+  1043663428,
+  3165965781,
+  1927990952,
+  4200891579,
+  2372276910,
+  3208408903,
+  3533431907,
+  1412390302,
+  2931980059,
+  4132332400,
+  1947078029,
+  3881505623,
+  4168226417,
+  2941484381,
+  1077988104,
+  1320477388,
+  886195818,
+  18198404,
+  3786409e3,
+  2509781533,
+  112762804,
+  3463356488,
+  1866414978,
+  891333506,
+  18488651,
+  661792760,
+  1628790961,
+  3885187036,
+  3141171499,
+  876946877,
+  2693282273,
+  1372485963,
+  791857591,
+  2686433993,
+  3759982718,
+  3167212022,
+  3472953795,
+  2716379847,
+  445679433,
+  3561995674,
+  3504004811,
+  3574258232,
+  54117162,
+  3331405415,
+  2381918588,
+  3769707343,
+  4154350007,
+  1140177722,
+  4074052095,
+  668550556,
+  3214352940,
+  367459370,
+  261225585,
+  2610173221,
+  4209349473,
+  3468074219,
+  3265815641,
+  314222801,
+  3066103646,
+  3808782860,
+  282218597,
+  3406013506,
+  3773591054,
+  379116347,
+  1285071038,
+  846784868,
+  2669647154,
+  3771962079,
+  3550491691,
+  2305946142,
+  453669953,
+  1268987020,
+  3317592352,
+  3279303384,
+  3744833421,
+  2610507566,
+  3859509063,
+  266596637,
+  3847019092,
+  517658769,
+  3462560207,
+  3443424879,
+  370717030,
+  4247526661,
+  2224018117,
+  4143653529,
+  4112773975,
+  2788324899,
+  2477274417,
+  1456262402,
+  2901442914,
+  1517677493,
+  1846949527,
+  2295493580,
+  3734397586,
+  2176403920,
+  1280348187,
+  1908823572,
+  3871786941,
+  846861322,
+  1172426758,
+  3287448474,
+  3383383037,
+  1655181056,
+  3139813346,
+  901632758,
+  1897031941,
+  2986607138,
+  3066810236,
+  3447102507,
+  1393639104,
+  373351379,
+  950779232,
+  625454576,
+  3124240540,
+  4148612726,
+  2007998917,
+  544563296,
+  2244738638,
+  2330496472,
+  2058025392,
+  1291430526,
+  424198748,
+  50039436,
+  29584100,
+  3605783033,
+  2429876329,
+  2791104160,
+  1057563949,
+  3255363231,
+  3075367218,
+  3463963227,
+  1469046755,
+  985887462
+];
+var C_ORIG = [
+  1332899944,
+  1700884034,
+  1701343084,
+  1684370003,
+  1668446532,
+  1869963892
+];
+function _encipher(lr2, off, P, S2) {
+  var n3, l3 = lr2[off], r5 = lr2[off + 1];
+  l3 ^= P[0];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[1];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[2];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[3];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[4];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[5];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[6];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[7];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[8];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[9];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[10];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[11];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[12];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[13];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[14];
+  n3 = S2[l3 >>> 24];
+  n3 += S2[256 | l3 >> 16 & 255];
+  n3 ^= S2[512 | l3 >> 8 & 255];
+  n3 += S2[768 | l3 & 255];
+  r5 ^= n3 ^ P[15];
+  n3 = S2[r5 >>> 24];
+  n3 += S2[256 | r5 >> 16 & 255];
+  n3 ^= S2[512 | r5 >> 8 & 255];
+  n3 += S2[768 | r5 & 255];
+  l3 ^= n3 ^ P[16];
+  lr2[off] = r5 ^ P[BLOWFISH_NUM_ROUNDS + 1];
+  lr2[off + 1] = l3;
+  return lr2;
+}
+function _streamtoword(data, offp) {
+  for (var i5 = 0, word = 0; i5 < 4; ++i5)
+    word = word << 8 | data[offp] & 255, offp = (offp + 1) % data.length;
+  return { key: word, offp };
+}
+function _key(key, P, S2) {
+  var offset = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
+  for (var i5 = 0; i5 < plen; i5++)
+    sw = _streamtoword(key, offset), offset = sw.offp, P[i5] = P[i5] ^ sw.key;
+  for (i5 = 0; i5 < plen; i5 += 2)
+    lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
+  for (i5 = 0; i5 < slen; i5 += 2)
+    lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
+}
+function _ekskey(data, key, P, S2) {
+  var offp = 0, lr2 = [0, 0], plen = P.length, slen = S2.length, sw;
+  for (var i5 = 0; i5 < plen; i5++)
+    sw = _streamtoword(key, offp), offp = sw.offp, P[i5] = P[i5] ^ sw.key;
+  offp = 0;
+  for (i5 = 0; i5 < plen; i5 += 2)
+    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), P[i5] = lr2[0], P[i5 + 1] = lr2[1];
+  for (i5 = 0; i5 < slen; i5 += 2)
+    sw = _streamtoword(data, offp), offp = sw.offp, lr2[0] ^= sw.key, sw = _streamtoword(data, offp), offp = sw.offp, lr2[1] ^= sw.key, lr2 = _encipher(lr2, 0, P, S2), S2[i5] = lr2[0], S2[i5 + 1] = lr2[1];
+}
+function _crypt(b6, salt, rounds, callback, progressCallback) {
+  var cdata = C_ORIG.slice(), clen = cdata.length, err;
+  if (rounds < 4 || rounds > 31) {
+    err = Error("Illegal number of rounds (4-31): " + rounds);
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  if (salt.length !== BCRYPT_SALT_LEN) {
+    err = Error(
+      "Illegal salt length: " + salt.length + " != " + BCRYPT_SALT_LEN
+    );
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  rounds = 1 << rounds >>> 0;
+  var P, S2, i5 = 0, j5;
+  if (typeof Int32Array === "function") {
+    P = new Int32Array(P_ORIG);
+    S2 = new Int32Array(S_ORIG);
+  } else {
+    P = P_ORIG.slice();
+    S2 = S_ORIG.slice();
+  }
+  _ekskey(salt, b6, P, S2);
+  function next() {
+    if (progressCallback) progressCallback(i5 / rounds);
+    if (i5 < rounds) {
+      var start = Date.now();
+      for (; i5 < rounds; ) {
+        i5 = i5 + 1;
+        _key(b6, P, S2);
+        _key(salt, P, S2);
+        if (Date.now() - start > MAX_EXECUTION_TIME) break;
+      }
+    } else {
+      for (i5 = 0; i5 < 64; i5++)
+        for (j5 = 0; j5 < clen >> 1; j5++) _encipher(cdata, j5 << 1, P, S2);
+      var ret = [];
+      for (i5 = 0; i5 < clen; i5++)
+        ret.push((cdata[i5] >> 24 & 255) >>> 0), ret.push((cdata[i5] >> 16 & 255) >>> 0), ret.push((cdata[i5] >> 8 & 255) >>> 0), ret.push((cdata[i5] & 255) >>> 0);
+      if (callback) {
+        callback(null, ret);
+        return;
+      } else return ret;
+    }
+    if (callback) nextTick(next);
+  }
+  if (typeof callback !== "undefined") {
+    next();
+  } else {
+    var res;
+    while (true) if (typeof (res = next()) !== "undefined") return res || [];
+  }
+}
+function _hash(password, salt, callback, progressCallback) {
+  var err;
+  if (typeof password !== "string" || typeof salt !== "string") {
+    err = Error("Invalid string / salt: Not a string");
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  var minor, offset;
+  if (salt.charAt(0) !== "$" || salt.charAt(1) !== "2") {
+    err = Error("Invalid salt version: " + salt.substring(0, 2));
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  if (salt.charAt(2) === "$") minor = String.fromCharCode(0), offset = 3;
+  else {
+    minor = salt.charAt(2);
+    if (minor !== "a" && minor !== "b" && minor !== "y" || salt.charAt(3) !== "$") {
+      err = Error("Invalid salt revision: " + salt.substring(2, 4));
+      if (callback) {
+        nextTick(callback.bind(this, err));
+        return;
+      } else throw err;
+    }
+    offset = 4;
+  }
+  if (salt.charAt(offset + 2) > "$") {
+    err = Error("Missing salt rounds");
+    if (callback) {
+      nextTick(callback.bind(this, err));
+      return;
+    } else throw err;
+  }
+  var r1 = parseInt(salt.substring(offset, offset + 1), 10) * 10, r22 = parseInt(salt.substring(offset + 1, offset + 2), 10), rounds = r1 + r22, real_salt = salt.substring(offset + 3, offset + 25);
+  password += minor >= "a" ? "\0" : "";
+  var passwordb = utf8Array(password), saltb = base64_decode(real_salt, BCRYPT_SALT_LEN);
+  function finish(bytes) {
+    var res = [];
+    res.push("$2");
+    if (minor >= "a") res.push(minor);
+    res.push("$");
+    if (rounds < 10) res.push("0");
+    res.push(rounds.toString());
+    res.push("$");
+    res.push(base64_encode(saltb, saltb.length));
+    res.push(base64_encode(bytes, C_ORIG.length * 4 - 1));
+    return res.join("");
+  }
+  if (typeof callback == "undefined")
+    return finish(_crypt(passwordb, saltb, rounds));
+  else {
+    _crypt(
+      passwordb,
+      saltb,
+      rounds,
+      function(err2, bytes) {
+        if (err2) callback(err2, null);
+        else callback(null, finish(bytes));
+      },
+      progressCallback
+    );
+  }
+}
+function encodeBase64(bytes, length) {
+  return base64_encode(bytes, length);
+}
+function decodeBase64(string, length) {
+  return base64_decode(string, length);
+}
+var bcryptjs_default = {
+  setRandomFallback,
+  genSaltSync,
+  genSalt,
+  hashSync,
+  hash,
+  compareSync,
+  compare,
+  getRounds,
+  getSalt,
+  truncates,
+  encodeBase64,
+  decodeBase64
+};
+
+// src/server/auth/auth.ts
 var JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || (() => {
   console.warn("\u26A0\uFE0F [SECURITY WARNING]: Neither JWT_SECRET nor AUTH_SECRET is set in environment. Using a fallback runtime secret. Please set JWT_SECRET in .env for production.");
   return "benixspace_sec_" + (process.env.NODE_ENV === "production" ? "prod_" : "dev_") + "secure_jwt_2026";
 })();
-function generateToken(user) {
-  return import_jsonwebtoken.default.sign(
-    { id: String(user.id), email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-}
 function verifyToken(token) {
   try {
     return import_jsonwebtoken.default.verify(token, JWT_SECRET);
   } catch (err) {
     return null;
-  }
-}
-async function comparePassword(password, hash2) {
-  try {
-    return await bcryptjs_default.compare(password, hash2);
-  } catch {
-    return false;
   }
 }
 async function hashPassword(password) {
@@ -90910,9 +90896,9 @@ var WalletService = class {
   }
 };
 
-// src/server/services/withdrawalService.ts
+// src/server/services/smmService.ts
+import http2 from "http";
 import https3 from "https";
-import crypto10 from "crypto";
 
 // src/server/services/emailService.ts
 import https2 from "https";
@@ -103811,7 +103797,7 @@ ${html}
   }
 };
 
-// src/server/services/withdrawalService.ts
+// src/server/services/smmService.ts
 async function getSystemSetting(key, defaultValue) {
   const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
   if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
@@ -103824,523 +103810,6 @@ async function getSystemSetting(key, defaultValue) {
   return defaultValue !== void 0 ? defaultValue : null;
 }
 async function setSystemSetting(key, value) {
-  await query(
-    `INSERT INTO system_settings (key, value, updated_at)
-     VALUES ($1, $2, NOW())
-     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
-    [key, value]
-  ).catch(() => {
-  });
-  await query(
-    `INSERT INTO core_system_settings (key, value, updated_at)
-     VALUES ($1, $2, NOW())
-     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
-    [key, value]
-  ).catch(() => {
-  });
-}
-async function getFlutterwaveSecretKey() {
-  try {
-    const row = await query("SELECT secret_key FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
-    if (row.rowCount > 0 && row.rows[0].secret_key) {
-      return String(row.rows[0].secret_key).trim();
-    }
-  } catch {
-  }
-  return (process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
-}
-function callFlutterwaveApi(path5, method = "GET", data) {
-  return new Promise(async (resolve3, reject) => {
-    try {
-      const secretKey = await getFlutterwaveSecretKey();
-      const payload = data ? JSON.stringify(data) : null;
-      const req = https3.request(
-        {
-          hostname: "api.flutterwave.com",
-          port: 443,
-          path: path5,
-          method,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${secretKey}`,
-            ...payload ? { "Content-Length": Buffer.byteLength(payload) } : {}
-          }
-        },
-        (res) => {
-          let body = "";
-          res.on("data", (c5) => body += c5);
-          res.on("end", () => {
-            try {
-              const parsed = JSON.parse(body);
-              resolve3(parsed);
-            } catch {
-              resolve3({ raw: body, statusCode: res.statusCode });
-            }
-          });
-        }
-      );
-      req.setTimeout(12e3, () => {
-        req.destroy(new Error("Flutterwave API timeout after 12s"));
-      });
-      req.on("error", (err) => reject(err));
-      if (payload) req.write(payload);
-      req.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-var WithdrawalService = class {
-  /**
-   * Get all withdrawals with joined user details and 4 summary KPI stats
-   */
-  static async listWithdrawals() {
-    const listRes = await query(`
-      SELECT w.*, 
-             u.name as user_name, 
-             u.email as user_email, 
-             u.phone as user_phone,
-             u.role as user_role
-      FROM core_withdrawals w
-      LEFT JOIN core_users u ON w.user_id = u.id
-      ORDER BY w.created_at DESC 
-      LIMIT 150
-    `);
-    const userWithdrawnRes = await query(`
-      SELECT COALESCE(SUM(COALESCE(w.net_amount, w.amount)), 0) as total 
-      FROM core_withdrawals w
-      LEFT JOIN core_users u ON w.user_id = u.id
-      WHERE w.status IN ('COMPLETED', 'PARTIAL') 
-        AND (u.role IS NULL OR u.role NOT IN ('superadmin', 'admin'))
-    `).catch(() => ({ rows: [{ total: 0 }] }));
-    const adminWithdrawnRes = await query(`
-      SELECT COALESCE(SUM(COALESCE(w.net_amount, w.amount)), 0) as total 
-      FROM core_withdrawals w
-      LEFT JOIN core_users u ON w.user_id = u.id
-      WHERE w.status IN ('COMPLETED', 'PARTIAL') 
-        AND u.role IN ('superadmin', 'admin')
-    `).catch(() => ({ rows: [{ total: 0 }] }));
-    const userBalancesRes = await query(`
-      SELECT COALESCE(SUM(balance), 0) as total 
-      FROM core_wallets
-    `).catch(() => ({ rows: [{ total: 0 }] }));
-    const userEarningsRes = await query(`
-      SELECT COALESCE(SUM(total_earnings), 0) as total 
-      FROM core_wallets
-    `).catch(() => ({ rows: [{ total: 0 }] }));
-    let flwBal = 0;
-    let flwCurrency = "RWF";
-    try {
-      const flwRes = await callFlutterwaveApi("/v3/balances");
-      if (flwRes?.data && Array.isArray(flwRes.data)) {
-        const rwfItem = flwRes.data.find((b6) => b6.currency === "RWF") || flwRes.data[0];
-        if (rwfItem) {
-          flwBal = Number(rwfItem.available_balance || rwfItem.ledger_balance || 0);
-          flwCurrency = rwfItem.currency || "RWF";
-        }
-      }
-    } catch {
-    }
-    const feeStr = await getSystemSetting("withdrawal_fee_percent", "3");
-    const defaultFeePercent = parseFloat(feeStr || "3") || 3;
-    const autoEnabledStr = await getSystemSetting("auto_withdraw_enabled", "true");
-    const autoWithdrawMaxAmount = parseFloat(await getSystemSetting("auto_withdraw_max_amount", "50000") || "50000") || 5e4;
-    const autoWithdrawBuffer = parseFloat(await getSystemSetting("auto_withdraw_buffer", "1000") || "1000") || 1e3;
-    return {
-      withdrawals: listRes.rows,
-      kpi: {
-        totalUserWithdrawn: Number(userWithdrawnRes.rows[0]?.total || 0),
-        totalAdminWithdrawn: Number(adminWithdrawnRes.rows[0]?.total || 0),
-        totalUserBalances: Number(userBalancesRes.rows[0]?.total || 0),
-        totalUserEarnings: Number(userEarningsRes.rows[0]?.total || 0),
-        flutterwaveBalance: flwBal,
-        flutterwaveCurrency: flwCurrency
-      },
-      settings: {
-        defaultFeePercent,
-        autoWithdrawEnabled: autoEnabledStr === "true",
-        autoWithdrawMaxAmount,
-        autoWithdrawBuffer
-      }
-    };
-  }
-  /**
-   * Approve a withdrawal (Full or Partial) with fee deduction and optional direct Flutterwave transfer
-   */
-  static async approveWithdrawal(id, approvedAmount, feePercent, sendViaFlutterwave = true, note) {
-    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
-    if (wRes.rowCount === 0) throw new Error("Withdrawal request not found.");
-    const w = wRes.rows[0];
-    if (w.status === "COMPLETED") throw new Error("Withdrawal is already completed.");
-    const reqAmount = Number(w.amount);
-    const appAmount = Math.min(reqAmount, Math.max(1, Number(approvedAmount)));
-    const feeRate = Math.max(0, Math.min(50, Number(feePercent) || 0));
-    const feeDeducted = Math.round(appAmount * (feeRate / 100));
-    const netAmount = Math.max(0, appAmount - feeDeducted);
-    const unapprovedRemainder = Math.max(0, reqAmount - appAmount);
-    const isPartial = unapprovedRemainder > 0;
-    let flwTransferRef = "";
-    let flwStatus = "manual";
-    if (sendViaFlutterwave && netAmount > 0) {
-      let accDetails = {};
-      try {
-        accDetails = typeof w.account_details === "string" ? JSON.parse(w.account_details) : w.account_details || {};
-      } catch {
-        if (typeof w.account_details === "string") {
-          accDetails = { phone: w.account_details };
-        }
-      }
-      let recipientNumber = String(accDetails.accountNumber || accDetails.phone || accDetails.number || "").trim();
-      if (!recipientNumber) {
-        throw new Error("Recipient account number/phone is missing in withdrawal details.");
-      }
-      const digitsOnly = recipientNumber.replace(/\D/g, "");
-      let formattedPhone = recipientNumber;
-      if (digitsOnly.startsWith("07") && digitsOnly.length === 10) {
-        formattedPhone = "250" + digitsOnly.slice(1);
-      } else if (digitsOnly.startsWith("2507") && digitsOnly.length === 12) {
-        formattedPhone = digitsOnly;
-      } else if (digitsOnly.length === 9 && digitsOnly.startsWith("7")) {
-        formattedPhone = "250" + digitsOnly;
-      }
-      try {
-        const balRes = await callFlutterwaveApi("/v3/balances");
-        if (balRes?.data && Array.isArray(balRes.data)) {
-          const rwfItem = balRes.data.find((b6) => b6.currency === "RWF") || balRes.data[0];
-          const available = rwfItem ? Number(rwfItem.available_balance || 0) : 0;
-          const totalNeeded = netAmount + 500;
-          if (available < totalNeeded) {
-            throw new Error(`Flutterwave account needs topup to approve this withdrawal. (Available: ${available.toLocaleString()} RWF, Needed: ${totalNeeded.toLocaleString()} RWF with transfer fee)`);
-          }
-        }
-      } catch (balErr) {
-        if (balErr.message.includes("Flutterwave account needs topup")) throw balErr;
-      }
-      const transferPayload = {
-        account_bank: "MPS",
-        account_number: formattedPhone,
-        amount: netAmount,
-        narration: `BenixSpace Withdrawal #${id}`,
-        currency: "RWF",
-        reference: `flw_tx_${id}_${Date.now()}`,
-        debit_currency: "RWF",
-        meta: [
-          {
-            beneficiary_country: "RW",
-            account_number: formattedPhone,
-            bank_name: "Mobile Money",
-            routing_number: "MPS",
-            sender: "BenixSpace",
-            sender_country: "RW"
-          }
-        ]
-      };
-      const flwResult = await callFlutterwaveApi("/v3/transfers", "POST", transferPayload);
-      if (flwResult?.status !== "success") {
-        const errMsg = flwResult?.message || "";
-        if (errMsg.toLowerCase().includes("ip whitelisting") || errMsg.toLowerCase().includes("whitelisting")) {
-          throw new Error('Flutterwave Transfer Blocked: IP Whitelisting is required by Flutterwave. Add server IP in Flutterwave Dashboard -> Settings -> Whitelisted IPs, or uncheck "Send via Flutterwave" to record manual payout.');
-        }
-        if (errMsg.toLowerCase().includes("insufficient") || errMsg.toLowerCase().includes("balance") || errMsg.toLowerCase().includes("funds")) {
-          throw new Error("Flutterwave account needs topup to approve this withdrawal. Live RWF balance is insufficient to cover amount and transfer fee.");
-        }
-        throw new Error(flwResult?.message || "Flutterwave transfer failed. Please verify credentials or top up.");
-      }
-      flwTransferRef = String(flwResult?.data?.id || flwResult?.data?.reference || "");
-      flwStatus = flwResult?.data?.status || "SUCCESSFUL";
-    }
-    await query(
-      `UPDATE core_withdrawals 
-       SET status = $1,
-           fee_percent = $2,
-           fee_deducted = $3,
-           net_amount = $4,
-           is_partial = $5,
-           flutterwave_ref = $6,
-           flutterwave_status = $7,
-           admin_note = $8,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9`,
-      [
-        isPartial ? "PARTIAL" : "COMPLETED",
-        feeRate,
-        feeDeducted,
-        netAmount,
-        isPartial,
-        flwTransferRef,
-        flwStatus,
-        note || (isPartial ? "Partial withdrawal approved" : "Approved by administrator"),
-        id
-      ]
-    );
-    await query(
-      `UPDATE core_wallets 
-       SET pending_balance = GREATEST(0, pending_balance - $1),
-           total_withdrawn = total_withdrawn + $2,
-           balance = balance + $3,
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE user_id = $4`,
-      [reqAmount, appAmount, unapprovedRemainder, w.user_id]
-    );
-    await query(
-      `INSERT INTO core_wallet_transactions 
-       (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
-       VALUES ($1, $2, $3, 'wallet', 'withdrawal_approved', $4, $5, 'RWF', 'completed', $6, $7)`,
-      [
-        "cwt-" + crypto10.randomUUID(),
-        w.wallet_id || "wallet-" + w.user_id,
-        w.user_id,
-        -netAmount,
-        feeDeducted,
-        flwTransferRef || `wd_payout_${id}`,
-        `Withdrawal Payout via ${w.payout_method} (Approved: ${appAmount} RWF, Fee: ${feeDeducted} RWF, Received: ${netAmount} RWF)`
-      ]
-    );
-    if (unapprovedRemainder > 0) {
-      await query(
-        `INSERT INTO core_wallet_transactions 
-         (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
-         VALUES ($1, $2, $3, 'wallet', 'withdrawal_partial_refund', $4, 0.00, 'RWF', 'completed', $5, $6)`,
-        [
-          "cwt-" + crypto10.randomUUID(),
-          w.wallet_id || "wallet-" + w.user_id,
-          w.user_id,
-          unapprovedRemainder,
-          `ref_part_${id}`,
-          `Partial Withdrawal Refund (${unapprovedRemainder.toLocaleString()} RWF refunded back to balance)`
-        ]
-      );
-    }
-    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
-    if (uRes.rowCount > 0) {
-      const u = uRes.rows[0];
-      EmailService.sendEmail({
-        to: u.email,
-        subject: `Payout Confirmation: ${netAmount.toLocaleString()} RWF sent to your ${w.payout_method}`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
-            <h2 style="color: #10B981; margin-top: 0;">\u{1F389} Withdrawal Payout Successful!</h2>
-            <p>Hello ${u.name},</p>
-            <p>Your withdrawal request #${id} has been approved and processed.</p>
-            <div style="background: #161D2E; padding: 16px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
-              <p style="margin: 6px 0;"><strong>Requested Amount:</strong> ${reqAmount.toLocaleString()} RWF</p>
-              <p style="margin: 6px 0;"><strong>Approved Amount:</strong> ${appAmount.toLocaleString()} RWF ${isPartial ? '<span style="color: #38BDF8;">(Partial)</span>' : ""}</p>
-              <p style="margin: 6px 0; color: #F87171;"><strong>Platform Fee (${feeRate}%):</strong> -${feeDeducted.toLocaleString()} RWF</p>
-              <hr style="border: 0; border-top: 1px solid #334155; margin: 10px 0;" />
-              <p style="margin: 6px 0; font-size: 16px; color: #34D399;"><strong>Final Amount Received:</strong> ${netAmount.toLocaleString()} RWF</p>
-              ${unapprovedRemainder > 0 ? `<p style="margin: 6px 0; color: #60A5FA;"><strong>Refunded to Real Wallet:</strong> ${unapprovedRemainder.toLocaleString()} RWF</p>` : ""}
-              <p style="margin: 6px 0; font-size: 12px; color: #94A3B8;">Payout Method: ${w.payout_method} \u2022 BenixSpace</p>
-            </div>
-            <p style="font-size: 13px; color: #94A3B8;">Thank you for being part of the BenixSpace creator ecosystem!</p>
-          </div>
-        `
-      }).catch(() => {
-      });
-    }
-    return {
-      success: true,
-      id,
-      requestedAmount: reqAmount,
-      approvedAmount: appAmount,
-      feeDeducted,
-      netAmount,
-      refundedToUser: unapprovedRemainder,
-      isPartial,
-      flutterwaveRef: flwTransferRef
-    };
-  }
-  /**
-   * Reject a withdrawal: full amount is refunded back to user's real wallet balance
-   */
-  static async rejectWithdrawal(id, reason) {
-    const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [id]);
-    if (wRes.rowCount === 0) throw new Error("Withdrawal request not found.");
-    const w = wRes.rows[0];
-    if (w.status === "COMPLETED") throw new Error("Cannot reject an already completed withdrawal.");
-    const refundAmount = Number(w.amount);
-    await query(
-      "UPDATE core_withdrawals SET status = 'REJECTED', admin_note = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [reason || "Rejected by administrator", id]
-    );
-    await query(
-      `UPDATE core_wallets 
-       SET balance = balance + $1, 
-           pending_balance = GREATEST(0, pending_balance - $1),
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE user_id = $2`,
-      [refundAmount, w.user_id]
-    );
-    await query(
-      `INSERT INTO core_wallet_transactions 
-       (id, wallet_id, user_id, module, type, amount, fee, currency, status, reference, description)
-       VALUES ($1, $2, $3, 'wallet', 'withdrawal_refund', $4, 0.00, 'RWF', 'completed', $5, $6)`,
-      [
-        "cwt-" + crypto10.randomUUID(),
-        w.wallet_id || "wallet-" + w.user_id,
-        w.user_id,
-        refundAmount,
-        `tx_rej_${id}`,
-        `Withdrawal Rejected & Refunded: ${reason || "Administrator review"}`
-      ]
-    );
-    const uRes = await query("SELECT email, name FROM core_users WHERE id = $1", [w.user_id]);
-    if (uRes.rowCount > 0) {
-      const u = uRes.rows[0];
-      EmailService.sendEmail({
-        to: u.email,
-        subject: `Update on Withdrawal Request #${id} - Refunded to Wallet`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
-            <h2 style="color: #F87171; margin-top: 0;">Withdrawal Request Update</h2>
-            <p>Hello ${u.name},</p>
-            <p>Your withdrawal request for <strong>${refundAmount.toLocaleString()} RWF</strong> has been rejected by our compliance team.</p>
-            <div style="background: #161D2E; padding: 14px; border-radius: 12px; margin: 16px 0; border: 1px solid #334155;">
-              <p style="margin: 0;"><strong>Reason:</strong> ${reason || "Details could not be verified"}</p>
-            </div>
-            <p style="color: #34D399;"><strong>\u2705 The full amount of ${refundAmount.toLocaleString()} RWF has been returned to your wallet balance.</strong></p>
-            <p style="font-size: 13px; color: #94A3B8;">Please verify your phone number, account name, and payout method before re-submitting.</p>
-          </div>
-        `
-      }).catch(() => {
-      });
-    }
-    return {
-      success: true,
-      message: `Withdrawal #${id} rejected and ${refundAmount.toLocaleString()} RWF refunded back to user wallet.`
-    };
-  }
-  static async saveFeePercent(percent) {
-    const val = Math.max(0, Math.min(50, Number(percent) || 0));
-    await setSystemSetting("withdrawal_fee_percent", String(val));
-  }
-  /**
-   * Get auto-withdrawal settings & live Flutterwave balance
-   */
-  static async getAutoWithdrawSettings() {
-    const feeStr = await getSystemSetting("withdrawal_fee_percent", "3");
-    const autoEnabledStr = await getSystemSetting("auto_withdraw_enabled", "true");
-    const maxAmountStr = await getSystemSetting("auto_withdraw_max_amount", "50000");
-    const bufferStr = await getSystemSetting("auto_withdraw_buffer", "1000");
-    let flwBal = 0;
-    let flwCurrency = "RWF";
-    try {
-      const flwRes = await callFlutterwaveApi("/v3/balances");
-      if (flwRes?.data && Array.isArray(flwRes.data)) {
-        const rwfItem = flwRes.data.find((b6) => b6.currency === "RWF") || flwRes.data[0];
-        if (rwfItem) {
-          flwBal = Number(rwfItem.available_balance || rwfItem.ledger_balance || 0);
-          flwCurrency = rwfItem.currency || "RWF";
-        }
-      }
-    } catch {
-    }
-    return {
-      autoWithdrawEnabled: autoEnabledStr === "true",
-      autoWithdrawMaxAmount: parseFloat(maxAmountStr || "50000") || 5e4,
-      autoWithdrawBuffer: parseFloat(bufferStr || "1000") || 1e3,
-      defaultFeePercent: parseFloat(feeStr || "3") || 3,
-      flutterwaveBalance: flwBal,
-      flutterwaveCurrency: flwCurrency
-    };
-  }
-  /**
-   * Save auto-withdrawal and fee settings
-   */
-  static async saveWithdrawalSettings(settings) {
-    if (settings.feePercent !== void 0) {
-      await setSystemSetting("withdrawal_fee_percent", String(Math.max(0, Math.min(50, Number(settings.feePercent)))));
-    }
-    if (settings.autoWithdrawEnabled !== void 0) {
-      await setSystemSetting("auto_withdraw_enabled", settings.autoWithdrawEnabled ? "true" : "false");
-    }
-    if (settings.autoWithdrawMaxAmount !== void 0) {
-      await setSystemSetting("auto_withdraw_max_amount", String(Math.max(100, Number(settings.autoWithdrawMaxAmount))));
-    }
-    if (settings.autoWithdrawBuffer !== void 0) {
-      await setSystemSetting("auto_withdraw_buffer", String(Math.max(0, Number(settings.autoWithdrawBuffer))));
-    }
-  }
-  /**
-   * Attempt auto-withdrawal for a single withdrawal request if balance is sufficient
-   */
-  static async tryAutoWithdraw(withdrawalId) {
-    try {
-      const settings = await this.getAutoWithdrawSettings();
-      if (!settings.autoWithdrawEnabled) {
-        return { autoApproved: false, reason: "Auto-withdrawal is disabled" };
-      }
-      const wRes = await query("SELECT * FROM core_withdrawals WHERE id = $1", [withdrawalId]);
-      if (wRes.rowCount === 0) return { autoApproved: false, reason: "Withdrawal not found" };
-      const w = wRes.rows[0];
-      if (w.status !== "PENDING") return { autoApproved: false, reason: `Withdrawal status is ${w.status}` };
-      const amount = Number(w.amount);
-      if (amount > settings.autoWithdrawMaxAmount) {
-        return {
-          autoApproved: false,
-          reason: `Amount (${amount.toLocaleString()} RWF) exceeds maximum auto-approval limit (${settings.autoWithdrawMaxAmount.toLocaleString()} RWF)`
-        };
-      }
-      const feeRate = settings.defaultFeePercent;
-      const feeDeducted = Math.round(amount * (feeRate / 100));
-      const netAmount = Math.max(0, amount - feeDeducted);
-      const totalNeeded = netAmount + 500 + settings.autoWithdrawBuffer;
-      if (settings.flutterwaveBalance < totalNeeded) {
-        return {
-          autoApproved: false,
-          reason: `Flutterwave balance (${settings.flutterwaveBalance.toLocaleString()} RWF) insufficient for auto-withdrawal (needed: ${totalNeeded.toLocaleString()} RWF)`
-        };
-      }
-      const approvalResult = await this.approveWithdrawal(
-        withdrawalId,
-        amount,
-        feeRate,
-        true,
-        "Auto-approved via Flutterwave Transfer"
-      );
-      return { autoApproved: true, details: approvalResult };
-    } catch (err) {
-      console.warn(`[AutoWithdraw] Failed to auto-withdraw #${withdrawalId}:`, err.message);
-      return { autoApproved: false, reason: err.message };
-    }
-  }
-  /**
-   * Process all pending withdrawals eligible for auto-approval against live balance
-   */
-  static async processBatchAutoWithdrawals() {
-    const pendingRes = await query(
-      "SELECT id, amount, payout_method FROM core_withdrawals WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT 20"
-    );
-    let processed = 0;
-    let failed = 0;
-    const results = [];
-    for (const w of pendingRes.rows) {
-      const res = await this.tryAutoWithdraw(w.id);
-      results.push({ id: w.id, amount: w.amount, ...res });
-      if (res.autoApproved) {
-        processed++;
-      } else {
-        failed++;
-      }
-    }
-    return { processed, failed, results };
-  }
-};
-
-// src/server/services/smmService.ts
-import http2 from "http";
-import https4 from "https";
-async function getSystemSetting2(key, defaultValue) {
-  const res = await query("SELECT value FROM system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
-  if (res.rowCount > 0 && res.rows[0].value !== null && res.rows[0].value !== void 0 && String(res.rows[0].value).trim() !== "") {
-    return String(res.rows[0].value);
-  }
-  const coreRes = await query("SELECT value FROM core_system_settings WHERE key = $1", [key]).catch(() => ({ rowCount: 0, rows: [] }));
-  if (coreRes.rowCount > 0 && coreRes.rows[0].value !== null && coreRes.rows[0].value !== void 0 && String(coreRes.rows[0].value).trim() !== "") {
-    return String(coreRes.rows[0].value);
-  }
-  return defaultValue !== void 0 ? defaultValue : null;
-}
-async function setSystemSetting2(key, value) {
   await query(
     `INSERT INTO system_settings (key, value, updated_at)
      VALUES ($1, $2, NOW())
@@ -104369,7 +103838,7 @@ var SmmService = class {
     }
     try {
       const liveRate = await new Promise((resolve3, reject) => {
-        https4.get("https://open.er-api.com/v6/latest/USD", (res) => {
+        https3.get("https://open.er-api.com/v6/latest/USD", (res) => {
           let data = "";
           res.on("data", (c5) => data += c5);
           res.on("end", () => {
@@ -104388,11 +103857,11 @@ var SmmService = class {
         }).on("error", reject);
       });
       cachedRate = { rate: liveRate, timestamp: Date.now() };
-      await setSystemSetting2("rwf_per_usd", String(liveRate));
+      await setSystemSetting("rwf_per_usd", String(liveRate));
       return liveRate;
     } catch (err) {
       console.warn("Live exchange rate API failed, checking stored fallback:", err.message);
-      const dbRateStr = await getSystemSetting2("rwf_per_usd", "1480");
+      const dbRateStr = await getSystemSetting("rwf_per_usd", "1480");
       const fallback2 = parseFloat(dbRateStr || "1480") || 1480;
       cachedRate = { rate: fallback2, timestamp: Date.now() };
       return fallback2;
@@ -104456,8 +103925,8 @@ var SmmService = class {
     }
   }
   static async callApi(action, extraParams = {}) {
-    const apiKey = await getSystemSetting2("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
-    const apiUrl = await getSystemSetting2("smm_api_url") || "https://smmfollows.com/api/v2";
+    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
     const params = new URLSearchParams({
       key: apiKey.trim(),
       action: action.trim(),
@@ -104470,7 +103939,7 @@ var SmmService = class {
       try {
         const urlObj = new URL(apiUrl);
         const isHttps2 = urlObj.protocol === "https:";
-        const client = isHttps2 ? https4 : http2;
+        const client = isHttps2 ? https3 : http2;
         const req = client.request(
           {
             hostname: urlObj.hostname,
@@ -104619,7 +104088,7 @@ var SmmService = class {
         error: services2?.error ? `SMM Provider response: ${services2.error}` : "Unable to sync live services. Initial services catalog active."
       };
     }
-    const defaultMarkup = Number(await getSystemSetting2("smm_default_markup_percent", "30")) || 30;
+    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
     const rwfRate = await this.getLiveExchangeRate();
     let syncedCount = 0;
     for (const s2 of services2) {
@@ -104694,16 +104163,16 @@ var SmmService = class {
     return res?.rows[0];
   }
   static async getSettings() {
-    const apiKey = await getSystemSetting2("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
-    const apiUrl = await getSystemSetting2("smm_api_url") || "https://smmfollows.com/api/v2";
-    const defaultMarkup = Number(await getSystemSetting2("smm_default_markup_percent", "30")) || 30;
+    const apiKey = await getSystemSetting("smm_api_key") || "4eb27fc1b22e70e9f168bc6391d4e7ef";
+    const apiUrl = await getSystemSetting("smm_api_url") || "https://smmfollows.com/api/v2";
+    const defaultMarkup = Number(await getSystemSetting("smm_default_markup_percent", "30")) || 30;
     const rwfPerUsd = await this.getLiveExchangeRate();
     return { apiKey, apiUrl, defaultMarkup, rwfPerUsd };
   }
   static async saveSettings(apiKey, defaultMarkup, rwfPerUsd) {
-    if (apiKey !== void 0) await setSystemSetting2("smm_api_key", String(apiKey).trim());
-    if (defaultMarkup !== void 0) await setSystemSetting2("smm_default_markup_percent", String(defaultMarkup));
-    if (rwfPerUsd !== void 0) await setSystemSetting2("rwf_per_usd", String(rwfPerUsd));
+    if (apiKey !== void 0) await setSystemSetting("smm_api_key", String(apiKey).trim());
+    if (defaultMarkup !== void 0) await setSystemSetting("smm_default_markup_percent", String(defaultMarkup));
+    if (rwfPerUsd !== void 0) await setSystemSetting("rwf_per_usd", String(rwfPerUsd));
   }
   static async placeOrder(userId, serviceId, link, quantity) {
     await this.ensureTables();
@@ -104888,7 +104357,7 @@ var SmmService = class {
 };
 
 // src/server/services/referralService.ts
-import crypto11 from "crypto";
+import crypto10 from "crypto";
 var ReferralService = class {
   /**
    * Generates or fetches unique referral code for a user
@@ -104898,7 +104367,7 @@ var ReferralService = class {
     if (res.rowCount > 0 && res.rows[0].referral_code) {
       return res.rows[0].referral_code;
     }
-    const code = "REF-" + crypto11.randomBytes(3).toString("hex").toUpperCase();
+    const code = "REF-" + crypto10.randomBytes(3).toString("hex").toUpperCase();
     await query("UPDATE core_users SET referral_code = $1 WHERE id = $2", [code, userId]);
     return code;
   }
@@ -104925,7 +104394,7 @@ var ReferralService = class {
     } catch (e5) {
       console.warn("Referral credit error:", e5);
     }
-    const refRecordId = "ref-" + crypto11.randomUUID();
+    const refRecordId = "ref-" + crypto10.randomUUID();
     await query(
       `INSERT INTO core_referrals (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
        VALUES ($1, $2, $3, 'registration', $4, 'approved', CURRENT_TIMESTAMP)`,
@@ -105010,7 +104479,7 @@ var ReferralService = class {
       `Affiliate Commission (${Math.round(commissionRate * 100)}%): Shared link sale for "${itemTitle}"`,
       `tx_aff_${Date.now()}_${itemId}`
     );
-    const refRecordId = "ref-sale-" + crypto11.randomUUID();
+    const refRecordId = "ref-sale-" + crypto10.randomUUID();
     await query(
       `INSERT INTO core_referrals 
        (id, referrer_id, referred_id, qualifying_action, reward_amount, status, credited_at)
@@ -105033,8 +104502,8 @@ var ReferralService = class {
 };
 
 // src/server/services/translationService.ts
-import crypto12 from "crypto";
-import https5 from "https";
+import crypto11 from "crypto";
+import https4 from "https";
 var DICTIONARY = {
   rw: {
     "Home": "Ahabanza",
@@ -105148,7 +104617,7 @@ var TranslationService = class {
     if (DICTIONARY[targetLang] && DICTIONARY[targetLang][trimmed]) {
       return DICTIONARY[targetLang][trimmed];
     }
-    const textHash = crypto12.createHash("md5").update(trimmed).digest("hex");
+    const textHash = crypto11.createHash("md5").update(trimmed).digest("hex");
     const cached = await query(
       "SELECT translated_text FROM core_translations_cache WHERE source_hash = $1 AND target_lang = $2",
       [textHash, targetLang]
@@ -105190,7 +104659,7 @@ var TranslationService = class {
     return new Promise((resolve3) => {
       const encoded = encodeURIComponent(text.substring(0, 500));
       const url2 = `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${from}|${to2}`;
-      const req = https5.get(url2, { timeout: 3e3 }, (res) => {
+      const req = https4.get(url2, { timeout: 3e3 }, (res) => {
         let data = "";
         res.on("data", (chunk) => data += chunk);
         res.on("end", () => {
@@ -105215,7 +104684,7 @@ var TranslationService = class {
 // src/server/services/storageService.ts
 var import_client_s3 = __toESM(require_dist_cjs16(), 1);
 var import_s3_request_presigner = __toESM(require_dist_cjs17(), 1);
-import crypto13 from "crypto";
+import crypto12 from "crypto";
 import path3 from "path";
 var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
   "image/jpeg",
@@ -105271,7 +104740,7 @@ var StorageService = class {
     const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "") || "media";
     const rawExt = path3.extname(fileName || "").toLowerCase();
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, "") || (cleanMime.startsWith("image/") ? ".jpg" : ".bin");
-    const randomHex = crypto13.randomBytes(8).toString("hex");
+    const randomHex = crypto12.randomBytes(8).toString("hex");
     const uniqueKey = `${safeFolder}/${Date.now()}_${randomHex}${safeExt}`;
     const command5 = new import_client_s3.PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -105296,7 +104765,7 @@ var StorageService = class {
     const safeFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "") || "media";
     const rawExt = path3.extname(fileName || "").toLowerCase();
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, "") || ".bin";
-    const randomHex = crypto13.randomBytes(8).toString("hex");
+    const randomHex = crypto12.randomBytes(8).toString("hex");
     const uniqueKey = `${safeFolder}/${Date.now()}_${randomHex}${safeExt}`;
     const command5 = new import_client_s3.PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -107542,11 +107011,11 @@ var realVideos_default = [
 
 // src/server/routes/cloudRoutes.ts
 var import_express = __toESM(require_express2(), 1);
-import crypto16 from "crypto";
+import crypto15 from "crypto";
 import dns3 from "dns/promises";
 
 // src/server/services/cloud/cloudBillingService.ts
-import crypto14 from "crypto";
+import crypto13 from "crypto";
 var CloudBillingService = class {
   /**
    * Get active subscription and quotas for a customer
@@ -107607,7 +107076,7 @@ var CloudBillingService = class {
     }
     const trialPlan = planRes.rows[0];
     const trialDays = trialPlan.trial_duration_days || 60;
-    const subId = "csub-" + crypto14.randomUUID();
+    const subId = "csub-" + crypto13.randomUUID();
     const now = /* @__PURE__ */ new Date();
     const periodEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1e3);
     return await withTransaction(async (client) => {
@@ -107769,7 +107238,7 @@ var CloudBillingService = class {
       const baseMs = Math.max(now.getTime(), prevEnd);
       periodEndMs = baseMs + preview.durationDays * 24 * 60 * 60 * 1e3;
     }
-    const subId = "csub-" + crypto14.randomUUID();
+    const subId = "csub-" + crypto13.randomUUID();
     const periodEnd = new Date(periodEndMs);
     const sub = await withTransaction(async (client) => {
       await client.query("UPDATE cloud_subscriptions SET status = 'cancelled' WHERE user_id = $1", [userId]);
@@ -109347,7 +108816,7 @@ var transitional_default = {
 };
 
 // node_modules/axios/lib/platform/node/index.js
-import crypto15 from "crypto";
+import crypto14 from "crypto";
 
 // node_modules/axios/lib/platform/node/classes/URLSearchParams.js
 import url from "url";
@@ -109365,7 +108834,7 @@ var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
   let str = "";
   const { length } = alphabet;
   const randomValues = new Uint32Array(size);
-  crypto15.randomFillSync(randomValues);
+  crypto14.randomFillSync(randomValues);
   for (let i5 = 0; i5 < size; i5++) {
     str += alphabet[randomValues[i5] % length];
   }
@@ -109824,7 +109293,7 @@ function getEnv(key) {
 var import_https_proxy_agent = __toESM(require_dist5(), 1);
 var import_follow_redirects = __toESM(require_follow_redirects(), 1);
 import http3 from "http";
-import https6 from "https";
+import https5 from "https";
 import http23 from "http2";
 import util5 from "util";
 import { resolve as resolvePath } from "path";
@@ -110840,7 +110309,7 @@ function isNodeEnvProxyEnabled(agent, nodeVersion = process.versions && process.
   );
 }
 function getProxyEnvAgent(options, configHttpAgent, configHttpsAgent) {
-  return isHttps.test(options.protocol) ? configHttpsAgent || https6.globalAgent : configHttpAgent || http3.globalAgent;
+  return isHttps.test(options.protocol) ? configHttpsAgent || https5.globalAgent : configHttpAgent || http3.globalAgent;
 }
 function getTunnelingAgent(agentOptions, userHttpsAgent) {
   const key = agentOptions.protocol + "//" + agentOptions.hostname + ":" + (agentOptions.port || "") + "#" + (agentOptions.auth || "");
@@ -111477,7 +110946,7 @@ var http_default = isHttpAdapterSupported && function httpAdapter(config) {
       if (configTransport) {
         transport = configTransport;
       } else if (maxRedirects === 0) {
-        transport = isHttpsRequest ? https6 : http3;
+        transport = isHttpsRequest ? https5 : http3;
         isNativeTransport = true;
       } else {
         transportEnforcesMaxBodyLength = true;
@@ -114302,7 +113771,7 @@ cloudRouter.post("/projects", authenticateToken, async (req, res) => {
     const userId = req.user?.id;
     const { name: name2, description } = req.body;
     if (!name2) return res.status(400).json({ error: "Project name is required" });
-    const id = "cproj-" + crypto16.randomUUID();
+    const id = "cproj-" + crypto15.randomUUID();
     const slug = name2.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Math.random().toString(36).substring(2, 6);
     const result = await query(
       `INSERT INTO cloud_projects (id, user_id, name, slug, description)
@@ -114572,7 +114041,7 @@ cloudRouter.post("/deployments/:id/sync-webhook", authenticateToken, async (req,
       return res.status(400).json({ error: "Please connect your GitHub account first in the dashboard to install auto-sync webhooks." });
     }
     const token = ghRes.rows[0].access_token;
-    const secret = dep.webhook_secret || crypto16.randomBytes(16).toString("hex");
+    const secret = dep.webhook_secret || crypto15.randomBytes(16).toString("hex");
     const hookResult = await installGithubWebhookOnRepo(token, owner, repo, dep.id, secret);
     if (!hookResult.success) {
       return res.status(400).json({ error: hookResult.error || "Failed to install webhook on GitHub" });
@@ -114637,11 +114106,13 @@ cloudRouter.post("/deployments/:id/manual-sync", authenticateToken, async (req, 
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const newLogs = `${dep.last_logs || ""}
 [${now}] \u{1F504} [Manual Sync] Pulled latest commit #${commitHash} ("${commitMessage}") from ${owner}/${repo} (${branch}) by ${commitAuthor}. Application updated and live!`;
+    const safeName = (dep.name || "").toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const liveUrl = `https://benix.space/l/${safeName}`;
     await query(
       `UPDATE cloud_deployments
-       SET git_commit_hash = $1, last_logs = $2, last_deployed_at = CURRENT_TIMESTAMP, status = 'running', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [commitHash, newLogs, depId]
+       SET git_commit_hash = $1, last_logs = $2, last_deployed_at = CURRENT_TIMESTAMP, status = 'running', live_url = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [commitHash, newLogs, liveUrl, depId]
     );
     return res.json({
       success: true,
@@ -115635,15 +115106,18 @@ cloudRouter.post("/webhooks/github", async (req, res) => {
 [${now}] \u{1F433} Container rebuilt successfully for ${dep.name}.
 [${now}] \u{1F310} Edge proxy routing reloaded. Application live at ${dep.live_url}.
 [${now}] \u2705 Auto-deploy completed successfully. Status: RUNNING.`;
+      const safeName = (dep.name || "").toLowerCase().replace(/[^a-z0-9]/g, "-");
+      const liveUrl = `https://benix.space/l/${safeName}`;
       await query(
         `UPDATE cloud_deployments
          SET status = 'running',
              git_commit_hash = $1,
              last_deployed_at = CURRENT_TIMESTAMP,
              last_logs = $2,
+             live_url = $3,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3`,
-        [shortSha, updatedLogs, deploymentId]
+         WHERE id = $4`,
+        [shortSha, updatedLogs, liveUrl, deploymentId]
       );
       return res.json({
         success: true,
@@ -115702,11 +115176,11 @@ cloudRouter.post("/deployments", authenticateToken, async (req, res) => {
       internalPort: Number(internalPort),
       envVariables
     });
-    const deploymentId = "cdep-" + crypto16.randomUUID();
-    const webhookSecret = crypto16.randomBytes(16).toString("hex");
+    const deploymentId = "cdep-" + crypto15.randomUUID();
+    const webhookSecret = crypto15.randomBytes(16).toString("hex");
     const safeName = name2.toLowerCase().replace(/[^a-z0-9]/g, "-");
     const subdomain = `${safeName}.apps.benix.space`;
-    const directLiveUrl = `https://${safeName}.apps.benix.space`;
+    const directLiveUrl = `https://benix.space/l/${safeName}`;
     const envCount = Object.keys(envVariables || {}).length;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     let githubWebhookId = null;
@@ -115815,7 +115289,7 @@ cloudRouter.put("/deployments/:id/settings", authenticateToken, async (req, res)
     const updatedEnv = envVariables ? typeof envVariables === "string" ? envVariables : JSON.stringify(envVariables) : current.env_variables;
     const safeName = updatedName.toLowerCase().replace(/[^a-z0-9]/g, "-");
     const subdomain = `${safeName}.apps.benix.space`;
-    const liveUrl = `https://${safeName}.apps.benix.space`;
+    const liveUrl = `https://benix.space/l/${safeName}`;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const parsedEnv = typeof envVariables === "object" && envVariables ? envVariables : updatedEnv ? JSON.parse(updatedEnv) : {};
     const envCount = Object.keys(parsedEnv).length;
@@ -115887,11 +115361,13 @@ cloudRouter.post("/deployments/:id/redeploy", authenticateToken, async (req, res
         console.warn("[Coolify Redeploy Warning]:", coolifyErr.message);
       }
     }
+    const safeName = (dep.name || "").toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const liveUrl = `https://benix.space/l/${safeName}`;
     const result = await query(
       `UPDATE cloud_deployments
-       SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 RETURNING *`,
-      [updatedLogs, depId]
+       SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, live_url = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 RETURNING *`,
+      [updatedLogs, liveUrl, depId]
     );
     return res.json({ success: true, message: "\u{1F389} Application redeployed successfully!", deployment: result.rows[0] });
   } catch (err) {
@@ -115948,10 +115424,12 @@ cloudRouter.post("/deployments/:id/action", authenticateToken, async (req, res) 
     if (depRes.rowCount === 0) return res.status(404).json({ error: "Deployment not found" });
     const dep = depRes.rows[0];
     const now = (/* @__PURE__ */ new Date()).toISOString();
+    const safeName = (dep.name || "").toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const liveUrl = `https://benix.space/l/${safeName}`;
     if (action === "restart") {
       const logs = `${dep.last_logs || ""}
 [${now}] \u{1F504} Service restarted on port ${dep.internal_port}.`;
-      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1 WHERE id = $2", [logs, depId]);
+      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, live_url = $2 WHERE id = $3", [logs, liveUrl, depId]);
     } else if (action === "stop") {
       const logs = `${dep.last_logs || ""}
 [${now}] \u{1F6D1} Service stopped by user.`;
@@ -115959,7 +115437,7 @@ cloudRouter.post("/deployments/:id/action", authenticateToken, async (req, res) 
     } else if (action === "redeploy") {
       const logs = `${dep.last_logs || ""}
 [${now}] \u{1F504} Clean build and redeploy completed.`;
-      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1 WHERE id = $2", [logs, depId]);
+      await query("UPDATE cloud_deployments SET status = 'running', last_deployed_at = CURRENT_TIMESTAMP, last_logs = $1, live_url = $2 WHERE id = $3", [logs, liveUrl, depId]);
     }
     return res.json({ success: true, message: `Container action [${action}] executed successfully!` });
   } catch (err) {
@@ -116017,9 +115495,9 @@ cloudRouter.post("/databases", authenticateToken, async (req, res) => {
       }
     } catch {
     }
-    const generatedPassword = crypto16.randomBytes(8).toString("hex") + "A1!";
+    const generatedPassword = crypto15.randomBytes(8).toString("hex") + "A1!";
     const realConnUri = `postgresql://${realUser}:${generatedPassword}@${realHost}:${realPort}/${realDb}?options=-c%20search_path%3D${schemaName}&sslmode=require`;
-    const dbId = "cdb-" + crypto16.randomUUID();
+    const dbId = "cdb-" + crypto15.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_databases (
         id, project_id, user_id, server_id, name, engine, db_name, db_user,
@@ -116515,8 +115993,8 @@ cloudRouter.post("/domains", authenticateToken, async (req, res) => {
     if (!cleanDomain || !cleanDomain.includes(".")) {
       return res.status(400).json({ error: "Please enter a valid domain name (e.g. yoursite.com or app.yoursite.com)" });
     }
-    const verifyToken2 = "benix-verify-" + crypto16.randomBytes(8).toString("hex");
-    const domId = "cdom-" + crypto16.randomUUID();
+    const verifyToken2 = "benix-verify-" + crypto15.randomBytes(8).toString("hex");
+    const domId = "cdom-" + crypto15.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_domains (
         id, deployment_id, user_id, domain_name, verification_token, dns_verified, ssl_status
@@ -116624,7 +116102,7 @@ cloudRouter.delete("/domains/:id", authenticateToken, async (req, res) => {
       const depRes = await query("SELECT name FROM cloud_deployments WHERE id = $1", [depId]);
       if (depRes.rowCount > 0 && depRes.rows[0].name) {
         const safeName = depRes.rows[0].name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-        await query("UPDATE cloud_deployments SET live_url = $1, assigned_subdomain = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3", [`https://${safeName}.apps.benix.space`, `${safeName}.apps.benix.space`, depId]);
+        await query("UPDATE cloud_deployments SET live_url = $1, assigned_subdomain = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3", [`https://benix.space/l/${safeName}`, `${safeName}.apps.benix.space`, depId]);
       }
     }
     await query("DELETE FROM cloud_domains WHERE id = $1 AND user_id = $2", [domId, userId]);
@@ -116658,7 +116136,7 @@ cloudRouter.post("/wallet/manual-deposit", authenticateToken, async (req, res) =
     const userRes = await query("SELECT name, email FROM core_users WHERE id = $1", [userId]);
     const userName = userRes.rows[0]?.name || "BenixSpace User";
     const userEmail = userRes.rows[0]?.email || "";
-    const depositId = "dep-manual-" + crypto16.randomUUID();
+    const depositId = "dep-manual-" + crypto15.randomUUID();
     await query(
       `INSERT INTO wallet_manual_deposits (
         id, user_id, user_email, user_name, amount, currency, payment_method,
@@ -116683,7 +116161,7 @@ cloudRouter.post("/wallet/manual-deposit", authenticateToken, async (req, res) =
         `INSERT INTO core_notifications (id, user_id, type, title, message, link, is_read)
          VALUES ($1, 'admin', 'deposit_pending', $2, $3, '/admin#deposits', false)`,
         [
-          "notif-" + crypto16.randomUUID(),
+          "notif-" + crypto15.randomUUID(),
           "New MTN MoMo Deposit Pending Verification",
           `${userName} submitted ${numAmount.toLocaleString()} RWF (Ref: ${transactionReference}) for review.`
         ]
@@ -116752,7 +116230,7 @@ cloudRouter.post("/admin/deposits/:id/approve", authenticateToken, requireStaffR
         `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
          VALUES ($1, $2, 'deposit_approved', $3, $4, false)`,
         [
-          "notif-" + crypto16.randomUUID(),
+          "notif-" + crypto15.randomUUID(),
           deposit.user_id,
           "Deposit Approved! \u{1F389}",
           `Your deposit of ${amount.toLocaleString()} RWF has been verified and added to your wallet balance.`
@@ -116791,7 +116269,7 @@ cloudRouter.post("/admin/deposits/:id/reject", authenticateToken, requireStaffRo
         `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
          VALUES ($1, $2, 'deposit_rejected', $3, $4, false)`,
         [
-          "notif-" + crypto16.randomUUID(),
+          "notif-" + crypto15.randomUUID(),
           deposit.user_id,
           "Deposit Verification Notice",
           `Your deposit submission of ${Number(deposit.amount).toLocaleString()} RWF was rejected: ${reason}`
@@ -116832,7 +116310,7 @@ cloudRouter.post("/admin/servers", authenticateToken, requireStaffRole, async (r
     if (!name2 || !publicIp) {
       return res.status(400).json({ error: "Server name and public IP are required" });
     }
-    const serverId = "srv-" + crypto16.randomUUID();
+    const serverId = "srv-" + crypto15.randomUUID();
     const inserted = await query(
       `INSERT INTO cloud_servers (
         id, name, provider, public_ip, ssh_port, region, coolify_api_url,
@@ -117101,7 +116579,7 @@ app.use(async (req, res, next) => {
   }
   next();
 });
-app.use("/apps", async (req, res, next) => {
+app.use("/l", async (req, res, next) => {
   const parts = req.path.split("/").filter(Boolean);
   if (parts.length > 0) {
     const rawName = parts[0];
@@ -117137,6 +116615,10 @@ app.use("/apps", async (req, res, next) => {
     return res.redirect(302, redirectUrl);
   }
   next();
+});
+app.use("/apps", (req, res) => {
+  const targetPath = req.url.startsWith("/") ? req.url : `/${req.url}`;
+  return res.redirect(301, `/l${targetPath}`);
 });
 app.use(import_express2.default.json({ limit: "20mb" }));
 app.use(import_express2.default.urlencoded({ extended: true, limit: "20mb" }));
@@ -117183,8 +116665,6 @@ async function ensureSuperAdminUser() {
 ensureSuperAdminUser().catch((err) => console.warn("Superadmin auto-setup warning:", err.message));
 app.use("/api/cloud", cloudRouter);
 app.use("/api", cloudRouter);
-var verificationCodes = /* @__PURE__ */ new Map();
-var loginOtpCodes = /* @__PURE__ */ new Map();
 var initCoreNotificationsTable = async () => {
   try {
     await query(`
@@ -117208,2062 +116688,7 @@ var initCoreNotificationsTable = async () => {
   }
 };
 initCoreNotificationsTable();
-async function createNotification({
-  userId,
-  title,
-  message,
-  type = "activity",
-  recipientRole = "user",
-  actionUrl,
-  metadata
-}) {
-  try {
-    await query(
-      `INSERT INTO core_notifications (user_id, title, message, type, recipient_role, action_url, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        userId || null,
-        title,
-        message,
-        type,
-        recipientRole,
-        actionUrl || null,
-        metadata ? JSON.stringify(metadata) : null
-      ]
-    );
-  } catch (err) {
-    console.warn("Could not insert notification into core_notifications:", err?.message);
-  }
-}
-app.get("/api/auth/check-availability", async (req, res) => {
-  try {
-    const { email, phone } = req.query;
-    let emailAvailable = true;
-    let phoneAvailable = true;
-    if (email) {
-      const cleanEmail = String(email).trim().toLowerCase();
-      const existing = await query("SELECT id FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-      if (existing.rowCount > 0) {
-        emailAvailable = false;
-      }
-    }
-    if (phone) {
-      const cleanPhone = String(phone).trim().replace(/[^0-9]/g, "");
-      if (cleanPhone.length >= 8) {
-        const last8 = cleanPhone.slice(-8);
-        const existing = await query("SELECT id FROM core_users WHERE phone LIKE $1", [`%${last8}%`]);
-        if (existing.rowCount > 0) {
-          phoneAvailable = false;
-        }
-      }
-    }
-    return res.json({ emailAvailable, phoneAvailable });
-  } catch (err) {
-    return res.json({ emailAvailable: true, phoneAvailable: true });
-  }
-});
-app.post("/api/auth/send-verification", otpDispatchRateLimiter, async (req, res) => {
-  try {
-    const { email, name: name2 } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email is required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const existing = await query("SELECT id, is_verified FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-    if (existing.rowCount > 0 && existing.rows[0].is_verified) {
-      return res.status(400).json({ error: "An account with this email already exists and is verified. Please log in." });
-    }
-    const code = String(Math.floor(1e5 + Math.random() * 9e5));
-    verificationCodes.set(cleanEmail, {
-      code,
-      expiresAt: Date.now() + 15 * 60 * 1e3
-    });
-    await EmailService.sendEmail({
-      to: cleanEmail,
-      subject: `Benix.Space Verification Code: ${code}`,
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
-          <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
-          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name2 || "there"},</p>
-          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Thank you for registering on Benix.Space. Use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
-          </div>
-          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not create this account, you can safely ignore this email.</p>
-        </div>
-      `
-    }).catch((e5) => console.warn("Verification email dispatch warning:", e5?.message));
-    return res.json({ success: true, message: `Verification code sent to ${cleanEmail}` });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to dispatch verification email." });
-  }
-});
-app.post("/api/auth/send-login-otp", otpDispatchRateLimiter, async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email address is required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const isSuper = cleanEmail === "benirabok@gmail.com" || cleanEmail === "admin@benix.space";
-    let userRes = await query("SELECT id, name, email FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-    if (userRes.rowCount === 0 && !isSuper) {
-      return res.status(404).json({ error: "No account registered with this email. Please create an account first." });
-    }
-    const userName = userRes.rowCount > 0 ? userRes.rows[0].name : "Super Administrator";
-    const code = String(Math.floor(1e5 + Math.random() * 9e5));
-    loginOtpCodes.set(cleanEmail, {
-      code,
-      expiresAt: Date.now() + 10 * 60 * 1e3
-    });
-    await EmailService.sendEmail({
-      to: cleanEmail,
-      subject: `Your Benix.Space Login Code: ${code}`,
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
-          <h2 style="color: #10B981; font-size: 22px; margin-top: 0; font-weight: 800;">Passwordless Sign-In</h2>
-          <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${userName},</p>
-          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Enter this 6-digit login code to securely access your Benix.Space account without a password:</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #059669, #10B981); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);">${code}</div>
-          </div>
-          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code valid for 10 minutes. If you did not request this login code, no action is required.</p>
-        </div>
-      `
-    }).catch((e5) => console.warn("Login OTP email dispatch warning:", e5?.message));
-    return res.json({ success: true, message: `Login code dispatched to ${cleanEmail}.` });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to dispatch login code." });
-  }
-});
-app.post("/api/auth/verify-login-otp", authRateLimiter, async (req, res) => {
-  try {
-    const { email, code } = req.body;
-    if (!email || !code) {
-      return res.status(400).json({ error: "Email and 6-digit login code are required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanCode = String(code).trim();
-    const stored = loginOtpCodes.get(cleanEmail);
-    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
-    if (!isValid) {
-      return res.status(401).json({ error: "Invalid or expired login code. Please check your inbox or request a new one." });
-    }
-    loginOtpCodes.delete(cleanEmail);
-    const isSuper = cleanEmail === (process.env.SUPERADMIN_EMAIL || "benirange@gmail.com").toLowerCase();
-    if (isSuper) {
-      const token2 = generateToken({ id: "user-superadmin-benir", email: cleanEmail, role: "superadmin" });
-      return res.json({
-        token: token2,
-        user: {
-          id: "user-superadmin-benir",
-          email: cleanEmail,
-          name: "Benir Benjamin (Super Admin)",
-          role: "superadmin",
-          referral_code: "BENIX-SUPERADMIN",
-          selected_modules: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
-          app_profiles: {
-            kunda: { completed: true },
-            dating: { completed: true },
-            voxify: { completed: true },
-            music: { completed: true },
-            marketplace: { completed: true },
-            tv: { completed: true },
-            videos: { completed: true },
-            radio: { completed: true },
-            games: { completed: true },
-            calc: { completed: true }
-          }
-        },
-        wallet: { balance: 1e5, currency: "RWF" }
-      });
-    }
-    const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-    if (userRes.rowCount === 0) {
-      return res.status(404).json({ error: "User account not found." });
-    }
-    const user = userRes.rows[0];
-    let wallet = { balance: 100, currency: "RWF" };
-    try {
-      wallet = await WalletService.getOrCreateWallet(user.id);
-    } catch (wErr) {
-      console.warn("Could not load wallet from DB, using fallback:", wErr?.message);
-    }
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        phone: user.phone,
-        avatar_url: user.avatar_url || null,
-        channel_name: user.channel_name || null,
-        is_verified: user.is_verified ?? false,
-        preferred_language: user.preferred_language,
-        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
-        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
-        referral_code: user.referral_code,
-        chat_privacy_mode: user.chat_privacy_mode || "public",
-        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
-      },
-      wallet: {
-        balance: Number(wallet.balance || 100),
-        currency: wallet.currency || "RWF"
-      }
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "OTP verification failed." });
-  }
-});
-app.post("/api/auth/verify-account", authRateLimiter, async (req, res) => {
-  try {
-    const { email, code } = req.body;
-    if (!email || !code) {
-      return res.status(400).json({ error: "Email and 6-digit verification code are required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanCode = String(code).trim();
-    const stored = verificationCodes.get(cleanEmail);
-    const isValid = Boolean(stored && stored.code === cleanCode && Date.now() < stored.expiresAt);
-    if (!isValid) {
-      return res.status(400).json({ error: "Invalid or expired verification code. Please check your inbox or request a new code." });
-    }
-    verificationCodes.delete(cleanEmail);
-    await query("UPDATE core_users SET is_verified = TRUE WHERE LOWER(email) = $1", [cleanEmail]);
-    const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-    if (userRes.rowCount === 0) {
-      return res.status(404).json({ error: "User account not found." });
-    }
-    const user = userRes.rows[0];
-    let wallet = { balance: 0, bonus_balance: 100, currency: "RWF" };
-    try {
-      wallet = await WalletService.getOrCreateWallet(user.id);
-    } catch (wErr) {
-      console.warn("Could not load wallet from DB:", wErr?.message);
-    }
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        phone: user.phone,
-        avatar_url: user.avatar_url || null,
-        channel_name: user.channel_name || null,
-        is_verified: user.is_verified ?? false,
-        preferred_language: user.preferred_language,
-        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
-        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
-        referral_code: user.referral_code,
-        chat_privacy_mode: user.chat_privacy_mode || "public",
-        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
-      },
-      wallet: {
-        balance: Number(wallet.balance || 0),
-        bonus_balance: Number(wallet.bonus_balance || 100),
-        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 100),
-        currency: wallet.currency || "RWF"
-      },
-      message: "Account verified successfully! Welcome to Benix.Space."
-    });
-  } catch (err) {
-    console.error("Verify account error:", err);
-    return res.status(500).json({ error: err.message || "Verification failed." });
-  }
-});
-app.post("/api/auth/resend-verification", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email is required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const code = String(Math.floor(1e5 + Math.random() * 9e5));
-    verificationCodes.set(cleanEmail, {
-      code,
-      expiresAt: Date.now() + 15 * 60 * 1e3
-    });
-    await EmailService.sendEmail({
-      to: cleanEmail,
-      subject: `Benix.Space Verification Code: ${code}`,
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
-          <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
-          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Your new 6-digit verification code is:</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
-          </div>
-          <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code expires in 15 minutes.</p>
-        </div>
-      `
-    }).catch(() => {
-    });
-    return res.json({ success: true, message: `New verification code sent to ${cleanEmail}.` });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to resend code." });
-  }
-});
-app.post("/api/auth/register-wizard", authRateLimiter, async (req, res) => {
-  try {
-    const {
-      email,
-      password,
-      name: name2,
-      channel_name,
-      nickname,
-      phone,
-      country = "Rwanda",
-      phone_code = "+250",
-      verification_code,
-      selected_modules = ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
-      preferred_language = "en",
-      homepage_layout = { order: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"] },
-      referral_code
-    } = req.body;
-    if (!email || !password || !name2) {
-      return res.status(400).json({ error: "Email, password, and full name are required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanChannelName = String(channel_name || nickname || name2).trim().slice(0, 100);
-    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
-    });
-    const existing = await query("SELECT id, is_verified, name FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-    if (existing.rowCount > 0) {
-      const existingUser = existing.rows[0];
-      if (!existingUser.is_verified) {
-        const pwdHash2 = await hashPassword(password);
-        await query(
-          "UPDATE core_users SET password_hash = $1, name = $2, phone = $3, country = $4 WHERE id = $5",
-          [pwdHash2, name2.trim(), phone || null, country || "Rwanda", existingUser.id]
-        );
-        const code = String(Math.floor(1e5 + Math.random() * 9e5));
-        verificationCodes.set(cleanEmail, {
-          code,
-          expiresAt: Date.now() + 15 * 60 * 1e3,
-          data: { userId: existingUser.id }
-        });
-        EmailService.sendEmail({
-          to: cleanEmail,
-          subject: `Your Benix.Space Verification Code: ${code}`,
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
-              <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
-              <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name2.trim()},</p>
-              <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Please use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
-              <div style="text-align: center; margin: 32px 0;">
-                <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
-              </div>
-              <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes.</p>
-            </div>
-          `
-        }).catch((e5) => console.warn("Verification email dispatch warning:", e5?.message));
-        return res.json({
-          requires_verification: true,
-          email: cleanEmail,
-          name: name2.trim(),
-          message: "Account registered. Please enter the 6-digit verification code sent to your email to activate your account."
-        });
-      }
-      return res.status(400).json({ error: "An account with this email address already exists. Please log in." });
-    }
-    const pwdHash = await hashPassword(password);
-    const userId = "usr_" + crypto17.randomUUID();
-    const userReferralCode = "REF-" + crypto17.randomBytes(3).toString("hex").toUpperCase();
-    let isVerified = false;
-    if (verification_code) {
-      const stored = verificationCodes.get(cleanEmail);
-      if (stored && stored.code === String(verification_code).trim() && Date.now() < stored.expiresAt) {
-        isVerified = true;
-        verificationCodes.delete(cleanEmail);
-      }
-    }
-    const userRes = await query(
-      `INSERT INTO core_users (
-        id, email, password_hash, name, channel_name, phone, country, preferred_language,
-        selected_modules, homepage_layout, referral_code, is_verified
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING id, email, name, channel_name, role, phone, country, preferred_language, selected_modules, homepage_layout, referral_code, is_verified`,
-      [
-        userId,
-        cleanEmail,
-        pwdHash,
-        name2.trim(),
-        cleanChannelName,
-        phone || null,
-        country || "Rwanda",
-        preferred_language,
-        JSON.stringify(selected_modules),
-        JSON.stringify(homepage_layout),
-        userReferralCode,
-        isVerified
-      ]
-    );
-    const user = userRes.rows[0];
-    const wallet = await WalletService.getOrCreateWallet(user.id);
-    await WalletService.creditBonus(
-      user.id,
-      100,
-      "wallet",
-      "welcome_bonus",
-      "Benix.Space Welcome Bonus",
-      `tx_wb_${user.id}`
-    );
-    if (referral_code) {
-      await ReferralService.applyReferralCode(user.id, referral_code);
-    }
-    if (!isVerified) {
-      const code = String(Math.floor(1e5 + Math.random() * 9e5));
-      verificationCodes.set(cleanEmail, {
-        code,
-        expiresAt: Date.now() + 15 * 60 * 1e3,
-        data: { userId: user.id }
-      });
-      EmailService.sendEmail({
-        to: cleanEmail,
-        subject: `Your Benix.Space Verification Code: ${code}`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
-            <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
-            <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${name2.trim()},</p>
-            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Thank you for registering on Benix.Space. Use the 6-digit verification code below to activate your unified super-account and unlock your <strong>100 RWF welcome bonus</strong>:</p>
-            <div style="text-align: center; margin: 32px 0;">
-              <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
-            </div>
-            <p style="color: #64748B; font-size: 12px; margin-top: 24px;">This code will expire in 15 minutes. If you did not create this account, you can safely ignore this email.</p>
-          </div>
-        `
-      }).catch((e5) => console.warn("Verification email dispatch warning:", e5?.message));
-      return res.status(201).json({
-        requires_verification: true,
-        email: cleanEmail,
-        name: user.name,
-        message: "Account registered. Please enter the 6-digit verification code sent to your email to activate your account."
-      });
-    }
-    EmailService.sendEmail({
-      to: cleanEmail,
-      subject: "Welcome to Benix.Space Unified Platform!",
-      html: `<h2>Welcome to Benix.Space, ${name2}!</h2><p>Your unified super-account is ready. Your wallet has been credited with 100 RWF welcome bonus.</p>`
-    }).catch(() => {
-    });
-    createNotification({
-      recipientRole: "admin",
-      title: "\u{1F464} New User Registered",
-      message: `${name2} (${cleanEmail}) joined BenixSpace.`,
-      type: "user_registered",
-      actionUrl: "/admin/users",
-      metadata: { userId: user.id, email: user.email, name: user.name }
-    }).catch(() => {
-    });
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
-    return res.status(201).json({
-      token,
-      user,
-      wallet: { balance: 0, bonus_balance: 100, total_balance: 100, currency: "RWF" },
-      message: "Account registered successfully!"
-    });
-  } catch (err) {
-    console.error("Registration Wizard Error:", err);
-    return res.status(500).json({ error: err.message || "Registration failed." });
-  }
-});
-app.post("/api/auth/login", authRateLimiter, async (req, res) => {
-  try {
-    console.log("\u{1F535} [SERVER_LOGIN_ATTEMPT]:", { email: req.body?.email, hasBody: !!req.body });
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      console.warn("\u26A0\uFE0F [SERVER_LOGIN_MISSING_CREDENTIALS]:", { email: !!email, password: !!password });
-      return res.status(400).json({ error: "Email and password are required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    let user = null;
-    try {
-      const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-      if (userRes.rowCount > 0) {
-        user = userRes.rows[0];
-      }
-    } catch (dbErr) {
-      console.warn("Database lookup failed during login:", dbErr?.message);
-    }
-    if (!user) {
-      return res.status(401).json({ error: "Invalid email or password." });
-    }
-    const match = await comparePassword(password, user.password_hash || "");
-    if (!match) {
-      return res.status(401).json({ error: "Invalid email or password." });
-    }
-    if (user.is_verified === false) {
-      const code = String(Math.floor(1e5 + Math.random() * 9e5));
-      verificationCodes.set(cleanEmail, {
-        code,
-        expiresAt: Date.now() + 15 * 60 * 1e3,
-        data: { userId: user.id }
-      });
-      EmailService.sendEmail({
-        to: cleanEmail,
-        subject: `Benix.Space Verification Code: ${code}`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px; background: #0B0E14; color: #FFFFFF; border-radius: 20px; border: 1px solid #1E293B;">
-            <h2 style="color: #38BDF8; font-size: 22px; margin-top: 0; font-weight: 800;">Verify Your Benix.Space Account</h2>
-            <p style="color: #94A3B8; font-size: 14px; line-height: 1.6;">Hello ${user.name || "there"},</p>
-            <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">Your credentials are correct, but your account requires email verification. Use the 6-digit code below to activate your account and access all features:</p>
-            <div style="text-align: center; margin: 32px 0;">
-              <div style="display: inline-block; padding: 16px 36px; background: linear-gradient(135deg, #0284C7, #4F46E5); color: #ffffff; font-size: 32px; font-weight: 900; letter-spacing: 8px; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);">${code}</div>
-            </div>
-            <p style="color: #64748B; font-size: 12px; margin-top: 24px;">Code valid for 15 minutes.</p>
-          </div>
-        `
-      }).catch((e5) => console.warn("Verification dispatch warning:", e5?.message));
-      return res.json({
-        requires_verification: true,
-        unverified: true,
-        email: user.email,
-        name: user.name,
-        message: "Your account is not verified yet. A 6-digit verification code has been sent to your email."
-      });
-    }
-    let wallet = { balance: 0, bonus_balance: 0, currency: "RWF" };
-    let loginBonusResult = null;
-    try {
-      wallet = await WalletService.getOrCreateWallet(user.id);
-      let dailyAmount = 10;
-      try {
-        const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
-        if (sRes.rowCount && sRes.rows[0].services_json) {
-          const parsed = JSON.parse(sRes.rows[0].services_json);
-          if (parsed.daily_login_bonus_amount) {
-            dailyAmount = Number(parsed.daily_login_bonus_amount);
-          }
-        }
-      } catch {
-      }
-      loginBonusResult = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
-      if (loginBonusResult.claimed) {
-        wallet = await WalletService.getOrCreateWallet(user.id);
-      }
-    } catch (wErr) {
-      console.warn("Could not load wallet from DB, using fallback:", wErr?.message);
-    }
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        phone: user.phone,
-        avatar_url: user.avatar_url || null,
-        channel_name: user.channel_name || null,
-        is_verified: user.is_verified ?? false,
-        preferred_language: user.preferred_language,
-        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
-        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
-        referral_code: user.referral_code,
-        chat_privacy_mode: user.chat_privacy_mode || "public",
-        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
-      },
-      wallet: {
-        balance: Number(wallet.balance || 0),
-        bonus_balance: Number(wallet.bonus_balance || 0),
-        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
-        currency: wallet.currency || "RWF"
-      },
-      daily_login_bonus: loginBonusResult?.claimed ? loginBonusResult : null
-    });
-  } catch (err) {
-    console.error("\u{1F534} [SERVER_LOGIN_EXCEPTION_CAUGHT]:", err);
-    return res.status(500).json({
-      error: err.message || "Login failed due to an unexpected server error.",
-      code: err.code || "LOGIN_ERROR",
-      details: String(err)
-    });
-  }
-});
-app.get("/api/auth/me", authenticateToken, async (req, res) => {
-  try {
-    const userRes = await query(
-      "SELECT * FROM core_users WHERE id = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2)) LIMIT 1",
-      [req.user?.id, req.user?.email || ""]
-    );
-    if (userRes.rowCount === 0) {
-      if (req.user?.email === "benirabok@gmail.com" || req.user?.email === "admin@benix.space") {
-        return res.json({
-          user: {
-            id: req.user.id,
-            email: req.user.email,
-            name: "Benir Benjamin (Super Admin)",
-            role: "superadmin",
-            avatar_url: null,
-            channel_name: "Benix Official",
-            is_verified: true,
-            referral_code: "BENIX-SUPERADMIN",
-            selected_modules: ["videos", "music", "dating", "marketplace", "radio", "games", "calc", "news"],
-            app_profiles: {
-              kunda: { completed: true },
-              dating: { completed: true },
-              voxify: { completed: true },
-              music: { completed: true },
-              marketplace: { completed: true },
-              tv: { completed: true },
-              videos: { completed: true },
-              radio: { completed: true },
-              games: { completed: true },
-              calc: { completed: true }
-            }
-          },
-          wallet: { balance: 1e5, bonus_balance: 5e3, total_balance: 105e3, currency: "RWF" }
-        });
-      }
-      return res.status(404).json({ error: "User not found." });
-    }
-    const user = userRes.rows[0];
-    let wallet = { balance: 0, bonus_balance: 0, currency: "RWF" };
-    let dailyBonusAwarded = null;
-    try {
-      wallet = await WalletService.getOrCreateWallet(user.id);
-      let dailyAmount = 10;
-      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
-      if (sRes.rowCount && sRes.rows[0].services_json) {
-        const parsed = JSON.parse(sRes.rows[0].services_json);
-        if (parsed.daily_login_bonus_amount) {
-          dailyAmount = Number(parsed.daily_login_bonus_amount);
-        }
-      }
-      dailyBonusAwarded = await WalletService.claimDailyLoginBonus(user.id, dailyAmount);
-      if (dailyBonusAwarded.claimed) {
-        wallet = await WalletService.getOrCreateWallet(user.id);
-      }
-    } catch {
-    }
-    const refStats = await ReferralService.getStats(user.id);
-    return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        phone: user.phone,
-        avatar_url: user.avatar_url || null,
-        channel_name: user.channel_name || null,
-        is_verified: user.is_verified ?? false,
-        preferred_language: user.preferred_language,
-        selected_modules: typeof user.selected_modules === "string" ? JSON.parse(user.selected_modules || "[]") : user.selected_modules || ["videos", "radio", "dating", "music", "marketplace", "games", "calc"],
-        homepage_layout: typeof user.homepage_layout === "string" ? JSON.parse(user.homepage_layout || "{}") : user.homepage_layout || {},
-        referral_code: user.referral_code,
-        chat_privacy_mode: user.chat_privacy_mode || "public",
-        app_profiles: typeof user.app_profiles === "string" ? JSON.parse(user.app_profiles || "{}") : user.app_profiles || {}
-      },
-      wallet: {
-        balance: Number(wallet.balance || 0),
-        bonus_balance: Number(wallet.bonus_balance || 0),
-        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
-        pending_balance: Number(wallet.pending_balance || 0),
-        currency: wallet.currency || "RWF",
-        total_earnings: Number(wallet.total_earnings || 0),
-        total_withdrawn: Number(wallet.total_withdrawn || 0),
-        last_login_bonus_date: wallet.last_login_bonus_date
-      },
-      daily_login_bonus: dailyBonusAwarded?.claimed ? dailyBonusAwarded : null,
-      referrals: refStats
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.put("/api/auth/preferences", authenticateToken, async (req, res) => {
-  try {
-    const { selected_modules, preferred_language, homepage_layout } = req.body;
-    await query(
-      `UPDATE core_users SET
-        selected_modules = COALESCE($1, selected_modules),
-        preferred_language = COALESCE($2, preferred_language),
-        homepage_layout = COALESCE($3, homepage_layout),
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4`,
-      [
-        selected_modules ? JSON.stringify(selected_modules) : null,
-        preferred_language || null,
-        homepage_layout ? JSON.stringify(homepage_layout) : null,
-        req.user?.id
-      ]
-    );
-    return res.json({ success: true, message: "Preferences updated successfully." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.put("/api/auth/profile", authenticateToken, async (req, res) => {
-  try {
-    const { name: name2, phone, channel_name, avatar_url, avatar } = req.body;
-    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);").catch(() => {
-    });
-    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
-    });
-    const finalAvatar = avatar_url || avatar || null;
-    if (finalAvatar) {
-      await query(
-        `UPDATE core_users SET
-          name = COALESCE($1, name),
-          phone = COALESCE($2, phone),
-          channel_name = COALESCE($3, channel_name),
-          avatar_url = $4,
-          app_profiles = jsonb_set(
-            jsonb_set(
-              COALESCE(app_profiles, '{}'::jsonb),
-              '{avatar}',
-              to_jsonb($4::text)
-            ),
-            '{kunda,avatarUrl}',
-            to_jsonb($4::text)
-          ),
-          updated_at = CURRENT_TIMESTAMP
-         WHERE id = $5 OR (email IS NOT NULL AND LOWER(email) = LOWER($6))`,
-        [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, finalAvatar, req.user?.id, req.user?.email || ""]
-      );
-      await query("UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2", [finalAvatar, req.user?.id]).catch(() => {
-      });
-    } else {
-      await query(
-        `UPDATE core_users SET
-          name = COALESCE($1, name),
-          phone = COALESCE($2, phone),
-          channel_name = COALESCE($3, channel_name),
-          updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4 OR (email IS NOT NULL AND LOWER(email) = LOWER($5))`,
-        [name2 ? String(name2).trim() : null, phone ? String(phone).trim() : null, channel_name ? String(channel_name).trim() : null, req.user?.id, req.user?.email || ""]
-      );
-    }
-    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user?.id, req.user?.email || ""]);
-    return res.json({ success: true, user: updated.rows[0], message: "Channel profile updated successfully." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/auth/profile-photo", authenticateToken, async (req, res) => {
-  try {
-    const { avatarUrl, photoUrl, image } = req.body;
-    let finalPhoto = avatarUrl || photoUrl || image;
-    if (!finalPhoto) {
-      return res.status(400).json({ error: "Profile photo data or URL is required." });
-    }
-    await query(
-      `UPDATE core_users SET
-        avatar_url = $1,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
-      [finalPhoto, req.user.id, req.user.email || ""]
-    );
-    await query("UPDATE user_videos SET channel_avatar = $1 WHERE user_id = $2", [finalPhoto, req.user.id]).catch(() => {
-    });
-    const updated = await query("SELECT id, email, name, channel_name, role, phone, avatar_url, app_profiles FROM core_users WHERE id = $1 OR LOWER(email) = LOWER($2)", [req.user.id, req.user.email || ""]);
-    return res.json({
-      success: true,
-      message: "Profile photo updated successfully!",
-      avatar_url: finalPhoto,
-      user: updated.rows[0]
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to update profile photo." });
-  }
-});
-app.post("/api/auth/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email || !String(email).trim()) {
-      return res.status(400).json({ error: "Please enter your account email address." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    await query("ALTER TABLE core_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;").catch(() => {
-    });
-    const userRes = await query("SELECT id, email, name FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
-    const legacyRes = userRes.rowCount === 0 ? await query("SELECT id, email, name FROM users WHERE LOWER(email) = $1", [cleanEmail]).catch(() => ({ rowCount: 0, rows: [] })) : { rowCount: 0, rows: [] };
-    if (userRes.rowCount === 0 && legacyRes.rowCount === 0) {
-      return res.status(404).json({ error: "No account registered with this email address." });
-    }
-    const verificationCode = String(Math.floor(1e4 + Math.random() * 9e4));
-    await query(`
-      CREATE TABLE IF NOT EXISTS password_reset_codes (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
-        code VARCHAR(10) NOT NULL,
-        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pwd_resets_email ON password_reset_codes (email);
-    `).catch(() => {
-    });
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1e3);
-    await query(
-      `INSERT INTO password_reset_codes (email, code, expires_at) VALUES ($1, $2, $3)`,
-      [cleanEmail, verificationCode, expiresAt]
-    );
-    return res.json({
-      success: true,
-      message: `A 5-digit verification code has been generated for ${cleanEmail}.`,
-      verificationCode,
-      // Returned for instant UX delivery & in-app verification prompt
-      expiresInMinutes: 15
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to generate verification code." });
-  }
-});
-app.post("/api/auth/reset-password", async (req, res) => {
-  try {
-    const { email, code, newPassword } = req.body;
-    if (!email || !code || !newPassword) {
-      return res.status(400).json({ error: "Email, 5-digit verification code, and new password are required." });
-    }
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanCode = String(code).trim();
-    if (cleanCode.length !== 5) {
-      return res.status(400).json({ error: "Verification code must be exactly 5 digits." });
-    }
-    if (String(newPassword).length < 6) {
-      return res.status(400).json({ error: "New password must be at least 6 characters long." });
-    }
-    const codeRes = await query(
-      `SELECT id, email, code, expires_at 
-       FROM password_reset_codes 
-       WHERE LOWER(email) = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP 
-       ORDER BY created_at DESC LIMIT 1`,
-      [cleanEmail, cleanCode]
-    );
-    if (codeRes.rowCount === 0) {
-      return res.status(400).json({ error: "Invalid or expired 5-digit verification code. Please request a new code." });
-    }
-    const salt = await bcryptjs_default.genSalt(10);
-    const passwordHash = await bcryptjs_default.hash(String(newPassword), salt);
-    await query("UPDATE core_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2", [passwordHash, cleanEmail]);
-    await query("UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = $2", [passwordHash, cleanEmail]).catch(() => {
-    });
-    await query("DELETE FROM password_reset_codes WHERE LOWER(email) = $1", [cleanEmail]).catch(() => {
-    });
-    return res.json({
-      success: true,
-      message: "Your password has been successfully updated! You can now sign in with your new password."
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to update password." });
-  }
-});
-app.get("/api/wallet", authenticateToken, async (req, res) => {
-  try {
-    const wallet = await WalletService.getOrCreateWallet(req.user.id);
-    const transactions = await WalletService.getTransactions(req.user.id, 20);
-    return res.json({
-      wallet: {
-        balance: Number(wallet.balance || 0),
-        bonus_balance: Number(wallet.bonus_balance || 0),
-        total_balance: Number(wallet.balance || 0) + Number(wallet.bonus_balance || 0),
-        pending_balance: Number(wallet.pending_balance || 0),
-        currency: wallet.currency || "RWF",
-        total_earnings: Number(wallet.total_earnings || 0),
-        total_withdrawn: Number(wallet.total_withdrawn || 0),
-        last_login_bonus_date: wallet.last_login_bonus_date
-      },
-      transactions
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/wallet/claim-daily-bonus", authenticateToken, async (req, res) => {
-  try {
-    let dailyAmount = 10;
-    try {
-      const sRes = await query("SELECT services_json FROM company_settings LIMIT 1");
-      if (sRes.rowCount && sRes.rows[0].services_json) {
-        const parsed = JSON.parse(sRes.rows[0].services_json);
-        if (parsed.daily_login_bonus_amount) {
-          dailyAmount = Number(parsed.daily_login_bonus_amount);
-        }
-      }
-    } catch {
-    }
-    const result = await WalletService.claimDailyLoginBonus(req.user.id, dailyAmount);
-    return res.json(result);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/admin/wallets/set-bonus", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { userId, bonusAmount, reason } = req.body;
-    if (!userId || bonusAmount === void 0) {
-      return res.status(400).json({ error: "userId and bonusAmount are required." });
-    }
-    const result = await WalletService.adminSetBonus(userId, Number(bonusAmount), reason || "Admin bonus credit");
-    return res.json(result);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/wallet/deposit", authenticateToken, async (req, res) => {
-  return res.status(400).json({
-    error: "Direct unverified deposits are disabled. Deposits must be verified through Flutterwave gateway (/api/wallet/flutterwave/initialize)."
-  });
-});
-app.post("/api/wallet/bet", authenticateToken, async (req, res) => {
-  try {
-    const { wager, prediction, targetPrediction } = req.body;
-    const numWager = parseFloat(wager);
-    if (!numWager || numWager < 50) {
-      return res.status(400).json({ error: "Minimum bet amount is 50 RWF." });
-    }
-    if (numWager > 5e4) {
-      return res.status(400).json({ error: "Maximum bet amount is 50,000 RWF per roll." });
-    }
-    const cleanPred = String(prediction || targetPrediction || "").toLowerCase().trim();
-    if (cleanPred !== "high" && cleanPred !== "low") {
-      return res.status(400).json({ error: 'Please choose either "high" (4-6) or "low" (1-3).' });
-    }
-    const debitRes = await WalletService.debit(
-      req.user.id,
-      numWager,
-      "games",
-      "dice_wager",
-      `RollDice Quick Wager: -${numWager.toLocaleString()} RWF (${cleanPred.toUpperCase()})`,
-      `tx_wgr_${Date.now()}_${crypto17.randomBytes(3).toString("hex")}`
-    );
-    const serverDice = Math.floor(Math.random() * 6) + 1;
-    const serverWon = cleanPred === "high" && serverDice >= 4 || cleanPred === "low" && serverDice <= 3;
-    let finalBalance = debitRes.newBalance;
-    let payout = 0;
-    if (serverWon) {
-      const multiplier = 1.95;
-      payout = Math.round(numWager * multiplier);
-      const creditRes = await WalletService.credit(
-        req.user.id,
-        payout,
-        "games",
-        "dice_win",
-        `RollDice Win: +${payout.toLocaleString()} RWF (Rolled ${serverDice} on ${cleanPred.toUpperCase()})`,
-        `tx_win_${Date.now()}_${crypto17.randomBytes(3).toString("hex")}`
-      );
-      finalBalance = creditRes.newBalance;
-    }
-    return res.json({
-      success: true,
-      won: serverWon,
-      dice: serverDice,
-      payout,
-      newBalance: finalBalance
-    });
-  } catch (err) {
-    return res.status(400).json({ error: err.message || "Bet placement failed." });
-  }
-});
-app.get("/api/wallet/search-recipient", authenticateToken, async (req, res) => {
-  try {
-    const q3 = String(req.query.q || "").trim();
-    if (!q3 || q3.length < 2) {
-      return res.json({ users: [] });
-    }
-    const term = `%${q3.toLowerCase()}%`;
-    const users = await query(
-      `SELECT id, name, email, phone, role
-       FROM core_users
-       WHERE (LOWER(email) LIKE $1 OR LOWER(name) LIKE $1)
-         AND id != $2
-       LIMIT 8`,
-      [term, req.user.id]
-    );
-    return res.json({ users: users.rows });
-  } catch (err) {
-    return res.status(500).json({ error: err.message, users: [] });
-  }
-});
-app.post("/api/wallet/transfer", authenticateToken, async (req, res) => {
-  try {
-    const { recipientEmail, amount, note = "" } = req.body;
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) {
-      return res.status(400).json({ error: "Transfer amount must be greater than 0 RWF." });
-    }
-    if (!recipientEmail) {
-      return res.status(400).json({ error: "Recipient email is required." });
-    }
-    const cleanEmail = String(recipientEmail).trim().toLowerCase();
-    if (cleanEmail === req.user.email?.toLowerCase()) {
-      return res.status(400).json({ error: "You cannot transfer funds to yourself." });
-    }
-    const recipientRes = await query(
-      "SELECT id, name, email FROM core_users WHERE LOWER(email) = $1",
-      [cleanEmail]
-    );
-    if (recipientRes.rowCount === 0) {
-      return res.status(404).json({ error: "No registered user found with this email. Money can only be sent to verified Benix.Space accounts." });
-    }
-    const recipient = recipientRes.rows[0];
-    const senderWallet = await WalletService.getOrCreateWallet(req.user.id);
-    if (Number(senderWallet.balance) < numAmount) {
-      return res.status(400).json({
-        error: `Insufficient wallet balance. You have ${Number(senderWallet.balance).toLocaleString()} RWF, trying to transfer ${numAmount.toLocaleString()} RWF.`
-      });
-    }
-    const debitResult = await WalletService.debit(
-      req.user.id,
-      numAmount,
-      "wallet",
-      "transfer_out",
-      `Sent ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}${note ? ` ("${note}")` : ""}`,
-      `tx_trf_out_${Date.now()}`
-    );
-    await WalletService.credit(
-      recipient.id,
-      numAmount,
-      "wallet",
-      "transfer_in",
-      `Received ${numAmount.toLocaleString()} RWF from ${req.user.name || req.user.email}${note ? ` ("${note}")` : ""}`,
-      `tx_trf_in_${Date.now()}`
-    );
-    EmailService.sendEmail({
-      to: recipient.email,
-      subject: `You received ${numAmount.toLocaleString()} RWF on Benix.Space!`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px;">
-          <h2 style="color: #10B981;">Transfer Received!</h2>
-          <p>Hello ${recipient.name || "Member"},</p>
-          <p><strong>${req.user.name || req.user.email}</strong> has transferred <strong>${numAmount.toLocaleString()} RWF</strong> into your Benix.Space Central Wallet.</p>
-          ${note ? `<p style="padding: 12px; background: #1E293B; border-radius: 8px; color: #94A3B8;"><em>"${note}"</em></p>` : ""}
-          <p>You can use this balance across TV, live radio, dating, RollDice games, or withdraw directly to your MTN Mobile Money account.</p>
-        </div>
-      `
-    }).catch(() => {
-    });
-    createNotification({
-      userId: recipient.id,
-      title: "Money Received \u{1F4B8}",
-      message: `You received ${numAmount.toLocaleString()} RWF from ${req.user.name || req.user.email}.${note ? ` ("${note}")` : ""}`,
-      type: "wallet",
-      actionUrl: "/dashboard#wallet",
-      metadata: { from: req.user.id, amount: numAmount }
-    }).catch(() => {
-    });
-    return res.json({
-      success: true,
-      newBalance: debitResult.newBalance,
-      message: `Successfully transferred ${numAmount.toLocaleString()} RWF to ${recipient.name || recipient.email}.`
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Transfer failed." });
-  }
-});
-app.get("/api/wallet/settings", async (req, res) => {
-  try {
-    const minWithdrawalStr = await getSystemSetting3("min_withdrawal_amount", "500");
-    const minWithdrawalAmount = Math.max(100, Number(minWithdrawalStr) || 500);
-    return res.json({ success: true, minWithdrawalAmount });
-  } catch {
-    return res.json({ success: true, minWithdrawalAmount: 500 });
-  }
-});
-app.post("/api/wallet/withdraw", authenticateToken, async (req, res) => {
-  try {
-    const { amount, payoutMethod = "MTN_MOMO", accountDetails } = req.body;
-    const numAmount = parseFloat(amount);
-    const minWithdrawalStr = await getSystemSetting3("min_withdrawal_amount", "500");
-    const minWithdrawal = Math.max(100, Number(minWithdrawalStr) || 500);
-    if (!numAmount || numAmount < minWithdrawal) {
-      return res.status(400).json({ error: `Minimum withdrawal is ${minWithdrawal.toLocaleString()} RWF.` });
-    }
-    if (!accountDetails) {
-      return res.status(400).json({ error: "Account details / phone number is required." });
-    }
-    const result = await WalletService.requestWithdrawal(
-      req.user.id,
-      numAmount,
-      payoutMethod,
-      accountDetails
-    );
-    let autoWithdrawResult = null;
-    try {
-      autoWithdrawResult = await WithdrawalService.tryAutoWithdraw(result.withdrawalId);
-    } catch (autoErr) {
-      console.warn("[AutoWithdraw Trigger Warning]:", autoErr?.message);
-    }
-    if (autoWithdrawResult?.autoApproved) {
-      createNotification({
-        userId: req.user.id,
-        title: "Withdrawal Auto-Approved & Sent! \u26A1",
-        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent directly via Flutterwave to your ${payoutMethod}!`,
-        type: "withdrawal",
-        actionUrl: "/dashboard#wallet",
-        metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId, autoApproved: true }
-      }).catch(() => {
-      });
-      return res.json({
-        success: true,
-        autoApproved: true,
-        message: `Your withdrawal of ${numAmount.toLocaleString()} RWF was automatically approved and sent to your ${payoutMethod}!`,
-        withdrawalId: result.withdrawalId
-      });
-    }
-    const userEmail = req.user.email;
-    const adminEmail = process.env.SUPERADMIN_EMAIL || "benirabok@gmail.com";
-    const accountDetailsStr = typeof accountDetails === "string" ? accountDetails : JSON.stringify(accountDetails);
-    EmailService.sendEmail({
-      to: adminEmail,
-      subject: `[Action Required] New Withdrawal Request: ${numAmount.toLocaleString()} RWF from ${userEmail}`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
-          <h2 style="color: #38BDF8;">New Payout / Withdrawal Request</h2>
-          <p>A user has requested a withdrawal from their Benix Central Wallet:</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; color: #CBD5E1;">
-            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>User:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${userEmail}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155; color: #10B981; font-weight: bold;">${numAmount.toLocaleString()} RWF</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Payout Method:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${payoutMethod}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Details:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155;">${accountDetailsStr}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #334155;"><strong>Withdrawal ID:</strong></td><td style="padding: 8px; border-bottom: 1px solid #334155; font-family: monospace;">${result.withdrawalId}</td></tr>
-          </table>
-          <p style="margin-top: 20px;">Log in to the Admin Dashboard to review and approve this payout.</p>
-        </div>
-      `
-    }).catch((e5) => console.warn("Admin withdrawal email warning:", e5?.message));
-    EmailService.sendEmail({
-      to: userEmail,
-      subject: `Your Benix.Space Withdrawal Request of ${numAmount.toLocaleString()} RWF`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; padding: 24px; background: #0B0E14; color: #fff; border-radius: 16px; border: 1px solid #1E293B;">
-          <h2 style="color: #10B981;">Withdrawal Request Received</h2>
-          <p>Hello,</p>
-          <p>We have received your withdrawal request for <strong>${numAmount.toLocaleString()} RWF</strong> via <strong>${payoutMethod}</strong>.</p>
-          <p>Our finance team reviews all requests within 1-2 hours. You will receive an instant notification once the payout is sent to your account.</p>
-          <p style="color: #94A3B8; font-size: 12px; margin-top: 24px;">Withdrawal Reference ID: ${result.withdrawalId}</p>
-        </div>
-      `
-    }).catch((e5) => console.warn("User withdrawal email warning:", e5?.message));
-    createNotification({
-      userId: req.user.id,
-      title: "Withdrawal Pending Review",
-      message: `Your withdrawal request for ${numAmount.toLocaleString()} RWF via ${payoutMethod} has been submitted.`,
-      type: "withdrawal",
-      actionUrl: "/dashboard#wallet",
-      metadata: { amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
-    }).catch(() => {
-    });
-    createNotification({
-      recipientRole: "admin",
-      title: "\u26A0\uFE0F Action Required: New Payout Request",
-      message: `${userEmail} requested withdrawal of ${numAmount.toLocaleString()} RWF via ${payoutMethod}.`,
-      type: "withdrawal",
-      actionUrl: "/admin#withdrawals",
-      metadata: { userId: req.user.id, email: userEmail, amount: numAmount, method: payoutMethod, withdrawalId: result.withdrawalId }
-    }).catch(() => {
-    });
-    return res.json({
-      success: true,
-      message: "Withdrawal request submitted! Admin and user confirmation emails sent.",
-      withdrawalId: result.withdrawalId
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/admin/withdrawals", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const data = await WithdrawalService.listWithdrawals();
-    return res.json(data);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/admin/withdrawals/:id/approve", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
-    const result = await WithdrawalService.approveWithdrawal(
-      id,
-      Number(approvedAmount),
-      Number(feePercent),
-      Boolean(sendViaFlutterwave),
-      note
-    );
-    query("SELECT user_id, amount, payout_method FROM core_withdrawals WHERE id = $1", [id]).then((wRes) => {
-      if (wRes.rows && wRes.rows[0]) {
-        const w = wRes.rows[0];
-        createNotification({
-          userId: w.user_id,
-          title: "Withdrawal Approved & Sent! \u{1F389}",
-          message: `Your withdrawal of ${Number(approvedAmount || w.amount).toLocaleString()} RWF has been approved and paid out to your ${w.payout_method || "account"}.`,
-          type: "withdrawal",
-          actionUrl: "/dashboard#wallet",
-          metadata: { withdrawalId: id, amount: approvedAmount || w.amount }
-        }).catch(() => {
-        });
-      }
-    }).catch(() => {
-    });
-    return res.json(result);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
-app.post("/api/admin/withdrawals/:id/reject", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { reason } = req.body;
-    const result = await WithdrawalService.rejectWithdrawal(id, reason);
-    query("SELECT user_id, amount FROM core_withdrawals WHERE id = $1", [id]).then((wRes) => {
-      if (wRes.rows && wRes.rows[0]) {
-        const w = wRes.rows[0];
-        createNotification({
-          userId: w.user_id,
-          title: "Withdrawal Declined & Refunded",
-          message: `Your withdrawal request of ${Number(w.amount).toLocaleString()} RWF was rejected (${reason || "Account issue"}). The funds have been refunded to your wallet.`,
-          type: "withdrawal",
-          actionUrl: "/dashboard#wallet",
-          metadata: { withdrawalId: id, amount: w.amount, reason }
-        }).catch(() => {
-        });
-      }
-    }).catch(() => {
-    });
-    return res.json(result);
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
-app.post("/api/admin/withdrawals/settings", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { feePercent, autoWithdrawEnabled, autoWithdrawMaxAmount, autoWithdrawBuffer } = req.body;
-    await WithdrawalService.saveWithdrawalSettings({
-      feePercent: feePercent !== void 0 ? Number(feePercent) : void 0,
-      autoWithdrawEnabled: autoWithdrawEnabled !== void 0 ? Boolean(autoWithdrawEnabled) : void 0,
-      autoWithdrawMaxAmount: autoWithdrawMaxAmount !== void 0 ? Number(autoWithdrawMaxAmount) : void 0,
-      autoWithdrawBuffer: autoWithdrawBuffer !== void 0 ? Number(autoWithdrawBuffer) : void 0
-    });
-    const updated = await WithdrawalService.getAutoWithdrawSettings();
-    return res.json({ success: true, settings: updated });
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
-app.post("/api/admin/withdrawals/auto-process", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const result = await WithdrawalService.processBatchAutoWithdrawals();
-    return res.json({ success: true, ...result });
-  } catch (err) {
-    return res.status(400).json({ error: err.message });
-  }
-});
-async function getFlutterwaveConfig() {
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS payment_settings (
-        id VARCHAR(50) PRIMARY KEY,
-        provider VARCHAR(50) NOT NULL,
-        public_key TEXT,
-        secret_key TEXT,
-        encryption_key TEXT,
-        is_live BOOLEAN DEFAULT FALSE,
-        enabled BOOLEAN DEFAULT TRUE,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    const row = await query("SELECT * FROM payment_settings WHERE id = 'flutterwave' LIMIT 1").catch(() => ({ rowCount: 0, rows: [] }));
-    if (row.rowCount && row.rowCount > 0) {
-      const flw = row.rows[0];
-      const pk = (flw.public_key || process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X").trim();
-      const sk = (flw.secret_key || process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim();
-      const ek = (flw.encryption_key || process.env.FLUTTERWAVE_ENCRYPTION_KEY || "").trim();
-      return {
-        publicKey: pk || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X",
-        secretKey: sk || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X",
-        encryptionKey: ek,
-        isLive: !!flw.is_live,
-        enabled: flw.enabled !== false
-      };
-    }
-  } catch (err) {
-    console.warn("Error fetching payment_settings:", err);
-  }
-  return {
-    publicKey: (process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X").trim(),
-    secretKey: (process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X").trim(),
-    encryptionKey: (process.env.FLUTTERWAVE_ENCRYPTION_KEY || "").trim(),
-    isLive: true,
-    enabled: true
-  };
-}
-app.post("/api/wallet/flutterwave/initialize", authenticateToken, async (req, res) => {
-  try {
-    const { amount, currency = "USD", email, phone, name: name2 } = req.body;
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) {
-      return res.status(400).json({ error: "Valid deposit amount is required." });
-    }
-    const flwConfig = await getFlutterwaveConfig();
-    if (!flwConfig.enabled) {
-      return res.status(400).json({ error: "Flutterwave deposits are currently paused by the platform administrator." });
-    }
-    const effectiveKey = flwConfig.publicKey || "FLWPUBK-5e4f311c31ff2cde79ef36825f2e9a95-X";
-    const effectiveSecret = flwConfig.secretKey || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X";
-    const ratesToRwf = {
-      RWF: 1,
-      USD: 1420,
-      EUR: 1540,
-      GBP: 1810,
-      KES: 11,
-      UGX: 0.38,
-      NGN: 0.9,
-      TZS: 0.55
-    };
-    const rate = ratesToRwf[currency] || 1;
-    const convertedRwf = Math.round(numAmount * rate);
-    const txRef = `FLW-BENIX-${Date.now()}-${crypto17.randomBytes(3).toString("hex").toUpperCase()}`;
-    let customerEmail = (email || req.user?.email || "member@benix.space").trim();
-    let customerPhone = (phone || "0780000000").trim();
-    let customerName = (name2 || "Benix Member").trim();
-    try {
-      const userRes = await query("SELECT email, name, phone FROM core_users WHERE id = $1", [req.user.id]);
-      if (userRes.rowCount && userRes.rowCount > 0) {
-        const u = userRes.rows[0];
-        if (!email && u.email) customerEmail = u.email;
-        if (!name2 && u.name) customerName = u.name;
-        if (!phone && u.phone) customerPhone = u.phone;
-      }
-    } catch {
-    }
-    await query(`
-      CREATE TABLE IF NOT EXISTS pending_flutterwave_deposits (
-        tx_ref VARCHAR(100) PRIMARY KEY,
-        user_id VARCHAR(100) NOT NULL,
-        currency VARCHAR(10) NOT NULL,
-        original_amount NUMERIC(14, 2) NOT NULL,
-        converted_rwf NUMERIC(14, 2) NOT NULL,
-        status VARCHAR(30) DEFAULT 'pending',
-        flw_ref VARCHAR(100),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    await query(
-      `INSERT INTO pending_flutterwave_deposits (tx_ref, user_id, currency, original_amount, converted_rwf)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (tx_ref) DO UPDATE SET
-         currency = EXCLUDED.currency,
-         original_amount = EXCLUDED.original_amount,
-         converted_rwf = EXCLUDED.converted_rwf`,
-      [txRef, req.user.id, currency, numAmount, convertedRwf]
-    ).catch((e5) => console.warn("Record pending deposit warning:", e5.message));
-    const rawOrigin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : "") || "https://benix.space";
-    const redirectUrl = `${rawOrigin}/dashboard?flw_deposit=true&tx_ref=${txRef}`;
-    let paymentLink = null;
-    if (effectiveSecret) {
-      try {
-        const flwRes = await fetch("https://api.flutterwave.com/v3/payments", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${effectiveSecret}`
-          },
-          body: JSON.stringify({
-            tx_ref: txRef,
-            amount: numAmount.toString(),
-            currency,
-            redirect_url: redirectUrl,
-            customer: {
-              email: customerEmail,
-              phonenumber: customerPhone,
-              name: customerName
-            },
-            customizations: {
-              title: "Benix.Space Central Wallet",
-              description: `Deposit ${numAmount} ${currency} (\u2248 ${convertedRwf.toLocaleString()} RWF)`,
-              logo: "https://benix.space/logo.png"
-            }
-          })
-        });
-        const flwData = await flwRes.json();
-        if (flwRes.ok && flwData.status === "success" && flwData.data?.link) {
-          paymentLink = flwData.data.link;
-        } else {
-          console.warn("Flutterwave standard payment init response:", flwData);
-          if (flwData?.message && !paymentLink) {
-            return res.status(400).json({ error: `Flutterwave error: ${flwData.message}` });
-          }
-        }
-      } catch (fErr) {
-        console.warn("Flutterwave fetch failure:", fErr.message);
-      }
-    }
-    return res.json({
-      success: true,
-      paymentLink,
-      payment_link: paymentLink,
-      txRef,
-      tx_ref: txRef,
-      publicKey: effectiveKey,
-      public_key: effectiveKey,
-      currency,
-      originalAmount: numAmount,
-      convertedRwf,
-      rate,
-      message: `${numAmount} ${currency} \u2248 ${convertedRwf.toLocaleString()} RWF will be credited to your central wallet.`
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/wallet/flutterwave/cancel", authenticateToken, async (req, res) => {
-  try {
-    const { txRef } = req.body;
-    if (txRef) {
-      await query(
-        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
-        [txRef]
-      ).catch(() => {
-      });
-    }
-    return res.json({ success: true, message: "Deposit recorded as cancelled." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/wallet/flutterwave/webhook", async (req, res) => {
-  try {
-    const payload = req.body;
-    const event = payload?.event;
-    const data = payload?.data;
-    const flwConfig = await getFlutterwaveConfig();
-    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
-    const incomingSignature = req.headers["verif-hash"];
-    if (secretHash && incomingSignature !== secretHash) {
-      console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Invalid signature header verif-hash");
-      return res.status(401).json({ error: "Invalid webhook signature." });
-    }
-    if (event === "charge.completed" && data?.status === "successful") {
-      const txRef = data.tx_ref;
-      const flwId = data.id;
-      if (!txRef) {
-        return res.status(200).json({ status: "ignored_missing_ref" });
-      }
-      const existingTx = await query(
-        "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
-        [txRef]
-      ).catch(() => ({ rowCount: 0, rows: [] }));
-      if (existingTx.rowCount && existingTx.rowCount > 0) {
-        return res.status(200).json({ status: "already_credited" });
-      }
-      const pendingRow = await query(
-        "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
-        [txRef]
-      ).catch(() => ({ rowCount: 0, rows: [] }));
-      if (!pendingRow.rowCount || pendingRow.rowCount === 0) {
-        return res.status(200).json({ status: "no_pending_deposit_found" });
-      }
-      const p4 = pendingRow.rows[0];
-      if (p4.status === "completed") {
-        return res.status(200).json({ status: "already_completed" });
-      }
-      const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
-      if (!effectiveSecret || !flwId) {
-        console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID");
-        return res.status(400).json({ error: "Cannot verify transaction with Flutterwave API" });
-      }
-      try {
-        const verifyRes = await fetch(`https://api.flutterwave.com/v3/transactions/${flwId}/verify`, {
-          headers: {
-            Authorization: `Bearer ${effectiveSecret}`,
-            "Content-Type": "application/json"
-          }
-        });
-        if (!verifyRes.ok) {
-          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_VERIFY_FAILED]: Flutterwave API returned non-OK status", verifyRes.status);
-          return res.status(400).json({ status: "verification_failed" });
-        }
-        const vData = await verifyRes.json();
-        if (vData?.status !== "success" || vData?.data?.status !== "successful") {
-          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_VERIFY_FAILED]: Webhook verification check failed with Flutterwave API:", vData);
-          return res.status(400).json({ status: "verification_failed" });
-        }
-        if (vData?.data?.tx_ref && vData.data.tx_ref !== txRef) {
-          console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REF_MISMATCH]: Returned tx_ref does not match pending deposit");
-          return res.status(400).json({ status: "tx_ref_mismatch" });
-        }
-      } catch (vErr) {
-        console.error("\u{1F534} [FLW_WEBHOOK_EXCEPTION]: Direct verify check exception:", vErr.message);
-        return res.status(500).json({ status: "verification_error", error: vErr.message });
-      }
-      const convertedRwf = Number(p4.converted_rwf);
-      const originalAmount = Number(p4.original_amount);
-      const currency = p4.currency || "RWF";
-      await WalletService.credit(
-        p4.user_id,
-        convertedRwf,
-        "wallet",
-        "flutterwave_deposit",
-        `Flutterwave Deposit (${originalAmount} ${currency} \u2192 ${convertedRwf.toLocaleString()} RWF)`,
-        txRef,
-        { flwRef: flwId, originalAmount, currency, source: "webhook" }
-      );
-      await query(
-        "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
-        [String(flwId || "flw_webhook"), txRef]
-      ).catch(() => {
-      });
-      try {
-        await ReferralService.triggerQualifyingEvent(p4.user_id, "first_deposit", "wallet");
-      } catch {
-      }
-      createNotification({
-        userId: p4.user_id,
-        title: "Deposit Received! \u{1F4B0}",
-        message: `Your deposit of ${convertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
-        type: "deposit",
-        actionUrl: "/dashboard#wallet",
-        metadata: { amount: convertedRwf, txRef }
-      }).catch(() => {
-      });
-      createNotification({
-        recipientRole: "admin",
-        title: "\u{1F4B0} New Deposit Credited",
-        message: `User ${p4.user_id} deposited ${convertedRwf.toLocaleString()} RWF via Flutterwave.`,
-        type: "deposit",
-        actionUrl: "/admin#withdrawals",
-        metadata: { userId: p4.user_id, amount: convertedRwf, txRef }
-      }).catch(() => {
-      });
-      return res.status(200).json({ status: "success", credited: true, txRef });
-    }
-    return res.status(200).json({ status: "ignored_unhandled_event" });
-  } catch (err) {
-    console.error("Flutterwave webhook processing error:", err);
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/wallet/flutterwave/verify", authenticateToken, async (req, res) => {
-  try {
-    const { txRef, convertedRwf, currency = "RWF", originalAmount, flwRef, transactionId, status } = req.body;
-    if (!txRef) {
-      return res.status(400).json({ error: "Valid transaction reference (txRef) is required." });
-    }
-    if (status === "cancelled" || status === "failed") {
-      await query(
-        "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
-        [txRef]
-      ).catch(() => {
-      });
-      return res.status(400).json({ error: "Payment was cancelled. Wallet was not credited." });
-    }
-    const existingTx = await query(
-      "SELECT id FROM core_wallet_transactions WHERE reference = $1 AND type = 'flutterwave_deposit' LIMIT 1",
-      [txRef]
-    ).catch(() => ({ rowCount: 0, rows: [] }));
-    if (existingTx.rowCount && existingTx.rowCount > 0) {
-      const wallet = await WalletService.getOrCreateWallet(req.user.id);
-      return res.json({
-        success: true,
-        newBalance: Number(wallet.balance || 0),
-        message: `Transaction ${txRef} has already been credited to your wallet.`
-      });
-    }
-    let finalConvertedRwf = parseFloat(convertedRwf);
-    let finalCurrency = currency;
-    let finalOriginalAmount = parseFloat(originalAmount);
-    const pendingRow = await query(
-      "SELECT * FROM pending_flutterwave_deposits WHERE tx_ref = $1 LIMIT 1",
-      [txRef]
-    ).catch(() => ({ rowCount: 0, rows: [] }));
-    if (pendingRow.rowCount && pendingRow.rowCount > 0) {
-      const p4 = pendingRow.rows[0];
-      if (p4.status === "completed") {
-        const wallet = await WalletService.getOrCreateWallet(req.user.id);
-        return res.json({
-          success: true,
-          newBalance: Number(wallet.balance || 0),
-          message: `Transaction ${txRef} has already been credited to your wallet.`
-        });
-      }
-      if (p4.status === "cancelled" || p4.status === "rejected") {
-        return res.status(400).json({ error: `This deposit was marked as ${p4.status}. It cannot be credited.` });
-      }
-      if (!finalConvertedRwf || isNaN(finalConvertedRwf)) finalConvertedRwf = Number(p4.converted_rwf);
-      if (!finalOriginalAmount || isNaN(finalOriginalAmount)) finalOriginalAmount = Number(p4.original_amount);
-      if (!finalCurrency) finalCurrency = p4.currency;
-    }
-    if (!finalConvertedRwf || finalConvertedRwf < 100) {
-      return res.status(400).json({ error: "Minimum deposit is 100 RWF." });
-    }
-    const effectiveFlwRef = flwRef || transactionId;
-    const flwConfig = await getFlutterwaveConfig();
-    const effectiveSecret = flwConfig.secretKey || process.env.FLUTTERWAVE_SECRET_KEY || "FLWSECK-850b999b626b35d6a06e8cdcf50d14a1-1a0684d29b4vt-X";
-    let verifyUrl = "";
-    if (effectiveFlwRef && !effectiveFlwRef.toString().startsWith("fake_")) {
-      verifyUrl = `https://api.flutterwave.com/v3/transactions/${effectiveFlwRef}/verify`;
-    } else if (txRef) {
-      verifyUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`;
-    }
-    if (verifyUrl && effectiveSecret) {
-      try {
-        const verifyRes = await fetch(verifyUrl, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${effectiveSecret}`
-          }
-        });
-        if (!verifyRes.ok) {
-          const errBody = await verifyRes.text().catch(() => "");
-          console.warn(`Flutterwave direct API verification returned HTTP ${verifyRes.status}:`, errBody);
-          await query(
-            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
-            [txRef]
-          ).catch(() => {
-          });
-          return res.status(400).json({
-            error: "Flutterwave verification failed. The transaction was cancelled or not completed on the payment gateway."
-          });
-        }
-        const verifyData = await verifyRes.json();
-        const flwStatus = (verifyData?.data?.status || "").toLowerCase();
-        if (verifyData?.status !== "success" || flwStatus !== "successful") {
-          if (flwStatus === "pending") {
-            return res.status(202).json({
-              pending: true,
-              status: "pending",
-              message: "Payment is currently being processed by your Mobile Money provider. Your wallet will update automatically once confirmed."
-            });
-          }
-          await query(
-            "UPDATE pending_flutterwave_deposits SET status = 'cancelled' WHERE tx_ref = $1 AND status = 'pending'",
-            [txRef]
-          ).catch(() => {
-          });
-          return res.status(400).json({
-            error: `Flutterwave payment status is '${flwStatus || verifyData?.status || "unsuccessful"}'. Not credited.`
-          });
-        }
-        const gatewayTxRef = verifyData?.data?.tx_ref;
-        if (gatewayTxRef && gatewayTxRef !== txRef) {
-          return res.status(400).json({ error: "Transaction reference mismatch." });
-        }
-      } catch (flwErr) {
-        console.warn("Flutterwave direct API verification exception:", flwErr.message);
-        return res.status(400).json({
-          error: "Unable to reach Flutterwave gateway for verification. Please retry."
-        });
-      }
-    } else {
-      return res.status(400).json({ error: "Missing Flutterwave verification parameters or gateway secret." });
-    }
-    const result = await WalletService.credit(
-      req.user.id,
-      finalConvertedRwf,
-      "wallet",
-      "flutterwave_deposit",
-      `Flutterwave Deposit (${finalOriginalAmount || finalConvertedRwf} ${finalCurrency} \u2192 ${finalConvertedRwf.toLocaleString()} RWF)`,
-      txRef,
-      { flwRef: effectiveFlwRef, originalAmount: finalOriginalAmount, currency: finalCurrency }
-    );
-    await query(
-      "UPDATE pending_flutterwave_deposits SET status = 'completed', flw_ref = $1 WHERE tx_ref = $2",
-      [effectiveFlwRef || "flw_verified", txRef]
-    ).catch(() => {
-    });
-    try {
-      await ReferralService.triggerQualifyingEvent(req.user.id, "first_deposit", "wallet");
-    } catch (refErr) {
-      console.warn("Referral trigger non-fatal:", refErr);
-    }
-    createNotification({
-      userId: req.user.id,
-      title: "Deposit Received! \u{1F4B0}",
-      message: `Your deposit of ${finalConvertedRwf.toLocaleString()} RWF has been credited to your wallet balance.`,
-      type: "deposit",
-      actionUrl: "/dashboard#wallet",
-      metadata: { amount: finalConvertedRwf, txRef }
-    }).catch(() => {
-    });
-    createNotification({
-      recipientRole: "admin",
-      title: "\u{1F4B0} New Deposit Credited",
-      message: `User ${req.user.name || req.user.email} deposited ${finalConvertedRwf.toLocaleString()} RWF via Flutterwave.`,
-      type: "deposit",
-      actionUrl: "/admin#withdrawals",
-      metadata: { userId: req.user.id, email: req.user.email, amount: finalConvertedRwf, txRef }
-    }).catch(() => {
-    });
-    return res.json({
-      success: true,
-      newBalance: result.newBalance,
-      message: `Successfully credited ${finalConvertedRwf.toLocaleString()} RWF to your wallet via Flutterwave!`
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-var kundaMessagesStore = [
-  {
-    id: "kmsg_welcome_1",
-    sender_id: "k1",
-    recipient_id: "demo-user",
-    content: "Muraho! Welcome to Kunda Space. Looking forward to connecting!",
-    created_at: new Date(Date.now() - 36e5).toISOString()
-  }
-];
-var kundaSubscriptionsStore = [];
-var kundaUnlockedContactsStore = /* @__PURE__ */ new Set();
-var kundaSettings = {
-  messageCost: 50,
-  freeInitialMessages: 3,
-  contactUnlockPrice: 2e3,
-  plans: [
-    {
-      code: "pass_24h",
-      name: "24 Hours Pass",
-      price: 500,
-      durationHours: 24,
-      description: "Unlimited private messaging for 24 hours"
-    },
-    {
-      code: "pass_3d",
-      name: "3-Day Pass",
-      price: 1200,
-      durationHours: 72,
-      description: "Unlimited messaging for 3 days (Popular)"
-    },
-    {
-      code: "pass_weekly",
-      name: "Weekly VIP Pass",
-      price: 2500,
-      durationHours: 168,
-      description: "Unlimited messaging for 7 days + priority matching"
-    },
-    {
-      code: "pass_monthly",
-      name: "Monthly Elite Pass",
-      price: 6e3,
-      durationHours: 720,
-      description: "Unlimited messaging for 30 days + VIP verified status"
-    }
-  ]
-};
-app.get("/api/modules/kunda/plans", async (req, res) => {
-  return res.json({
-    success: true,
-    settings: {
-      messageCost: kundaSettings.messageCost,
-      freeInitialMessages: kundaSettings.freeInitialMessages,
-      contactUnlockPrice: kundaSettings.contactUnlockPrice
-    },
-    plans: kundaSettings.plans
-  });
-});
-app.post("/api/modules/kunda/crush", authenticateToken, async (req, res) => {
-  try {
-    const { targetProfileId, targetName, unlike } = req.body;
-    if (!targetProfileId) return res.status(400).json({ error: "targetProfileId is required." });
-    await query(`
-      CREATE TABLE IF NOT EXISTS kunda_crushes (
-        id SERIAL PRIMARY KEY,
-        sender_id VARCHAR(255) NOT NULL,
-        target_id VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(sender_id, target_id)
-      );
-    `).catch(() => {
-    });
-    if (unlike) {
-      await query("DELETE FROM kunda_crushes WHERE sender_id = $1 AND target_id = $2", [
-        req.user.id,
-        targetProfileId
-      ]);
-      return res.json({ success: true, isMatch: false, action: "unliked" });
-    }
-    await query(
-      `INSERT INTO kunda_crushes (sender_id, target_id)
-       VALUES ($1, $2)
-       ON CONFLICT (sender_id, target_id) DO NOTHING`,
-      [req.user.id, targetProfileId]
-    );
-    const mutual = await query(
-      "SELECT id FROM kunda_crushes WHERE sender_id = $1 AND target_id = $2",
-      [targetProfileId, req.user.id]
-    );
-    const isMatch = mutual.rowCount > 0;
-    return res.json({
-      success: true,
-      isMatch,
-      message: isMatch ? "Mutual Match! You can chat now." : "Crush sent successfully!"
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/modules/kunda/my-crushes", authenticateToken, async (req, res) => {
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS kunda_crushes (
-        id SERIAL PRIMARY KEY,
-        sender_id VARCHAR(255) NOT NULL,
-        target_id VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(sender_id, target_id)
-      );
-    `).catch(() => {
-    });
-    const resDb = await query("SELECT target_id FROM kunda_crushes WHERE sender_id = $1", [
-      req.user.id
-    ]);
-    const crushes = resDb.rows.map((r5) => r5.target_id);
-    return res.json({ crushes });
-  } catch (err) {
-    return res.json({ crushes: [] });
-  }
-});
-app.post("/api/modules/kunda/subscribe", authenticateToken, async (req, res) => {
-  try {
-    const { planCode } = req.body;
-    const plan = kundaSettings.plans.find((p4) => p4.code === planCode);
-    if (!plan) {
-      return res.status(400).json({ error: "Invalid membership pass code." });
-    }
-    const userId = req.user.id;
-    const debitRes = await WalletService.debit(
-      userId,
-      plan.price,
-      "dating",
-      "subscription_pass",
-      `Kunda Space: Activated ${plan.name} (-${plan.price.toLocaleString()} RWF)`,
-      `tx_kunda_sub_${Date.now()}`
-    );
-    const expiresAt = Date.now() + plan.durationHours * 3600 * 1e3;
-    const subRecord = {
-      id: `sub_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      user_id: userId,
-      plan_code: plan.code,
-      price: plan.price,
-      expires_at: expiresAt,
-      created_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    kundaSubscriptionsStore.push(subRecord);
-    await query(`
-      CREATE TABLE IF NOT EXISTS kunda_subscriptions (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        plan_code VARCHAR(50) NOT NULL,
-        price NUMERIC(10,2) NOT NULL,
-        expires_at BIGINT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    await query(
-      "INSERT INTO kunda_subscriptions (id, user_id, plan_code, price, expires_at) VALUES ($1, $2, $3, $4, $5)",
-      [subRecord.id, subRecord.user_id, subRecord.plan_code, subRecord.price, subRecord.expires_at]
-    ).catch(() => {
-    });
-    return res.json({
-      success: true,
-      subscription: subRecord,
-      newBalance: debitRes.newBalance,
-      message: `\u{1F389} Successfully subscribed to ${plan.name}! Unlimited messaging active.`
-    });
-  } catch (err) {
-    if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      return res.status(400).json({ error: "INSUFFICIENT_FUNDS", message: "Insufficient wallet balance. Please top up your wallet." });
-    }
-    return res.status(500).json({ error: err.message || "Subscription failed." });
-  }
-});
-app.get("/api/modules/kunda/messages/:partnerId", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { partnerId } = req.params;
-    const activeSub = kundaSubscriptionsStore.find(
-      (s2) => s2.user_id === userId && s2.expires_at > Date.now()
-    );
-    const userSentCount = kundaMessagesStore.filter(
-      (m3) => m3.sender_id === userId && m3.recipient_id === partnerId
-    ).length;
-    const initialRemaining = Math.max(0, kundaSettings.freeInitialMessages - userSentCount);
-    const unlockKey = `${userId}:${partnerId}`;
-    const isContactUnlocked = kundaUnlockedContactsStore.has(unlockKey);
-    const thread = kundaMessagesStore.filter(
-      (m3) => m3.sender_id === userId && m3.recipient_id === partnerId || m3.sender_id === partnerId && m3.recipient_id === userId
-    ).sort((a6, b6) => new Date(a6.created_at).getTime() - new Date(b6.created_at).getTime());
-    return res.json({
-      success: true,
-      messages: thread,
-      allowances: {
-        initialRemaining,
-        perMessageFee: kundaSettings.messageCost,
-        hasActiveSubscription: Boolean(activeSub),
-        activeSubscription: activeSub || null,
-        contactUnlockPrice: kundaSettings.contactUnlockPrice,
-        isContactUnlocked,
-        partnerPhone: isContactUnlocked ? "+250783987223" : null
-      }
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/kunda/send-message", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { recipientId, content } = req.body;
-    if (!recipientId || !content || !content.trim()) {
-      return res.status(400).json({ error: "Recipient and message content are required." });
-    }
-    const activeSub = kundaSubscriptionsStore.find(
-      (s2) => s2.user_id === userId && s2.expires_at > Date.now()
-    );
-    let chargedAmount = 0;
-    let newBalance;
-    if (!activeSub) {
-      const userSentCount = kundaMessagesStore.filter(
-        (m3) => m3.sender_id === userId && m3.recipient_id === recipientId
-      ).length;
-      if (userSentCount >= kundaSettings.freeInitialMessages) {
-        try {
-          const debitRes = await WalletService.debit(
-            userId,
-            kundaSettings.messageCost,
-            "dating",
-            "message_fee",
-            `Kunda Space: Private message fee (-${kundaSettings.messageCost} RWF)`,
-            `tx_kunda_msg_${Date.now()}`
-          );
-          chargedAmount = kundaSettings.messageCost;
-          newBalance = debitRes.newBalance;
-        } catch (debitErr) {
-          return res.status(400).json({
-            error: "INSUFFICIENT_FUNDS",
-            message: `Insufficient wallet balance. Sending this message requires ${kundaSettings.messageCost} RWF or an Unlimited Pass.`
-          });
-        }
-      }
-    }
-    const newMsg = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      sender_id: userId,
-      recipient_id: recipientId,
-      content: content.trim(),
-      created_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    kundaMessagesStore.push(newMsg);
-    if (recipientId.startsWith("k")) {
-      setTimeout(() => {
-        const autoReplies = {
-          k1: [
-            "Muraho! It is wonderful to meet you here on Kunda Space.",
-            "I love talking about design and music! Which church or choir music do you listen to?",
-            "Are you based in Kigali?"
-          ],
-          k2: [
-            "Hello! Glad we matched. What kind of books or podcasts do you enjoy?",
-            "Nice message! Tell me a bit about your favorite weekend spots in Kigali."
-          ],
-          k3: [
-            "Hi there! Musanze is beautiful right now. Have you ever hiked the northern volcanoes?",
-            "Delighted to chat! Looking forward to getting to know you."
-          ]
-        };
-        const pool = autoReplies[recipientId] || [
-          "Hello! Thank you for your message. How is your day going?",
-          "Nice to meet you on Kunda Space! Looking forward to chatting."
-        ];
-        const replyText = pool[Math.floor(Math.random() * pool.length)];
-        kundaMessagesStore.push({
-          id: `reply_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-          sender_id: recipientId,
-          recipient_id: userId,
-          content: replyText,
-          created_at: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }, 1500);
-    }
-    return res.json({
-      success: true,
-      message: newMsg,
-      chargedAmount,
-      newBalance
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to send message." });
-  }
-});
-app.post("/api/modules/kunda/unlock-contact", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { targetProfileId, price = kundaSettings.contactUnlockPrice } = req.body;
-    const unlockPrice = Number(price) || kundaSettings.contactUnlockPrice;
-    await query(`
-      CREATE TABLE IF NOT EXISTS chat_unlocked_contacts (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        contact_id VARCHAR(255) NOT NULL,
-        phone VARCHAR(100),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, contact_id)
-      );
-    `).catch(() => {
-    });
-    const checkExisting = await query(
-      "SELECT phone FROM chat_unlocked_contacts WHERE user_id = $1 AND contact_id = $2",
-      [userId, String(targetProfileId)]
-    ).catch(() => ({ rowCount: 0, rows: [] }));
-    let verifiedPhone = "+250783987223";
-    if (String(targetProfileId) === "k1") verifiedPhone = "+250788123456";
-    else if (String(targetProfileId) === "k2") verifiedPhone = "+250789234567";
-    else {
-      const uRes = await query("SELECT phone FROM core_users WHERE id = $1", [targetProfileId]).catch(() => ({ rowCount: 0, rows: [] }));
-      if (uRes.rowCount > 0 && uRes.rows[0]?.phone) verifiedPhone = uRes.rows[0].phone;
-    }
-    const cleanNum = verifiedPhone.replace(/[^0-9]/g, "");
-    const waLink = `https://wa.me/${cleanNum}?text=Muraho!%20Connected%20via%20Benix%20Kunda%20Space.`;
-    if (checkExisting.rowCount > 0) {
-      return res.json({
-        success: true,
-        alreadyUnlocked: true,
-        phone: checkExisting.rows[0].phone || verifiedPhone,
-        whatsappLink: waLink,
-        message: "Contact details already unlocked."
-      });
-    }
-    const debitRes = await WalletService.debit(
-      userId,
-      unlockPrice,
-      "dating",
-      "contact_unlock",
-      `Kunda Space: Unlocked verified contact details for profile #${targetProfileId}`,
-      `tx_kunda_unl_${Date.now()}`
-    );
-    const unlockKey = `${userId}:${targetProfileId}`;
-    kundaUnlockedContactsStore.add(unlockKey);
-    await query(
-      `INSERT INTO chat_unlocked_contacts (user_id, contact_id, phone)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, contact_id) DO UPDATE SET phone = EXCLUDED.phone`,
-      [userId, String(targetProfileId), verifiedPhone]
-    ).catch(() => {
-    });
-    return res.json({
-      success: true,
-      newBalance: debitRes.newBalance,
-      phone: verifiedPhone,
-      whatsappLink: waLink,
-      message: `\u{1F389} Verified direct contact details unlocked for ${unlockPrice} RWF!`
-    });
-  } catch (err) {
-    if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      return res.status(400).json({ error: "INSUFFICIENT_FUNDS", message: "Insufficient wallet balance for contact unlock." });
-    }
-    return res.status(400).json({ error: err.message || "Failed to unlock contact." });
-  }
-});
-async function getSystemSetting3(key, defaultValue) {
+async function getSystemSetting2(key, defaultValue) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -119313,7 +116738,7 @@ async function getSystemSetting3(key, defaultValue) {
   }
   return defaultValue;
 }
-async function setSystemSetting3(key, value) {
+async function setSystemSetting2(key, value) {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_settings (
@@ -119347,10 +116772,10 @@ async function setSystemSetting3(key, value) {
 }
 app.get("/api/chat/settings", async (req, res) => {
   try {
-    const contactUnlockPrice = Number(await getSystemSetting3("contact_unlock_price", "500")) || 500;
-    const creatorRevSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
-    const messageCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
-    const freeMessages = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
+    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
+    const creatorRevSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+    const freeMessages = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice,
@@ -119374,21 +116799,21 @@ app.post("/api/admin/settings/chat", authenticateToken, requireAdminRole, async 
   try {
     const { contactUnlockPrice, creatorRevSharePct, messageCost, freeMessages } = req.body;
     if (contactUnlockPrice !== void 0) {
-      await setSystemSetting3("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
+      await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(contactUnlockPrice) || 0)));
     }
     if (creatorRevSharePct !== void 0) {
-      await setSystemSetting3("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
+      await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(creatorRevSharePct) || 15))));
     }
     if (messageCost !== void 0) {
-      await setSystemSetting3("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
+      await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(messageCost) || 0)));
     }
     if (freeMessages !== void 0) {
-      await setSystemSetting3("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
+      await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(freeMessages) || 0)));
     }
-    const currentPrice = Number(await getSystemSetting3("contact_unlock_price", "500")) || 500;
-    const currentShare = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
-    const currentCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
-    const currentFree = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
+    const currentPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
+    const currentShare = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const currentCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+    const currentFree = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
     return res.json({
       success: true,
       contactUnlockPrice: currentPrice,
@@ -119431,10 +116856,10 @@ app.get("/api/chat/partner-status/:partnerId", authenticateToken, async (req, re
   try {
     const partnerId = req.params.partnerId;
     const senderId = req.user.id;
-    const freeLimit = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
-    const messageCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
-    const revSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
-    const contactUnlockPrice = Number(await getSystemSetting3("contact_unlock_price", "500")) || 500;
+    const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+    const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
+    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
+    const contactUnlockPrice = Number(await getSystemSetting2("contact_unlock_price", "500")) || 500;
     let partnerPrivacy = "public";
     let partnerName = "Member";
     if (partnerId !== "support") {
@@ -119538,10 +116963,10 @@ app.post("/api/chat/send-message", authenticateToken, async (req, res) => {
         [senderId, recipientId]
       );
       const sentCount = Number(countRes.rows[0]?.count || 0);
-      const freeLimit = Number(await getSystemSetting3("kunda_free_messages", "3")) || 3;
-      const messageCost = Number(await getSystemSetting3("kunda_message_cost", "50")) || 50;
+      const freeLimit = Number(await getSystemSetting2("kunda_free_messages", "3")) || 3;
+      const messageCost = Number(await getSystemSetting2("kunda_message_cost", "50")) || 50;
       if (sentCount >= freeLimit && messageCost > 0) {
-        const revSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
+        const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
         creatorEarning = Math.round(messageCost * revSharePct / 100);
         amountPaid = messageCost;
         isPaid = true;
@@ -119622,7 +117047,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
   try {
     const { contactId } = req.body;
     if (!contactId) return res.status(400).json({ error: "contactId is required." });
-    const dbPriceStr = await getSystemSetting3("contact_unlock_price", "500");
+    const dbPriceStr = await getSystemSetting2("contact_unlock_price", "500");
     const unlockPrice = Math.max(0, Number(dbPriceStr) || 500);
     const userId = req.user.id;
     await WalletService.getOrCreateWallet(userId).catch(() => {
@@ -119635,7 +117060,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
       `Unlocked direct contact phone number for member #${contactId}`,
       `tx_chat_unl_${Date.now()}`
     );
-    const revSharePct = Number(await getSystemSetting3("kunda_creator_rev_share_pct", "15")) || 15;
+    const revSharePct = Number(await getSystemSetting2("kunda_creator_rev_share_pct", "15")) || 15;
     const creatorCut = Math.round(unlockPrice * revSharePct / 100);
     if (creatorCut > 0 && contactId !== "support" && contactId !== userId) {
       await WalletService.credit(
@@ -119697,7 +117122,7 @@ app.post("/api/chat/unlock-contact", authenticateToken, async (req, res) => {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes("insufficient")) {
-      const dbPrice = await getSystemSetting3("contact_unlock_price", "500");
+      const dbPrice = await getSystemSetting2("contact_unlock_price", "500");
       return res.status(400).json({
         error: "INSUFFICIENT_FUNDS",
         message: `Insufficient wallet balance. Unlocking contact requires ${dbPrice} RWF. Please top up your wallet.`
@@ -120142,122 +117567,6 @@ app.post("/api/chat/broadcast", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-var voxifySongsList = [];
-async function ensureVoxifyTable() {
-  await query(`
-    CREATE TABLE IF NOT EXISTS voxify_tracks (
-      id VARCHAR(255) PRIMARY KEY,
-      title VARCHAR(500) NOT NULL,
-      choir VARCHAR(255) NOT NULL,
-      category VARCHAR(100),
-      voice_part VARCHAR(50) DEFAULT 'satb',
-      duration VARCHAR(50) DEFAULT '3:30',
-      has_sheet_music BOOLEAN DEFAULT false,
-      audio_url TEXT NOT NULL,
-      sheet_music_url TEXT,
-      uploader_id VARCHAR(255),
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-  `).catch(() => {
-  });
-}
-app.get("/api/modules/voxify/tracks", async (req, res) => {
-  try {
-    await ensureVoxifyTable();
-    const result = await query("SELECT * FROM voxify_tracks ORDER BY created_at DESC LIMIT 100");
-    const tracks = result.rows.map((r5) => ({
-      id: r5.id,
-      title: r5.title,
-      choir: r5.choir,
-      category: r5.category || "Sacred Choral",
-      voicePart: r5.voice_part || "satb",
-      duration: r5.duration || "3:30",
-      hasSheetMusic: Boolean(r5.has_sheet_music),
-      audioUrl: r5.audio_url,
-      sheetMusicUrl: r5.sheet_music_url
-    }));
-    return res.json({ tracks, songs: tracks });
-  } catch (err) {
-    return res.json({ tracks: [], songs: [] });
-  }
-});
-app.post("/api/modules/voxify/tracks", authenticateToken, async (req, res) => {
-  try {
-    await ensureVoxifyTable();
-    const { title, choir, category, voicePart = "satb", duration = "3:30", hasSheetMusic = false, audioUrl, sheetMusicUrl } = req.body;
-    if (!title || !audioUrl) {
-      return res.status(400).json({ error: "Song title and audio URL are required." });
-    }
-    const newId = `vx_${Date.now()}`;
-    const choirName = choir?.trim() || req.user?.name || "Rwandan Choral";
-    await query(
-      `INSERT INTO voxify_tracks (id, title, choir, category, voice_part, duration, has_sheet_music, audio_url, sheet_music_url, uploader_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [
-        newId,
-        title.trim(),
-        choirName,
-        category || "Sacred Classical",
-        voicePart,
-        duration,
-        Boolean(hasSheetMusic),
-        audioUrl.trim(),
-        sheetMusicUrl?.trim() || null,
-        req.user.id
-      ]
-    );
-    const newTrack = {
-      id: newId,
-      title: title.trim(),
-      choir: choirName,
-      category: category || "Sacred Classical",
-      voicePart,
-      duration,
-      hasSheetMusic: Boolean(hasSheetMusic),
-      audioUrl: audioUrl.trim(),
-      sheetMusicUrl: sheetMusicUrl?.trim() || null
-    };
-    return res.status(201).json({ success: true, track: newTrack, message: "Track published to Voxify successfully!" });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/modules/kunda/matches", async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    let currentUserId = null;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const decoded = verifyToken(authHeader.substring(7));
-      currentUserId = decoded?.id || null;
-    }
-    const result = await query(
-      `SELECT id, name, email, phone, channel_name, app_profiles, created_at
-       FROM core_users
-       WHERE id != COALESCE($1, 'none')
-       ORDER BY created_at DESC
-       LIMIT 50`,
-      [currentUserId]
-    );
-    const matches = result.rows.map((u, idx) => {
-      const kp = u.app_profiles?.kunda || {};
-      return {
-        id: u.id,
-        name: kp.displayName || u.channel_name || u.name,
-        age: Number(kp.age) || 22 + idx % 12,
-        city: kp.city || "Kigali, Rwanda",
-        profession: kp.profession || (u.channel_name ? "Content Creator" : "Professional"),
-        bio: kp.bio || "Verified Benix member. Looking to connect, network and build meaningful relationships.",
-        interests: Array.isArray(kp.interests) && kp.interests.length > 0 ? kp.interests : ["Music", "Technology", "Community", "Travel"],
-        image: kp.avatarUrl || u.app_profiles?.avatar || `https://images.unsplash.com/photo-${1534528741775 + idx * 17}?w=600&auto=format&fit=crop&q=80`,
-        verified: Boolean(u.is_verified || u.channel_name || true),
-        online: idx % 2 === 0
-      };
-    });
-    return res.json({ success: true, matches });
-  } catch (err) {
-    return res.status(500).json({ error: err.message, matches: [] });
-  }
-});
 app.get("/api/admin/all-apps-control", authenticateToken, requireAdminRole, async (req, res) => {
   try {
     return res.json({
@@ -120480,7 +117789,7 @@ app.post("/api/media/upload-chunk", async (req, res) => {
     const buffers = chunksRes.rows.map((r5) => Buffer.from(r5.chunk_data, "base64"));
     const fullBuffer = Buffer.concat(buffers);
     const safeExt = path4.extname(fileName || "").toLowerCase() || (mimeType?.includes("video") ? ".mp4" : ".jpg");
-    const fileId = "med_" + Date.now() + "_" + crypto17.randomBytes(4).toString("hex");
+    const fileId = "med_" + Date.now() + "_" + crypto16.randomBytes(4).toString("hex");
     const safeFileName = `${fileId}${safeExt}`;
     const cleanMime = (mimeType || "application/octet-stream").split(";")[0].trim();
     await query(
@@ -121203,7 +118512,7 @@ app.post("/api/stories/:id/repost", authenticateToken, async (req, res) => {
     }
     const old = storyRes.rows[0];
     const newId = "story-" + Date.now();
-    const lifespanHours = Number(await getSystemSetting3("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, views, created_at, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -121259,7 +118568,7 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
         console.warn("Story R2 upload notice:", err?.message);
       }
     }
-    const lifespanHours = Number(await getSystemSetting3("story_lifespan_hours", "24")) || 24;
+    const lifespanHours = Number(await getSystemSetting2("story_lifespan_hours", "24")) || 24;
     await query(
       `INSERT INTO core_stories (id, user_id, author_name, author_avatar, media_url, caption, media_type, duration, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + ($9 || ' hours')::INTERVAL)`,
@@ -121663,8 +118972,8 @@ app.get("/api/creator/monetization-status", authenticateToken, async (req, res) 
       [userId]
     );
     const currentSubscribers = Number(subRes.rows[0]?.count || 0);
-    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -121842,8 +119151,8 @@ app.get("/api/creator/studio-analytics", authenticateToken, async (req, res) => 
     ).catch(() => ({ rows: [{ story_count: 0, total_story_views: 0 }] }));
     const storyCount = Number(storiesRes.rows[0]?.story_count || 0);
     const totalStoryViews = Number(storiesRes.rows[0]?.total_story_views || 0);
-    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     const requiredWatchHours = Number(reqHoursStr) || 300;
     const requiredSubscribers = Number(reqSubsStr) || 30;
     const userOverrideRes = await query(`SELECT monetization_status, monetization_warning FROM core_users WHERE id = $1`, [userId]).catch(() => ({ rows: [] }));
@@ -122146,8 +119455,8 @@ app.post("/api/admin/videos/batch-import", authenticateToken, requireAdminRole, 
 });
 app.get("/api/admin/monetization/settings", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     return res.json({
       success: true,
       requiredWatchHours: Number(reqHoursStr) || 300,
@@ -122161,10 +119470,10 @@ app.post("/api/admin/monetization/settings", authenticateToken, requireAdminRole
   try {
     const { requiredWatchHours, requiredSubscribers } = req.body;
     if (requiredWatchHours !== void 0) {
-      await setSystemSetting3("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
+      await setSystemSetting2("monetization_required_watch_hours", String(Math.max(1, Number(requiredWatchHours) || 300)));
     }
     if (requiredSubscribers !== void 0) {
-      await setSystemSetting3("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
+      await setSystemSetting2("monetization_required_subscribers", String(Math.max(1, Number(requiredSubscribers) || 30)));
     }
     return res.json({ success: true, message: "Monetization requirements updated in database." });
   } catch (err) {
@@ -122177,8 +119486,8 @@ app.get("/api/admin/creators/monetization", authenticateToken, requireAdminRole,
     });
     await query(`ALTER TABLE core_users ADD COLUMN IF NOT EXISTS monetization_warning TEXT;`).catch(() => {
     });
-    const reqHoursStr = await getSystemSetting3("monetization_required_watch_hours", "300");
-    const reqSubsStr = await getSystemSetting3("monetization_required_subscribers", "30");
+    const reqHoursStr = await getSystemSetting2("monetization_required_watch_hours", "300");
+    const reqSubsStr = await getSystemSetting2("monetization_required_subscribers", "30");
     const reqHours = Number(reqHoursStr) || 300;
     const reqSubs = Number(reqSubsStr) || 30;
     const creatorsRes = await query(`
@@ -124240,7 +121549,7 @@ app.post("/api/modules/videos/:id/unlock", authenticateToken, async (req, res) =
     );
     userUnlocked.add(video.id);
     unlockedVideosByUser.set(req.user.id, userUnlocked);
-    const platformCommissionPct = Number(await getSystemSetting3("video_affiliate_commission_pct", "15")) || 15;
+    const platformCommissionPct = Number(await getSystemSetting2("video_affiliate_commission_pct", "15")) || 15;
     const creatorCutPct = Math.max(0, 100 - platformCommissionPct);
     const creatorEarned = Math.round(video.price * creatorCutPct / 100);
     const videoCreatorId = video.userId || video.user_id;
@@ -124717,146 +122026,6 @@ app.get("/api/admin/announcements/:id/stats", authenticateAdmin, async (req, res
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
-  }
-});
-async function ensureMarketplaceTable() {
-  await query(`
-    CREATE TABLE IF NOT EXISTS mkt_products (
-      id VARCHAR(255) PRIMARY KEY,
-      title VARCHAR(500) NOT NULL,
-      description TEXT,
-      price NUMERIC(10,2) NOT NULL DEFAULT 0,
-      category VARCHAR(100) NOT NULL,
-      seller VARCHAR(255),
-      seller_id VARCHAR(255),
-      rating NUMERIC(3,2) DEFAULT 5.0,
-      downloads INT DEFAULT 0,
-      badge VARCHAR(50),
-      commission_pct INT DEFAULT 10,
-      image_url TEXT,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-  `).catch(() => {
-  });
-}
-app.get(["/api/modules/marketplace/products", "/api/modules/marketplace/items"], async (req, res) => {
-  try {
-    await ensureMarketplaceTable();
-    const result = await query("SELECT * FROM mkt_products ORDER BY created_at DESC LIMIT 100");
-    return res.json({ products: result.rows, items: result.rows });
-  } catch (err) {
-    return res.json({ products: [], items: [] });
-  }
-});
-app.post("/api/modules/marketplace/items", authenticateToken, async (req, res) => {
-  try {
-    await ensureMarketplaceTable();
-    const { title, description, price, category, imageUrl, commissionPct = 10, badge } = req.body;
-    if (!title || price === void 0) {
-      return res.status(400).json({ error: "Title and price are required." });
-    }
-    const newId = `mp_${Date.now()}`;
-    const seller = req.user?.name || req.user?.email?.split("@")[0] || "Verified Seller";
-    const sellerId = req.user?.id;
-    await query(
-      `INSERT INTO mkt_products (id, title, description, price, category, seller, seller_id, rating, downloads, badge, commission_pct, image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 5.0, 0, $8, $9, $10)`,
-      [
-        newId,
-        title.trim(),
-        description?.trim() || "",
-        Number(price) || 0,
-        category || "Digital Goods",
-        seller,
-        sellerId,
-        badge || "NEW",
-        Number(commissionPct) || 10,
-        imageUrl || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80"
-      ]
-    );
-    const newItem = {
-      id: newId,
-      title: title.trim(),
-      description: description?.trim() || "",
-      price: Number(price) || 0,
-      category: category || "Digital Goods",
-      seller,
-      seller_id: sellerId,
-      rating: 5,
-      downloads: 0,
-      badge: badge || "NEW",
-      commission_pct: Number(commissionPct) || 10,
-      image_url: imageUrl || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80"
-    };
-    return res.status(201).json({ success: true, item: newItem, message: "Item listed successfully!" });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/marketplace/buy", authenticateToken, async (req, res) => {
-  try {
-    await ensureMarketplaceTable();
-    const { productId, ref } = req.body;
-    const prodRes = await query("SELECT * FROM mkt_products WHERE id = $1", [productId]);
-    if (prodRes.rowCount === 0) {
-      return res.status(404).json({ error: "Product not found." });
-    }
-    const product = prodRes.rows[0];
-    const price = Number(product.price);
-    const debitResult = await WalletService.debit(
-      req.user.id,
-      price,
-      "marketplace",
-      "product_purchase",
-      `Purchased: "${product.title}"`,
-      `tx_mp_buy_${product.id}_${Date.now()}`
-    );
-    await query("UPDATE mkt_products SET downloads = COALESCE(downloads, 0) + 1 WHERE id = $1", [productId]).catch(() => {
-    });
-    if (product.seller_id && product.seller_id !== req.user.id) {
-      const commissionRate = (Number(product.commission_pct) || 10) / 100;
-      const sellerEarnings = price * (1 - commissionRate);
-      if (sellerEarnings > 0) {
-        await WalletService.credit(
-          product.seller_id,
-          sellerEarnings,
-          "marketplace",
-          "product_sale",
-          `Sale earnings for "${product.title}"`,
-          `tx_mp_sale_${product.id}_${Date.now()}`
-        ).catch(() => {
-        });
-      }
-    }
-    let affiliateCredit = null;
-    if (ref) {
-      try {
-        const commRate = (Number(product.commission_pct) || 10) / 100;
-        affiliateCredit = await ReferralService.recordAffiliateSale(
-          ref,
-          product.id,
-          product.title,
-          price,
-          commRate,
-          "marketplace",
-          req.user.id
-        );
-      } catch (e5) {
-        console.warn("Marketplace affiliate commission error:", e5);
-      }
-    }
-    return res.json({
-      success: true,
-      message: `Successfully purchased "${product.title}"!`,
-      wallet: {
-        balance: debitResult.newBalance,
-        bonus_balance: debitResult.newBonusBalance,
-        total_balance: debitResult.totalBalance
-      },
-      affiliate_awarded: !!affiliateCredit
-    });
-  } catch (err) {
-    return res.status(400).json({ error: err.message || "Purchase failed." });
   }
 });
 app.get("/api/modules/games/rooms", async (req, res) => {
@@ -125336,7 +122505,7 @@ var handleBonusSpin = async (req, res) => {
     const stake = Number(room.stake);
     const totalPot = stake * 2;
     const basePayout = totalPot - totalPot * 10 / 100;
-    const randNum = crypto17.randomBytes(4).readUInt32BE(0) % 1e5 + 1;
+    const randNum = crypto16.randomBytes(4).readUInt32BE(0) % 1e5 + 1;
     let selectedTier = MULTIPLIER_TIERS_SERVER[2];
     let tierIndex = 2;
     for (let i5 = 0; i5 < MULTIPLIER_TIERS_SERVER.length; i5++) {
@@ -125580,11 +122749,11 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     `, [JSON.stringify(payload)]);
     if (payload.adsense) {
       const a6 = payload.adsense;
-      if (a6.google_ad_view_payout !== void 0) await setSystemSetting3("google_ad_view_payout", String(a6.google_ad_view_payout));
-      if (a6.google_ad_click_payout !== void 0) await setSystemSetting3("google_ad_click_payout", String(a6.google_ad_click_payout));
-      if (a6.custom_ad_view_payout !== void 0) await setSystemSetting3("custom_ad_view_payout", String(a6.custom_ad_view_payout));
-      if (a6.custom_ad_click_payout !== void 0) await setSystemSetting3("custom_ad_click_payout", String(a6.custom_ad_click_payout));
-      if (a6.client_id !== void 0) await setSystemSetting3("adsense_client_id", String(a6.client_id));
+      if (a6.google_ad_view_payout !== void 0) await setSystemSetting2("google_ad_view_payout", String(a6.google_ad_view_payout));
+      if (a6.google_ad_click_payout !== void 0) await setSystemSetting2("google_ad_click_payout", String(a6.google_ad_click_payout));
+      if (a6.custom_ad_view_payout !== void 0) await setSystemSetting2("custom_ad_view_payout", String(a6.custom_ad_view_payout));
+      if (a6.custom_ad_click_payout !== void 0) await setSystemSetting2("custom_ad_click_payout", String(a6.custom_ad_click_payout));
+      if (a6.client_id !== void 0) await setSystemSetting2("adsense_client_id", String(a6.client_id));
     }
     if (payload.branding || payload.contacts) {
       const b6 = payload.branding || {};
@@ -125610,38 +122779,38 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
     if (payload.modules) {
       const m3 = payload.modules;
       if (m3.kunda_contact_unlock_price !== void 0) {
-        await setSystemSetting3("contact_unlock_price", String(Math.max(0, Number(m3.kunda_contact_unlock_price) || 500)));
+        await setSystemSetting2("contact_unlock_price", String(Math.max(0, Number(m3.kunda_contact_unlock_price) || 500)));
       }
       if (m3.kunda_creator_rev_share_pct !== void 0) {
-        await setSystemSetting3("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m3.kunda_creator_rev_share_pct) || 15))));
+        await setSystemSetting2("kunda_creator_rev_share_pct", String(Math.max(0, Math.min(100, Number(m3.kunda_creator_rev_share_pct) || 15))));
       }
       if (m3.kunda_message_cost !== void 0) {
-        await setSystemSetting3("kunda_message_cost", String(Math.max(0, Number(m3.kunda_message_cost) || 50)));
+        await setSystemSetting2("kunda_message_cost", String(Math.max(0, Number(m3.kunda_message_cost) || 50)));
       }
       if (m3.kunda_free_messages !== void 0) {
-        await setSystemSetting3("kunda_free_messages", String(Math.max(0, Number(m3.kunda_free_messages) || 3)));
+        await setSystemSetting2("kunda_free_messages", String(Math.max(0, Number(m3.kunda_free_messages) || 3)));
       }
       if (m3.creator_watch_hours_goal !== void 0 || m3.min_watch_hours !== void 0) {
         const wh = String(Math.max(0, Number(m3.creator_watch_hours_goal ?? m3.min_watch_hours) || 300));
-        await setSystemSetting3("monetization_required_watch_hours", wh);
-        await setSystemSetting3("creator_watch_hours_goal", wh);
+        await setSystemSetting2("monetization_required_watch_hours", wh);
+        await setSystemSetting2("creator_watch_hours_goal", wh);
       }
       if (m3.creator_subscribers_goal !== void 0 || m3.min_subscribers !== void 0) {
         const sb = String(Math.max(0, Number(m3.creator_subscribers_goal ?? m3.min_subscribers) || 30));
-        await setSystemSetting3("monetization_required_subscribers", sb);
-        await setSystemSetting3("creator_subscribers_goal", sb);
+        await setSystemSetting2("monetization_required_subscribers", sb);
+        await setSystemSetting2("creator_subscribers_goal", sb);
       }
       if (m3.min_withdrawal_amount !== void 0) {
-        await setSystemSetting3("min_withdrawal_amount", String(Math.max(100, Number(m3.min_withdrawal_amount) || 500)));
+        await setSystemSetting2("min_withdrawal_amount", String(Math.max(100, Number(m3.min_withdrawal_amount) || 500)));
       }
       if (m3.creator_revenue_share_pct !== void 0 || m3.creatorSharePercent !== void 0) {
-        await setSystemSetting3("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m3.creator_revenue_share_pct ?? m3.creatorSharePercent) || 70))));
+        await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(m3.creator_revenue_share_pct ?? m3.creatorSharePercent) || 70))));
       }
       if (m3.default_cpm_rwf !== void 0 || m3.defaultCpmRwf !== void 0) {
-        await setSystemSetting3("default_cpm_rwf", String(Math.max(100, Number(m3.default_cpm_rwf ?? m3.defaultCpmRwf) || 1200)));
+        await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(m3.default_cpm_rwf ?? m3.defaultCpmRwf) || 1200)));
       }
       if (m3.story_lifespan_hours !== void 0) {
-        await setSystemSetting3("story_lifespan_hours", String(Math.max(1, Number(m3.story_lifespan_hours) || 24)));
+        await setSystemSetting2("story_lifespan_hours", String(Math.max(1, Number(m3.story_lifespan_hours) || 24)));
       }
     }
     return res.json({ success: true, message: "All-Apps configuration saved successfully to database." });
@@ -125652,10 +122821,10 @@ app.post("/api/admin/settings/all-apps", authenticateToken, requireAdminRole, as
 });
 app.get("/api/admin/settings/monetization", authenticateAdmin, async (req, res) => {
   try {
-    const minWatchHours = Number(await getSystemSetting3("monetization_required_watch_hours", "300")) || 300;
-    const minSubscribers = Number(await getSystemSetting3("monetization_required_subscribers", "30")) || 30;
-    const creatorSharePercent = Number(await getSystemSetting3("creator_revenue_share_pct", "70")) || 70;
-    const defaultCpmRwf = Number(await getSystemSetting3("default_cpm_rwf", "1200")) || 1200;
+    const minWatchHours = Number(await getSystemSetting2("monetization_required_watch_hours", "300")) || 300;
+    const minSubscribers = Number(await getSystemSetting2("monetization_required_subscribers", "30")) || 30;
+    const creatorSharePercent = Number(await getSystemSetting2("creator_revenue_share_pct", "70")) || 70;
+    const defaultCpmRwf = Number(await getSystemSetting2("default_cpm_rwf", "1200")) || 1200;
     return res.json({
       success: true,
       settings: {
@@ -125674,19 +122843,19 @@ app.post("/api/admin/settings/monetization", authenticateToken, requireAdminRole
     const { minWatchHours, minSubscribers, creatorSharePercent, defaultCpmRwf } = req.body;
     if (minWatchHours !== void 0) {
       const wh = String(Math.max(0, Number(minWatchHours)));
-      await setSystemSetting3("monetization_required_watch_hours", wh);
-      await setSystemSetting3("creator_watch_hours_goal", wh);
+      await setSystemSetting2("monetization_required_watch_hours", wh);
+      await setSystemSetting2("creator_watch_hours_goal", wh);
     }
     if (minSubscribers !== void 0) {
       const sb = String(Math.max(0, Number(minSubscribers)));
-      await setSystemSetting3("monetization_required_subscribers", sb);
-      await setSystemSetting3("creator_subscribers_goal", sb);
+      await setSystemSetting2("monetization_required_subscribers", sb);
+      await setSystemSetting2("creator_subscribers_goal", sb);
     }
     if (creatorSharePercent !== void 0) {
-      await setSystemSetting3("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
+      await setSystemSetting2("creator_revenue_share_pct", String(Math.max(1, Math.min(99, Number(creatorSharePercent)))));
     }
     if (defaultCpmRwf !== void 0) {
-      await setSystemSetting3("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
+      await setSystemSetting2("default_cpm_rwf", String(Math.max(100, Number(defaultCpmRwf))));
     }
     const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
     let currentSettings = {};
@@ -125907,10 +123076,7 @@ app.get("/sitemap.xml", async (req, res) => {
       "",
       "/tv",
       "/radio",
-      "/music",
-      "/marketplace",
       "/games",
-      "/calculators",
       "/projects",
       "/services",
       "/about",
@@ -126427,7 +123593,7 @@ app.post("/api/admin/deposits/:txRef/approve", authenticateToken, requireAdminRo
           `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
            VALUES ($1, $2, 'deposit_approved', $3, $4, false)`,
           [
-            "notif-" + crypto17.randomUUID(),
+            "notif-" + crypto16.randomUUID(),
             deposit2.user_id,
             "Deposit Approved! \u{1F389}",
             `Your MTN MoMo deposit of ${rwfAmount2.toLocaleString()} RWF has been verified and added to your wallet balance.`
@@ -126493,7 +123659,7 @@ app.post("/api/admin/deposits/:txRef/reject", authenticateToken, requireAdminRol
           `INSERT INTO core_notifications (id, user_id, type, title, message, is_read)
            VALUES ($1, $2, 'deposit_rejected', $3, $4, false)`,
           [
-            "notif-" + crypto17.randomUUID(),
+            "notif-" + crypto16.randomUUID(),
             deposit.user_id,
             "Deposit Verification Notice",
             `Your deposit submission of ${Number(deposit.amount).toLocaleString()} RWF was rejected: ${finalReason}`
@@ -126508,726 +123674,6 @@ app.post("/api/admin/deposits/:txRef/reject", authenticateToken, requireAdminRol
       [finalReason, txRef]
     );
     return res.json({ success: true, message: "Deposit marked as rejected." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/kunda/setup", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const {
-      relationship_intention = "serious_relationship",
-      interested_in = "everyone",
-      min_age = 20,
-      max_age = 40,
-      city = "Kigali",
-      country = "Rwanda",
-      lifestyle = {},
-      interests = [],
-      bio = ""
-    } = req.body;
-    await query(`
-      CREATE TABLE IF NOT EXISTS kunda_match_profiles (
-        user_id VARCHAR(100) PRIMARY KEY,
-        relationship_intention VARCHAR(100),
-        interested_in VARCHAR(50),
-        min_age INT DEFAULT 18,
-        max_age INT DEFAULT 50,
-        city VARCHAR(100) DEFAULT 'Kigali',
-        country VARCHAR(100) DEFAULT 'Rwanda',
-        lifestyle JSONB DEFAULT '{}'::jsonb,
-        interests JSONB DEFAULT '[]'::jsonb,
-        bio TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {
-    });
-    await query(`
-      INSERT INTO kunda_match_profiles (user_id, relationship_intention, interested_in, min_age, max_age, city, country, lifestyle, interests, bio, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-      ON CONFLICT (user_id) DO UPDATE SET
-        relationship_intention = EXCLUDED.relationship_intention,
-        interested_in = EXCLUDED.interested_in,
-        min_age = EXCLUDED.min_age,
-        max_age = EXCLUDED.max_age,
-        city = EXCLUDED.city,
-        country = EXCLUDED.country,
-        lifestyle = EXCLUDED.lifestyle,
-        interests = EXCLUDED.interests,
-        bio = EXCLUDED.bio,
-        updated_at = NOW();
-    `, [
-      userId,
-      relationship_intention,
-      interested_in,
-      Number(min_age) || 18,
-      Number(max_age) || 50,
-      city,
-      country,
-      JSON.stringify(lifestyle),
-      JSON.stringify(interests),
-      bio
-    ]);
-    return res.json({ success: true, message: "Kunda match preferences saved successfully!" });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/modules/kunda/matched", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const prefRes = await query("SELECT * FROM kunda_match_profiles WHERE user_id = $1", [userId]).catch(() => ({ rows: [] }));
-    const myPref = prefRes.rows[0] || {
-      relationship_intention: "serious_relationship",
-      interested_in: "everyone",
-      min_age: 18,
-      max_age: 45,
-      city: "Kigali",
-      interests: ["Coffee Tasting", "Hiking", "Tech", "Music"]
-    };
-    const candidates = [
-      { id: "usr_kd_01", name: "Aline Mugisha", age: 24, city: "Kigali", profession: "Product Designer", bio: "Passionate about African art, weekend road trips to Lake Kivu, and authentic connection.", interests: ["Art & Design", "Hiking", "Coffee Tasting", "Music"], image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80", verified: true, online: true, intention: "serious_relationship", gender: "woman" },
-      { id: "usr_kd_02", name: "Eric Ntwari", age: 28, city: "Kigali", profession: "Software Engineer", bio: "Tech founder, chess player, loves live acoustic music in Kimihurura.", interests: ["Tech", "Chess", "Books", "Fitness"], image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80", verified: true, online: true, intention: "serious_relationship", gender: "man" },
-      { id: "usr_kd_03", name: "Diane Umutoni", age: 26, city: "Rubavu", profession: "Hotel & Hospitality Lead", bio: "Living by the lake shore, passionate about hospitality, lakeside sunset runs.", interests: ["Travel", "Cooking", "Hiking", "Music"], image: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=600&q=80", verified: true, online: false, intention: "marriage", gender: "woman" },
-      { id: "usr_kd_04", name: "Jean-Paul Kwizera", age: 31, city: "Musanze", profession: "Eco-Tourism Guide & Photographer", bio: "Volcanoes hiking guide, wildlife photographer, lover of 1000 hills mornings.", interests: ["Photography", "Hiking", "Nature", "Coffee Tasting"], image: "https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?auto=format&fit=crop&w=600&q=80", verified: true, online: true, intention: "serious_relationship", gender: "man" },
-      { id: "usr_kd_05", name: "Grace Uwase", age: 23, city: "Huye", profession: "Medical Student & Pianist", bio: "Classical pianist, future doctor, love acoustic gospel and quiet book cafes.", interests: ["Music", "Piano", "Reading", "Faith"], image: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80", verified: true, online: true, intention: "serious_relationship", gender: "woman" },
-      { id: "usr_kd_06", name: "Patrick Gakwaya", age: 29, city: "Kigali", profession: "Investment Analyst", bio: "Fintech analyst, basketball on weekends, love deep discussions over good coffee.", interests: ["Tech", "Basketball", "Coffee Tasting", "Finance"], image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80", verified: true, online: false, intention: "serious_relationship", gender: "man" }
-    ];
-    const myInterests = Array.isArray(myPref.interests) ? myPref.interests : [];
-    const scoredCandidates = candidates.map((c5) => {
-      let score = 50;
-      if (c5.city.toLowerCase() === (myPref.city || "kigali").toLowerCase()) score += 20;
-      else score += 10;
-      if (c5.age >= (myPref.min_age || 18) && c5.age <= (myPref.max_age || 45)) score += 15;
-      if (c5.intention === myPref.relationship_intention) score += 15;
-      const sharedCount = c5.interests.filter((i5) => myInterests.includes(i5)).length;
-      score += Math.min(15, sharedCount * 5);
-      const finalScore = Math.min(99, Math.max(65, score));
-      return {
-        ...c5,
-        matchScore: finalScore,
-        compatibilityReason: finalScore >= 90 ? "\u{1F31F} Highly Compatible (Shared Location & Goals)" : "\u2728 Good Match (Mutual Interests)"
-      };
-    });
-    scoredCandidates.sort((a6, b6) => b6.matchScore - a6.matchScore);
-    return res.json({ matches: scoredCandidates, userPreferences: myPref });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-var CHOIR_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-function generateChoirCode() {
-  let result = "";
-  for (let i5 = 0; i5 < 5; i5++) {
-    result += CHOIR_CODE_CHARS.charAt(Math.floor(Math.random() * CHOIR_CODE_CHARS.length));
-  }
-  return result;
-}
-function isValidChoirCode(code) {
-  return /^[A-Z0-9]{5}$/i.test((code || "").trim());
-}
-async function ensureVoxifyTables() {
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS voxify_choirs (
-        id VARCHAR(100) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        church_denomination VARCHAR(255),
-        description TEXT,
-        image_url TEXT,
-        director_id VARCHAR(100) NOT NULL,
-        subscription_tier VARCHAR(50) DEFAULT 'starter',
-        subscription_expires_at BIGINT,
-        choir_code VARCHAR(10) UNIQUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS voxify_choir_members (
-        id SERIAL PRIMARY KEY,
-        choir_id VARCHAR(100) NOT NULL,
-        user_id VARCHAR(100) NOT NULL,
-        role VARCHAR(50) DEFAULT 'singer',
-        voice_part VARCHAR(50) DEFAULT 'soprano',
-        joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(choir_id, user_id)
-      );
-
-      CREATE TABLE IF NOT EXISTS voxify_choir_tracks (
-        id VARCHAR(100) PRIMARY KEY,
-        choir_id VARCHAR(100) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        composer VARCHAR(255),
-        soprano_url TEXT,
-        alto_url TEXT,
-        tenor_url TEXT,
-        bass_url TEXT,
-        full_audio_url TEXT NOT NULL,
-        sheet_music_url TEXT,
-        target_sunday_date VARCHAR(50),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS voxify_sunday_ready (
-        choir_id VARCHAR(100) NOT NULL,
-        track_id VARCHAR(100) NOT NULL,
-        user_id VARCHAR(100) NOT NULL,
-        is_ready BOOLEAN DEFAULT true,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY(track_id, user_id)
-      );
-
-      CREATE TABLE IF NOT EXISTS voxify_songs (
-        id VARCHAR(100) PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        artist_id VARCHAR(100) NOT NULL,
-        artist_name VARCHAR(255) NOT NULL,
-        genre VARCHAR(100) DEFAULT 'Sacred Gospel',
-        price NUMERIC(10,2) NOT NULL,
-        license_type VARCHAR(50) DEFAULT 'exclusive', -- 'exclusive' (buy once & owned) or 'digital_copies'
-        preview_lyrics TEXT,
-        full_lyrics TEXT,
-        preview_audio_url TEXT NOT NULL,
-        full_audio_url TEXT NOT NULL,
-        sheet_music_url TEXT,
-        preview_start_time NUMERIC(6,2) DEFAULT 0,
-        is_sold BOOLEAN DEFAULT false,
-        owner_id VARCHAR(100),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS voxify_purchased_songs (
-        id SERIAL PRIMARY KEY,
-        song_id VARCHAR(100) NOT NULL,
-        buyer_id VARCHAR(100) NOT NULL,
-        price_paid NUMERIC(10,2) NOT NULL,
-        purchased_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-
-      ALTER TABLE voxify_choirs ADD COLUMN IF NOT EXISTS choir_code VARCHAR(10) UNIQUE;
-      ALTER TABLE voxify_songs ADD COLUMN IF NOT EXISTS preview_start_time NUMERIC(6,2) DEFAULT 0;
-    `);
-    const unassignedChoirs = await query(`SELECT id FROM voxify_choirs WHERE choir_code IS NULL`).catch(() => ({ rows: [] }));
-    if (unassignedChoirs && unassignedChoirs.rows) {
-      for (const c5 of unassignedChoirs.rows) {
-        let code = generateChoirCode();
-        await query(`UPDATE voxify_choirs SET choir_code = $1 WHERE id = $2`, [code, c5.id]).catch(() => {
-        });
-      }
-    }
-    await query(`DELETE FROM voxify_tracks WHERE id LIKE '%dummy%' OR id LIKE '%sample%' OR title ILIKE '%Sample%' OR title ILIKE '%Pixabay%'`).catch(() => {
-    });
-    await query(`DELETE FROM voxify_songs WHERE id LIKE '%dummy%' OR id LIKE '%sample%' OR title ILIKE '%Sample%'`).catch(() => {
-    });
-  } catch (e5) {
-    console.warn("Voxify tables initialization notice:", e5.message);
-  }
-}
-ensureVoxifyTables();
-app.get("/api/modules/voxify/choirs/code/:code", async (req, res) => {
-  try {
-    const rawCode = (req.params.code || "").trim().toUpperCase();
-    if (!isValidChoirCode(rawCode)) {
-      return res.status(400).json({ error: "Choir code must be exactly 5 alphanumeric characters." });
-    }
-    const choirRes = await query(`
-      SELECT c.*, u.name as director_name, u.email as director_email,
-             (SELECT COUNT(*)::int FROM voxify_choir_members WHERE choir_id = c.id) as member_count
-      FROM voxify_choirs c
-      LEFT JOIN core_users u ON c.director_id = u.id
-      WHERE UPPER(TRIM(c.choir_code)) = $1
-    `, [rawCode]);
-    if (choirRes.rowCount === 0) {
-      return res.status(404).json({ error: `No choir found matching code "${rawCode}". Please check with your choir master.` });
-    }
-    return res.json({ success: true, choir: choirRes.rows[0] });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/choirs/join-code", authenticateToken, async (req, res) => {
-  try {
-    const { choir_code, voice_part = "soprano" } = req.body;
-    const rawCode = (choir_code || "").trim().toUpperCase();
-    if (!isValidChoirCode(rawCode)) {
-      return res.status(400).json({ error: "Valid 5-character choir code is required." });
-    }
-    const choirRes = await query(`SELECT * FROM voxify_choirs WHERE UPPER(TRIM(choir_code)) = $1`, [rawCode]);
-    if (choirRes.rowCount === 0) {
-      return res.status(404).json({ error: `No choir found matching code "${rawCode}".` });
-    }
-    const choir = choirRes.rows[0];
-    const userId = req.user.id;
-    const existing = await query(`SELECT * FROM voxify_choir_members WHERE choir_id = $1 AND user_id = $2`, [choir.id, userId]);
-    if (existing.rowCount && existing.rowCount > 0) {
-      return res.json({
-        success: true,
-        alreadyMember: true,
-        choir,
-        message: `You are already a member of "${choir.name}".`
-      });
-    }
-    await query(`
-      INSERT INTO voxify_choir_members (choir_id, user_id, role, voice_part)
-      VALUES ($1, $2, 'singer', $3)
-      ON CONFLICT (choir_id, user_id) DO UPDATE SET voice_part = EXCLUDED.voice_part
-    `, [choir.id, userId, voice_part.toLowerCase()]);
-    return res.json({
-      success: true,
-      choir,
-      message: `\u{1F389} Successfully joined "${choir.name}"!`
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/choirs", authenticateToken, async (req, res) => {
-  try {
-    const { name: name2, church_denomination, description, image_url, subscription_tier = "starter" } = req.body;
-    if (!name2) return res.status(400).json({ error: "Choir name is required." });
-    const id = `choir_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const directorId = req.user.id;
-    let choirCode = generateChoirCode();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const existing = await query(`SELECT id FROM voxify_choirs WHERE choir_code = $1`, [choirCode]);
-      if (existing.rowCount === 0) break;
-      choirCode = generateChoirCode();
-    }
-    await query(`
-      INSERT INTO voxify_choirs (id, name, church_denomination, description, image_url, director_id, subscription_tier, choir_code)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [id, name2, church_denomination || "", description || "", image_url || "/logo.png", directorId, subscription_tier, choirCode]);
-    await query(`
-      INSERT INTO voxify_choir_members (choir_id, user_id, role, voice_part)
-      VALUES ($1, $2, 'director', 'satb')
-    `, [id, directorId]);
-    return res.status(201).json({
-      success: true,
-      choirId: id,
-      choir_code: choirCode,
-      message: `Choir "${name2}" created successfully with code ${choirCode}!`
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/modules/voxify/choirs/my", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const choirsRes = await query(`
-      SELECT c.*, m.role, m.voice_part
-      FROM voxify_choirs c
-      JOIN voxify_choir_members m ON c.id = m.choir_id
-      WHERE m.user_id = $1
-    `, [userId]);
-    const choirList = choirsRes.rows;
-    for (const choir of choirList) {
-      const membersRes = await query(`
-        SELECT m.user_id, m.role, m.voice_part, m.joined_at, u.name, u.email
-        FROM voxify_choir_members m
-        LEFT JOIN core_users u ON m.user_id = u.id
-        WHERE m.choir_id = $1
-      `, [choir.id]);
-      choir.members = membersRes.rows;
-      const tracksRes = await query(`
-        SELECT * FROM voxify_choir_tracks WHERE choir_id = $1 ORDER BY created_at DESC
-      `, [choir.id]);
-      const readyRes = await query(`
-        SELECT track_id, is_ready FROM voxify_sunday_ready WHERE choir_id = $1 AND user_id = $2
-      `, [choir.id, userId]);
-      const readyMap = new Map(readyRes.rows.map((r5) => [r5.track_id, r5.is_ready]));
-      choir.tracks = tracksRes.rows.map((t) => ({
-        ...t,
-        isMySundayReady: !!readyMap.get(t.id)
-      }));
-      if (!choir.choir_code) {
-        choir.choir_code = generateChoirCode();
-        await query("UPDATE voxify_choirs SET choir_code = $1 WHERE id = $2", [choir.choir_code, choir.id]).catch(() => {
-        });
-      }
-    }
-    return res.json({ choirs: choirList });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/choirs/:id/tracks", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      title,
-      composer,
-      soprano_url,
-      alto_url,
-      tenor_url,
-      bass_url,
-      full_audio_url,
-      sheet_music_url,
-      target_sunday_date
-    } = req.body;
-    if (!title || !full_audio_url) {
-      return res.status(400).json({ error: "Track title and full master audio are required." });
-    }
-    const mem = await query(`
-      SELECT role FROM voxify_choir_members WHERE choir_id = $1 AND user_id = $2
-    `, [id, req.user.id]);
-    if (mem.rowCount === 0 || mem.rows[0].role !== "director") {
-      return res.status(403).json({ error: "Only choir directors can upload private practice stems." });
-    }
-    const trackId = `trk_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const resDb = await query(`
-      INSERT INTO voxify_choir_tracks (id, choir_id, title, composer, soprano_url, alto_url, tenor_url, bass_url, full_audio_url, sheet_music_url, target_sunday_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *
-    `, [trackId, id, title, composer || "", soprano_url || "", alto_url || "", tenor_url || "", bass_url || "", full_audio_url, sheet_music_url || "", target_sunday_date || ""]);
-    return res.status(201).json({ success: true, track: resDb.rows[0], message: `Private SATB practice stems posted for "${title}".` });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/choirs/:id/ready-sunday", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { trackId, isReady = true } = req.body;
-    const userId = req.user.id;
-    await query(`
-      INSERT INTO voxify_sunday_ready (choir_id, track_id, user_id, is_ready, updated_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (track_id, user_id) DO UPDATE SET is_ready = EXCLUDED.is_ready, updated_at = NOW();
-    `, [id, trackId, userId, isReady]);
-    return res.json({ success: true, message: isReady ? "Marked as Ready for Sunday! \u{1F3B5}" : "Sunday readiness cleared." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/choirs/:id/subscribe", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { tier } = req.body;
-    const prices = {
-      starter: 5e3,
-      pro: 15e3,
-      cathedral: 3e4
-    };
-    const cost = prices[tier] || 5e3;
-    const userId = req.user.id;
-    const debitRes = await WalletService.debit(
-      userId,
-      cost,
-      "voxify",
-      "choir_subscription",
-      `Voxify Choir Subscription: ${tier.toUpperCase()} Tier (-${cost.toLocaleString()} RWF)`,
-      `tx_choir_sub_${Date.now()}`
-    );
-    const expiresAt = Date.now() + 30 * 24 * 3600 * 1e3;
-    await query(`
-      UPDATE voxify_choirs SET subscription_tier = $1, subscription_expires_at = $2 WHERE id = $3
-    `, [tier, expiresAt, id]);
-    return res.json({
-      success: true,
-      message: `\u{1F389} Subscribed to ${tier.toUpperCase()} Plan! Enjoy unlimited members and cloud audio stems.`,
-      newBalance: debitRes.newBalance,
-      expiresAt
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/songs", authenticateToken, async (req, res) => {
-  try {
-    const {
-      title,
-      artist_name,
-      genre = "Gospel & Choral",
-      price,
-      license_type = "exclusive",
-      // 'exclusive' (buy once & own) or 'digital_copies'
-      preview_lyrics,
-      full_lyrics,
-      preview_audio_url,
-      full_audio_url,
-      sheet_music_url,
-      preview_start_time = 0
-    } = req.body;
-    const numPrice = Number(price);
-    if (!title || !numPrice || numPrice <= 0 || !full_audio_url) {
-      return res.status(400).json({ error: "Song title, price, and audio file are required." });
-    }
-    const autoPreviewLyrics = preview_lyrics?.trim() || (full_lyrics ? full_lyrics.split("\n").map((l3) => l3.trim()).filter(Boolean).slice(0, 4).join("\n") : "");
-    const songId = `sng_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const artistId = req.user.id;
-    const cleanPreviewStart = Math.max(0, Number(preview_start_time) || 0);
-    const resDb = await query(`
-      INSERT INTO voxify_songs (
-        id, title, artist_id, artist_name, genre, price, license_type,
-        preview_lyrics, full_lyrics, preview_audio_url, full_audio_url, sheet_music_url, preview_start_time
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *
-    `, [
-      songId,
-      title.trim(),
-      artistId,
-      artist_name || req.user.name || "Composer",
-      genre,
-      numPrice,
-      license_type,
-      autoPreviewLyrics,
-      full_lyrics || "",
-      preview_audio_url || full_audio_url,
-      full_audio_url,
-      sheet_music_url || "",
-      cleanPreviewStart
-    ]);
-    return res.status(201).json({
-      success: true,
-      song: resDb.rows[0],
-      message: `Song "${title}" published on Voxify Licensing Marketplace!`
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get(["/api/modules/voxify/songs", "/api/modules/voxify/songs/marketplace"], async (req, res) => {
-  try {
-    const resDb = await query(`
-      SELECT id, title, artist_id, artist_name, genre, price, license_type, preview_lyrics,
-             preview_audio_url, preview_start_time, created_at, is_sold, owner_id
-      FROM voxify_songs
-      WHERE is_sold = false OR license_type = 'digital_copies'
-      ORDER BY created_at DESC
-    `);
-    const songs = resDb.rows.map((s2) => ({
-      ...s2,
-      composer: s2.artist_name,
-      composer_name: s2.artist_name,
-      audio_url: s2.preview_audio_url || `/api/modules/voxify/songs/${s2.id}/stream`,
-      preview_audio_url: s2.preview_audio_url || `/api/modules/voxify/songs/${s2.id}/stream`,
-      is_unlocked: false
-    }));
-    return res.json({ songs });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/modules/voxify/songs/:id/stream", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const songRes = await query("SELECT * FROM voxify_songs WHERE id = $1", [id]);
-    if (songRes.rowCount === 0) return res.status(404).send("Song not found");
-    const song = songRes.rows[0];
-    if (song.preview_audio_url && song.preview_audio_url !== song.full_audio_url) {
-      return res.redirect(song.preview_audio_url);
-    }
-    return res.redirect(song.preview_audio_url || song.full_audio_url);
-  } catch (err) {
-    return res.status(500).send(err.message);
-  }
-});
-app.get("/api/modules/voxify/songs/:id/master-download", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    const songRes = await query("SELECT * FROM voxify_songs WHERE id = $1", [id]);
-    if (songRes.rowCount === 0) {
-      return res.status(404).json({ error: "Song not found." });
-    }
-    const song = songRes.rows[0];
-    const isOwnerOrArtist = song.artist_id === userId || song.owner_id === userId;
-    const purchaseRes = await query("SELECT id FROM voxify_purchased_songs WHERE song_id = $1 AND buyer_id = $2", [id, userId]);
-    const hasPurchased = purchaseRes.rowCount && purchaseRes.rowCount > 0;
-    if (!isOwnerOrArtist && !hasPurchased) {
-      return res.status(403).json({
-        error: "Master track download is locked. Please purchase the song license with your Central Wallet."
-      });
-    }
-    return res.json({
-      success: true,
-      downloadUrl: song.full_audio_url,
-      sheetMusicUrl: song.sheet_music_url,
-      title: song.title,
-      fullLyrics: song.full_lyrics
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/voxify/songs/:id/buy", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const buyerId = req.user.id;
-    const songRes = await query("SELECT * FROM voxify_songs WHERE id = $1", [id]);
-    if (songRes.rowCount === 0) {
-      return res.status(404).json({ error: "Song not found in catalog." });
-    }
-    const song = songRes.rows[0];
-    if (song.is_sold && song.license_type === "exclusive") {
-      return res.status(400).json({ error: "This song was already bought as an exclusive license." });
-    }
-    const price = Number(song.price);
-    const debitRes = await WalletService.debit(
-      buyerId,
-      price,
-      "voxify",
-      "song_license_purchase",
-      `Purchased Song License: "${song.title}" (-${price.toLocaleString()} RWF)`,
-      `tx_song_${id}_${Date.now()}`
-    );
-    const artistAmount = Math.round(price * 0.9);
-    await WalletService.credit(
-      song.artist_id,
-      artistAmount,
-      "voxify",
-      "song_sale_revenue",
-      `Revenue from Song Sale: "${song.title}" (+${artistAmount.toLocaleString()} RWF)`,
-      `tx_song_art_${id}_${Date.now()}`
-    ).catch((e5) => console.warn("Credit artist notice:", e5.message));
-    if (song.license_type === "exclusive") {
-      await query(`
-        UPDATE voxify_songs SET is_sold = true, owner_id = $1 WHERE id = $2
-      `, [buyerId, id]);
-    }
-    await query(`
-      INSERT INTO voxify_purchased_songs (song_id, buyer_id, price_paid)
-      VALUES ($1, $2, $3)
-    `, [id, buyerId, price]);
-    let chatConversationId = null;
-    try {
-      const convRes = await query(`
-        INSERT INTO chat_conversations (user1_id, user2_id, topic)
-        VALUES ($1, $2, $3)
-        RETURNING id
-      `, [buyerId, song.artist_id, `Song Coaching: ${song.title}`]);
-      chatConversationId = convRes.rows[0]?.id;
-    } catch {
-    }
-    return res.json({
-      success: true,
-      message: `\u{1F389} Successfully purchased "${song.title}"! Full master audio and lyrics are now unlocked.`,
-      newBalance: debitRes.newBalance,
-      unlockedSong: {
-        id: song.id,
-        title: song.title,
-        full_lyrics: song.full_lyrics,
-        full_audio_url: song.full_audio_url,
-        sheet_music_url: song.sheet_music_url
-      },
-      chatConversationId
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.get("/api/modules/voxify/songs/my-purchases", authenticateToken, async (req, res) => {
-  try {
-    const buyerId = req.user.id;
-    const resDb = await query(`
-      SELECT s.*, p.purchased_at
-      FROM voxify_purchased_songs p
-      JOIN voxify_songs s ON p.song_id = s.id
-      WHERE p.buyer_id = $1
-      ORDER BY p.purchased_at DESC
-    `, [buyerId]);
-    return res.json({ songs: resDb.rows });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/marketplace/publish", authenticateToken, async (req, res) => {
-  try {
-    const {
-      type = "product",
-      // 'product' | 'service'
-      title,
-      description,
-      category,
-      // Product specific fields
-      price,
-      old_price,
-      featured_image,
-      gallery_images = [],
-      new_arrival = true,
-      affiliate_commission_pct = 10,
-      // Service specific fields
-      price_range,
-      is_negotiable = true
-    } = req.body;
-    if (!title) {
-      return res.status(400).json({ error: "Title is required." });
-    }
-    const sellerId = req.user.id;
-    const sellerName = req.user.name || "Benix Merchant";
-    if (type === "product") {
-      const numPrice = Number(price) || 0;
-      const numOldPrice = Number(old_price) || 0;
-      const discountPct = numOldPrice > numPrice && numOldPrice > 0 ? Math.round((numOldPrice - numPrice) / numOldPrice * 100) : 0;
-      const newProductItem = {
-        id: `prod_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        title,
-        description: description || "",
-        price: numPrice,
-        old_price: numOldPrice,
-        discount_percentage: discountPct,
-        category: category || "Phones & Tech",
-        seller: sellerName,
-        seller_id: sellerId,
-        image_url: featured_image || "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80",
-        gallery: gallery_images,
-        is_new_arrival: !!new_arrival,
-        affiliate_commission_pct: Number(affiliate_commission_pct) || 10,
-        rating: 5,
-        downloads: 0,
-        type: "product"
-      };
-      return res.status(201).json({
-        success: true,
-        item: newProductItem,
-        message: `Product "${title}" published on Benix Marketplace!`
-      });
-    } else {
-      const newServiceItem = {
-        id: `serv_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        title,
-        description: description || "",
-        category: category || "Tech Services",
-        price_range: price_range || "Negotiable",
-        is_negotiable: !!is_negotiable,
-        seller: sellerName,
-        seller_id: sellerId,
-        type: "service"
-      };
-      return res.status(201).json({
-        success: true,
-        item: newServiceItem,
-        message: `Service "${title}" listed on Benix Marketplace!`
-      });
-    }
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/modules/marketplace/services/:id/book", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { serviceTitle, sellerId, clientNotes } = req.body;
-    const clientId = req.user.id;
-    const bookingId = `bk_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    let chatThreadId = null;
-    try {
-      const convRes = await query(`
-        INSERT INTO chat_conversations (user1_id, user2_id, topic)
-        VALUES ($1, $2, $3)
-        RETURNING id
-      `, [clientId, sellerId, `Service Booking: ${serviceTitle}`]);
-      chatThreadId = convRes.rows[0]?.id;
-    } catch {
-    }
-    return res.json({
-      success: true,
-      bookingId,
-      chatThreadId,
-      message: `Booking request sent for "${serviceTitle}"! You can now chat directly with the provider.`
-    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

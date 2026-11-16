@@ -9,11 +9,7 @@ import {
   Tv,
   Radio,
   Film,
-  Music,
-  Heart,
-  ShoppingBag,
   Gamepad2,
-  Calculator,
   FileText,
   Sparkles,
   Wallet,
@@ -155,30 +151,6 @@ export const YouTubeSidebar: React.FC = () => {
       color: 'text-cyan-400 group-hover:text-cyan-300'
     },
     {
-      id: 'voxify',
-      name: 'Voxify Music',
-      icon: Music,
-      route: '/music',
-      badge: 'Choir',
-      color: 'text-emerald-400 group-hover:text-emerald-300'
-    },
-    {
-      id: 'kunda',
-      name: 'Kunda Dating',
-      icon: Heart,
-      route: '/dating',
-      badge: 'Singles',
-      color: 'text-rose-400 group-hover:text-rose-300'
-    },
-    {
-      id: 'marketplace',
-      name: 'Marketplace',
-      icon: ShoppingBag,
-      route: '/marketplace',
-      badge: 'Shop',
-      color: 'text-amber-400 group-hover:text-amber-300'
-    },
-    {
       id: 'games',
       name: 'RollDice Arena',
       icon: Gamepad2,
@@ -189,14 +161,6 @@ export const YouTubeSidebar: React.FC = () => {
   ];
 
   const morePlatforms = [
-    {
-      id: 'calc',
-      name: 'EasyCalc Pro',
-      icon: Calculator,
-      route: '/calculators',
-      badge: 'Tax & Loan',
-      color: 'text-teal-400'
-    },
     {
       id: 'blog',
       name: 'News & Blog',
@@ -571,8 +535,6 @@ export const YouTubeSidebar: React.FC = () => {
       { id: 'tv', name: 'TV', icon: Tv, route: '/tv', live: true },
       { id: 'radio', name: 'Radio', icon: Radio, route: '/radio' },
       { id: 'videos', name: 'Videos', icon: Film, route: '/videos' },
-      { id: 'voxify', name: 'Music', icon: Music, route: '/music' },
-      { id: 'kunda', name: 'Dating', icon: Heart, route: '/dating' },
       { id: 'games', name: 'RollDice', icon: Gamepad2, route: '/games' }
     ];
 
