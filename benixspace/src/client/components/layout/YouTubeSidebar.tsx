@@ -38,10 +38,12 @@ import {
 import { AppAccessWizardModal } from '../modals/AppAccessWizardModal';
 import { SubmitAdModal } from '../modals/SubmitAdModal';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
+import { useCurrency, CurrencyToggle } from '../../context/CurrencyContext';
 
 export const YouTubeSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isMoreExpanded, closeMobile, toggleMore, toggleExpanded } = useSidebar();
   const { user, wallet, hasAppProfile } = useAuth();
+  const { formatAmount } = useCurrency();
   const { isInstalled, installApp } = usePwa();
   const { playTvChannel, playStation } = usePlayer();
   const navigate = useNavigate();
@@ -100,6 +102,14 @@ export const YouTubeSidebar: React.FC = () => {
       route: '/dashboard#smm',
       badge: 'Boost',
       color: 'text-cyan-400 group-hover:text-cyan-300'
+    },
+    {
+      id: 'ads',
+      name: 'Submit Ad',
+      icon: Megaphone,
+      route: '/advertise',
+      badge: 'From 100 RWF',
+      color: 'text-amber-400 group-hover:text-amber-300'
     },
     {
       id: 'cloud',
@@ -246,6 +256,14 @@ export const YouTubeSidebar: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Global Currency Switcher Strip (Prominent in Sidebar for Mobile & Desktop) */}
+      <div className="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+          <span>Currency:</span>
+        </span>
+        <CurrencyToggle size="sm" />
+      </div>
 
       {/* Scrollable Nav Items */}
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
@@ -472,7 +490,7 @@ export const YouTubeSidebar: React.FC = () => {
                 Central Wallet
               </span>
               <span className="text-xs font-black text-emerald-400">
-                {Number(wallet?.balance ?? 0).toLocaleString()} RWF
+                {formatAmount(wallet?.balance ?? 0)}
               </span>
             </div>
             <button

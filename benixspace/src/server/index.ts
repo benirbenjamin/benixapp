@@ -4857,6 +4857,19 @@ app.post('/api/smm/services/:id/toggle', authenticateToken, requireAdminRole, as
   }
 });
 
+app.post('/api/smm/services/bulk-toggle', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { serviceIds, is_enabled } = req.body;
+    if (!Array.isArray(serviceIds)) {
+      return res.status(400).json({ success: false, error: 'serviceIds array is required' });
+    }
+    const result = await SmmService.bulkToggleServices(serviceIds, is_enabled);
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/smm/services/:id/pricing', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
     const service = await SmmService.updatePricing(req.params.id, req.body.custom_markup_percent, req.body.rate_rwf);

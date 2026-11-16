@@ -103826,6 +103826,53 @@ async function setSystemSetting(key, value) {
   });
 }
 var cachedRate = null;
+var cachedServicesList = {
+  all: null,
+  enabled: null,
+  timestamp: 0
+};
+var SERVICES_CACHE_TTL = 10 * 60 * 1e3;
+function invalidateSmmServicesCache() {
+  cachedServicesList = { all: null, enabled: null, timestamp: 0 };
+}
+function parsePlatformAndSubcategory(categoryStr, serviceName = "") {
+  const cat = (categoryStr || "").trim();
+  const lowerCat = cat.toLowerCase();
+  const lowerName = (serviceName || "").toLowerCase();
+  const combined = `${lowerCat} ${lowerName}`;
+  let platform2 = "Other Services";
+  if (combined.includes("tiktok")) {
+    platform2 = "TikTok";
+  } else if (combined.includes("youtube") || combined.includes("yt ")) {
+    platform2 = "YouTube";
+  } else if (combined.includes("instagram") || combined.includes("ig ")) {
+    platform2 = "Instagram";
+  } else if (combined.includes("facebook") || combined.includes("fb ")) {
+    platform2 = "Facebook";
+  } else if (combined.includes("twitter") || combined.includes("x.com") || combined.includes("x boost") || lowerCat.includes("twitter")) {
+    platform2 = "Twitter / X";
+  } else if (combined.includes("spotify") || combined.includes("audiomack") || combined.includes("deezer") || combined.includes("boomplay") || combined.includes("apple music") || combined.includes("podcast")) {
+    platform2 = "Music & Audio";
+  } else if (combined.includes("telegram")) {
+    platform2 = "Telegram";
+  } else if (combined.includes("threads")) {
+    platform2 = "Threads";
+  } else if (combined.includes("linkedin")) {
+    platform2 = "LinkedIn";
+  } else if (combined.includes("discord")) {
+    platform2 = "Discord";
+  } else if (combined.includes("website") || combined.includes("traffic") || combined.includes("seo")) {
+    platform2 = "Web Traffic";
+  }
+  let subcategory = cat;
+  if (platform2 !== "Other Services") {
+    const cleanSub = cat.replace(new RegExp(`^\\W*${platform2.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}\\W*[-\u2013\u2014:]?\\W*`, "i"), "").replace(/^[-–—:]\s*/, "").trim();
+    if (cleanSub.length > 2) {
+      subcategory = cleanSub;
+    }
+  }
+  return { platform: platform2, subcategory };
+}
 var SmmService = class {
   /**
    * Real-time currency exchange rate API (USD to RWF)
@@ -103918,6 +103965,11 @@ var SmmService = class {
           is_read BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
+      `).catch(() => {
+      });
+      await query(`
+        CREATE INDEX IF NOT EXISTS idx_smm_services_enabled ON smm_services(is_enabled, category);
+        CREATE INDEX IF NOT EXISTS idx_smm_services_cat ON smm_services(category);
       `).catch(() => {
       });
     } catch (err) {
@@ -104066,12 +104118,37 @@ var SmmService = class {
     }
   }
   static async getServices(showAll = false) {
-    await this.ensureTables();
-    await this.seedDefaultServicesIfEmpty();
+    const now = Date.now();
+    if (showAll && cachedServicesList.all && now - cachedServicesList.timestamp < SERVICES_CACHE_TTL) {
+      return cachedServicesList.all;
+    }
+    if (!showAll && cachedServicesList.enabled && now - cachedServicesList.timestamp < SERVICES_CACHE_TTL) {
+      return cachedServicesList.enabled;
+    }
     try {
-      const queryStr = showAll ? "SELECT * FROM smm_services ORDER BY category ASC, rate_rwf ASC" : "SELECT * FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC";
+      const queryStr = showAll ? "SELECT id, service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent FROM smm_services ORDER BY category ASC, rate_rwf ASC" : "SELECT id, service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC";
       const res = await query(queryStr);
-      return res.rows;
+      if (res.rowCount === 0 && !showAll) {
+        await this.ensureTables();
+        await this.seedDefaultServicesIfEmpty();
+        const retryRes = await query("SELECT id, service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC");
+        res.rows = retryRes.rows;
+      }
+      const enriched = res.rows.map((svc) => {
+        const { platform: platform2, subcategory } = parsePlatformAndSubcategory(svc.category, svc.name);
+        return {
+          ...svc,
+          platform: platform2,
+          subcategory
+        };
+      });
+      if (showAll) {
+        cachedServicesList.all = enriched;
+      } else {
+        cachedServicesList.enabled = enriched;
+      }
+      cachedServicesList.timestamp = now;
+      return enriched;
     } catch {
       return [];
     }
@@ -104132,6 +104209,7 @@ var SmmService = class {
       });
       syncedCount++;
     }
+    invalidateSmmServicesCache();
     return { success: true, count: syncedCount, message: `Successfully synced ${syncedCount} services from SMMFollows.` };
   }
   static async toggleService(id, isEnabled) {
@@ -104142,7 +104220,20 @@ var SmmService = class {
     } else {
       res = await query("UPDATE smm_services SET is_enabled = NOT is_enabled, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *", [id]);
     }
+    invalidateSmmServicesCache();
     return res.rows[0];
+  }
+  static async bulkToggleServices(serviceIds, isEnabled) {
+    await this.ensureTables();
+    if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+    const res = await query(
+      "UPDATE smm_services SET is_enabled = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2::int[])",
+      [Boolean(isEnabled), serviceIds]
+    );
+    invalidateSmmServicesCache();
+    return { success: true, count: res.rowCount || 0 };
   }
   static async updatePricing(id, markup, rateRwf) {
     await this.ensureTables();
@@ -104160,6 +104251,7 @@ var SmmService = class {
     } else if (rateRwf !== void 0) {
       res = await query("UPDATE smm_services SET rate_rwf = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *", [Number(rateRwf), id]);
     }
+    invalidateSmmServicesCache();
     return res?.rows[0];
   }
   static async getSettings() {
@@ -104173,6 +104265,7 @@ var SmmService = class {
     if (apiKey !== void 0) await setSystemSetting("smm_api_key", String(apiKey).trim());
     if (defaultMarkup !== void 0) await setSystemSetting("smm_default_markup_percent", String(defaultMarkup));
     if (rwfPerUsd !== void 0) await setSystemSetting("rwf_per_usd", String(rwfPerUsd));
+    invalidateSmmServicesCache();
   }
   static async placeOrder(userId, serviceId, link, quantity) {
     await this.ensureTables();
@@ -120504,6 +120597,18 @@ app.post("/api/smm/services/:id/toggle", authenticateToken, requireAdminRole, as
   try {
     const service = await SmmService.toggleService(req.params.id, req.body.is_enabled);
     return res.json({ success: true, service });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+app.post("/api/smm/services/bulk-toggle", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { serviceIds, is_enabled } = req.body;
+    if (!Array.isArray(serviceIds)) {
+      return res.status(400).json({ success: false, error: "serviceIds array is required" });
+    }
+    const result = await SmmService.bulkToggleServices(serviceIds, is_enabled);
+    return res.json({ success: true, ...result });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

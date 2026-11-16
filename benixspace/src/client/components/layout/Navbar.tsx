@@ -162,29 +162,27 @@ export const Navbar: React.FC = () => {
                 <span>Create</span>
               </button>
 
-              {/* Submit Ad / Promote Campaign Button */}
+              {/* Submit Ad / Promote Campaign Button (Visible on md+ screens; accessible on mobile via sidebar) */}
               <button
                 onClick={() => {
                   navigate('/advertise');
                 }}
-                className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-md shadow-amber-500/10 transition-all hover:scale-105 shrink-0"
+                className="hidden md:flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-md shadow-amber-500/10 transition-all hover:scale-105 shrink-0"
                 title="Create & Submit Ad Campaign (from 100 RWF)"
               >
                 <Megaphone className="w-3.5 h-3.5 text-amber-400 stroke-[2.2]" />
-                <span className="hidden sm:inline">Submit Ad</span>
-                <span className="sm:hidden">Ad</span>
+                <span>Submit Ad</span>
               </button>
 
-              {/* Install App Button (Visible on mobile & desktop whenever not installed as PWA) */}
+              {/* Install App Button (Visible on lg+ screens; mobile has install prompt & sidebar button) */}
               {!isInstalled && (
                 <button
                   onClick={installApp}
-                  className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold shadow-md shadow-blue-500/10 transition-all hover:scale-105 shrink-0"
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold shadow-md shadow-blue-500/10 transition-all hover:scale-105 shrink-0"
                   title="Install BenixSpace App (Native PWA)"
                 >
                   <Download className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="hidden sm:inline">Install App</span>
-                  <span className="sm:hidden text-[11px]">Install</span>
+                  <span>Install App</span>
                 </button>
               )}
 
@@ -200,8 +198,8 @@ export const Navbar: React.FC = () => {
                 </Link>
               )}
 
-              {/* Global Currency Toggle (USD <-> RWF) */}
-              <CurrencyToggle className="shrink-0" />
+              {/* Global Currency Toggle (USD <-> RWF) (Visible on md+ screens; prominent in sidebar for mobile) */}
+              <CurrencyToggle className="hidden md:inline-flex shrink-0" />
 
               {/* Wallet Pill if Logged In - Redirects to /dashboard#wallet */}
               {user && (
@@ -238,7 +236,7 @@ export const Navbar: React.FC = () => {
               {/* Notification Bell */}
               <button
                 onClick={() => setShowNotifications(true)}
-                className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors"
+                className="relative p-2 sm:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors shrink-0"
                 title="In-App Notifications & Actions"
               >
                 <Bell className="w-5 h-5" />
@@ -251,7 +249,7 @@ export const Navbar: React.FC = () => {
 
               {/* User Avatar Dropdown / Auth Buttons */}
               {user ? (
-                <div className="relative" ref={avatarMenuRef}>
+                <div className="relative shrink-0" ref={avatarMenuRef}>
                   <button
                     onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
                     className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-white text-xs border border-white/20 shadow-md hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 overflow-hidden"

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { fetchCompanySettings, updateCompanySettings, getAuthToken } from '../../services/api';
@@ -75,11 +75,16 @@ export const AdminSettingsPage: React.FC = () => {
   const [smmServices, setSmmServices] = useState<any[]>([]);
   const [smmServicesLoading, setSmmServicesLoading] = useState(false);
   const [smmSyncing, setSmmSyncing] = useState(false);
+  const [smmPlatformFilter, setSmmPlatformFilter] = useState('all');
   const [smmCategoryFilter, setSmmCategoryFilter] = useState('all');
+  const [smmVisibilityFilter, setSmmVisibilityFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [smmSearch, setSmmSearch] = useState('');
   const [smmPendingOrders, setSmmPendingOrders] = useState<any[]>([]);
   const [smmOrdersLoading, setSmmOrdersLoading] = useState(false);
   const [smmRetryingId, setSmmRetryingId] = useState<number | null>(null);
+  const [smmLocalToggles, setSmmLocalToggles] = useState<Record<number, boolean>>({});
+  const [smmVisibleLimit, setSmmVisibleLimit] = useState(50);
+  const [smmSavingBulk, setSmmSavingBulk] = useState(false);
 
   const fetchSmmData = async () => {
     const token = getAuthToken();
@@ -121,6 +126,11 @@ export const AdminSettingsPage: React.FC = () => {
       const svData = await svRes.json();
       if (svData.success && Array.isArray(svData.services)) {
         setSmmServices(svData.services);
+        const map: Record<number, boolean> = {};
+        svData.services.forEach((s: any) => {
+          map[s.id] = Boolean(s.is_enabled);
+        });
+        setSmmLocalToggles(map);
       }
     } catch {} finally {
       setSmmServicesLoading(false);
@@ -136,6 +146,82 @@ export const AdminSettingsPage: React.FC = () => {
       }
     } catch {} finally {
       setSmmOrdersLoading(false);
+    }
+  };
+
+  const handleToggleSmmServiceLocal = (serviceId: number) => {
+    setSmmLocalToggles((prev) => {
+      const current = prev[serviceId] !== undefined ? prev[serviceId] : true;
+      return { ...prev, [serviceId]: !current };
+    });
+  };
+
+  const handleSelectAllFiltered = (enable: boolean) => {
+    setSmmLocalToggles((prev) => {
+      const next = { ...prev };
+      filteredSmmServices.forEach((s) => {
+        next[s.id] = enable;
+      });
+      return next;
+    });
+  };
+
+  const handleConfirmVisibilityChanges = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    const toEnable: number[] = [];
+    const toDisable: number[] = [];
+
+    smmServices.forEach((s) => {
+      const localVal = smmLocalToggles[s.id] !== undefined ? smmLocalToggles[s.id] : Boolean(s.is_enabled);
+      const originalVal = Boolean(s.is_enabled);
+      if (localVal !== originalVal) {
+        if (localVal) {
+          toEnable.push(s.id);
+        } else {
+          toDisable.push(s.id);
+        }
+      }
+    });
+
+    if (toEnable.length === 0 && toDisable.length === 0) {
+      setSuccess('No visibility changes to save.');
+      setTimeout(() => setSuccess(''), 3000);
+      return;
+    }
+
+    setSmmSavingBulk(true);
+    try {
+      if (toEnable.length > 0) {
+        await fetch('/api/smm/services/bulk-toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ serviceIds: toEnable, is_enabled: true })
+        });
+      }
+      if (toDisable.length > 0) {
+        await fetch('/api/smm/services/bulk-toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ serviceIds: toDisable, is_enabled: false })
+        });
+      }
+
+      setSuccess(`Successfully updated visibility for ${toEnable.length + toDisable.length} services!`);
+      setSmmServices((prev) =>
+        prev.map((s) => {
+          if (smmLocalToggles[s.id] !== undefined) {
+            return { ...s, is_enabled: smmLocalToggles[s.id] };
+          }
+          return s;
+        })
+      );
+    } catch (e: any) {
+      setError(e.message || 'Failed to save visibility changes.');
+    } finally {
+      setSmmSavingBulk(false);
+      setTimeout(() => { setError(''); setSuccess(''); }, 4000);
     }
   };
 
@@ -233,6 +319,42 @@ export const AdminSettingsPage: React.FC = () => {
       setTimeout(() => { setError(''); setSuccess(''); }, 4000);
     }
   };
+
+  const smmPlatforms = useMemo(() => {
+    const list = Array.from(new Set(smmServices.map((s) => s.platform || 'Other Services'))).filter(Boolean);
+    return list.sort();
+  }, [smmServices]);
+
+  const filteredSmmServices = useMemo(() => {
+    return smmServices
+      .filter((s) => smmPlatformFilter === 'all' || (s.platform || 'Other Services') === smmPlatformFilter)
+      .filter((s) => smmCategoryFilter === 'all' || s.category === smmCategoryFilter)
+      .filter((s) => {
+        if (smmVisibilityFilter === 'all') return true;
+        const isEn = smmLocalToggles[s.id] !== undefined ? smmLocalToggles[s.id] : Boolean(s.is_enabled);
+        return smmVisibilityFilter === 'enabled' ? isEn : !isEn;
+      })
+      .filter((s) => {
+        if (!smmSearch) return true;
+        const q = smmSearch.toLowerCase();
+        return (
+          (s.name || '').toLowerCase().includes(q) ||
+          (s.category || '').toLowerCase().includes(q) ||
+          String(s.service_id).includes(q)
+        );
+      });
+  }, [smmServices, smmPlatformFilter, smmCategoryFilter, smmVisibilityFilter, smmSearch, smmLocalToggles]);
+
+  const pendingSmmChangesCount = useMemo(() => {
+    let count = 0;
+    smmServices.forEach((s) => {
+      const localVal = smmLocalToggles[s.id] !== undefined ? smmLocalToggles[s.id] : Boolean(s.is_enabled);
+      if (localVal !== Boolean(s.is_enabled)) {
+        count++;
+      }
+    });
+    return count;
+  }, [smmServices, smmLocalToggles]);
 
   const [newDriveForm, setNewDriveForm] = useState({
     name: '',
@@ -1318,86 +1440,240 @@ export const AdminSettingsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Services Search & Category Filter */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <div className="relative w-full sm:w-64">
+              {/* Services Filter Bar: Search + Platform + Category + Visibility */}
+              <div className="space-y-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
                     <input
                       type="text"
                       value={smmSearch}
-                      onChange={(e) => setSmmSearch(e.target.value)}
-                      placeholder="Search services..."
-                      className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
+                      onChange={(e) => {
+                        setSmmSearch(e.target.value);
+                        setSmmVisibleLimit(50);
+                      }}
+                      placeholder="Search services or ID..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
                     />
                   </div>
+
+                  <select
+                    value={smmPlatformFilter}
+                    onChange={(e) => {
+                      setSmmPlatformFilter(e.target.value);
+                      setSmmCategoryFilter('all');
+                      setSmmVisibleLimit(50);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">All Platforms</option>
+                    {smmPlatforms.map((plat) => (
+                      <option key={plat} value={plat}>{plat}</option>
+                    ))}
+                  </select>
+
                   <select
                     value={smmCategoryFilter}
-                    onChange={(e) => setSmmCategoryFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs"
+                    onChange={(e) => {
+                      setSmmCategoryFilter(e.target.value);
+                      setSmmVisibleLimit(50);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
                   >
                     <option value="all">All Categories</option>
-                    {Array.from(new Set(smmServices.map((s) => s.category))).filter(Boolean).map((cat: any) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    {Array.from(new Set(
+                      smmServices
+                        .filter((s) => smmPlatformFilter === 'all' || (s.platform || 'Other Services') === smmPlatformFilter)
+                        .map((s) => s.category)
+                    ))
+                      .filter(Boolean)
+                      .map((cat: any) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                  </select>
+
+                  <select
+                    value={smmVisibilityFilter}
+                    onChange={(e) => {
+                      setSmmVisibilityFilter(e.target.value as any);
+                      setSmmVisibleLimit(50);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-[#1A2234] border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">Visibility: All Services</option>
+                    <option value="enabled">Visibility: Enabled (Visible to Users)</option>
+                    <option value="disabled">Visibility: Disabled (Hidden)</option>
                   </select>
                 </div>
 
-                <div className="text-xs text-slate-400">
-                  Total Services: <strong className="text-white">{smmServices.length}</strong> | Visible: <strong className="text-emerald-400">{smmServices.filter((s) => s.is_enabled).length}</strong>
+                {/* Bulk Actions & Pending Confirmation Bar */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-[#1A2234]/80 rounded-2xl border border-slate-800">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllFiltered(true)}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+                      title="Select all matching filtered services to be enabled"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      <span>Select All ({filteredSmmServices.length.toLocaleString()})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllFiltered(false)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+                      title="Unselect all matching filtered services to be hidden"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Unselect All ({filteredSmmServices.length.toLocaleString()})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmVisibilityChanges}
+                      disabled={smmSavingBulk || pendingSmmChangesCount === 0}
+                      className={`px-4 py-1.5 rounded-xl font-black text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+                        pendingSmmChangesCount > 0
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 animate-pulse'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}
+                    >
+                      <Save className={`w-3.5 h-3.5 ${smmSavingBulk ? 'animate-spin' : ''}`} />
+                      <span>
+                        {smmSavingBulk
+                          ? 'Saving Changes...'
+                          : pendingSmmChangesCount > 0
+                          ? `Confirm Changes (${pendingSmmChangesCount} Pending)`
+                          : 'All Changes Saved'}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="text-xs text-slate-400 flex items-center gap-2">
+                    <span>
+                      Matching: <strong className="text-white">{filteredSmmServices.length.toLocaleString()}</strong> / Total: <strong className="text-slate-300">{smmServices.length.toLocaleString()}</strong>
+                    </span>
+                    {pendingSmmChangesCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                        {pendingSmmChangesCount} unsaved
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Services Table */}
               <div className="rounded-2xl border border-slate-800 overflow-hidden bg-[#101726]">
-                <div className="max-h-[500px] overflow-y-auto">
+                <div className="max-h-[520px] overflow-y-auto">
                   <table className="w-full text-left text-xs text-slate-300">
                     <thead className="bg-[#1A2234] text-[10px] text-slate-400 uppercase tracking-wider sticky top-0 z-10">
                       <tr>
                         <th className="p-3 w-12 text-center">Show</th>
-                        <th className="p-3">ID</th>
+                        <th className="p-3 w-16">ID</th>
                         <th className="p-3">Service Name</th>
-                        <th className="p-3">Category</th>
+                        <th className="p-3">Platform & Category</th>
                         <th className="p-3">Base USD</th>
                         <th className="p-3">Customer RWF</th>
                         <th className="p-3">Min / Max</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {smmServices
-                        .filter((s) => smmCategoryFilter === 'all' || s.category === smmCategoryFilter)
-                        .filter((s) => !smmSearch || s.name.toLowerCase().includes(smmSearch.toLowerCase()) || String(s.service_id).includes(smmSearch))
-                        .map((svc) => (
-                          <tr key={svc.id} className={`hover:bg-slate-800/40 transition-colors ${!svc.is_enabled ? 'opacity-50 bg-slate-900/30' : ''}`}>
-                            <td className="p-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(svc.is_enabled)}
-                                onChange={() => handleToggleSmmService(svc.id, svc.is_enabled)}
-                                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 cursor-pointer"
-                              />
-                            </td>
-                            <td className="p-3 font-mono text-[11px] text-slate-400">{svc.service_id}</td>
-                            <td className="p-3 font-bold text-white max-w-xs truncate" title={svc.name}>
-                              {svc.name}
-                            </td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-300 border border-slate-700">
-                                {svc.category}
-                              </span>
-                            </td>
-                            <td className="p-3 font-mono text-slate-400">${svc.rate_usd}</td>
-                            <td className="p-3 font-mono font-bold text-emerald-400">
-                              {Number(svc.rate_rwf).toLocaleString()} RWF
-                            </td>
-                            <td className="p-3 text-[11px] text-slate-400">
-                              {svc.min_quantity?.toLocaleString()} - {svc.max_quantity?.toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
+                      {filteredSmmServices.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-slate-500 text-xs">
+                            No services match your current filter or search criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSmmServices.slice(0, smmVisibleLimit).map((svc) => {
+                          const isEnabled = smmLocalToggles[svc.id] !== undefined ? smmLocalToggles[svc.id] : Boolean(svc.is_enabled);
+                          const isChanged = smmLocalToggles[svc.id] !== undefined && smmLocalToggles[svc.id] !== Boolean(svc.is_enabled);
+
+                          return (
+                            <tr
+                              key={svc.id}
+                              className={`hover:bg-slate-800/40 transition-colors ${!isEnabled ? 'opacity-50 bg-slate-900/30' : ''} ${
+                                isChanged ? 'bg-amber-500/10' : ''
+                              }`}
+                            >
+                              <td className="p-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isEnabled}
+                                  onChange={() => handleToggleSmmServiceLocal(svc.id)}
+                                  className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-3 font-mono text-[11px] text-slate-400">{svc.service_id}</td>
+                              <td className="p-3 font-bold text-white max-w-xs truncate" title={svc.name}>
+                                <div className="flex items-center gap-1.5">
+                                  <span>{svc.name}</span>
+                                  {isChanged && (
+                                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                      Pending
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {svc.platform && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-blue-500/15 text-[10px] font-bold text-blue-400 border border-blue-500/30">
+                                      {svc.platform}
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-300 border border-slate-700 truncate max-w-[200px]" title={svc.category}>
+                                    {svc.subcategory || svc.category}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="p-3 font-mono text-slate-400">${svc.rate_usd}</td>
+                              <td className="p-3 font-mono font-bold text-emerald-400">
+                                {Number(svc.rate_rwf).toLocaleString()} RWF
+                              </td>
+                              <td className="p-3 text-[11px] text-slate-400">
+                                {svc.min_quantity?.toLocaleString()} - {svc.max_quantity?.toLocaleString()}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination / Load More Footer */}
+                {filteredSmmServices.length > smmVisibleLimit && (
+                  <div className="p-3 bg-[#1A2234] border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-400">
+                      Showing <strong>{Math.min(filteredSmmServices.length, smmVisibleLimit).toLocaleString()}</strong> of <strong>{filteredSmmServices.length.toLocaleString()}</strong> matching services
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSmmVisibleLimit((prev) => prev + 50)}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 font-bold transition-all"
+                      >
+                        Load More (+50)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSmmVisibleLimit((prev) => prev + 250)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition-all"
+                      >
+                        Load More (+250)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSmmVisibleLimit(filteredSmmServices.length)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-medium transition-all"
+                      >
+                        Load All
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

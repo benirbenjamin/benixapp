@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -312,8 +312,10 @@ export const DashboardPage: React.FC = () => {
   // Social Media Boost Storefront States
   const [smmServices, setSmmServices] = useState<any[]>([]);
   const [smmLoading, setSmmLoading] = useState(false);
-  const [smmCategory, setSmmCategory] = useState('all');
+  const [smmPlatform, setSmmPlatform] = useState('all');
+  const [smmSubcategory, setSmmSubcategory] = useState('all');
   const [smmSearch, setSmmSearch] = useState('');
+  const [smmStoreLimit, setSmmStoreLimit] = useState(30);
   const [selectedService, setSelectedService] = useState<any | null>(null);
   const [boostLink, setBoostLink] = useState('');
   const [boostQuantity, setBoostQuantity] = useState(100);
@@ -323,6 +325,38 @@ export const DashboardPage: React.FC = () => {
   const [myBoostOrders, setMyBoostOrders] = useState<any[]>([]);
   const [myOrdersLoading, setMyOrdersLoading] = useState(false);
   const [smmProviderBalance, setSmmProviderBalance] = useState<number | null>(null);
+
+  const smmPlatformList = useMemo(() => {
+    const plats = Array.from(new Set(smmServices.map((s) => s.platform || 'Other Services'))).filter(Boolean);
+    const priority = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'Twitter / X', 'Music & Audio', 'Telegram'];
+    return [
+      ...priority.filter((p) => plats.includes(p)),
+      ...plats.filter((p) => !priority.includes(p)).sort()
+    ];
+  }, [smmServices]);
+
+  const smmSubcategoryList = useMemo(() => {
+    const list = smmServices
+      .filter((s) => smmPlatform === 'all' || (s.platform || 'Other Services') === smmPlatform)
+      .map((s) => s.subcategory || s.category);
+    return Array.from(new Set(list)).filter(Boolean).sort();
+  }, [smmServices, smmPlatform]);
+
+  const filteredStorefrontServices = useMemo(() => {
+    return smmServices
+      .filter((s) => smmPlatform === 'all' || (s.platform || 'Other Services') === smmPlatform)
+      .filter((s) => smmSubcategory === 'all' || (s.subcategory || s.category) === smmSubcategory)
+      .filter((s) => {
+        if (!smmSearch) return true;
+        const q = smmSearch.toLowerCase();
+        return (
+          (s.name || '').toLowerCase().includes(q) ||
+          (s.subcategory || '').toLowerCase().includes(q) ||
+          (s.category || '').toLowerCase().includes(q) ||
+          (s.platform || '').toLowerCase().includes(q)
+        );
+      });
+  }, [smmServices, smmPlatform, smmSubcategory, smmSearch]);
 
   const loadSmmServices = async () => {
     try {
@@ -1080,7 +1114,7 @@ export const DashboardPage: React.FC = () => {
                   onClick={() => setShowWalletModal(true)}
                   className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition-all active:scale-95 shrink-0"
                 >
-                  Deposit RWF
+                  Deposit Funds
                 </button>
               </div>
             </div>
@@ -1089,44 +1123,112 @@ export const DashboardPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Column: Service Selector (7 Cols) */}
               <div className="lg:col-span-7 space-y-4">
-                {/* Search & Category Tabs */}
+                {/* Level 1: Platform Categories Bar */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block px-1">
+                    Select Platform / Category
+                  </span>
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSmmPlatform('all');
+                        setSmmSubcategory('all');
+                        setSmmStoreLimit(30);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+                        smmPlatform === 'all'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                          : 'bg-[#162032] text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      All Platforms ({smmServices.length})
+                    </button>
+                    {smmPlatformList.map((plat) => {
+                      const count = smmServices.filter((s) => (s.platform || 'Other Services') === plat).length;
+                      const isActive = smmPlatform === plat;
+                      return (
+                        <button
+                          key={plat}
+                          type="button"
+                          onClick={() => {
+                            setSmmPlatform(plat);
+                            setSmmSubcategory('all');
+                            setSmmStoreLimit(30);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                            isActive
+                              ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                              : 'bg-[#162032] text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
+                          }`}
+                        >
+                          <span>{plat}</span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                              isActive ? 'bg-black/20 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Level 2: Subcategory Selector & Search */}
                 <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <div className="relative w-full sm:w-64">
-                    <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
+                  <div className="relative w-full sm:w-56">
+                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
                     <input
                       type="text"
                       value={smmSearch}
-                      onChange={(e) => setSmmSearch(e.target.value)}
-                      placeholder="Search boosts (e.g. YouTube, TikTok)..."
+                      onChange={(e) => {
+                        setSmmSearch(e.target.value);
+                        setSmmStoreLimit(30);
+                      }}
+                      placeholder="Search services..."
                       className="w-full pl-9 pr-3 py-2 rounded-2xl bg-[#162032] border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <select
-                    value={smmCategory}
-                    onChange={(e) => setSmmCategory(e.target.value)}
-                    className="w-full sm:w-auto px-4 py-2 rounded-2xl bg-[#162032] border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500"
+                    value={smmSubcategory}
+                    onChange={(e) => {
+                      setSmmSubcategory(e.target.value);
+                      setSmmStoreLimit(30);
+                    }}
+                    className="w-full sm:flex-1 px-4 py-2 rounded-2xl bg-[#162032] border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500 truncate"
                   >
-                    <option value="all">All Platforms & Categories</option>
-                    {Array.from(new Set(smmServices.map((s) => s.category))).filter(Boolean).map((cat: any) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    <option value="all">
+                      {smmPlatform === 'all' ? 'All Subcategories' : `All ${smmPlatform} Subcategories`} ({filteredStorefrontServices.length})
+                    </option>
+                    {smmSubcategoryList.map((subcat) => {
+                      const count = smmServices.filter(
+                        (s) =>
+                          (smmPlatform === 'all' || (s.platform || 'Other Services') === smmPlatform) &&
+                          (s.subcategory || s.category) === subcat
+                      ).length;
+                      return (
+                        <option key={subcat} value={subcat}>
+                          {subcat} ({count})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
-                {/* Services List */}
+                {/* Level 3: Services List */}
                 <div className="p-4 rounded-3xl bg-[#121824] border border-slate-800 space-y-2 max-h-[520px] overflow-y-auto">
                   {smmLoading ? (
                     <div className="py-12 text-center text-slate-400 text-xs">Loading services from growth engine...</div>
-                  ) : smmServices.length === 0 ? (
+                  ) : filteredStorefrontServices.length === 0 ? (
                     <div className="py-12 text-center text-slate-400 text-xs">
-                      No services available right now. Please check back shortly or contact admin.
+                      No services match your current selection. Please choose another platform or clear search.
                     </div>
                   ) : (
-                    smmServices
-                      .filter((s) => smmCategory === 'all' || s.category === smmCategory)
-                      .filter((s) => !smmSearch || s.name.toLowerCase().includes(smmSearch.toLowerCase()) || s.category.toLowerCase().includes(smmSearch.toLowerCase()))
-                      .map((svc) => {
+                    <>
+                      {filteredStorefrontServices.slice(0, smmStoreLimit).map((svc) => {
                         const isSelected = selectedService?.id === svc.id;
                         return (
                           <div
@@ -1144,9 +1246,14 @@ export const DashboardPage: React.FC = () => {
                             }`}
                           >
                             <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {svc.platform && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-500/15 text-[9px] font-bold text-blue-400 border border-blue-500/30">
+                                    {svc.platform}
+                                  </span>
+                                )}
                                 <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[9px] font-bold text-slate-300 border border-slate-700">
-                                  {svc.category}
+                                  {svc.subcategory || svc.category}
                                 </span>
                                 {svc.refill && (
                                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-400 border border-emerald-500/30">
@@ -1164,13 +1271,26 @@ export const DashboardPage: React.FC = () => {
 
                             <div className="text-right shrink-0">
                               <span className="text-sm font-black text-emerald-400 block font-mono">
-                                {Number(svc.rate_rwf).toLocaleString()} RWF
+                                {formatAmount(svc.rate_rwf)}
                               </span>
                               <span className="text-[9px] text-slate-400 uppercase font-bold">per 1,000 units</span>
                             </div>
                           </div>
                         );
-                      })
+                      })}
+
+                      {filteredStorefrontServices.length > smmStoreLimit && (
+                        <div className="pt-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setSmmStoreLimit((prev) => prev + 30)}
+                            className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white transition-all"
+                          >
+                            Show More Services (+30) — Showing {Math.min(filteredStorefrontServices.length, smmStoreLimit)} of {filteredStorefrontServices.length}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

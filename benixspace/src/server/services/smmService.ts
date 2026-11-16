@@ -34,6 +34,69 @@ async function setSystemSetting(key: string, value: string): Promise<void> {
 // Memory cache for exchange rate
 let cachedRate: { rate: number; timestamp: number } | null = null;
 
+// Memory cache for SMM services list (10-minute cache to eliminate slow DB scans & speed up page load)
+let cachedServicesList: { all: any[] | null; enabled: any[] | null; timestamp: number } = {
+  all: null,
+  enabled: null,
+  timestamp: 0
+};
+const SERVICES_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+export function invalidateSmmServicesCache() {
+  cachedServicesList = { all: null, enabled: null, timestamp: 0 };
+}
+
+/**
+ * Intelligent Platform & Subcategory Extractor for SMM services
+ * Splits complex category strings into a primary platform (TikTok, YouTube, etc.)
+ * and a clean subcategory (e.g. "Story Services", "Followers", "Likes", "Video Views")
+ */
+export function parsePlatformAndSubcategory(categoryStr: string, serviceName: string = ''): { platform: string; subcategory: string } {
+  const cat = (categoryStr || '').trim();
+  const lowerCat = cat.toLowerCase();
+  const lowerName = (serviceName || '').toLowerCase();
+  const combined = `${lowerCat} ${lowerName}`;
+
+  let platform = 'Other Services';
+  if (combined.includes('tiktok')) {
+    platform = 'TikTok';
+  } else if (combined.includes('youtube') || combined.includes('yt ')) {
+    platform = 'YouTube';
+  } else if (combined.includes('instagram') || combined.includes('ig ')) {
+    platform = 'Instagram';
+  } else if (combined.includes('facebook') || combined.includes('fb ')) {
+    platform = 'Facebook';
+  } else if (combined.includes('twitter') || combined.includes('x.com') || combined.includes('x boost') || lowerCat.includes('twitter')) {
+    platform = 'Twitter / X';
+  } else if (combined.includes('spotify') || combined.includes('audiomack') || combined.includes('deezer') || combined.includes('boomplay') || combined.includes('apple music') || combined.includes('podcast')) {
+    platform = 'Music & Audio';
+  } else if (combined.includes('telegram')) {
+    platform = 'Telegram';
+  } else if (combined.includes('threads')) {
+    platform = 'Threads';
+  } else if (combined.includes('linkedin')) {
+    platform = 'LinkedIn';
+  } else if (combined.includes('discord')) {
+    platform = 'Discord';
+  } else if (combined.includes('website') || combined.includes('traffic') || combined.includes('seo')) {
+    platform = 'Web Traffic';
+  }
+
+  // Derive human-readable subcategory
+  let subcategory = cat;
+  if (platform !== 'Other Services') {
+    const cleanSub = cat
+      .replace(new RegExp(`^\\W*${platform.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')}\\W*[-–—:]?\\W*`, 'i'), '')
+      .replace(/^[-–—:]\s*/, '')
+      .trim();
+    if (cleanSub.length > 2) {
+      subcategory = cleanSub;
+    }
+  }
+
+  return { platform, subcategory };
+}
+
 export class SmmService {
   /**
    * Real-time currency exchange rate API (USD to RWF)
@@ -129,6 +192,12 @@ export class SmmService {
           is_read BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
+      `).catch(() => {});
+
+      // Add high-performance indexes on smm_services
+      await query(`
+        CREATE INDEX IF NOT EXISTS idx_smm_services_enabled ON smm_services(is_enabled, category);
+        CREATE INDEX IF NOT EXISTS idx_smm_services_cat ON smm_services(category);
       `).catch(() => {});
     } catch (err: any) {
       console.warn('ensureTables non-fatal:', err.message);
@@ -297,14 +366,46 @@ export class SmmService {
   }
 
   static async getServices(showAll: boolean = false): Promise<any[]> {
-    await this.ensureTables();
-    await this.seedDefaultServicesIfEmpty();
+    const now = Date.now();
+    if (showAll && cachedServicesList.all && now - cachedServicesList.timestamp < SERVICES_CACHE_TTL) {
+      return cachedServicesList.all;
+    }
+    if (!showAll && cachedServicesList.enabled && now - cachedServicesList.timestamp < SERVICES_CACHE_TTL) {
+      return cachedServicesList.enabled;
+    }
+
     try {
+      // Query minimal required fields to ensure super-fast payload serialization
       const queryStr = showAll
-        ? 'SELECT * FROM smm_services ORDER BY category ASC, rate_rwf ASC'
-        : 'SELECT * FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC';
+        ? 'SELECT id, service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent FROM smm_services ORDER BY category ASC, rate_rwf ASC'
+        : 'SELECT id, service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC';
       const res = await query(queryStr);
-      return res.rows;
+
+      if (res.rowCount === 0 && !showAll) {
+        await this.ensureTables();
+        await this.seedDefaultServicesIfEmpty();
+        const retryRes = await query('SELECT id, service_id, name, category, type, rate_usd, rate_rwf, min_quantity, max_quantity, refill, cancel, is_enabled, custom_markup_percent FROM smm_services WHERE is_enabled = TRUE ORDER BY category ASC, rate_rwf ASC');
+        res.rows = retryRes.rows;
+      }
+
+      // Enrich with intelligent platform and cleaned subcategory
+      const enriched = res.rows.map((svc: any) => {
+        const { platform, subcategory } = parsePlatformAndSubcategory(svc.category, svc.name);
+        return {
+          ...svc,
+          platform,
+          subcategory
+        };
+      });
+
+      if (showAll) {
+        cachedServicesList.all = enriched;
+      } else {
+        cachedServicesList.enabled = enriched;
+      }
+      cachedServicesList.timestamp = now;
+
+      return enriched;
     } catch {
       return [];
     }
@@ -369,6 +470,7 @@ export class SmmService {
       syncedCount++;
     }
 
+    invalidateSmmServicesCache();
     return { success: true, count: syncedCount, message: `Successfully synced ${syncedCount} services from SMMFollows.` };
   }
 
@@ -380,7 +482,21 @@ export class SmmService {
     } else {
       res = await query('UPDATE smm_services SET is_enabled = NOT is_enabled, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *', [id]);
     }
+    invalidateSmmServicesCache();
     return res.rows[0];
+  }
+
+  static async bulkToggleServices(serviceIds: number[], isEnabled: boolean): Promise<{ success: boolean; count: number }> {
+    await this.ensureTables();
+    if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+    const res = await query(
+      'UPDATE smm_services SET is_enabled = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2::int[])',
+      [Boolean(isEnabled), serviceIds]
+    );
+    invalidateSmmServicesCache();
+    return { success: true, count: res.rowCount || 0 };
   }
 
   static async updatePricing(id: string | number, markup?: number, rateRwf?: number): Promise<any> {
@@ -399,6 +515,7 @@ export class SmmService {
     } else if (rateRwf !== undefined) {
       res = await query('UPDATE smm_services SET rate_rwf = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [Number(rateRwf), id]);
     }
+    invalidateSmmServicesCache();
     return res?.rows[0];
   }
 
@@ -414,6 +531,7 @@ export class SmmService {
     if (apiKey !== undefined) await setSystemSetting('smm_api_key', String(apiKey).trim());
     if (defaultMarkup !== undefined) await setSystemSetting('smm_default_markup_percent', String(defaultMarkup));
     if (rwfPerUsd !== undefined) await setSystemSetting('rwf_per_usd', String(rwfPerUsd));
+    invalidateSmmServicesCache();
   }
 
   static async placeOrder(userId: string, serviceId: number | string, link: string, quantity: number): Promise<any> {
