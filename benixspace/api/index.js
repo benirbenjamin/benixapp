@@ -95339,7 +95339,17 @@ var WalletService = class {
       }
       const wallet = walletRes.rows[0];
       const newBalance = Number(wallet.balance) + amount;
-      const newTotalEarnings = Number(wallet.total_earnings) + amount;
+      const isEarningType = [
+        "creator_commission",
+        "video_sale",
+        "video_unlock",
+        "contact_unlock_royalty",
+        "ad_revenue",
+        "ad_impression_credit",
+        "referral_earning",
+        "benixpay_settlement"
+      ].includes(type);
+      const newTotalEarnings = isEarningType ? Number(wallet.total_earnings || 0) + amount : Number(wallet.total_earnings || 0);
       await client.query(
         `UPDATE core_wallets 
          SET balance = $1, total_earnings = $2, updated_at = CURRENT_TIMESTAMP 
@@ -95392,7 +95402,7 @@ var WalletService = class {
         };
       }
       const newBalance = Number(wallet.balance || 0) + bonusAmount;
-      const newTotalEarnings = Number(wallet.total_earnings || 0) + bonusAmount;
+      const newTotalEarnings = Number(wallet.total_earnings || 0);
       await client.query(
         `UPDATE core_wallets 
          SET balance = $1, total_earnings = $2, bonus_balance = 0, last_login_bonus_date = $3, updated_at = CURRENT_TIMESTAMP 
@@ -95634,10 +95644,9 @@ var WalletService = class {
         [newSenderBalance, senderWallet.id]
       );
       const newRecipientBalance = Number(recipientWallet.balance) + amount;
-      const newRecipientEarnings = Number(recipientWallet.total_earnings || 0) + amount;
       await client.query(
-        "UPDATE core_wallets SET balance = $1, total_earnings = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
-        [newRecipientBalance, newRecipientEarnings, recipientWallet.id]
+        "UPDATE core_wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        [newRecipientBalance, recipientWallet.id]
       );
       await client.query(
         `INSERT INTO core_wallet_transactions 
@@ -124621,7 +124630,7 @@ app.post("/api/auth/verify-login-otp", authRateLimiter, async (req, res) => {
             calc: { completed: true }
           }
         },
-        wallet: { balance: 1e5, currency: "RWF" }
+        wallet: { balance: 0, bonus_balance: 0, total_earnings: 0, currency: "RWF" }
       });
     }
     const userRes = await query("SELECT * FROM core_users WHERE LOWER(email) = $1", [cleanEmail]);
@@ -124629,7 +124638,7 @@ app.post("/api/auth/verify-login-otp", authRateLimiter, async (req, res) => {
       return res.status(404).json({ error: "User account not found." });
     }
     const user = userRes.rows[0];
-    let wallet = { balance: 100, currency: "RWF" };
+    let wallet = { balance: 0, bonus_balance: 0, total_earnings: 0, currency: "RWF" };
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
     } catch (wErr) {
@@ -125063,7 +125072,7 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
               calc: { completed: true }
             }
           },
-          wallet: { balance: 1e5, bonus_balance: 5e3, total_balance: 105e3, currency: "RWF" }
+          wallet: { balance: 0, bonus_balance: 0, total_balance: 0, total_earnings: 0, currency: "RWF" }
         });
       }
       return res.status(404).json({ error: "User not found." });

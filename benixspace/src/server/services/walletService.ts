@@ -111,7 +111,21 @@ export class WalletService {
 
       const wallet = walletRes.rows[0];
       const newBalance = Number(wallet.balance) + amount;
-      const newTotalEarnings = Number(wallet.total_earnings) + amount;
+      // Only legitimate creator revenue events count towards lifetime earnings (never deposits, dice games, or refunds)
+      const isEarningType = [
+        'creator_commission',
+        'video_sale',
+        'video_unlock',
+        'contact_unlock_royalty',
+        'ad_revenue',
+        'ad_impression_credit',
+        'referral_earning',
+        'benixpay_settlement'
+      ].includes(type);
+
+      const newTotalEarnings = isEarningType
+        ? Number(wallet.total_earnings || 0) + amount
+        : Number(wallet.total_earnings || 0);
 
       // 2. Update wallet balance
       await client.query(
@@ -186,7 +200,7 @@ export class WalletService {
       }
 
       const newBalance = Number(wallet.balance || 0) + bonusAmount;
-      const newTotalEarnings = Number(wallet.total_earnings || 0) + bonusAmount;
+      const newTotalEarnings = Number(wallet.total_earnings || 0);
 
       await client.query(
         `UPDATE core_wallets 
@@ -504,10 +518,9 @@ export class WalletService {
 
       // 5. Update Recipient Wallet (credit)
       const newRecipientBalance = Number(recipientWallet.balance) + amount;
-      const newRecipientEarnings = Number(recipientWallet.total_earnings || 0) + amount;
       await client.query(
-        'UPDATE core_wallets SET balance = $1, total_earnings = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-        [newRecipientBalance, newRecipientEarnings, recipientWallet.id]
+        'UPDATE core_wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [newRecipientBalance, recipientWallet.id]
       );
 
       // 6. Record Sender Transaction Ledger

@@ -757,7 +757,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   const dbStats = adminOverview?.stats || {
     total_users: 12,
-    total_wallet_balance: 100000,
+    total_wallet_balance: 0,
     tv_stations: 17,
     radio_stations: 19,
     game_rooms: 4,

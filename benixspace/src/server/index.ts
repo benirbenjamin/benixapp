@@ -617,7 +617,7 @@ app.post('/api/auth/verify-login-otp', authRateLimiter, async (req, res) => {
             calc: { completed: true }
           }
         },
-        wallet: { balance: 100000.00, currency: 'RWF' }
+        wallet: { balance: 0.00, bonus_balance: 0.00, total_earnings: 0.00, currency: 'RWF' }
       });
     }
 
@@ -627,7 +627,7 @@ app.post('/api/auth/verify-login-otp', authRateLimiter, async (req, res) => {
     }
     const user = userRes.rows[0];
 
-    let wallet: any = { balance: 100.00, currency: 'RWF' };
+    let wallet: any = { balance: 0.00, bonus_balance: 0.00, total_earnings: 0.00, currency: 'RWF' };
     try {
       wallet = await WalletService.getOrCreateWallet(user.id);
     } catch (wErr: any) {
@@ -1125,7 +1125,7 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
               calc: { completed: true }
             }
           },
-          wallet: { balance: 100000.00, bonus_balance: 5000.00, total_balance: 105000.00, currency: 'RWF' }
+          wallet: { balance: 0.00, bonus_balance: 0.00, total_balance: 0.00, total_earnings: 0.00, currency: 'RWF' }
         });
       }
       return res.status(404).json({ error: 'User not found.' });
