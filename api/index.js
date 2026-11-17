@@ -123221,7 +123221,7 @@ var BenixPayService = class {
       await query(`
         CREATE TABLE IF NOT EXISTS benixpay_merchants (
           id VARCHAR(255) PRIMARY KEY,
-          user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_id VARCHAR(255) NOT NULL,
           business_name VARCHAR(255) NOT NULL,
           business_email VARCHAR(255),
           business_phone VARCHAR(50),
@@ -123244,11 +123244,12 @@ var BenixPayService = class {
           kyc_notes TEXT,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
+        )
+      `).catch((e5) => console.warn("[BenixPay init merchants]", e5.message));
+      await query(`
         CREATE TABLE IF NOT EXISTS benixpay_transactions (
           id VARCHAR(255) PRIMARY KEY,
-          merchant_id VARCHAR(255) NOT NULL REFERENCES benixpay_merchants(id),
+          merchant_id VARCHAR(255) NOT NULL,
           mode VARCHAR(20) NOT NULL,
           order_reference VARCHAR(255) NOT NULL,
           amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
@@ -123268,15 +123269,20 @@ var BenixPayService = class {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           CONSTRAINT unique_merchant_order UNIQUE (merchant_id, order_reference, mode)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_bp_merchants_user ON benixpay_merchants(user_id);
-        CREATE INDEX IF NOT EXISTS idx_bp_merchants_test_pub ON benixpay_merchants(test_public_key);
-        CREATE INDEX IF NOT EXISTS idx_bp_merchants_live_pub ON benixpay_merchants(live_public_key);
-        CREATE INDEX IF NOT EXISTS idx_bp_txn_merchant ON benixpay_transactions(merchant_id);
-        CREATE INDEX IF NOT EXISTS idx_bp_txn_flw_ref ON benixpay_transactions(flw_ref);
-        CREATE INDEX IF NOT EXISTS idx_bp_txn_status ON benixpay_transactions(status);
-      `);
+        )
+      `).catch((e5) => console.warn("[BenixPay init transactions]", e5.message));
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_merchants_user ON benixpay_merchants(user_id)`).catch(() => {
+      });
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_merchants_test_pub ON benixpay_merchants(test_public_key)`).catch(() => {
+      });
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_merchants_live_pub ON benixpay_merchants(live_public_key)`).catch(() => {
+      });
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_txn_merchant ON benixpay_transactions(merchant_id)`).catch(() => {
+      });
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_txn_flw_ref ON benixpay_transactions(flw_ref)`).catch(() => {
+      });
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_txn_status ON benixpay_transactions(status)`).catch(() => {
+      });
       this.tablesReady = true;
     } catch (err) {
       console.warn("[BenixPay ensureTables]", err.message);
@@ -123296,7 +123302,7 @@ var BenixPayService = class {
   /**
    * Registers a new merchant or returns existing
    */
-  static async registerMerchant(userId, businessName, businessEmail) {
+  static async registerMerchant(userId, businessName, businessEmail, feeBearer = "merchant") {
     await this.ensureTables();
     const existing = await query("SELECT * FROM benixpay_merchants WHERE user_id = $1", [userId]);
     if (existing.rowCount > 0) {
@@ -123321,7 +123327,8 @@ var BenixPayService = class {
         hashSecretKey(creds.testSecretKey),
         creds.livePublicKey,
         hashSecretKey(creds.liveSecretKey),
-        creds.webhookSecret
+        creds.webhookSecret,
+        feeBearer === "customer" ? "customer" : "merchant"
       ]
     );
     return {
@@ -123948,11 +123955,11 @@ benixPayRouter.post("/api/benixpay/merchant/register", authenticateToken, async 
   try {
     const userId = req.user.id;
     const userEmail = req.user.email;
-    const { business_name, business_email = userEmail } = req.body;
+    const { business_name, business_email = userEmail, fee_bearer = "merchant" } = req.body;
     if (!business_name || !business_name.trim()) {
       return res.status(400).json({ success: false, error: "Business name is required." });
     }
-    const result = await BenixPayService.registerMerchant(userId, business_name, business_email);
+    const result = await BenixPayService.registerMerchant(userId, business_name, business_email, fee_bearer);
     return res.status(201).json({
       success: true,
       merchant: result.merchant,
@@ -123963,10 +123970,12 @@ benixPayRouter.post("/api/benixpay/merchant/register", authenticateToken, async 
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-benixPayRouter.post("/api/benixpay/merchant/rotate-keys", authenticateToken, async (req, res) => {
+benixPayRouter.post(["/api/benixpay/merchant/rotate-keys", "/api/benixpay/merchant/keys/rotate"], authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { keyType = "test" } = req.body;
+    let { keyType = "test", mode } = req.body;
+    if (mode === "sandbox") keyType = "test";
+    if (mode === "live") keyType = "live";
     if (keyType !== "test" && keyType !== "live") {
       return res.status(400).json({ success: false, error: 'keyType must be "test" or "live".' });
     }
@@ -123985,7 +123994,7 @@ benixPayRouter.post("/api/benixpay/merchant/rotate-keys", authenticateToken, asy
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-benixPayRouter.post("/api/benixpay/merchant/settings", authenticateToken, async (req, res) => {
+benixPayRouter.all(["/api/benixpay/merchant/settings"], authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const merchant = await BenixPayService.getMerchantByUserId(userId);
@@ -124034,7 +124043,7 @@ benixPayRouter.post("/api/benixpay/merchant/settings", authenticateToken, async 
     return res.status(500).json({ success: false, error: err.message });
   }
 });
-benixPayRouter.post("/api/benixpay/merchant/kyc/submit", authenticateToken, async (req, res) => {
+benixPayRouter.post(["/api/benixpay/merchant/kyc/submit", "/api/benixpay/merchant/kyc"], authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const merchant = await BenixPayService.getMerchantByUserId(userId);

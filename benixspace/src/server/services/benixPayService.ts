@@ -79,7 +79,7 @@ export class BenixPayService {
       await query(`
         CREATE TABLE IF NOT EXISTS benixpay_merchants (
           id VARCHAR(255) PRIMARY KEY,
-          user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_id VARCHAR(255) NOT NULL,
           business_name VARCHAR(255) NOT NULL,
           business_email VARCHAR(255),
           business_phone VARCHAR(50),
@@ -102,11 +102,13 @@ export class BenixPayService {
           kyc_notes TEXT,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
+        )
+      `).catch((e) => console.warn('[BenixPay init merchants]', e.message));
 
+      await query(`
         CREATE TABLE IF NOT EXISTS benixpay_transactions (
           id VARCHAR(255) PRIMARY KEY,
-          merchant_id VARCHAR(255) NOT NULL REFERENCES benixpay_merchants(id),
+          merchant_id VARCHAR(255) NOT NULL,
           mode VARCHAR(20) NOT NULL,
           order_reference VARCHAR(255) NOT NULL,
           amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
@@ -126,15 +128,15 @@ export class BenixPayService {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           CONSTRAINT unique_merchant_order UNIQUE (merchant_id, order_reference, mode)
-        );
+        )
+      `).catch((e) => console.warn('[BenixPay init transactions]', e.message));
 
-        CREATE INDEX IF NOT EXISTS idx_bp_merchants_user ON benixpay_merchants(user_id);
-        CREATE INDEX IF NOT EXISTS idx_bp_merchants_test_pub ON benixpay_merchants(test_public_key);
-        CREATE INDEX IF NOT EXISTS idx_bp_merchants_live_pub ON benixpay_merchants(live_public_key);
-        CREATE INDEX IF NOT EXISTS idx_bp_txn_merchant ON benixpay_transactions(merchant_id);
-        CREATE INDEX IF NOT EXISTS idx_bp_txn_flw_ref ON benixpay_transactions(flw_ref);
-        CREATE INDEX IF NOT EXISTS idx_bp_txn_status ON benixpay_transactions(status);
-      `);
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_merchants_user ON benixpay_merchants(user_id)`).catch(() => {});
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_merchants_test_pub ON benixpay_merchants(test_public_key)`).catch(() => {});
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_merchants_live_pub ON benixpay_merchants(live_public_key)`).catch(() => {});
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_txn_merchant ON benixpay_transactions(merchant_id)`).catch(() => {});
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_txn_flw_ref ON benixpay_transactions(flw_ref)`).catch(() => {});
+      await query(`CREATE INDEX IF NOT EXISTS idx_bp_txn_status ON benixpay_transactions(status)`).catch(() => {});
       this.tablesReady = true;
     } catch (err: any) {
       console.warn('[BenixPay ensureTables]', err.message);
@@ -163,7 +165,7 @@ export class BenixPayService {
   /**
    * Registers a new merchant or returns existing
    */
-  static async registerMerchant(userId: string, businessName: string, businessEmail?: string): Promise<{
+  static async registerMerchant(userId: string, businessName: string, businessEmail?: string, feeBearer: 'merchant' | 'customer' = 'merchant'): Promise<{
     merchant: any;
     credentials?: {
       testPublicKey: string;
@@ -201,7 +203,8 @@ export class BenixPayService {
         hashSecretKey(creds.testSecretKey),
         creds.livePublicKey,
         hashSecretKey(creds.liveSecretKey),
-        creds.webhookSecret
+        creds.webhookSecret,
+        feeBearer === 'customer' ? 'customer' : 'merchant'
       ]
     );
 

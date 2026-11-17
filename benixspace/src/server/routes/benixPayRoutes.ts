@@ -475,13 +475,13 @@ benixPayRouter.post('/api/benixpay/merchant/register', authenticateToken, async 
   try {
     const userId = req.user!.id;
     const userEmail = req.user!.email;
-    const { business_name, business_email = userEmail } = req.body;
+    const { business_name, business_email = userEmail, fee_bearer = 'merchant' } = req.body;
 
     if (!business_name || !business_name.trim()) {
       return res.status(400).json({ success: false, error: 'Business name is required.' });
     }
 
-    const result = await BenixPayService.registerMerchant(userId, business_name, business_email);
+    const result = await BenixPayService.registerMerchant(userId, business_name, business_email, fee_bearer);
 
     return res.status(201).json({
       success: true,
@@ -496,10 +496,12 @@ benixPayRouter.post('/api/benixpay/merchant/register', authenticateToken, async 
 /**
  * POST /api/benixpay/merchant/rotate-keys
  */
-benixPayRouter.post('/api/benixpay/merchant/rotate-keys', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+benixPayRouter.post(['/api/benixpay/merchant/rotate-keys', '/api/benixpay/merchant/keys/rotate'], authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { keyType = 'test' } = req.body;
+    let { keyType = 'test', mode } = req.body;
+    if (mode === 'sandbox') keyType = 'test';
+    if (mode === 'live') keyType = 'live';
 
     if (keyType !== 'test' && keyType !== 'live') {
       return res.status(400).json({ success: false, error: 'keyType must be "test" or "live".' });
@@ -525,7 +527,7 @@ benixPayRouter.post('/api/benixpay/merchant/rotate-keys', authenticateToken, asy
 /**
  * POST /api/benixpay/merchant/settings
  */
-benixPayRouter.post('/api/benixpay/merchant/settings', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+benixPayRouter.all(['/api/benixpay/merchant/settings'], authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const merchant = await BenixPayService.getMerchantByUserId(userId);
@@ -582,7 +584,7 @@ benixPayRouter.post('/api/benixpay/merchant/settings', authenticateToken, async 
 /**
  * POST /api/benixpay/merchant/kyc/submit
  */
-benixPayRouter.post('/api/benixpay/merchant/kyc/submit', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+benixPayRouter.post(['/api/benixpay/merchant/kyc/submit', '/api/benixpay/merchant/kyc'], authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const merchant = await BenixPayService.getMerchantByUserId(userId);

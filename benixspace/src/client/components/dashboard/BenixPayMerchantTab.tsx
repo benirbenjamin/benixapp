@@ -152,8 +152,9 @@ export const BenixPayMerchantTab: React.FC = () => {
       setStatusMsg({ type: 'success', text: '🎉 Benix Pay Merchant Account registered! You can start sandbox testing immediately.' });
       
       // If a raw test secret key was returned upon creation, show it to copy
-      if (data.raw_keys?.test_secret_key) {
-        setRevealedKey({ mode: 'Test', key: data.raw_keys.test_secret_key });
+      if (data.credentials?.testSecretKey || data.raw_keys?.test_secret_key) {
+        const key = data.credentials?.testSecretKey || data.raw_keys?.test_secret_key;
+        setRevealedKey({ mode: 'Test', key });
       }
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: err.message });
@@ -177,7 +178,8 @@ export const BenixPayMerchantTab: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Key rotation failed');
 
-      setRevealedKey({ mode: targetMode === 'sandbox' ? 'Test' : 'Live', key: data.secret_key });
+      const rotKey = data.credentials?.secretKey || data.secret_key;
+      setRevealedKey({ mode: targetMode === 'sandbox' ? 'Test' : 'Live', key: rotKey });
       loadMerchant();
       setStatusMsg({ type: 'success', text: `Successfully rotated ${targetMode.toUpperCase()} API key!` });
     } catch (err: any) {
