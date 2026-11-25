@@ -10,6 +10,7 @@ import { AdminWithdrawalsPanel } from '../../components/admin/AdminWithdrawalsPa
 import { AdminMonetizationPanel } from '../../components/admin/AdminMonetizationPanel';
 import { AdminStoriesPanel } from '../../components/admin/AdminStoriesPanel';
 import { AdminLedgerSchemaPanel } from '../../components/admin/AdminLedgerSchemaPanel';
+import { BenixPayAdminPanel } from '../../components/admin/BenixPayAdminPanel';
 import { AdminYouTubePlaylistModal } from '../../components/admin/AdminYouTubePlaylistModal';
 import { AdminVideoEditViewsModal } from '../../components/admin/AdminVideoEditViewsModal';
 import realVideosData from '../../config/realVideos.json';
@@ -26,6 +27,7 @@ import {
   ArrowRight,
   Wallet,
   ShieldCheck,
+  CreditCard,
   Database,
   Tv,
   Radio,
@@ -185,7 +187,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Active App Management Tab
-  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads' | 'monetization' | 'stories' | 'users' | 'deposits' | 'withdrawals' | 'ledger_db'>('videos');
+  const [activeAppTab, setActiveAppTab] = useState<'videos' | 'marketplace' | 'tv_radio' | 'kunda' | 'voxify' | 'games' | 'ads' | 'monetization' | 'stories' | 'users' | 'deposits' | 'withdrawals' | 'ledger_db' | 'benixpay'>('videos');
 
   // Monetization & Creators Control State
   const [monetizationSettings, setMonetizationSettings] = useState({ requiredWatchHours: 300, requiredSubscribers: 30 });
@@ -284,7 +286,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Hash change detection (for sidebar clicks like /admin#videos or /admin#marketplace)
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads', 'monetization', 'stories', 'users', 'deposits', 'withdrawals', 'ledger_db'].includes(hash)) {
+    if (['videos', 'marketplace', 'tv_radio', 'kunda', 'voxify', 'games', 'ads', 'monetization', 'stories', 'users', 'deposits', 'withdrawals', 'ledger_db', 'benixpay'].includes(hash)) {
       setActiveAppTab(hash as any);
       setTimeout(() => {
         document.getElementById('apps-control-center')?.scrollIntoView({ behavior: 'smooth' });
@@ -1110,6 +1112,18 @@ export const AdminDashboardPage: React.FC = () => {
                 <Database className="w-3.5 h-3.5" />
                 <span>Ledger & DB</span>
               </button>
+
+              <button
+                onClick={() => setActiveAppTab('benixpay')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeAppTab === 'benixpay'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30 font-black'
+                    : 'text-blue-400 hover:text-white'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Benix Pay</span>
+              </button>
             </div>
           </div>
 
@@ -1776,6 +1790,13 @@ export const AdminDashboardPage: React.FC = () => {
           {activeAppTab === 'ledger_db' && (
             <div className="space-y-6 animate-fade-in">
               <AdminLedgerSchemaPanel />
+            </div>
+          )}
+
+          {/* TAB 11: BENIX PAY GATEWAY ADMIN */}
+          {activeAppTab === 'benixpay' && (
+            <div className="space-y-6 animate-fade-in">
+              <BenixPayAdminPanel />
             </div>
           )}
 

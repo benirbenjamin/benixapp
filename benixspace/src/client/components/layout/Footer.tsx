@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, ArrowUpRight, ShieldCheck, Heart, Smartphone, Download } from 'lucide-react';
+import { Mail, Phone, MapPin, ArrowUpRight, ShieldCheck, Smartphone, Download } from 'lucide-react';
 import { FacebookIcon, InstagramIcon, TwitterIcon, YoutubeIcon } from '../common/SocialIcons';
 import { fetchCompanySettings } from '../../services/api';
 import { usePwa } from '../../context/PwaContext';
 
 export const Footer: React.FC = () => {
-  const currentYear = new Date().getFullYear();
   const { isInstalled, installApp } = usePwa();
   const [logo, setLogo] = useState<string>('/logo.png');
   const [companyInfo, setCompanyInfo] = useState({
@@ -77,7 +76,7 @@ export const Footer: React.FC = () => {
           {/* Column 1: Company Profile & Logo */}
           <div className="space-y-4">
             <Link to="/" className="flex items-center group">
-              <img src="/logo.png" alt="BenixSpace" className="h-9 w-auto max-w-[180px] object-contain transition-transform group-hover:scale-105" />
+              <img src={logo} alt="BenixSpace" className="h-9 w-auto max-w-[180px] object-contain transition-transform group-hover:scale-105" />
             </Link>
             <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
               BenixSpace is the premier unified digital platform ecosystem for Rwanda and East Africa. Watch live streaming TV, 24/7 radio stations, verified dating, gospel choirs, and digital commerce.
@@ -129,35 +128,12 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/dating" className="hover:text-rose-400 inline-flex items-center gap-1.5 transition-colors">
-                  <span>Kunda Space Rwandan Dating</span>
-                  <ArrowUpRight className="w-3 h-3 opacity-70" />
-                </Link>
-              </li>
-              <li>
-                <Link to="/music" className="hover:text-indigo-400 inline-flex items-center gap-1.5 transition-colors">
-                  <span>Voxify Choirs & Gospel Music</span>
-                  <ArrowUpRight className="w-3 h-3 opacity-70" />
-                </Link>
-              </li>
-              <li>
-                <Link to="/marketplace" className="hover:text-emerald-400 inline-flex items-center gap-1.5 transition-colors">
-                  <span>Benix Marketplace Commerce</span>
-                  <ArrowUpRight className="w-3 h-3 opacity-70" />
-                </Link>
-              </li>
-              <li>
                 <Link to="/games" className="hover:text-amber-400 inline-flex items-center gap-1.5 transition-colors">
                   <span>RollDice Arena Gaming</span>
                   <ArrowUpRight className="w-3 h-3 opacity-70" />
                 </Link>
               </li>
-              <li>
-                <Link to="/calc" className="hover:text-teal-400 inline-flex items-center gap-1.5 transition-colors">
-                  <span>EasyCalc Smart Calculators</span>
-                  <ArrowUpRight className="w-3 h-3 opacity-70" />
-                </Link>
-              </li>
+
             </ul>
           </div>
 

@@ -230,7 +230,7 @@ benixPayRouter.get('/api/v1/benixpay/checkout/:id', async (req: Request, res: Re
  */
 benixPayRouter.post('/api/v1/benixpay/checkout/:id/simulate', rateLimiter(20, 60000), async (req: Request, res: Response) => {
   try {
-    const txnId = req.params.id;
+    const txnId = String(req.params.id);
     const { outcome = 'successful', payment_method = 'momo_mtn', reason } = req.body;
 
     const resTxn = await query('SELECT * FROM benixpay_transactions WHERE id = $1', [txnId]);
@@ -284,7 +284,7 @@ benixPayRouter.post('/api/v1/benixpay/checkout/:id/simulate', rateLimiter(20, 60
  */
 benixPayRouter.post('/api/v1/benixpay/checkout/:id/pay', rateLimiter(15, 60000), async (req: Request, res: Response) => {
   try {
-    const txnId = req.params.id;
+    const txnId = String(req.params.id);
     const { phone_number, payment_method = 'momo_mtn' } = req.body;
 
     const resTxn = await query(
@@ -756,6 +756,97 @@ benixPayRouter.post('/api/benixpay/admin/merchants/:id/kyc', authenticateToken, 
       merchant: updated.rows[0],
       message: `Merchant KYC ${isApproved ? 'Approved (Live Mode Active)' : 'Declined'}.`
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/benixpay/admin/stats
+ * Aggregate platform-wide Benix Pay KPIs for the Admin Control Center
+ */
+benixPayRouter.get('/api/benixpay/admin/stats', authenticateToken, requireAdminRole, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    await BenixPayService.ensureTables();
+
+    const merchantsRes = await query('SELECT COUNT(*)::int as total FROM benixpay_merchants').catch(() => ({ rows: [{ total: 0 }] }));
+    const liveRes = await query('SELECT COUNT(*)::int as total FROM benixpay_merchants WHERE is_live_enabled = true').catch(() => ({ rows: [{ total: 0 }] }));
+    const pendingKycRes = await query("SELECT COUNT(*)::int as total FROM benixpay_merchants WHERE kyc_status = 'pending'").catch(() => ({ rows: [{ total: 0 }] }));
+
+    const txnsRes = await query(`
+      SELECT
+        COUNT(*)::int as total,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN amount ELSE 0 END), 0)::float as gross_volume,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN fee_amount ELSE 0 END), 0)::float as fee_revenue,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN net_amount ELSE 0 END), 0)::float as net_settled
+      FROM benixpay_transactions
+    `).catch(() => ({ rows: [{ total: 0, gross_volume: 0, fee_revenue: 0, net_settled: 0 }] }));
+
+    const liveTxnsRes = await query(`
+      SELECT
+        COUNT(*)::int as total,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN amount ELSE 0 END), 0)::float as gross_volume,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN fee_amount ELSE 0 END), 0)::float as fee_revenue
+      FROM benixpay_transactions WHERE mode = 'live'
+    `).catch(() => ({ rows: [{ total: 0, gross_volume: 0, fee_revenue: 0 }] }));
+
+    return res.json({
+      success: true,
+      stats: {
+        totalMerchants: Number(merchantsRes.rows[0]?.total || 0),
+        liveMerchants: Number(liveRes.rows[0]?.total || 0),
+        pendingKyc: Number(pendingKycRes.rows[0]?.total || 0),
+        totalTransactions: Number(txnsRes.rows[0]?.total || 0),
+        grossVolume: Number(txnsRes.rows[0]?.gross_volume || 0),
+        feeRevenue: Number(txnsRes.rows[0]?.fee_revenue || 0),
+        netSettled: Number(txnsRes.rows[0]?.net_settled || 0),
+        liveTransactions: Number(liveTxnsRes.rows[0]?.total || 0),
+        liveGrossVolume: Number(liveTxnsRes.rows[0]?.gross_volume || 0),
+        liveFeeRevenue: Number(liveTxnsRes.rows[0]?.fee_revenue || 0)
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/benixpay/admin/transactions
+ * Platform-wide transaction ledger with optional mode/status filters
+ */
+benixPayRouter.get('/api/benixpay/admin/transactions', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await BenixPayService.ensureTables();
+
+    const mode = req.query.mode as string;
+    const status = req.query.status as string;
+    const search = req.query.search as string;
+
+    let sql = `
+      SELECT t.*, m.business_name
+      FROM benixpay_transactions t
+      LEFT JOIN benixpay_merchants m ON t.merchant_id = m.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (mode && mode !== 'all') {
+      params.push(mode);
+      sql += ` AND t.mode = $${params.length}`;
+    }
+    if (status && status !== 'all') {
+      params.push(status);
+      sql += ` AND t.status = $${params.length}`;
+    }
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      sql += ` AND (LOWER(t.id) LIKE $${params.length} OR LOWER(t.order_reference) LIKE $${params.length} OR LOWER(t.customer_email) LIKE $${params.length} OR LOWER(m.business_name) LIKE $${params.length})`;
+    }
+
+    sql += ' ORDER BY t.created_at DESC LIMIT 200';
+
+    const txns = await query(sql, params);
+    return res.json({ success: true, transactions: txns.rows });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

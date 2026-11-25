@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useSidebar } from '../context/SidebarContext';
@@ -211,7 +212,7 @@ export const HomePage: React.FC = () => {
   // Hero Spotlight Pagination
   const paginateHero = (newDirection: number) => {
     setHeroSlide(([prev]) => {
-      const next = (prev + newDirection + 4) % 4;
+      const next = (prev + newDirection + 3) % 3;
       return [next, newDirection];
     });
   };
@@ -280,16 +281,8 @@ export const HomePage: React.FC = () => {
       navigate('/blog');
     } else if (chip === 'Shorts') {
       navigate('/videos?category=Shorts');
-    } else if (chip === 'Kunda Dating') {
-      navigate('/dating');
-    } else if (chip === 'Voxify Music') {
-      navigate('/music');
-    } else if (chip === 'Marketplace') {
-      navigate('/marketplace');
     } else if (chip === 'RollDice Arena') {
       navigate('/games');
-    } else if (chip === 'Calculators') {
-      navigate('/calculators');
     }
   };
 
@@ -468,7 +461,7 @@ export const HomePage: React.FC = () => {
   };
 
   // Hero Slide Variants for Framer Motion animation
-  const slideVariants = {
+  const slideVariants: Variants = {
     enter: (direction: number) => ({
       x: direction > 0 ? '100%' : '-100%',
       opacity: 0,
@@ -496,15 +489,19 @@ export const HomePage: React.FC = () => {
     })
   };
 
-  const featuredTv = tvStations[0] || {
+  const featuredTv: Station = tvStations[0] || {
     id: 'rtv',
     name: 'RTV Live',
     slug: 'rtv',
     description: "Rwanda Television (RTV) is Rwanda's public service television broadcaster.",
     stream_url: 'https://5c46fa289c89f.streamlock.net/rtv25/rtv/playlist.m3u8',
     stream_type: 'HLS',
-    station_type: 'TV'
-  };
+    station_type: 'TV',
+    logo_url: '/logo.png',
+    location: 'Kigali, Rwanda',
+    frequency: 'N/A',
+    accent_color: '#0ea5e9'
+  } as Station;
 
   // Fallback Articles if API has few
   const displayArticles: Article[] = articles.length > 0 ? articles : [
@@ -539,9 +536,10 @@ export const HomePage: React.FC = () => {
       featured_image_url: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=80',
       category: 'Fintech',
       author_name: 'Benix Finance',
-      published_at: new Date(Date.now() - 172800000).toISOString()
+      published_at: new Date(Date.now() - 172800000).toISOString(),
+      status: 'published' as const
     }
-  ];
+  ] as Article[];
 
   return (
     <div className="bg-[#0B0E14] text-slate-100 min-h-screen pb-28 font-sans selection:bg-blue-600 selection:text-white">
@@ -562,11 +560,7 @@ export const HomePage: React.FC = () => {
             'Creator Videos',
             'News & Articles',
             'Shorts',
-            'Kunda Dating',
-            'Voxify Music',
-            'Marketplace',
-            'RollDice Arena',
-            'Calculators'
+            'RollDice Arena'
           ].map((chip) => {
             const isActive = activeChip === chip;
             return (
@@ -910,7 +904,7 @@ export const HomePage: React.FC = () => {
                 </motion.div>
               )}
 
-              {heroSlideIndex === 1 && (
+              {heroSlideIndex === 99 && (
                 <motion.div
                   key="slide-dating"
                   custom={heroDirection}
@@ -972,7 +966,7 @@ export const HomePage: React.FC = () => {
                 </motion.div>
               )}
 
-              {heroSlideIndex === 2 && (
+              {heroSlideIndex === 1 && (
                 <motion.div
                   key="slide-radio"
                   custom={heroDirection}
@@ -1038,7 +1032,7 @@ export const HomePage: React.FC = () => {
                 </motion.div>
               )}
 
-              {heroSlideIndex === 3 && (
+              {heroSlideIndex === 2 && (
                 <motion.div
                   key="slide-games"
                   custom={heroDirection}
@@ -1112,7 +1106,7 @@ export const HomePage: React.FC = () => {
               <ChevronLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-1.5 px-2 bg-black/40 backdrop-blur-md py-1.5 rounded-full border border-white/10">
-              {[0, 1, 2, 3].map((slide) => (
+              {[0, 1, 2].map((slide) => (
                 <button
                   key={slide}
                   onClick={() => jumpToSlide(slide)}
@@ -1446,32 +1440,8 @@ export const HomePage: React.FC = () => {
             <p className="text-xs text-slate-400">Integrated super-app tools available to every verified account.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 xl:gap-6">
-            {/* Card 1: Kunda Space */}
-            <div className="p-5 rounded-3xl bg-gradient-to-br from-[#1C1625] via-[#161220] to-[#120F1A] border border-rose-900/40 shadow-xl flex flex-col justify-between space-y-4">
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400 bg-rose-500/15 px-2.5 py-1 rounded-full border border-rose-500/20 inline-flex items-center gap-1.5">
-                  <Heart className="w-3 h-3 fill-current text-rose-400" />
-                  Kunda Dating Space
-                </span>
-                <h3 className="text-base sm:text-lg font-black text-white">
-                  Meaningful Relationships in Rwanda
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Verified Kigali singles, instant 24h passes, wallet messaging, and direct WhatsApp unlocks.
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleProtectedAccess('kunda', '/dating')}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-md shadow-rose-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
-              >
-                <span>Find Matches</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Card 2: Central Wallet Balance */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 xl:gap-6">
+            {/* Card 1: Central Wallet Balance */}
             <div className="p-5 rounded-3xl bg-gradient-to-br from-[#0F1E24] via-[#0C171C] to-[#0A1217] border border-emerald-900/40 shadow-xl flex flex-col justify-between space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -1496,7 +1466,7 @@ export const HomePage: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    if (!user) setWizardTargetKey('calc');
+                    if (!user) setWizardTargetKey('videos');
                     else setShowWalletModal(true);
                   }}
                   className="py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-md text-center"
@@ -1505,7 +1475,7 @@ export const HomePage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    if (!user) setWizardTargetKey('calc');
+                    if (!user) setWizardTargetKey('videos');
                     else navigate('/dashboard#wallet');
                   }}
                   className="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors text-center"
@@ -1669,7 +1639,7 @@ export const HomePage: React.FC = () => {
 
           <button
             onClick={() => {
-              if (!user) setWizardTargetKey('calc');
+              if (!user) setWizardTargetKey('videos');
               else setShowReferralModal(true);
             }}
             className="px-6 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-600/30 shrink-0 transition-all active:scale-95"

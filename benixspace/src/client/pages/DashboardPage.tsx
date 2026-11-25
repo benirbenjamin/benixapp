@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { useTheme, ThemeMode, AccentColor } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { useCurrency, CurrencyToggle } from '../context/CurrencyContext';
 import { SeoHead } from '../components/common/SeoHead';
 import { WalletModal } from '../components/modals/WalletModal';
@@ -16,23 +16,14 @@ import {
   LayoutDashboard, CreditCard, MessageCircle, Zap, Search,
   Wallet,
   Gift,
-  Settings,
-  Users,
   Tv,
   Radio,
-  Heart,
-  Music,
-  ShoppingBag,
   Dices,
-  Calculator,
   Copy,
   Check,
-  Sparkles,
   ShieldCheck,
   ArrowDownLeft,
   ArrowUpRight,
-  Sun,
-  Moon,
   Palette,
   CheckCircle2,
   AlertCircle,
@@ -41,25 +32,22 @@ import {
   User,
   ArrowLeft,
   Megaphone,
-  TrendingUp,
   Pause,
   Play,
   Plus,
-  BarChart3,
   Camera,
   Edit3,
   Eye,
   Save,
   X,
-  Layers,
   Clock
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
-  const { user, wallet, token, updateWalletBalance, updatePreferences, updateProfilePhoto } = useAuth();
+  const { user, wallet, token, refreshWallet, updatePreferences, updateProfilePhoto } = useAuth();
   const { formatAmount } = useCurrency();
-  const { language, setLanguage, t } = useLanguage();
-  const { mode, accent, setMode, setAccent } = useTheme();
+  useLanguage();
+  useTheme();
 
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -113,10 +101,12 @@ export const DashboardPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState(false);
+  const [mediaModalTab, setMediaModalTab] = useState<'story' | 'video'>('video');
+  const [boostStats, setBoostStats] = useState<any>(null);
   const [selectedReceiptTx, setSelectedReceiptTx] = useState<any | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
-  const [transactionsList, setTransactionsList] = useState<any[]>([
+  const [transactionsList] = useState<any[]>([
     {
       id: 'tx-2026-001',
       title: 'Welcome Super-Account Activation Bonus',
@@ -309,6 +299,25 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const loadBoostStats = async () => {
+    if (!token && !localStorage.getItem('token')) return;
+    try {
+      const authToken = token || localStorage.getItem('token') || localStorage.getItem('benix_auth_token');
+      const res = await fetch('/api/creator/boost-stats', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const data = await res.json();
+      if (data.success) setBoostStats(data);
+    } catch (err) {
+      console.warn('Failed to load boost stats:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadBoostStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
 
   // Social Media Boost Storefront States
   const [smmServices, setSmmServices] = useState<any[]>([]);
@@ -470,7 +479,7 @@ export const DashboardPage: React.FC = () => {
       if (res.ok && data.success) {
         setBoostOrderSuccess(data.message || '🚀 Order placed successfully!');
         setBoostLink('');
-        updateWalletBalance();
+        refreshWallet();
         loadMyBoostOrders();
       } else {
         setBoostOrderError(data.error || 'Failed to place order. Please check your balance or contact admin.');
@@ -763,7 +772,47 @@ export const DashboardPage: React.FC = () => {
         {/* TAB 1: OVERVIEW & CONNECTED APPS */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <DashboardCreatorBar onOpenMediaModal={() => setShowCreateMediaModal(true)} onOpenAdModal={() => setShowSubmitAdModal(true)} />
+            <DashboardCreatorBar
+              onOpenStoryModal={() => { setMediaModalTab('story'); setShowCreateMediaModal(true); }}
+              onOpenVideoModal={() => { setMediaModalTab('video'); setShowCreateMediaModal(true); }}
+              onOpenAdModal={() => setShowSubmitAdModal(true)}
+              wallet={wallet}
+              userCampaignsCount={userCampaigns.length}
+            />
+
+            {/* Boost & Share Earnings Summary */}
+            {boostStats && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-[#121824] border border-amber-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <h4 className="text-xs font-bold text-amber-400 uppercase">Video Boost</h4>
+                  </div>
+                  <p className="text-sm text-slate-300">
+                    {boostStats.boostSummary.activeBoosts} active • {boostStats.boostSummary.totalViewsDelivered}/{boostStats.boostSummary.totalTargetViews} views delivered
+                  </p>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#121824] border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Gift className="w-4 h-4 text-emerald-400" />
+                    <h4 className="text-xs font-bold text-emerald-400 uppercase">Share Earnings</h4>
+                  </div>
+                  <p className="text-sm text-slate-300">
+                    {formatAmount(boostStats.videoShareRewards.totalEarned)} earned from {boostStats.videoShareRewards.totalViews} shared watches
+                  </p>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#121824] border border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-400" />
+                    <h4 className="text-xs font-bold text-blue-400 uppercase">Ad Shares</h4>
+                  </div>
+                  <p className="text-sm text-slate-300">
+                    {formatAmount(boostStats.adShareRewards.totalEarned)} from {boostStats.adShareRewards.totalClicks} clicks & {boostStats.adShareRewards.totalImpressions} views
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 mb-4">
                 Your Enabled Application Suite
@@ -772,11 +821,7 @@ export const DashboardPage: React.FC = () => {
                 {[
                   { id: 'videos', name: 'Benix Space TV', icon: Tv, path: '/tv', desc: 'Live Rwandan TV & Video Stream', color: 'from-blue-600 to-indigo-700' },
                   { id: 'radio', name: 'Live Radio FM', icon: Radio, path: '/radio', desc: '24/7 Digital Radio & Shows', color: 'from-purple-600 to-pink-600' },
-                  { id: 'dating', name: 'Kunda Space', icon: Heart, path: '/dating', desc: 'Verified Rwandan Dating & Matchmaking', color: 'from-rose-500 to-pink-600' },
-                  { id: 'music', name: 'Voxify Choirs', icon: Music, path: '/music', desc: 'Choir Music & Vocal Tracks', color: 'from-emerald-500 to-teal-600' },
-                  { id: 'marketplace', name: 'Benix Market', icon: ShoppingBag, path: '/marketplace', desc: 'Digital Goods & Freelance Services', color: 'from-amber-500 to-orange-600' },
-                  { id: 'games', name: 'RollDice Games', icon: Dices, path: '/games', desc: 'RollDice Challenges & Wagers', color: 'from-violet-600 to-indigo-700' },
-                  { id: 'calc', name: 'EasyCalc Smart', icon: Calculator, path: '/calc', desc: 'Loan EMI, Tax & Financial Tools', color: 'from-cyan-500 to-blue-600' }
+                  { id: 'games', name: 'RollDice Games', icon: Dices, path: '/games', desc: 'RollDice Challenges & Wagers', color: 'from-violet-600 to-indigo-700' }
                 ].map((app) => {
                   const Icon = app.icon;
                   const isEnabled = modules.includes(app.id);
@@ -2068,6 +2113,7 @@ export const DashboardPage: React.FC = () => {
         <CreateMediaModal
           isOpen={showCreateMediaModal}
           onClose={() => setShowCreateMediaModal(false)}
+          initialTab={mediaModalTab}
         />
       )}
 
@@ -2075,7 +2121,7 @@ export const DashboardPage: React.FC = () => {
         <DashboardReceiptModal
           isOpen={!!selectedReceiptTx}
           onClose={() => setSelectedReceiptTx(null)}
-          tx={selectedReceiptTx}
+          transaction={selectedReceiptTx}
         />
       )}
 

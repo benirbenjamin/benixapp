@@ -19061,7 +19061,7 @@ var require_view = __commonJS({
     "use strict";
     var debug3 = require_src()("express:view");
     var path6 = __require("node:path");
-    var fs7 = __require("node:fs");
+    var fs8 = __require("node:fs");
     var dirname = path6.dirname;
     var basename = path6.basename;
     var extname = path6.extname;
@@ -19141,7 +19141,7 @@ var require_view = __commonJS({
     function tryStat(path7) {
       debug3('stat "%s"', path7);
       try {
-        return fs7.statSync(path7);
+        return fs8.statSync(path7);
       } catch (e5) {
         return void 0;
       }
@@ -23022,7 +23022,7 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs7 = __require("fs");
+    var fs8 = __require("fs");
     var mime = require_mime_types();
     var ms = require_ms();
     var onFinished = require_on_finished();
@@ -23304,7 +23304,7 @@ var require_send = __commonJS({
       var i5 = 0;
       var self2 = this;
       debug3('stat "%s"', path7);
-      fs7.stat(path7, function onstat(err, stat) {
+      fs8.stat(path7, function onstat(err, stat) {
         var pathEndsWithSep = path7[path7.length - 1] === sep2;
         if (err && err.code === "ENOENT" && !extname(path7) && !pathEndsWithSep) {
           return next(err);
@@ -23321,7 +23321,7 @@ var require_send = __commonJS({
         }
         var p4 = path7 + "." + self2._extensions[i5++];
         debug3('stat "%s"', p4);
-        fs7.stat(p4, function(err2, stat) {
+        fs8.stat(p4, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self2.emit("file", p4, stat);
@@ -23339,7 +23339,7 @@ var require_send = __commonJS({
         }
         var p4 = join5(path7, self2._index[i5]);
         debug3('stat "%s"', p4);
-        fs7.stat(p4, function(err2, stat) {
+        fs8.stat(p4, function(err2, stat) {
           if (err2) return next(err2);
           if (stat.isDirectory()) return next();
           self2.emit("file", p4, stat);
@@ -23351,7 +23351,7 @@ var require_send = __commonJS({
     SendStream.prototype.stream = function stream4(path7, options) {
       var self2 = this;
       var res = this.res;
-      var stream5 = fs7.createReadStream(path7, options);
+      var stream5 = fs8.createReadStream(path7, options);
       this.emit("stream", stream5);
       stream5.pipe(res);
       function cleanup() {
@@ -24471,7 +24471,7 @@ var require_lib3 = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports, module) {
-    var fs7 = __require("fs");
+    var fs8 = __require("fs");
     var path6 = __require("path");
     var os4 = __require("os");
     var crypto22 = __require("crypto");
@@ -24603,7 +24603,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs7.existsSync(filepath)) {
+            if (fs8.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -24613,7 +24613,7 @@ var require_main = __commonJS({
       } else {
         possibleVaultPath = path6.resolve(process.cwd(), ".env.vault");
       }
-      if (fs7.existsSync(possibleVaultPath)) {
+      if (fs8.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
@@ -24666,7 +24666,7 @@ var require_main = __commonJS({
       const parsedAll = {};
       for (const path7 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs7.readFileSync(path7, { encoding }));
+          const parsed = DotenvModule.parse(fs8.readFileSync(path7, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e5) {
           if (debug3) {
@@ -51576,7 +51576,7 @@ var require_dist_cjs8 = __commonJS({
     var { setCredentialFeature: setCredentialFeature2 } = (init_client3(), __toCommonJS(client_exports2));
     var { CredentialsProviderError: CredentialsProviderError2 } = (init_config2(), __toCommonJS(config_exports));
     var { NodeHttpHandler } = require_dist_cjs7();
-    var fs7 = __require("node:fs/promises");
+    var fs8 = __require("node:fs/promises");
     var { HttpRequest: HttpRequest2 } = (init_protocols(), __toCommonJS(protocols_exports));
     var { sdkStreamMixin: sdkStreamMixin3, parseRfc3339DateTime: parseRfc3339DateTime2 } = (init_serde(), __toCommonJS(serde_exports));
     var ECS_CONTAINER_HOST = "169.254.170.2";
@@ -51700,7 +51700,7 @@ Set AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
       const provider = retryWrapper(async () => {
         const request = createGetRequest(url2);
         if (tokenFile) {
-          request.headers.Authorization = validateToken((await fs7.readFile(tokenFile)).toString());
+          request.headers.Authorization = validateToken((await fs8.readFile(tokenFile)).toString());
         } else if (token) {
           request.headers.Authorization = validateToken(token);
         }
@@ -76726,7 +76726,7 @@ var require_form_data = __commonJS({
     var http6 = __require("http");
     var https10 = __require("https");
     var parseUrl3 = __require("url").parse;
-    var fs7 = __require("fs");
+    var fs8 = __require("fs");
     var Stream2 = __require("stream").Stream;
     var crypto22 = __require("crypto");
     var mime = require_mime_types2();
@@ -76796,7 +76796,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs7.stat(value.path, function(err, stat) {
+          fs8.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -79618,15 +79618,15 @@ var require_pg_connection_string = __commonJS({
       if (config.sslnegotiation === "direct" && config.ssl === void 0) {
         config.ssl = true;
       }
-      const fs7 = config.sslcert || config.sslkey || config.sslrootcert ? __require("fs") : null;
+      const fs8 = config.sslcert || config.sslkey || config.sslrootcert ? __require("fs") : null;
       if (config.sslcert) {
-        config.ssl.cert = fs7.readFileSync(config.sslcert).toString();
+        config.ssl.cert = fs8.readFileSync(config.sslcert).toString();
       }
       if (config.sslkey) {
-        config.ssl.key = fs7.readFileSync(config.sslkey).toString();
+        config.ssl.key = fs8.readFileSync(config.sslkey).toString();
       }
       if (config.sslrootcert) {
-        config.ssl.ca = fs7.readFileSync(config.sslrootcert).toString();
+        config.ssl.ca = fs8.readFileSync(config.sslrootcert).toString();
       }
       if (options.useLibpqCompat && config.uselibpqcompat) {
         throw new Error("Both useLibpqCompat and uselibpqcompat are set. Please use only one of them.");
@@ -81621,15 +81621,15 @@ var require_lib4 = __commonJS({
   "node_modules/pgpass/lib/index.js"(exports, module) {
     "use strict";
     var path6 = __require("path");
-    var fs7 = __require("fs");
+    var fs8 = __require("fs");
     var helper = require_helper();
     module.exports = function(connInfo, cb) {
       var file = helper.getFileName();
-      fs7.stat(file, function(err, stat) {
+      fs8.stat(file, function(err, stat) {
         if (err || !helper.usePgPass(stat, file)) {
           return cb(void 0);
         }
-        var st = fs7.createReadStream(file);
+        var st = fs8.createReadStream(file);
         helper.getPassword(connInfo, st, cb);
       });
     };
@@ -88120,13 +88120,13 @@ var require_ece = __commonJS({
 // src/server/standalone.ts
 var import_express4 = __toESM(require_express2(), 1);
 import path5 from "path";
-import fs6 from "fs";
+import fs7 from "fs";
 
 // src/server/index.ts
 var import_express3 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_dotenv2 = __toESM(require_main(), 1);
-import fs5 from "fs";
+import fs6 from "fs";
 import path4 from "path";
 
 // node_modules/bcryptjs/index.js
@@ -110110,6 +110110,7 @@ var TranslationService = class {
 var import_client_s3 = __toESM(require_dist_cjs16(), 1);
 var import_s3_request_presigner = __toESM(require_dist_cjs17(), 1);
 import crypto13 from "crypto";
+import fs5 from "fs";
 import path3 from "path";
 var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
   "image/jpeg",
@@ -110138,25 +110139,30 @@ var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
   "video/x-matroska",
   "application/pdf"
 ]);
-var r2Endpoint = (process.env.R2_ENDPOINT || "https://94cacdb0e304740d0c178fad46d60af9.r2.cloudflarestorage.com").trim();
-var r2AccessKeyId = (process.env.R2_ACCESS_KEY_ID || "5502cdd9eb55a58a3c52ff41dc84b45e").trim();
-var r2SecretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || "407972121cabd1083b01aa372f920e7e76d99a98eb50c34f297f1ed94d8cf02a").trim();
+var r2Endpoint = (process.env.R2_ENDPOINT || "").trim();
+var r2AccessKeyId = (process.env.R2_ACCESS_KEY_ID || "").trim();
+var r2SecretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || "").trim();
 var BUCKET_NAME = (process.env.R2_BUCKET_NAME || "benixspace").trim();
-var PUBLIC_BASE_URL = (process.env.R2_PUBLIC_URL || "https://pub-fecd649f56f94a5ca0d0592d78438025.r2.dev").trim().replace(/\/+$/, "");
-var r2Client = new import_client_s3.S3Client({
+var PUBLIC_BASE_URL = (process.env.R2_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+var isR2Configured = Boolean(r2Endpoint && r2AccessKeyId && r2SecretAccessKey && BUCKET_NAME);
+var r2Client = isR2Configured ? new import_client_s3.S3Client({
   region: "auto",
   endpoint: r2Endpoint,
   credentials: {
     accessKeyId: r2AccessKeyId,
     secretAccessKey: r2SecretAccessKey
   }
-});
+}) : null;
+var LOCAL_UPLOADS_DIR = path3.join(process.cwd(), "public", "uploads");
 var StorageService = class {
   /**
    * Generates a secure, 60-second direct pre-signed upload URL for Cloudflare R2
    * Browser uploads directly via HTTP PUT with 0 MB Node.js RAM and 0 server bandwidth
    */
   static async generatePresignedUploadUrl(fileName, mimeType, folder = "media") {
+    if (!isR2Configured || !r2Client) {
+      throw new Error("Cloudflare R2 is not configured. Local upload fallback will be used.");
+    }
     const baseMime = (mimeType || "application/octet-stream").split(";")[0].toLowerCase().trim();
     const cleanMime = baseMime === "video/mov" ? "video/quicktime" : baseMime;
     if (!ALLOWED_MIME_TYPES.has(cleanMime)) {
@@ -110192,18 +110198,44 @@ var StorageService = class {
     const safeExt = rawExt.replace(/[^a-z0-9.]/g, "") || ".bin";
     const randomHex = crypto13.randomBytes(8).toString("hex");
     const uniqueKey = `${safeFolder}/${Date.now()}_${randomHex}${safeExt}`;
-    const command5 = new import_client_s3.PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: uniqueKey,
-      ContentType: cleanMime,
-      Body: fileBuffer
-    });
-    await r2Client.send(command5);
-    return {
-      fileUrl: `${PUBLIC_BASE_URL}/${uniqueKey}`,
-      fileId: uniqueKey,
-      provider: "cloudflare_r2"
-    };
+    if (isR2Configured && r2Client) {
+      try {
+        const command5 = new import_client_s3.PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: uniqueKey,
+          ContentType: cleanMime,
+          Body: fileBuffer
+        });
+        await r2Client.send(command5);
+        return {
+          fileUrl: `${PUBLIC_BASE_URL}/${uniqueKey}`,
+          fileId: uniqueKey,
+          provider: "cloudflare_r2"
+        };
+      } catch (err) {
+        console.warn("[StorageService] Cloudflare R2 upload failed, falling back to local disk:", err?.message);
+      }
+    }
+    return this.saveLocalFile(uniqueKey, fileBuffer);
+  }
+  /**
+   * Local disk fallback storage — saves to public/uploads and returns a local URL.
+   * Served by the existing /uploads/:filename route.
+   */
+  static saveLocalFile(key, fileBuffer) {
+    try {
+      const fullPath = path3.join(LOCAL_UPLOADS_DIR, key);
+      fs5.mkdirSync(path3.dirname(fullPath), { recursive: true });
+      fs5.writeFileSync(fullPath, fileBuffer);
+      return {
+        fileUrl: `/uploads/${key}`,
+        fileId: key,
+        provider: "local"
+      };
+    } catch (err) {
+      console.error("[StorageService] Local file save failed:", err?.message);
+      throw err;
+    }
   }
   /**
    * Directly delete a file from Cloudflare R2 storage (e.g. expired stories)
@@ -110222,14 +110254,19 @@ var StorageService = class {
         }
       }
       if (!key) return false;
-      const command5 = new import_client_s3.DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key
-      });
-      await r2Client.send(command5);
+      if (isR2Configured && r2Client) {
+        const command5 = new import_client_s3.DeleteObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key
+        });
+        await r2Client.send(command5);
+      } else {
+        const localPath = path3.join(LOCAL_UPLOADS_DIR, key);
+        if (fs5.existsSync(localPath)) fs5.unlinkSync(localPath);
+      }
       return true;
     } catch (err) {
-      console.warn("Notice: Cloudflare R2 file deletion warning:", err?.message);
+      console.warn("Notice: File deletion warning:", err?.message);
       return false;
     }
   }
@@ -110238,18 +110275,25 @@ var StorageService = class {
    */
   static async getConfig() {
     return {
-      provider: "cloudflare_r2",
+      provider: isR2Configured ? "cloudflare_r2" : "local_fallback",
       publicUrl: PUBLIC_BASE_URL,
       bucket: BUCKET_NAME,
       endpoint: r2Endpoint,
-      isConfigured: Boolean(r2AccessKeyId && r2SecretAccessKey),
-      primaryAccountName: "Cloudflare R2 Object Storage"
+      isConfigured: isR2Configured,
+      localFallback: true,
+      primaryAccountName: isR2Configured ? "Cloudflare R2 Object Storage" : "Local Disk Storage (R2 not configured)"
     };
   }
   /**
    * Connection verification for Admin panel
    */
   static async testConnection() {
+    if (!isR2Configured || !r2Client) {
+      return {
+        success: true,
+        message: "Cloudflare R2 is not configured. Local disk storage fallback is active and ready."
+      };
+    }
     try {
       const testKey = `test/_ping_${Date.now()}.txt`;
       const command5 = new import_client_s3.PutObjectCommand({
@@ -110266,7 +110310,7 @@ var StorageService = class {
     } catch (err) {
       return {
         success: false,
-        message: `Cloudflare R2 connection error: ${err.message}`
+        message: `Cloudflare R2 connection error: ${err.message}. Local disk fallback remains active.`
       };
     }
   }
@@ -123777,7 +123821,7 @@ benixPayRouter.get("/api/v1/benixpay/checkout/:id", async (req, res) => {
 });
 benixPayRouter.post("/api/v1/benixpay/checkout/:id/simulate", rateLimiter(20, 6e4), async (req, res) => {
   try {
-    const txnId = req.params.id;
+    const txnId = String(req.params.id);
     const { outcome = "successful", payment_method = "momo_mtn", reason } = req.body;
     const resTxn = await query("SELECT * FROM benixpay_transactions WHERE id = $1", [txnId]);
     if (resTxn.rowCount === 0) {
@@ -123823,7 +123867,7 @@ benixPayRouter.post("/api/v1/benixpay/checkout/:id/simulate", rateLimiter(20, 6e
 });
 benixPayRouter.post("/api/v1/benixpay/checkout/:id/pay", rateLimiter(15, 6e4), async (req, res) => {
   try {
-    const txnId = req.params.id;
+    const txnId = String(req.params.id);
     const { phone_number, payment_method = "momo_mtn" } = req.body;
     const resTxn = await query(
       `SELECT t.*, m.business_name
@@ -124199,6 +124243,78 @@ benixPayRouter.post("/api/benixpay/admin/merchants/:id/kyc", authenticateToken, 
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+benixPayRouter.get("/api/benixpay/admin/stats", authenticateToken, requireAdminRole, async (_req, res) => {
+  try {
+    await BenixPayService.ensureTables();
+    const merchantsRes = await query("SELECT COUNT(*)::int as total FROM benixpay_merchants").catch(() => ({ rows: [{ total: 0 }] }));
+    const liveRes = await query("SELECT COUNT(*)::int as total FROM benixpay_merchants WHERE is_live_enabled = true").catch(() => ({ rows: [{ total: 0 }] }));
+    const pendingKycRes = await query("SELECT COUNT(*)::int as total FROM benixpay_merchants WHERE kyc_status = 'pending'").catch(() => ({ rows: [{ total: 0 }] }));
+    const txnsRes = await query(`
+      SELECT
+        COUNT(*)::int as total,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN amount ELSE 0 END), 0)::float as gross_volume,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN fee_amount ELSE 0 END), 0)::float as fee_revenue,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN net_amount ELSE 0 END), 0)::float as net_settled
+      FROM benixpay_transactions
+    `).catch(() => ({ rows: [{ total: 0, gross_volume: 0, fee_revenue: 0, net_settled: 0 }] }));
+    const liveTxnsRes = await query(`
+      SELECT
+        COUNT(*)::int as total,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN amount ELSE 0 END), 0)::float as gross_volume,
+        COALESCE(SUM(CASE WHEN status = 'successful' THEN fee_amount ELSE 0 END), 0)::float as fee_revenue
+      FROM benixpay_transactions WHERE mode = 'live'
+    `).catch(() => ({ rows: [{ total: 0, gross_volume: 0, fee_revenue: 0 }] }));
+    return res.json({
+      success: true,
+      stats: {
+        totalMerchants: Number(merchantsRes.rows[0]?.total || 0),
+        liveMerchants: Number(liveRes.rows[0]?.total || 0),
+        pendingKyc: Number(pendingKycRes.rows[0]?.total || 0),
+        totalTransactions: Number(txnsRes.rows[0]?.total || 0),
+        grossVolume: Number(txnsRes.rows[0]?.gross_volume || 0),
+        feeRevenue: Number(txnsRes.rows[0]?.fee_revenue || 0),
+        netSettled: Number(txnsRes.rows[0]?.net_settled || 0),
+        liveTransactions: Number(liveTxnsRes.rows[0]?.total || 0),
+        liveGrossVolume: Number(liveTxnsRes.rows[0]?.gross_volume || 0),
+        liveFeeRevenue: Number(liveTxnsRes.rows[0]?.fee_revenue || 0)
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+benixPayRouter.get("/api/benixpay/admin/transactions", authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    await BenixPayService.ensureTables();
+    const mode = req.query.mode;
+    const status = req.query.status;
+    const search = req.query.search;
+    let sql2 = `
+      SELECT t.*, m.business_name
+      FROM benixpay_transactions t
+      LEFT JOIN benixpay_merchants m ON t.merchant_id = m.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (mode && mode !== "all") {
+      params.push(mode);
+      sql2 += ` AND t.mode = $${params.length}`;
+    }
+    if (status && status !== "all") {
+      params.push(status);
+      sql2 += ` AND t.status = $${params.length}`;
+    }
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      sql2 += ` AND (LOWER(t.id) LIKE $${params.length} OR LOWER(t.order_reference) LIKE $${params.length} OR LOWER(t.customer_email) LIKE $${params.length} OR LOWER(m.business_name) LIKE $${params.length})`;
+    }
+    sql2 += " ORDER BY t.created_at DESC LIMIT 200";
+    const txns = await query(sql2, params);
+    return res.json({ success: true, transactions: txns.rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // src/server/index.ts
 import_dotenv2.default.config();
@@ -124402,8 +124518,8 @@ app.use("/apps", (req, res) => {
   const targetPath = req.url.startsWith("/") ? req.url : `/${req.url}`;
   return res.redirect(301, `/l${targetPath}`);
 });
-app.use(import_express3.default.json({ limit: "20mb" }));
-app.use(import_express3.default.urlencoded({ extended: true, limit: "20mb" }));
+app.use(import_express3.default.json({ limit: "50mb" }));
+app.use(import_express3.default.urlencoded({ extended: true, limit: "50mb" }));
 app.get("/api/health", (req, res) => {
   return res.json({
     status: "ok",
@@ -125642,7 +125758,7 @@ app.get("/api/admin/withdrawals", authenticateToken, requireAdminRole, async (re
 });
 app.post("/api/admin/withdrawals/:id/approve", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
     const result = await WithdrawalService.approveWithdrawal(
       id,
@@ -125673,7 +125789,7 @@ app.post("/api/admin/withdrawals/:id/approve", authenticateToken, requireAdminRo
 });
 app.post("/api/admin/withdrawals/:id/reject", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { reason } = req.body;
     const result = await WithdrawalService.rejectWithdrawal(id, reason);
     query("SELECT user_id, amount FROM core_withdrawals WHERE id = $1", [id]).then((wRes) => {
@@ -125899,8 +126015,7 @@ app.post("/api/wallet/flutterwave/webhook", async (req, res) => {
     const payload = req.body;
     const event = payload?.event;
     const data = payload?.data;
-    const flwConfig = await getFlutterwaveConfig();
-    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH;
     const incomingSignature = req.headers["verif-hash"];
     if (secretHash && incomingSignature !== secretHash) {
       console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Invalid signature header verif-hash");
@@ -125930,6 +126045,7 @@ app.post("/api/wallet/flutterwave/webhook", async (req, res) => {
       if (p4.status === "completed") {
         return res.status(200).json({ status: "already_completed" });
       }
+      const flwConfig = await getFlutterwaveConfig();
       const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
       if (!effectiveSecret || !flwId) {
         console.warn("\u26A0\uFE0F [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID");
@@ -127046,6 +127162,20 @@ app.post("/api/chat/broadcast", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+var voxifySongsList = [];
+var kundaSettings = {
+  messageCost: 50,
+  freeInitialMessages: 3,
+  contactUnlockPrice: 500,
+  plans: [
+    { code: "pass_24h", name: "24h Pass", price: 1e3 },
+    { code: "pass_3d", name: "3-Day Pass", price: 2500 },
+    { code: "pass_weekly", name: "Weekly Pass", price: 5e3 },
+    { code: "pass_monthly", name: "Monthly Pass", price: 15e3 }
+  ]
+};
+var kundaSubscriptionsStore = [];
+var kundaUnlockedContactsStore = /* @__PURE__ */ new Map();
 app.get("/api/admin/all-apps-control", authenticateToken, requireAdminRole, async (req, res) => {
   try {
     return res.json({
@@ -127278,8 +127408,8 @@ app.post("/api/media/upload-chunk", async (req, res) => {
     );
     try {
       const uploadDir = path4.join(process.cwd(), "public", "uploads", "media");
-      if (!fs5.existsSync(uploadDir)) fs5.mkdirSync(uploadDir, { recursive: true });
-      fs5.writeFileSync(path4.join(uploadDir, safeFileName), fullBuffer);
+      if (!fs6.existsSync(uploadDir)) fs6.mkdirSync(uploadDir, { recursive: true });
+      fs6.writeFileSync(path4.join(uploadDir, safeFileName), fullBuffer);
     } catch {
     }
     await query("DELETE FROM upload_chunks WHERE upload_id = $1", [uploadId]).catch(() => {
@@ -127307,7 +127437,7 @@ app.get("/api/media/file/:id", async (req, res) => {
     );
     if (fileRes.rowCount === 0) {
       const localPath = path4.join(process.cwd(), "public", "uploads", "media", id);
-      if (fs5.existsSync(localPath)) {
+      if (fs6.existsSync(localPath)) {
         return res.sendFile(localPath);
       }
       return res.status(404).send("Media file not found");
@@ -127386,16 +127516,16 @@ var streamLocalChunkedMedia = (req, res) => {
     const candidate = path4.join(dir, safeName);
     const resolvedCandidate = path4.resolve(candidate);
     const resolvedDir = path4.resolve(dir);
-    if (resolvedCandidate.startsWith(resolvedDir + path4.sep) && fs5.existsSync(resolvedCandidate)) {
+    if (resolvedCandidate.startsWith(resolvedDir + path4.sep) && fs6.existsSync(resolvedCandidate)) {
       filePath = resolvedCandidate;
       break;
     }
   }
-  if (!filePath || !fs5.existsSync(filePath)) {
+  if (!filePath || !fs6.existsSync(filePath)) {
     return res.status(404).send("Media file not found");
   }
   res.setHeader("X-Content-Type-Options", "nosniff");
-  const stat = fs5.statSync(filePath);
+  const stat = fs6.statSync(filePath);
   const fileSize = stat.size;
   const range2 = req.headers.range;
   const mimeMap = {
@@ -127420,7 +127550,7 @@ var streamLocalChunkedMedia = (req, res) => {
     const requestedEnd = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
     const end = Math.min(requestedEnd, start + chunkSizeLimit - 1, fileSize - 1);
     const chunksize = end - start + 1;
-    const file = fs5.createReadStream(filePath, { start, end });
+    const file = fs6.createReadStream(filePath, { start, end });
     res.writeHead(206, {
       "Content-Range": `bytes ${start}-${end}/${fileSize}`,
       "Accept-Ranges": "bytes",
@@ -127433,7 +127563,7 @@ var streamLocalChunkedMedia = (req, res) => {
   } else {
     if (ext === ".mp4" || ext === ".webm" || ext === ".mp3" || ext === ".m4a") {
       const initialChunkSize = Math.min(fileSize, 512 * 1024);
-      const file = fs5.createReadStream(filePath, { start: 0, end: initialChunkSize - 1 });
+      const file = fs6.createReadStream(filePath, { start: 0, end: initialChunkSize - 1 });
       res.writeHead(206, {
         "Content-Range": `bytes 0-${initialChunkSize - 1}/${fileSize}`,
         "Accept-Ranges": "bytes",
@@ -127449,7 +127579,7 @@ var streamLocalChunkedMedia = (req, res) => {
         "Accept-Ranges": "bytes",
         "Cache-Control": "public, max-age=86400"
       });
-      fs5.createReadStream(filePath).pipe(res);
+      fs6.createReadStream(filePath).pipe(res);
     }
   }
 };
@@ -127469,10 +127599,10 @@ app.post("/api/upload/article-media", authenticateToken, async (req, res) => {
     const buffer = Buffer.from(matches[2], "base64");
     const cleanName = `article_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
     const uploadsDir = path4.join(process.cwd(), "public", "uploads");
-    if (!fs5.existsSync(uploadsDir)) {
-      fs5.mkdirSync(uploadsDir, { recursive: true });
+    if (!fs6.existsSync(uploadsDir)) {
+      fs6.mkdirSync(uploadsDir, { recursive: true });
     }
-    fs5.writeFileSync(path4.join(uploadsDir, cleanName), buffer);
+    fs6.writeFileSync(path4.join(uploadsDir, cleanName), buffer);
     const mediaUrl = `/uploads/${cleanName}`;
     return res.json({
       success: true,
@@ -127554,6 +127684,42 @@ async function ensureVideoAndShortsTables() {
     );
     CREATE INDEX IF NOT EXISTS idx_usi_user_id ON user_short_interactions(user_id);
     CREATE INDEX IF NOT EXISTS idx_usi_short_id ON user_short_interactions(short_id);
+  `).catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS target_views INT DEFAULT 0;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS budget_spent NUMERIC(18,2) DEFAULT 0;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS views_delivered INT DEFAULT 0;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS is_boosted BOOLEAN DEFAULT FALSE;").catch(() => {
+  });
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS boost_status VARCHAR(32) DEFAULT 'inactive';").catch(() => {
+  });
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_video_shares (
+      id VARCHAR(255) PRIMARY KEY,
+      video_id VARCHAR(255) NOT NULL,
+      sharer_id VARCHAR(255) NOT NULL,
+      views INT DEFAULT 0,
+      total_earned NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_video_shares_sharer ON core_video_shares(sharer_id);
+    CREATE INDEX IF NOT EXISTS idx_video_shares_video ON core_video_shares(video_id);
+  `).catch(() => {
+  });
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_video_share_events (
+      id VARCHAR(255) PRIMARY KEY,
+      share_id VARCHAR(255) NOT NULL,
+      viewer_id VARCHAR(255) NOT NULL,
+      video_id VARCHAR(255) NOT NULL,
+      watched_ms INT DEFAULT 0,
+      reward_amount NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(share_id, viewer_id)
+    );
   `).catch(() => {
   });
 }
@@ -128075,12 +128241,18 @@ app.post("/api/stories", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+var BOOST_COST_PER_VIEW = 8;
+var SHARE_REWARD_PER_VIEW = 4;
+var MIN_WATCH_MS_FOR_REWARD = 12e4;
 app.post("/api/videos/upload", authenticateToken, async (req, res) => {
   try {
-    const { title, description, videoUrl, category = "General", price = 0, isPortrait, duration, thumbnailUrl } = req.body;
+    const { title, description, videoUrl, category = "General", price = 0, isPortrait, duration, thumbnailUrl, targetViews = 0, budget = 0, isBoosted = false } = req.body;
     if (!title || !videoUrl) {
       return res.status(400).json({ error: "Video title and YouTube video URL are required." });
     }
+    const numTargetViews = Math.max(0, Number(targetViews) || 0);
+    const numBudget = Math.max(0, Number(budget) || 0);
+    const isBoost = Boolean(isBoosted) && numTargetViews > 0 && numBudget > 0;
     const ytMatch = String(videoUrl || "").match(
       /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/|e\/)|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/i
     );
@@ -128094,6 +128266,25 @@ app.post("/api/videos/upload", authenticateToken, async (req, res) => {
     const finalThumbnailUrl = thumbnailUrl || `https://img.youtube.com/vi/${parsedYtId}/hqdefault.jpg`;
     const isPortraitVideo = Boolean(isPortrait) || String(videoUrl).includes("/shorts/") || category.toLowerCase().includes("short") || category.toLowerCase().includes("tiktok") || category.toLowerCase().includes("story") || title.toLowerCase().includes("#short") || Number(duration) > 0 && Number(duration) <= 60;
     const videoDuration = Number(duration) || (isPortraitVideo ? 45 : 300);
+    const estimatedViews = isBoost ? Math.floor(numBudget / BOOST_COST_PER_VIEW) : 0;
+    const finalTargetViews = isBoost ? Math.min(numTargetViews, estimatedViews) : 0;
+    if (isBoost) {
+      const wallet = await WalletService.getOrCreateWallet(req.user.id);
+      if (Number(wallet.balance) < numBudget) {
+        return res.status(400).json({
+          error: "INSUFFICIENT_FUNDS",
+          message: `Insufficient balance. Boosting with a ${numBudget.toLocaleString()} RWF budget requires at least ${numBudget.toLocaleString()} RWF. Your balance is ${Number(wallet.balance).toLocaleString()} RWF.`
+        });
+      }
+      await WalletService.debit(
+        req.user.id,
+        numBudget,
+        "videos",
+        "video_boost",
+        `Boost video: "${title.trim()}" (${finalTargetViews} views)`,
+        `tx_boost_${Date.now()}`
+      );
+    }
     const newVideo = {
       id: "vid-" + Date.now(),
       userId: req.user.id,
@@ -128109,14 +128300,19 @@ app.post("/api/videos/upload", authenticateToken, async (req, res) => {
       isPortrait: isPortraitVideo,
       duration: videoDuration,
       views: 0,
+      targetViews: finalTargetViews,
+      budgetSpent: isBoost ? numBudget : 0,
+      viewsDelivered: 0,
+      isBoosted: isBoost,
+      boostStatus: isBoost ? "active" : "inactive",
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     userVideosList.unshift(newVideo);
     await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(50);").catch(() => {
     });
     await query(
-      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id, target_views, budget_spent, views_delivered, is_boosted, boost_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
       [
         newVideo.id,
         newVideo.userId,
@@ -128130,13 +128326,232 @@ app.post("/api/videos/upload", authenticateToken, async (req, res) => {
         newVideo.isPaid,
         isPortraitVideo,
         videoDuration,
-        parsedYtId
+        parsedYtId,
+        finalTargetViews,
+        isBoost ? numBudget : 0,
+        0,
+        isBoost,
+        isBoost ? "active" : "inactive"
       ]
     ).catch(() => {
     });
-    return res.json({ success: true, video: newVideo, message: "YouTube video published and ready for broadcast!" });
+    return res.json({
+      success: true,
+      video: newVideo,
+      boost: isBoost ? { targetViews: finalTargetViews, budget: numBudget, estimatedViews } : null,
+      message: isBoost ? `\u{1F680} Video published and boosted with ${finalTargetViews.toLocaleString()} views (${numBudget.toLocaleString()} RWF deducted)!` : "YouTube video published and ready for broadcast!"
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/videos/share", authenticateToken, async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const { videoId } = req.body;
+    if (!videoId) return res.status(400).json({ error: "videoId is required." });
+    const sharerId = req.user.id;
+    const shareId = `vshare_${Date.now()}_${crypto21.randomBytes(4).toString("hex")}`;
+    await query(
+      `INSERT INTO core_video_shares (id, video_id, sharer_id) VALUES ($1, $2, $3)`,
+      [shareId, videoId, sharerId]
+    );
+    return res.json({ success: true, shareId, message: "Video shared! You will earn a reward when friends watch your shared link." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to share video." });
+  }
+});
+app.post("/api/videos/share/watch", async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const { shareId, videoId, viewerId, watchedMs } = req.body;
+    if (!shareId) return res.status(400).json({ error: "shareId is required." });
+    if (Number(watchedMs || 0) < MIN_WATCH_MS_FOR_REWARD) {
+      return res.json({ success: true, credited: false, reason: "min_watch_not_met", remainingMs: MIN_WATCH_MS_FOR_REWARD - Number(watchedMs || 0) });
+    }
+    const shareRes = await query("SELECT * FROM core_video_shares WHERE id = $1", [shareId]);
+    if (shareRes.rowCount === 0) return res.status(404).json({ error: "Share not found." });
+    const share = shareRes.rows[0];
+    const dedupId = String(viewerId || req.headers["x-visitor-id"] || req.ip || "anonymous");
+    const existing = await query(
+      "SELECT id FROM core_video_share_events WHERE share_id = $1 AND viewer_id = $2",
+      [shareId, dedupId]
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: "already_credited" });
+    if (share.sharer_id !== dedupId) {
+      await WalletService.credit(
+        share.sharer_id,
+        SHARE_REWARD_PER_VIEW,
+        "videos",
+        "video_share_reward",
+        "Shared video 2-minute watch reward",
+        `vshare_watch_${shareId}_${Date.now()}`
+      );
+    }
+    await query(
+      "UPDATE core_video_shares SET views = views + 1, total_earned = total_earned + $1 WHERE id = $2",
+      [SHARE_REWARD_PER_VIEW, shareId]
+    );
+    await query(
+      `INSERT INTO core_video_share_events (id, share_id, viewer_id, video_id, watched_ms, reward_amount)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [`vsae_${Date.now()}_${crypto21.randomBytes(3).toString("hex")}`, shareId, dedupId, videoId || share.video_id, Number(watchedMs || 0), SHARE_REWARD_PER_VIEW]
+    ).catch(() => {
+    });
+    return res.json({ success: true, credited: true, amount: SHARE_REWARD_PER_VIEW });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/videos/:id/boosted-view", async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const videoId = String(req.params.id);
+    const { viewerId } = req.body || {};
+    const vidRes = await query("SELECT * FROM user_videos WHERE id = $1", [videoId]);
+    if (vidRes.rowCount === 0) return res.status(404).json({ error: "Video not found." });
+    const video = vidRes.rows[0];
+    if (!video.is_boosted || video.boost_status !== "active") {
+      return res.json({ success: true, credited: false, reason: "not_boosted" });
+    }
+    const dedupId = String(viewerId || req.headers["x-visitor-id"] || req.ip || "anonymous");
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_video_boost_views (
+        id VARCHAR(255) PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        viewer_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(video_id, viewer_id)
+      );
+    `).catch(() => {
+    });
+    const existing = await query(
+      "SELECT id FROM core_video_boost_views WHERE video_id = $1 AND viewer_id = $2",
+      [videoId, dedupId]
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: "already_viewed" });
+    await query(
+      `INSERT INTO core_video_boost_views (id, video_id, viewer_id) VALUES ($1, $2, $3)`,
+      [`vbv_${Date.now()}_${crypto21.randomBytes(3).toString("hex")}`, videoId, dedupId]
+    ).catch(() => {
+    });
+    const newDelivered = Number(video.views_delivered || 0) + 1;
+    const remainingBudget = Number(video.budget_spent || 0) - newDelivered * BOOST_COST_PER_VIEW;
+    const reachedTarget = Number(video.target_views || 0) > 0 && newDelivered >= Number(video.target_views);
+    const exhausted = remainingBudget < BOOST_COST_PER_VIEW;
+    const newStatus = reachedTarget || exhausted ? "completed" : "active";
+    await query(
+      `UPDATE user_videos SET views_delivered = $1, views = COALESCE(views, 0) + 1, boost_status = $2 WHERE id = $3`,
+      [newDelivered, newStatus, videoId]
+    );
+    return res.json({
+      success: true,
+      credited: true,
+      viewsDelivered: newDelivered,
+      targetViews: Number(video.target_views || 0),
+      remainingBudget: Math.max(0, remainingBudget),
+      status: newStatus
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/videos/:id/reboost", authenticateToken, async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const videoId = String(req.params.id);
+    const { additionalBudget = 0, additionalViews = 0 } = req.body;
+    const numBudget = Math.max(0, Number(additionalBudget) || 0);
+    const numViews = Math.max(0, Number(additionalViews) || Math.floor(numBudget / BOOST_COST_PER_VIEW));
+    if (numBudget <= 0) return res.status(400).json({ error: "additionalBudget must be greater than 0." });
+    const vidRes = await query("SELECT * FROM user_videos WHERE id = $1 AND user_id = $2", [videoId, req.user.id]);
+    if (vidRes.rowCount === 0) return res.status(404).json({ error: "Video not found or you are not the owner." });
+    const wallet = await WalletService.getOrCreateWallet(req.user.id);
+    if (Number(wallet.balance) < numBudget) {
+      return res.status(400).json({ error: `INSUFFICIENT_FUNDS: Your balance is ${Number(wallet.balance).toLocaleString()} RWF.` });
+    }
+    await WalletService.debit(req.user.id, numBudget, "videos", "video_boost", `Re-boost video: ${vidRes.rows[0].title} (+${numViews} views)`, `tx_reboost_${Date.now()}`);
+    const newTarget = Number(vidRes.rows[0].target_views || 0) + numViews;
+    const newBudget = Number(vidRes.rows[0].budget_spent || 0) + numBudget;
+    await query(
+      `UPDATE user_videos SET target_views = $1, budget_spent = $2, is_boosted = TRUE, boost_status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newTarget, newBudget, videoId]
+    );
+    return res.json({ success: true, targetViews: newTarget, budgetSpent: newBudget, message: "\u{1F680} Video re-boosted successfully!" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/creator/boost-stats", authenticateToken, async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const userId = req.user.id;
+    const boostedRes = await query(
+      `SELECT id, title, thumbnail_url, target_views, budget_spent, views_delivered, is_boosted, boost_status, views
+       FROM user_videos WHERE user_id = $1 AND is_boosted = TRUE ORDER BY created_at DESC LIMIT 20`,
+      [userId]
+    ).catch(() => ({ rows: [] }));
+    const boostSummary = boostedRes.rows.reduce(
+      (acc, v2) => {
+        acc.totalSpent += Number(v2.budget_spent || 0);
+        acc.totalViewsDelivered += Number(v2.views_delivered || 0);
+        acc.totalTargetViews += Number(v2.target_views || 0);
+        if (v2.boost_status === "active") acc.activeBoosts++;
+        return acc;
+      },
+      { totalSpent: 0, totalViewsDelivered: 0, totalTargetViews: 0, activeBoosts: 0 }
+    );
+    const shareRes = await query(
+      `SELECT COALESCE(SUM(total_earned), 0)::float as earned, COALESCE(SUM(views), 0)::int as views
+       FROM core_video_shares WHERE sharer_id = $1`,
+      [userId]
+    ).catch(() => ({ rows: [{ earned: 0, views: 0 }] }));
+    const adShareRes = await query(
+      `SELECT COALESCE(SUM(total_earned), 0)::float as earned, COALESCE(SUM(clicks), 0)::int as clicks, COALESCE(SUM(impressions), 0)::int as impressions
+       FROM core_ad_shares WHERE sharer_id = $1`,
+      [userId]
+    ).catch(() => ({ rows: [{ earned: 0, clicks: 0, impressions: 0 }] }));
+    return res.json({
+      success: true,
+      boostSummary,
+      boostedVideos: boostedRes.rows,
+      videoShareRewards: {
+        totalEarned: Number(shareRes.rows[0]?.earned || 0),
+        totalViews: Number(shareRes.rows[0]?.views || 0)
+      },
+      adShareRewards: {
+        totalEarned: Number(adShareRes.rows[0]?.earned || 0),
+        totalClicks: Number(adShareRes.rows[0]?.clicks || 0),
+        totalImpressions: Number(adShareRes.rows[0]?.impressions || 0)
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+app.get("/api/admin/boost-tracking", authenticateToken, requireAdminRole, async (_req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const boostedRes = await query(
+      `SELECT COUNT(*)::int as total_boosted, COALESCE(SUM(budget_spent), 0)::float as total_budget, COALESCE(SUM(views_delivered), 0)::int as total_views
+       FROM user_videos WHERE is_boosted = TRUE`
+    ).catch(() => ({ rows: [{ total_boosted: 0, total_budget: 0, total_views: 0 }] }));
+    const videoShareRes = await query(
+      `SELECT COUNT(*)::int as total_shares, COALESCE(SUM(views), 0)::int as total_views, COALESCE(SUM(total_earned), 0)::float as total_earned
+       FROM core_video_shares`
+    ).catch(() => ({ rows: [{ total_shares: 0, total_views: 0, total_earned: 0 }] }));
+    const adShareRes = await query(
+      `SELECT COUNT(*)::int as total_shares, COALESCE(SUM(clicks), 0)::int as total_clicks, COALESCE(SUM(impressions), 0)::int as total_impressions, COALESCE(SUM(total_earned), 0)::float as total_earned
+       FROM core_ad_shares`
+    ).catch(() => ({ rows: [{ total_shares: 0, total_clicks: 0, total_impressions: 0, total_earned: 0 }] }));
+    return res.json({
+      success: true,
+      boostedVideos: boostedRes.rows[0],
+      videoShares: videoShareRes.rows[0],
+      adShares: adShareRes.rows[0]
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 var initCreatorTables = async () => {
@@ -129248,6 +129663,51 @@ var initAdsTable = async () => {
 initAdsTable();
 app.get("/api/ads/active", async (req, res) => {
   const now = Date.now();
+  try {
+    const dbRes = await query(
+      `SELECT * FROM core_custom_ads WHERE status = 'active' ORDER BY created_at DESC LIMIT 50`
+    );
+    if (dbRes.rows && dbRes.rows.length > 0) {
+      const activeAds2 = dbRes.rows.map((r5) => ({
+        id: r5.id,
+        userId: r5.user_id,
+        userName: r5.user_name || "Advertiser",
+        title: r5.title,
+        description: r5.description || "",
+        targetUrl: r5.target_url,
+        mediaType: r5.media_type || "image",
+        mediaUrl: r5.media_url,
+        targetAudience: r5.target_audience || "all",
+        targetImpressions: Number(r5.target_impressions || 1e3),
+        costPerImpression: Number(r5.cpm_bid || 20) / 1e3,
+        costPerClick: Number(r5.cpc_bid || 15),
+        cpmBid: Number(r5.cpm_bid || 20),
+        cpcBid: Number(r5.cpc_bid || 15),
+        dailyBudget: Number(r5.daily_budget || 100),
+        durationDays: Number(r5.duration_days || 7),
+        currentImpressions: Number(r5.current_impressions || 0),
+        currentClicks: Number(r5.current_clicks || 0),
+        totalSpent: Number(r5.total_spent || 0),
+        status: r5.status || "active",
+        rejectionReason: r5.rejection_reason || void 0,
+        createdAt: r5.created_at ? new Date(r5.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+        expiresAt: r5.expires_at ? new Date(r5.expires_at).toISOString() : new Date(Date.now() + 7 * 864e5).toISOString(),
+        ctaText: r5.cta_text || "Learn More"
+      })).filter((ad) => {
+        const notExpired = !ad.expiresAt || new Date(ad.expiresAt).getTime() > now;
+        const underQuota = ad.currentImpressions < ad.targetImpressions;
+        return notExpired && underQuota;
+      });
+      activeAds2.sort((a6, b6) => {
+        const weightA = (a6.cpmBid || 20) * 2 + (a6.cpcBid || 15) * 5;
+        const weightB = (b6.cpmBid || 20) * 2 + (b6.cpcBid || 15) * 5;
+        return weightB - weightA;
+      });
+      return res.json({ success: true, ads: activeAds2 });
+    }
+  } catch (err) {
+    console.warn("[/api/ads/active] DB read failed, falling back to memory:", err);
+  }
   const activeAds = customAdCampaigns.filter((ad) => {
     const notExpired = !ad.expiresAt || new Date(ad.expiresAt).getTime() > now;
     const underQuota = ad.currentImpressions < ad.targetImpressions;
@@ -129818,6 +130278,136 @@ app.get("/api/ads/settings", async (req, res) => {
     });
   }
 });
+async function ensureAdShareTables() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_ad_shares (
+      id VARCHAR(255) PRIMARY KEY,
+      ad_id VARCHAR(255) NOT NULL,
+      sharer_id VARCHAR(255) NOT NULL,
+      clicks INT DEFAULT 0,
+      impressions INT DEFAULT 0,
+      total_earned NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ad_shares_sharer ON core_ad_shares(sharer_id);
+    CREATE TABLE IF NOT EXISTS core_ad_share_events (
+      id VARCHAR(255) PRIMARY KEY,
+      share_id VARCHAR(255) NOT NULL,
+      viewer_id VARCHAR(255) NOT NULL,
+      event_type VARCHAR(20) NOT NULL,
+      amount NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(share_id, viewer_id, event_type)
+    );
+  `).catch((e5) => console.warn("[ad-share tables]", e5.message));
+}
+async function getAdShareRewards() {
+  let clickReward = 18;
+  let impressionReward = 10;
+  try {
+    const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
+    if (row.rows[0]?.value) {
+      const parsed = typeof row.rows[0].value === "string" ? JSON.parse(row.rows[0].value) : row.rows[0].value;
+      if (parsed.adsense) {
+        clickReward = Number(parsed.adsense.custom_ad_click_payout) || 18;
+        impressionReward = Number(parsed.adsense.custom_ad_view_payout) || 10;
+      }
+    }
+  } catch {
+  }
+  return { clickReward, impressionReward };
+}
+app.post("/api/ads/share", authenticateToken, async (req, res) => {
+  try {
+    await ensureAdShareTables();
+    const { adId } = req.body;
+    if (!adId) return res.status(400).json({ error: "adId is required." });
+    const sharerId = req.user.id;
+    const shareId = `ads_${Date.now()}_${crypto21.randomBytes(4).toString("hex")}`;
+    await query(
+      `INSERT INTO core_ad_shares (id, ad_id, sharer_id) VALUES ($1, $2, $3)`,
+      [shareId, adId, sharerId]
+    );
+    return res.json({ success: true, shareId, message: "Ad shared successfully! Earn when friends click or view it." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to share ad." });
+  }
+});
+app.post("/api/ads/share/click", async (req, res) => {
+  try {
+    await ensureAdShareTables();
+    const { shareId, viewerId } = req.body;
+    if (!shareId) return res.status(400).json({ error: "shareId is required." });
+    const shareRes = await query("SELECT * FROM core_ad_shares WHERE id = $1", [shareId]);
+    if (shareRes.rowCount === 0) return res.status(404).json({ error: "Share not found." });
+    const share = shareRes.rows[0];
+    const dedupId = String(viewerId || req.headers["x-visitor-id"] || req.ip || "anonymous");
+    const existing = await query(
+      "SELECT id FROM core_ad_share_events WHERE share_id = $1 AND viewer_id = $2 AND event_type = $3",
+      [shareId, dedupId, "click"]
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: "already_credited" });
+    const { clickReward } = await getAdShareRewards();
+    if (share.sharer_id !== dedupId) {
+      await WalletService.credit(
+        share.sharer_id,
+        clickReward,
+        "ads",
+        "ad_share_click",
+        "Shared ad click reward",
+        `adshare_click_${shareId}_${Date.now()}`
+      );
+    }
+    await query("UPDATE core_ad_shares SET clicks = clicks + 1, total_earned = total_earned + $1 WHERE id = $2", [clickReward, shareId]);
+    await query(
+      `INSERT INTO core_ad_share_events (id, share_id, viewer_id, event_type, amount) VALUES ($1, $2, $3, 'click', $4)`,
+      [`ashe_${Date.now()}_${crypto21.randomBytes(3).toString("hex")}`, shareId, dedupId, clickReward]
+    ).catch(() => {
+    });
+    return res.json({ success: true, credited: true, amount: clickReward });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/ads/share/impression", async (req, res) => {
+  try {
+    await ensureAdShareTables();
+    const { shareId, viewerId, watchedMs } = req.body;
+    if (!shareId) return res.status(400).json({ error: "shareId is required." });
+    if (Number(watchedMs || 0) < 1e4) {
+      return res.json({ success: true, credited: false, reason: "min_watch_not_met" });
+    }
+    const shareRes = await query("SELECT * FROM core_ad_shares WHERE id = $1", [shareId]);
+    if (shareRes.rowCount === 0) return res.status(404).json({ error: "Share not found." });
+    const share = shareRes.rows[0];
+    const dedupId = String(viewerId || req.headers["x-visitor-id"] || req.ip || "anonymous");
+    const existing = await query(
+      "SELECT id FROM core_ad_share_events WHERE share_id = $1 AND viewer_id = $2 AND event_type = $3",
+      [shareId, dedupId, "impression"]
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: "already_credited" });
+    const { impressionReward } = await getAdShareRewards();
+    if (share.sharer_id !== dedupId) {
+      await WalletService.credit(
+        share.sharer_id,
+        impressionReward,
+        "ads",
+        "ad_impression_credit",
+        "Shared ad 10s impression reward",
+        `adshare_imp_${shareId}_${Date.now()}`
+      );
+    }
+    await query("UPDATE core_ad_shares SET impressions = impressions + 1, total_earned = total_earned + $1 WHERE id = $2", [impressionReward, shareId]);
+    await query(
+      `INSERT INTO core_ad_share_events (id, share_id, viewer_id, event_type, amount) VALUES ($1, $2, $3, 'impression', $4)`,
+      [`ashe_${Date.now()}_${crypto21.randomBytes(3).toString("hex")}`, shareId, dedupId, impressionReward]
+    ).catch(() => {
+    });
+    return res.json({ success: true, credited: true, amount: impressionReward });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 app.post("/api/ads/record-reward", async (req, res) => {
   try {
     await query(`
@@ -129981,7 +130571,7 @@ app.post("/api/smm/sync", authenticateToken, requireAdminRole, async (req, res) 
 });
 app.post("/api/smm/services/:id/toggle", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const service = await SmmService.toggleService(req.params.id, req.body.is_enabled);
+    const service = await SmmService.toggleService(String(req.params.id), req.body.is_enabled);
     return res.json({ success: true, service });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -130001,7 +130591,7 @@ app.post("/api/smm/services/bulk-toggle", authenticateToken, requireAdminRole, a
 });
 app.post("/api/smm/services/:id/pricing", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const service = await SmmService.updatePricing(req.params.id, req.body.custom_markup_percent, req.body.rate_rwf);
+    const service = await SmmService.updatePricing(String(req.params.id), req.body.custom_markup_percent, req.body.rate_rwf);
     return res.json({ success: true, service });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -130041,7 +130631,7 @@ app.get("/api/smm/orders/all", authenticateToken, requireAdminRole, async (req, 
 });
 app.post("/api/smm/orders/:id/retry", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const result = await SmmService.retryPendingOrder(req.params.id);
+    const result = await SmmService.retryPendingOrder(String(req.params.id));
     return res.json({ success: true, ...result });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
@@ -130199,41 +130789,6 @@ app.get("/api/admin/settings/storage", authenticateToken, requireAdminRole, asyn
   try {
     const config = await StorageService.getConfig();
     return res.json(config);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/admin/settings/storage/account", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { name: name2, clientId, clientSecret, refreshToken, folderId, isPrimary } = req.body;
-    if (!name2 || !clientId || !clientSecret || !refreshToken) {
-      return res.status(400).json({ error: "Name, Client ID, Client Secret, and Refresh Token are required." });
-    }
-    const created = await StorageService.addAccount({
-      name: name2,
-      clientId,
-      clientSecret,
-      refreshToken,
-      folderId,
-      isPrimary
-    });
-    return res.json({ success: true, account: created, message: "Google Drive account added successfully." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.delete("/api/admin/settings/storage/account/:id", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    await StorageService.deleteAccount(req.params.id);
-    return res.json({ success: true, message: "Google Drive account removed." });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-app.post("/api/admin/settings/storage/primary/:id", authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    await StorageService.setPrimaryAccount(req.params.id);
-    return res.json({ success: true, message: "Primary storage account updated." });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -131478,7 +132033,7 @@ app.post("/api/admin/announcements", authenticateAdmin, async (req, res) => {
 });
 app.post("/api/announcements/:id/read", authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const userId = req.user?.id;
     const userName = req.user?.name || "User";
     const userEmail = req.user?.email || "";
@@ -131496,7 +132051,7 @@ app.post("/api/announcements/:id/read", authenticateToken, async (req, res) => {
 });
 app.get("/api/admin/announcements/:id/stats", authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const numId = parseInt(id, 10);
     const readsResult = await query(
       `SELECT user_id, user_name, user_email, read_at FROM announcement_reads WHERE announcement_id = $1 ORDER BY read_at DESC`,
@@ -132905,7 +133460,7 @@ app.get("/api/admin/users/:id/details", authenticateToken, requireAdminRole, asy
 });
 app.post("/api/admin/users/:id/adjust-wallet", authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { amount, type, note } = req.body;
     const numAmount = Math.abs(Number(amount));
     if (!numAmount || numAmount <= 0) {
@@ -133381,14 +133936,21 @@ app.get("/sitemap.xml", async (req, res) => {
       "/shorts",
       "/tv",
       "/radio",
-      "/music",
-      "/marketplace",
-      "/dating",
       "/games",
+      "/pay",
+      "/cloud",
+      "/docs/benixpay",
+      "/advertise",
+      "/studio",
+      "/boost",
       "/blog",
       "/services",
       "/projects",
-      "/about"
+      "/about",
+      "/contact",
+      "/privacy",
+      "/terms",
+      "/cookies"
     ];
     const staticXml = staticRoutes.map((route) => `
   <url>
@@ -133417,14 +133979,14 @@ app.use(async (req, res, next) => {
     return next();
   }
   try {
-    let title = "BenixSpace \u2014 Rwanda Unified Digital Ecosystem & Super-App";
-    let description = "Discover Live TV & Radio, Trending Shorts, HD Videos, Kunda Dating, Voxify Choirs & Songs, and Rwandan MoMo Central Wallet.";
+    let title = "BenixSpace \u2014 Live TV, Radio, Games, Benix Pay, Cloud Hosting & More";
+    let description = "BenixSpace by NebeluRw Co. Ltd: Live Rwandan TV, 24/7 Radio FM, RollDice Games, Benix Pay payment gateway, Benix Cloud hosting, video sharing, and a central Mobile Money wallet.";
     let imageUrl = "https://benix.space/og-main.png";
     let ogType = "website";
     let videoUrl = "";
     let jsonLd = null;
     const canonicalUrl = `https://benix.space${req.path}`;
-    const keywords = "amashusho, indirimbo, videwo nyarwanda, rwanda trending, rwanda entertainment, benixspace, rwanda videos, online tv rwanda, ibyamamare, amakuru, kigali, voxify, filime nyarwanda, shorts, gospel rwanda";
+    const keywords = "BenixSpace, Benix Space, Benix TV, Benix Radio, Radio FM Rwanda, RollDice, RollDice Arena, Benix Pay, BenixPay, Benix Cloud, BenixCloud, buy views, YouTube views, SMM, social media marketing, MTN MoMo, Airtel Money, mobile money Rwanda, cloud hosting, web hosting, video streaming, shorts, creator videos, central wallet, share and earn, video boost, advertising, sponsored ads, digital marketing, Rwanda, Kigali, live TV Rwanda, RTV, Kiss FM";
     if (req.path.startsWith("/videos/") || req.path.startsWith("/video/") || req.path.startsWith("/watch/") || req.path.startsWith("/shorts/")) {
       const vidId = req.path.split("/")[2];
       ogType = "video.other";
@@ -133521,6 +134083,46 @@ app.use(async (req, res, next) => {
       title = "Kunda Space \u2014 Rwanda Verified Matchmaking & Dating";
       description = "Connect with verified Rwandan singles, explore smart compatibility matches, and unlock direct contacts.";
       imageUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1200&auto=format&fit=crop&q=80";
+    } else if (req.path === "/pay" || req.path.startsWith("/benixpay") || req.path === "/docs/benixpay" || req.path.startsWith("/docs/benixpay")) {
+      title = "Benix Pay \u2014 MTN MoMo, Airtel & Card Payment Gateway for Rwanda";
+      description = "Accept MTN MoMo, Airtel Money and cards directly on your website or app with Benix Pay. Developer-friendly REST API, webhooks, and automatic wallet settlement.";
+      imageUrl = "https://benix.space/og-benixpay.png";
+    } else if (req.path === "/cloud" || req.path.startsWith("/cloud")) {
+      title = "Benix Cloud \u2014 Zero-Config Web Hosting, Custom Domains & GitHub Auto-Sync";
+      description = "Deploy web applications in seconds with Benix Cloud. Free developer trial, custom domains, GitHub auto-sync, DNS verification, and automatic container builds.";
+      imageUrl = "https://benix.space/og-cloud.png";
+    } else if (req.path === "/games" || req.path === "/dice" || req.path.startsWith("/rolldice")) {
+      title = "RollDice Arena \u2014 Win 1.95x Instant Cash on BenixSpace";
+      description = "Play provably fair dice challenges from 50 RWF and cash out instant winnings directly to your MTN Mobile Money wallet on BenixSpace.";
+      imageUrl = "https://benix.space/og-games.png";
+    } else if (req.path === "/advertise" || req.path.startsWith("/ads/")) {
+      title = "Advertise on BenixSpace \u2014 Reach Rwandan Audiences with CPM & CPC Ads";
+      description = "Launch targeted CPM and CPC advertising campaigns across BenixSpace TV, Radio, Videos and Shorts. Track impressions and clicks in real time.";
+      imageUrl = "https://benix.space/og-advertise.png";
+    } else if (req.path.startsWith("/ad/")) {
+      const adId = req.path.split("/")[2];
+      title = "Sponsored \u2014 BenixSpace";
+      description = "Sponsored content on BenixSpace. Explore this offer on the BenixSpace unified platform.";
+      imageUrl = "https://benix.space/og-main.png";
+      if (adId) {
+        try {
+          const adRes = await query("SELECT * FROM core_custom_ads WHERE id = $1", [adId]);
+          if (adRes.rows && adRes.rows.length > 0) {
+            const ad = adRes.rows[0];
+            title = `${ad.title} \u2014 Sponsored on BenixSpace`;
+            description = ad.description ? ad.description.slice(0, 160) : `Explore ${ad.title} on BenixSpace.`;
+            if (ad.media_url) imageUrl = ad.media_url;
+            jsonLd = {
+              "@context": "https://schema.org",
+              "@type": "WebPage",
+              "name": ad.title,
+              "description": description,
+              "image": imageUrl
+            };
+          }
+        } catch {
+        }
+      }
     }
     if (!jsonLd) {
       jsonLd = {
@@ -133611,7 +134213,7 @@ var possibleDistDirs = [
   path5.resolve(__dirname, "..", "dist"),
   path5.resolve(__dirname, "../..", "dist")
 ];
-var distDir = possibleDistDirs.find((d5) => fs6.existsSync(path5.join(d5, "index.html"))) || possibleDistDirs[0];
+var distDir = possibleDistDirs.find((d5) => fs7.existsSync(path5.join(d5, "index.html"))) || possibleDistDirs[0];
 index_default.use(import_express4.default.static(distDir, {
   maxAge: "1d",
   index: false
@@ -133624,7 +134226,7 @@ index_default.use((req, res, next) => {
     return next();
   }
   const indexPath = path5.join(distDir, "index.html");
-  if (fs6.existsSync(indexPath)) {
+  if (fs7.existsSync(indexPath)) {
     return res.sendFile(indexPath);
   }
   return next();

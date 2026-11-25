@@ -31,6 +31,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlayer } from '../../context/PlayerContext';
 import { AdSenseUnit } from '../common/AdSenseUnit';
 import { getAuthToken } from '../../services/api';
+import { showToast } from '../../utils/toast';
 import { getEffectiveCustomAd, getEffectiveBannerOnlyAd } from '../../config/sponsorAds';
 import realVideosData from '../../config/realVideos.json';
 
@@ -47,6 +48,7 @@ export interface ShortFeedItem {
   views: number;
   likes: number;
   source: 'story' | 'video';
+  isPortrait?: boolean;
   createdAt?: string;
   isMonetized?: boolean;
   trendingScore?: number;
@@ -138,6 +140,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [activeInterstitialCustomAd, setActiveInterstitialCustomAd] = useState<CustomAdItem | null>(null);
   const [unfilledGoogleSlots, setUnfilledGoogleSlots] = useState<Record<string, boolean>>({});
 
+  // Share-and-Earn 2-minute watch reward state
+  const [shareId, setShareId] = useState<string>('');
+  const [watchRewardRemaining, setWatchRewardRemaining] = useState<number>(120);
+  const [rewardClaimed, setRewardClaimed] = useState<boolean>(false);
+
   // DOM Refs
   const containerRef = useRef<HTMLDivElement | null>(null);
   const horizontalReelRef = useRef<HTMLDivElement | null>(null);
@@ -220,6 +227,51 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
   // Current active short item
   const currentShort: ShortFeedItem | undefined = shorts[activeIndex];
+
+  // Parse shareId from URL (when a user opens a shared video link)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sid = params.get('shareId') || params.get('share') || '';
+      if (sid) {
+        setShareId(sid);
+        setRewardClaimed(false);
+        setWatchRewardRemaining(120);
+      }
+    } catch {}
+  }, []);
+
+  // 2-minute watch reward countdown (only when a share context exists and video is playing)
+  useEffect(() => {
+    if (!shareId || !currentShort || !isPlaying || showInterstitialAd || rewardClaimed) return;
+
+    setWatchRewardRemaining(120);
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const remaining = Math.max(0, 120 - elapsed);
+      setWatchRewardRemaining(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        setRewardClaimed(true);
+        // Credit the sharer after a verified 2-minute watch
+        fetch('/api/videos/share/watch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shareId,
+            videoId: currentShort.id,
+            viewerId: getVisitorId(),
+            watchedMs: 120000
+          })
+        }).then((r) => r.json()).then((data) => {
+          if (data?.credited) showToast('Reward unlocked! The sharer has been rewarded.', 'success');
+        }).catch(() => {});
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [shareId, currentShort, isPlaying, showInterstitialAd, rewardClaimed]);
 
   // Helper to trigger creator monetization credit & view tracking
   const trackViewAndMonetization = useCallback((short: ShortFeedItem) => {
@@ -747,6 +799,18 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     </div>
                   )}
 
+                  {/* Share-and-Earn 2-Minute Watch Reward Countdown */}
+                  {isCurrent && shareId && !rewardClaimed && isPlaying && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-black/70 backdrop-blur-md border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>
+                        {watchRewardRemaining > 0
+                          ? `${Math.floor(watchRewardRemaining / 60)}:${String(watchRewardRemaining % 60).padStart(2, '0')} remaining to reward the sharer`
+                          : 'Reward unlocked!'}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Media (Video, YouTube Iframe, or Image) */}
                   {(() => {
                     const ytId = extractYouTubeId(item.mediaUrl) || extractYouTubeId(item.id);
@@ -962,20 +1026,27 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
                     {/* 3. Share Button */}
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (navigator.share) {
-                          navigator.share({
-                            title: item.title,
-                            url: window.location.href
+                        // Create a share record so the sharer earns a reward on verified watches
+                        const token = getAuthToken();
+                        if (token && item.id) {
+                          fetch('/api/videos/share', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ videoId: item.id })
                           }).catch(() => {});
+                        }
+                        const shareUrl = `${window.location.origin}/videos/${item.id}`;
+                        if (navigator.share) {
+                          navigator.share({ title: item.title, url: shareUrl }).catch(() => {});
                         } else {
-                          navigator.clipboard?.writeText(window.location.href);
-                          alert('Clip link copied to clipboard!');
+                          navigator.clipboard?.writeText(shareUrl);
+                          showToast('Video link copied! Share it to earn when friends watch.', 'success');
                         }
                       }}
                       className="flex flex-col items-center gap-0.5 focus:outline-none group"
-                      title="Share Video"
+                      title="Share & Earn"
                     >
                       <div className="p-2.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition group-hover:scale-110">
                         <Share2 className="w-5 h-5" />
@@ -1057,13 +1128,40 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                               </p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 shadow-md flex items-center gap-1"
-                          >
-                            <span>{customAd.ctaText || 'Learn More'}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const token = getAuthToken();
+                                if (token) {
+                                  fetch('/api/ads/share', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                    body: JSON.stringify({ adId: customAd.id })
+                                  }).catch(() => {});
+                                }
+                                const adUrl = `${window.location.origin}/ad/${customAd.id}`;
+                                if (navigator.share) {
+                                  navigator.share({ title: customAd.title, url: adUrl }).catch(() => {});
+                                } else {
+                                  navigator.clipboard?.writeText(adUrl);
+                                  showToast('Ad link copied! You will earn when friends click or view it.', 'success');
+                                }
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold shrink-0 flex items-center gap-1 transition"
+                              title="Share & Earn"
+                            >
+                              <Share2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 shadow-md flex items-center gap-1"
+                            >
+                              <span>{customAd.ctaText || 'Explore Site'}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       );
 

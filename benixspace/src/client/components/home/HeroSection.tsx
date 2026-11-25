@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Rocket, Sparkles, ArrowRight, ShieldCheck, Tv, Radio, Music, Calculator } from 'lucide-react';
+import { Rocket, Sparkles, ArrowRight, ShieldCheck, Tv, Radio } from 'lucide-react';
 
 export const HeroSection: React.FC = () => {
   return (
@@ -73,7 +73,7 @@ export const HeroSection: React.FC = () => {
               <h3 className="text-xl font-black text-slate-900">BenixSpace</h3>
               <p className="text-[10px] text-sky-600 font-bold uppercase tracking-wider mt-0.5">NebeluRw Co. Ltd</p>
               <p className="text-slate-500 text-[11px] mt-2 leading-relaxed">
-                Centralized hub for streaming TV, radio, games, easy calc tools & Voxify.
+                Centralized hub for streaming TV, radio, games, payments and cloud hosting.
               </p>
             </div>
 
@@ -96,28 +96,6 @@ export const HeroSection: React.FC = () => {
               <div className="text-left pr-1">
                 <span className="block text-[11px] font-bold text-slate-900">Benix Radio</span>
                 <span className="text-[9px] text-slate-500">24/7 Audio Radio</span>
-              </div>
-            </div>
-
-            {/* Floating Project Card 3: Voxify (Bottom Left) */}
-            <div className="absolute -bottom-4 -left-4 z-30 glass-card p-2.5 rounded-2xl border border-sky-100 shadow-md flex items-center gap-2.5 animate-float-reverse" style={{ animationDelay: '1s' }}>
-              <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-sm">
-                <Music className="w-4 h-4" />
-              </div>
-              <div className="text-left pr-1">
-                <span className="block text-[11px] font-bold text-slate-900">Voxify</span>
-                <span className="text-[9px] text-slate-500">Music Platform</span>
-              </div>
-            </div>
-
-            {/* Floating Project Card 4: Benix Easy Calc (Bottom Right) */}
-            <div className="absolute -bottom-5 -right-1 z-30 glass-card p-2.5 rounded-2xl border border-sky-100 shadow-md flex items-center gap-2.5 animate-float" style={{ animationDelay: '1.5s' }}>
-              <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-sm">
-                <Calculator className="w-4 h-4" />
-              </div>
-              <div className="text-left pr-1">
-                <span className="block text-[11px] font-bold text-slate-900">Easy Calc</span>
-                <span className="text-[9px] text-slate-500">Smart Calculators</span>
               </div>
             </div>
 

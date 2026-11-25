@@ -13,8 +13,8 @@ interface SeoHeadProps {
 
 export const SeoHead: React.FC<SeoHeadProps> = ({
   title = 'BenixSpace — NebeluRw Co. Ltd Digital Ecosystem & Portfolio',
-  description = 'BenixSpace is the official digital ecosystem and project showcase for NebeluRw Co. Ltd, featuring Benix Space TV, Benix Games, Easy Calc, Radio, and Voxify.',
-  keywords = 'BenixSpace, NebeluRw Co. Ltd, Benir Benjamin, Rwanda software development, Benix Space TV, Benix Games, Voxify, Easy Calc',
+  description = 'BenixSpace is the all-in-one digital ecosystem by NebeluRw Co. Ltd: Live Rwandan TV, 24/7 Radio FM, RollDice Games, Benix Pay payment gateway, Benix Cloud hosting, video sharing, and a central Mobile Money wallet.',
+  keywords = 'BenixSpace, Benix Space, NebeluRw, Benir Benjamin, Rwanda, Kigali, Live TV, Benix TV, Benix Radio, Radio FM, RollDice, RollDice Arena, Benix Pay, BenixPay, payment gateway, MTN MoMo, Airtel Money, Benix Cloud, BenixCloud, web hosting, cloud hosting, buy views, YouTube views, SMM, social media marketing, video streaming, shorts, creator videos, central wallet, mobile money, Rwanda streaming, Rwandan TV channels, RTV, Kiss FM, online games, dice games, payment processing, developer API, share and earn, video boost, advertising, sponsored ads, digital marketing',
   canonicalUrl,
   ogImage = 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg',
   type = 'website',

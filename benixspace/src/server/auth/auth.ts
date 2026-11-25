@@ -12,6 +12,14 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
     role: string;
+    name?: string;
+    channel_name?: string;
+    phone?: string;
+    avatar_url?: string;
+    country?: string;
+    referral_code?: string;
+    selected_modules?: string[];
+    app_profiles?: Record<string, any>;
   };
 }
 

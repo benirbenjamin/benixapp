@@ -20,7 +20,8 @@ import {
   Zap,
   ArrowRight,
   ShieldAlert,
-  Sliders
+  Sliders,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
@@ -63,12 +64,14 @@ export const BenixPayMerchantTab: React.FC = () => {
   
   // Modals & transient outputs
   const [showKycModal, setShowKycModal] = useState(false);
+  const [kycRegNumber, setKycRegNumber] = useState('');
   const [kycTin, setKycTin] = useState('');
   const [kycDoc, setKycDoc] = useState('');
   const [kycSubmitting, setKycSubmitting] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // New rolled key display modal
   const [revealedKey, setRevealedKey] = useState<{ mode: string; key: string } | null>(null);
@@ -131,10 +134,14 @@ export const BenixPayMerchantTab: React.FC = () => {
   // Handle Onboarding / Registration
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!businessName.trim()) return;
+    if (!businessName.trim()) {
+      setStatusMsg({ type: 'error', text: 'Please enter your registered business or app name.' });
+      return;
+    }
 
+    setSubmitting(true);
+    setStatusMsg(null);
     try {
-      setStatusMsg(null);
       const res = await fetch('/api/benixpay/merchant/register', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -157,7 +164,9 @@ export const BenixPayMerchantTab: React.FC = () => {
         setRevealedKey({ mode: 'Test', key });
       }
     } catch (err: any) {
-      setStatusMsg({ type: 'error', text: err.message });
+      setStatusMsg({ type: 'error', text: err.message || 'Registration failed. Please try again.' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -244,8 +253,9 @@ export const BenixPayMerchantTab: React.FC = () => {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify({
-          tin_number: kycTin,
-          document_url: kycDoc
+          business_reg_number: kycRegNumber.trim(),
+          tin_number: kycTin.trim(),
+          document_urls: kycDoc.trim() ? [kycDoc.trim()] : []
         })
       });
 
@@ -294,6 +304,17 @@ export const BenixPayMerchantTab: React.FC = () => {
   if (!merchant) {
     return (
       <div className="space-y-8 animate-in fade-in duration-200">
+        {statusMsg && (
+          <div className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between ${
+            statusMsg.type === 'success'
+              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+              : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+          }`}>
+            <span>{statusMsg.text}</span>
+            <button onClick={() => setStatusMsg(null)} className="text-slate-400 hover:text-white">✕</button>
+          </div>
+        )}
+
         <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-[#121824] via-[#0F141F] to-[#0B0E14] border border-blue-500/30 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -313,6 +334,19 @@ export const BenixPayMerchantTab: React.FC = () => {
             <p className="text-sm text-slate-400 leading-relaxed">
               Equip your online store, SaaS, or mobile app with seamless payment collection in Rwanda (RWF) and internationally (USD). Automatic wallet settlement, timing-safe webhooks, and developer-friendly REST APIs.
             </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href="/docs/benixpay"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-xs font-bold transition"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Developer Integration Guide</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
 
             <form onSubmit={handleRegister} className="p-6 rounded-2xl bg-black/40 border border-slate-800 space-y-4">
               <div className="space-y-1.5">
@@ -373,9 +407,17 @@ export const BenixPayMerchantTab: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.01] active:scale-95"
+                disabled={submitting}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.01] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                Activate Benix Pay Merchant Account
+                {submitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Creating Account...
+                  </span>
+                ) : (
+                  'Activate Benix Pay Merchant Account'
+                )}
               </button>
             </form>
           </div>
@@ -762,6 +804,18 @@ export const BenixPayMerchantTab: React.FC = () => {
             </p>
 
             <form onSubmit={handleSubmitKyc} className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300">Business Registration Number *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. RDB/REG/2024/123456"
+                  value={kycRegNumber}
+                  onChange={(e) => setKycRegNumber(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-300">RDB / TIN Number *</label>
                 <input

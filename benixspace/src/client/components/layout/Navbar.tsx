@@ -16,11 +16,6 @@ import {
   Tv,
   Radio,
   Gamepad2,
-  ShoppingBag,
-  Music,
-  Heart,
-  Calculator,
-  Briefcase,
   MessageSquare,
   Plus,
   Smartphone,
@@ -30,7 +25,6 @@ import {
   TrendingUp,
   LogIn,
   UserPlus,
-  ChevronDown,
   Cloud
 } from 'lucide-react';
 import { SearchModal } from '../modals/SearchModal';
@@ -635,43 +629,6 @@ export const Navbar: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => handleAppClick('kunda', '/dating')}
-                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center justify-between text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400">
-                      <Heart className="w-4 h-4" />
-                    </div>
-                    <span>Kunda Space Dating</span>
-                  </div>
-                  {user && !hasAppProfile('dating') && !hasAppProfile('kunda') && (
-                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[9px] font-black uppercase border border-rose-500/30 animate-pulse">
-                      Action
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => handleAppClick('voxify', '/music')}
-                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
-                >
-                  <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400">
-                    <Music className="w-4 h-4" />
-                  </div>
-                  <span>Voxify Choir & Music</span>
-                </button>
-
-                <button
-                  onClick={() => handleAppClick('marketplace', '/marketplace')}
-                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
-                >
-                  <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400">
-                    <ShoppingBag className="w-4 h-4" />
-                  </div>
-                  <span>Benix Marketplace</span>
-                </button>
-
-                <button
                   onClick={() => handleAppClick('games', '/games')}
                   className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
                 >
@@ -679,16 +636,6 @@ export const Navbar: React.FC = () => {
                     <Gamepad2 className="w-4 h-4" />
                   </div>
                   <span>Games & RollDice</span>
-                </button>
-
-                <button
-                  onClick={() => handleAppClick('calc', '/calc')}
-                  className="w-full p-2.5 rounded-2xl hover:bg-slate-800/80 flex items-center gap-3 text-xs font-bold text-slate-200 hover:text-white transition-all text-left"
-                >
-                  <div className="p-2 rounded-xl bg-teal-500/15 text-teal-400">
-                    <Calculator className="w-4 h-4" />
-                  </div>
-                  <span>EasyCalc Utilities</span>
                 </button>
 
                 <button

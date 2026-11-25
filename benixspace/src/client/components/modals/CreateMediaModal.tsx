@@ -21,7 +21,8 @@ import {
   Film,
   Link as LinkIcon,
   Search,
-  FileVideo
+  FileVideo,
+  Zap
 } from 'lucide-react';
 
 interface Props {
@@ -178,6 +179,15 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   const [selectedVideoFileName, setSelectedVideoFileName] = useState('');
   const [isVideoPortrait, setIsVideoPortrait] = useState(false);
   const [detectedVideoDuration, setDetectedVideoDuration] = useState(60);
+
+  // Video Boost state (target views + budget, 1 view = 8 RWF)
+  const [isBoostEnabled, setIsBoostEnabled] = useState(false);
+  const [boostTargetViews, setBoostTargetViews] = useState('100');
+  const [boostBudget, setBoostBudget] = useState('800');
+  const BOOST_COST_PER_VIEW = 8;
+  const estimatedBoostViews = isBoostEnabled
+    ? Math.floor((parseFloat(boostBudget) || 0) / BOOST_COST_PER_VIEW)
+    : 0;
 
   // Creator Monetization Criteria (defaults to 0 until loaded live from database)
   const [monetization, setMonetization] = useState<{
@@ -649,6 +659,8 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     const channelNameToUpdate = channelNameInput.trim();
     const thumbToUpload = videoThumbnailUrl.trim() || `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
     const formattedUrl = `https://www.youtube-nocookie.com/embed/${ytId}`;
+    const boostTargetViewsToUpload = isBoostEnabled ? (parseInt(boostTargetViews) || 0) : 0;
+    const boostBudgetToUpload = isBoostEnabled ? (parseFloat(boostBudget) || 0) : 0;
 
     // Start background upload & close modal so user can browse anywhere
     startUpload(titleToUpload, 'video', async (updateProgress) => {
@@ -705,7 +717,10 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           channelName: channelNameToUpdate || user?.channel_name || user?.name,
           channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png',
           isPortrait: isVideoPortrait,
-          duration: detectedVideoDuration
+          duration: detectedVideoDuration,
+          targetViews: boostTargetViewsToUpload,
+          budget: boostBudgetToUpload,
+          isBoosted: isBoostEnabled
         })
       });
 
@@ -1199,12 +1214,62 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 </p>
               </div>
 
+              {/* Video Boost: target views + budget (1 view = 8 RWF) */}
+              <div className="p-4 rounded-2xl bg-[#0E1524] border border-amber-500/30 space-y-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="flex items-center gap-2 text-xs font-bold text-amber-400">
+                    <Zap className="w-4 h-4" />
+                    Boost Video & Share-to-Earn
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={isBoostEnabled}
+                    onChange={(e) => setIsBoostEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                </label>
+
+                {isBoostEnabled && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Target Views</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={boostTargetViews}
+                          onChange={(e) => setBoostTargetViews(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Budget (RWF)</label>
+                        <input
+                          type="number"
+                          min="8"
+                          step="8"
+                          value={boostBudget}
+                          onChange={(e) => setBoostBudget(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-emerald-400 font-bold">
+                      Estimated views: {estimatedBoostViews.toLocaleString()} views
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Your budget is deducted now. Sharers earn a reward for every verified watch. Boosted video disappears when budget or views are exhausted.
+                    </p>
+                  </>
+                )}
+              </div>
+
               <button
                 type="submit"
                 disabled={loading || !videoTitle.trim() || !videoUrl.trim()}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
               >
-                {loading ? 'Broadcasting Video...' : 'Broadcast Video to Creator Hub'}
+                {loading ? 'Broadcasting Video...' : isBoostEnabled ? `Boost Video (${estimatedBoostViews.toLocaleString()} views)` : 'Broadcast Video to Creator Hub'}
               </button>
             </form>
           )}

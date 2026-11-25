@@ -26,7 +26,7 @@ import { TranslationService } from './services/translationService';
 import { StorageService } from './services/storageService';
 import { SearchService } from './services/searchService';
 import { EmailService } from './services/emailService';
-import { checkInappropriateLanguage, checkKundaContactPolicy, checkContactModeration } from './utils/moderation';
+import { checkInappropriateLanguage, checkContactModeration } from './utils/moderation';
 import realVideosData from '../client/config/realVideos.json';
 import { cloudRouter, renderDeploymentRawAppHandler, serveDeploymentAssetHandler } from './routes/cloudRoutes';
 import { initCloudDb } from './db/initCloudDb';
@@ -313,8 +313,8 @@ app.use('/apps', (req, res) => {
   return res.redirect(301, `/l${targetPath}`);
 });
 
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serverless Diagnostics & Liveness Health Check
 app.get('/api/health', (req, res) => {
@@ -1787,7 +1787,7 @@ app.get('/api/admin/withdrawals', authenticateToken, requireAdminRole, async (re
  */
 app.post('/api/admin/withdrawals/:id/approve', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { approvedAmount, feePercent, sendViaFlutterwave, note } = req.body;
     const result = await WithdrawalService.approveWithdrawal(
       id,
@@ -1825,7 +1825,7 @@ app.post('/api/admin/withdrawals/:id/approve', authenticateToken, requireAdminRo
  */
 app.post('/api/admin/withdrawals/:id/reject', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { reason } = req.body;
     const result = await WithdrawalService.rejectWithdrawal(id, reason);
 
@@ -2101,8 +2101,7 @@ app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
     const data = payload?.data;
 
     // Validate Webhook Signature if secret hash is configured
-    const flwConfig = await getFlutterwaveConfig();
-    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH || flwConfig?.secretHash;
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || process.env.FLW_WEBHOOK_HASH;
     const incomingSignature = req.headers['verif-hash'];
 
     if (secretHash && incomingSignature !== secretHash) {
@@ -2144,6 +2143,7 @@ app.post('/api/wallet/flutterwave/webhook', async (req, res) => {
       }
 
       // 3. Strict Server-Side Verification with Flutterwave API
+      const flwConfig = await getFlutterwaveConfig();
       const effectiveSecret = flwConfig?.secretKey || process.env.FLUTTERWAVE_SECRET_KEY;
       if (!effectiveSecret || !flwId) {
         console.warn('⚠️ [FLW_WEBHOOK_REJECTED]: Missing secret key or transaction ID');
@@ -3428,6 +3428,21 @@ app.post('/api/chat/broadcast', authenticateToken, async (req: AuthenticatedRequ
  */
 
 // [REMOVED] Voxify tracks and Kunda matches
+// Stub in-memory stores kept for admin-compat (modules retired from the app)
+const voxifySongsList: any[] = [];
+const kundaSettings: any = {
+  messageCost: 50,
+  freeInitialMessages: 3,
+  contactUnlockPrice: 500,
+  plans: [
+    { code: 'pass_24h', name: '24h Pass', price: 1000 },
+    { code: 'pass_3d', name: '3-Day Pass', price: 2500 },
+    { code: 'pass_weekly', name: 'Weekly Pass', price: 5000 },
+    { code: 'pass_monthly', name: 'Monthly Pass', price: 15000 }
+  ]
+};
+const kundaSubscriptionsStore: any[] = [];
+const kundaUnlockedContactsStore = new Map();
 
 // Admin: Control All Apps in Single Dashboard
 app.get('/api/admin/all-apps-control', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
@@ -4018,6 +4033,39 @@ async function ensureVideoAndShortsTables() {
     );
     CREATE INDEX IF NOT EXISTS idx_usi_user_id ON user_short_interactions(user_id);
     CREATE INDEX IF NOT EXISTS idx_usi_short_id ON user_short_interactions(short_id);
+  `).catch(() => {});
+
+  // ===== Video Boost & Share-and-Earn schema =====
+  await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS target_views INT DEFAULT 0;').catch(() => {});
+  await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS budget_spent NUMERIC(18,2) DEFAULT 0;').catch(() => {});
+  await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS views_delivered INT DEFAULT 0;').catch(() => {});
+  await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS is_boosted BOOLEAN DEFAULT FALSE;').catch(() => {});
+  await query("ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS boost_status VARCHAR(32) DEFAULT 'inactive';").catch(() => {});
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_video_shares (
+      id VARCHAR(255) PRIMARY KEY,
+      video_id VARCHAR(255) NOT NULL,
+      sharer_id VARCHAR(255) NOT NULL,
+      views INT DEFAULT 0,
+      total_earned NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_video_shares_sharer ON core_video_shares(sharer_id);
+    CREATE INDEX IF NOT EXISTS idx_video_shares_video ON core_video_shares(video_id);
+  `).catch(() => {});
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_video_share_events (
+      id VARCHAR(255) PRIMARY KEY,
+      share_id VARCHAR(255) NOT NULL,
+      viewer_id VARCHAR(255) NOT NULL,
+      video_id VARCHAR(255) NOT NULL,
+      watched_ms INT DEFAULT 0,
+      reward_amount NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(share_id, viewer_id)
+    );
   `).catch(() => {});
 }
 
@@ -4621,12 +4669,21 @@ app.post('/api/stories', authenticateToken, async (req: AuthenticatedRequest, re
 
 // Note: /api/videos handled dynamically by database query below
 
+// Video Boost & Share-and-Earn economy constants
+const BOOST_COST_PER_VIEW = 8; // poster pays 8 RWF per delivered boosted view
+const SHARE_REWARD_PER_VIEW = 4; // sharer earns 4 RWF per verified 2-minute watch
+const MIN_WATCH_MS_FOR_REWARD = 120000; // 2 minutes of watch time required to reward sharer
+
 app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { title, description, videoUrl, category = 'General', price = 0, isPortrait, duration, thumbnailUrl } = req.body;
+    const { title, description, videoUrl, category = 'General', price = 0, isPortrait, duration, thumbnailUrl, targetViews = 0, budget = 0, isBoosted = false } = req.body;
     if (!title || !videoUrl) {
       return res.status(400).json({ error: 'Video title and YouTube video URL are required.' });
     }
+
+    const numTargetViews = Math.max(0, Number(targetViews) || 0);
+    const numBudget = Math.max(0, Number(budget) || 0);
+    const isBoost = Boolean(isBoosted) && numTargetViews > 0 && numBudget > 0;
 
     // Automatically parse 11-character YouTube video ID
     const ytMatch = String(videoUrl || '').match(
@@ -4653,6 +4710,29 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
 
     const videoDuration = Number(duration) || (isPortraitVideo ? 45 : 300);
 
+    // Estimated views based on budget (1 view = 8 RWF)
+    const estimatedViews = isBoost ? Math.floor(numBudget / BOOST_COST_PER_VIEW) : 0;
+    const finalTargetViews = isBoost ? Math.min(numTargetViews, estimatedViews) : 0;
+
+    // Deduct boost budget from wallet if boosting
+    if (isBoost) {
+      const wallet = await WalletService.getOrCreateWallet(req.user!.id);
+      if (Number(wallet.balance) < numBudget) {
+        return res.status(400).json({
+          error: 'INSUFFICIENT_FUNDS',
+          message: `Insufficient balance. Boosting with a ${numBudget.toLocaleString()} RWF budget requires at least ${numBudget.toLocaleString()} RWF. Your balance is ${Number(wallet.balance).toLocaleString()} RWF.`
+        });
+      }
+      await WalletService.debit(
+        req.user!.id,
+        numBudget,
+        'videos',
+        'video_boost',
+        `Boost video: "${title.trim()}" (${finalTargetViews} views)`,
+        `tx_boost_${Date.now()}`
+      );
+    }
+
     const newVideo = {
       id: 'vid-' + Date.now(),
       userId: req.user!.id,
@@ -4668,6 +4748,11 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
       isPortrait: isPortraitVideo,
       duration: videoDuration,
       views: 0,
+      targetViews: finalTargetViews,
+      budgetSpent: isBoost ? numBudget : 0,
+      viewsDelivered: 0,
+      isBoosted: isBoost,
+      boostStatus: isBoost ? 'active' : 'inactive',
       createdAt: new Date().toISOString()
     };
 
@@ -4675,8 +4760,8 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
 
     await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(50);').catch(() => {});
     await query(
-      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id, target_views, budget_spent, views_delivered, is_boosted, boost_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
       [
         newVideo.id,
         newVideo.userId,
@@ -4690,12 +4775,291 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
         newVideo.isPaid,
         isPortraitVideo,
         videoDuration,
-        parsedYtId
+        parsedYtId,
+        finalTargetViews,
+        isBoost ? numBudget : 0,
+        0,
+        isBoost,
+        isBoost ? 'active' : 'inactive'
       ]
     ).catch(() => {});
-    return res.json({ success: true, video: newVideo, message: 'YouTube video published and ready for broadcast!' });
+    return res.json({
+      success: true,
+      video: newVideo,
+      boost: isBoost ? { targetViews: finalTargetViews, budget: numBudget, estimatedViews } : null,
+      message: isBoost
+        ? `🚀 Video published and boosted with ${finalTargetViews.toLocaleString()} views (${numBudget.toLocaleString()} RWF deducted)!`
+        : 'YouTube video published and ready for broadcast!'
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Video Share-and-Earn: share boosted videos and reward sharers on verified 2-minute watches
+ */
+
+// Share a video (creates a share record for the authenticated user)
+app.post('/api/videos/share', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const { videoId } = req.body;
+    if (!videoId) return res.status(400).json({ error: 'videoId is required.' });
+
+    const sharerId = req.user!.id;
+    const shareId = `vshare_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    await query(
+      `INSERT INTO core_video_shares (id, video_id, sharer_id) VALUES ($1, $2, $3)`,
+      [shareId, videoId, sharerId]
+    );
+    return res.json({ success: true, shareId, message: 'Video shared! You will earn a reward when friends watch your shared link.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to share video.' });
+  }
+});
+
+// Record a verified 2-minute watch on a shared video and credit the sharer (4 RWF)
+app.post('/api/videos/share/watch', async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const { shareId, videoId, viewerId, watchedMs } = req.body;
+    if (!shareId) return res.status(400).json({ error: 'shareId is required.' });
+
+    // Strict security: only reward after a genuine 2-minute watch
+    if (Number(watchedMs || 0) < MIN_WATCH_MS_FOR_REWARD) {
+      return res.json({ success: true, credited: false, reason: 'min_watch_not_met', remainingMs: MIN_WATCH_MS_FOR_REWARD - Number(watchedMs || 0) });
+    }
+
+    const shareRes = await query('SELECT * FROM core_video_shares WHERE id = $1', [shareId]);
+    if (shareRes.rowCount === 0) return res.status(404).json({ error: 'Share not found.' });
+    const share = shareRes.rows[0];
+
+    const dedupId = String(viewerId || req.headers['x-visitor-id'] || req.ip || 'anonymous');
+
+    // Prevent duplicate rewards for the same viewer on the same share
+    const existing = await query(
+      'SELECT id FROM core_video_share_events WHERE share_id = $1 AND viewer_id = $2',
+      [shareId, dedupId]
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: 'already_credited' });
+
+    // Never reward a user for watching their own shared video
+    if (share.sharer_id !== dedupId) {
+      await WalletService.credit(
+        share.sharer_id,
+        SHARE_REWARD_PER_VIEW,
+        'videos',
+        'video_share_reward',
+        'Shared video 2-minute watch reward',
+        `vshare_watch_${shareId}_${Date.now()}`
+      );
+    }
+
+    await query(
+      'UPDATE core_video_shares SET views = views + 1, total_earned = total_earned + $1 WHERE id = $2',
+      [SHARE_REWARD_PER_VIEW, shareId]
+    );
+    await query(
+      `INSERT INTO core_video_share_events (id, share_id, viewer_id, video_id, watched_ms, reward_amount)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [`vsae_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, shareId, dedupId, videoId || share.video_id, Number(watchedMs || 0), SHARE_REWARD_PER_VIEW]
+    ).catch(() => {});
+
+    return res.json({ success: true, credited: true, amount: SHARE_REWARD_PER_VIEW });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Track a boosted video view (deduct 8 RWF from boost budget, mark completed when exhausted)
+app.post('/api/videos/:id/boosted-view', async (req, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const videoId = String(req.params.id);
+    const { viewerId } = req.body || {};
+
+    const vidRes = await query('SELECT * FROM user_videos WHERE id = $1', [videoId]);
+    if (vidRes.rowCount === 0) return res.status(404).json({ error: 'Video not found.' });
+    const video = vidRes.rows[0];
+
+    if (!video.is_boosted || video.boost_status !== 'active') {
+      return res.json({ success: true, credited: false, reason: 'not_boosted' });
+    }
+
+    const dedupId = String(viewerId || req.headers['x-visitor-id'] || req.ip || 'anonymous');
+
+    // Deduplicate per viewer so a single viewer doesn't drain the budget
+    await query(`
+      CREATE TABLE IF NOT EXISTS core_video_boost_views (
+        id VARCHAR(255) PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        viewer_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(video_id, viewer_id)
+      );
+    `).catch(() => {});
+
+    const existing = await query(
+      'SELECT id FROM core_video_boost_views WHERE video_id = $1 AND viewer_id = $2',
+      [videoId, dedupId]
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: 'already_viewed' });
+
+    // Record this view
+    await query(
+      `INSERT INTO core_video_boost_views (id, video_id, viewer_id) VALUES ($1, $2, $3)`,
+      [`vbv_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, videoId, dedupId]
+    ).catch(() => {});
+
+    const newDelivered = Number(video.views_delivered || 0) + 1;
+    const remainingBudget = Number(video.budget_spent || 0) - (newDelivered * BOOST_COST_PER_VIEW);
+    const reachedTarget = Number(video.target_views || 0) > 0 && newDelivered >= Number(video.target_views);
+    const exhausted = remainingBudget < BOOST_COST_PER_VIEW;
+
+    const newStatus = (reachedTarget || exhausted) ? 'completed' : 'active';
+
+    await query(
+      `UPDATE user_videos SET views_delivered = $1, views = COALESCE(views, 0) + 1, boost_status = $2 WHERE id = $3`,
+      [newDelivered, newStatus, videoId]
+    );
+
+    return res.json({
+      success: true,
+      credited: true,
+      viewsDelivered: newDelivered,
+      targetViews: Number(video.target_views || 0),
+      remainingBudget: Math.max(0, remainingBudget),
+      status: newStatus
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Increase the budget of an existing boosted video (re-boost)
+app.post('/api/videos/:id/reboost', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const videoId = String(req.params.id);
+    const { additionalBudget = 0, additionalViews = 0 } = req.body;
+    const numBudget = Math.max(0, Number(additionalBudget) || 0);
+    const numViews = Math.max(0, Number(additionalViews) || Math.floor(numBudget / BOOST_COST_PER_VIEW));
+
+    if (numBudget <= 0) return res.status(400).json({ error: 'additionalBudget must be greater than 0.' });
+
+    const vidRes = await query('SELECT * FROM user_videos WHERE id = $1 AND user_id = $2', [videoId, req.user!.id]);
+    if (vidRes.rowCount === 0) return res.status(404).json({ error: 'Video not found or you are not the owner.' });
+
+    const wallet = await WalletService.getOrCreateWallet(req.user!.id);
+    if (Number(wallet.balance) < numBudget) {
+      return res.status(400).json({ error: `INSUFFICIENT_FUNDS: Your balance is ${Number(wallet.balance).toLocaleString()} RWF.` });
+    }
+
+    await WalletService.debit(req.user!.id, numBudget, 'videos', 'video_boost', `Re-boost video: ${vidRes.rows[0].title} (+${numViews} views)`, `tx_reboost_${Date.now()}`);
+
+    const newTarget = Number(vidRes.rows[0].target_views || 0) + numViews;
+    const newBudget = Number(vidRes.rows[0].budget_spent || 0) + numBudget;
+    await query(
+      `UPDATE user_videos SET target_views = $1, budget_spent = $2, is_boosted = TRUE, boost_status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newTarget, newBudget, videoId]
+    );
+
+    return res.json({ success: true, targetViews: newTarget, budgetSpent: newBudget, message: '🚀 Video re-boosted successfully!' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Creator Boost & Share-and-Earn analytics summary (for dashboard tracking)
+ */
+app.get('/api/creator/boost-stats', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+    const userId = req.user!.id;
+
+    // Boosted videos owned by this user
+    const boostedRes = await query(
+      `SELECT id, title, thumbnail_url, target_views, budget_spent, views_delivered, is_boosted, boost_status, views
+       FROM user_videos WHERE user_id = $1 AND is_boosted = TRUE ORDER BY created_at DESC LIMIT 20`,
+      [userId]
+    ).catch(() => ({ rows: [] }));
+
+    const boostSummary = boostedRes.rows.reduce(
+      (acc: any, v: any) => {
+        acc.totalSpent += Number(v.budget_spent || 0);
+        acc.totalViewsDelivered += Number(v.views_delivered || 0);
+        acc.totalTargetViews += Number(v.target_views || 0);
+        if (v.boost_status === 'active') acc.activeBoosts++;
+        return acc;
+      },
+      { totalSpent: 0, totalViewsDelivered: 0, totalTargetViews: 0, activeBoosts: 0 }
+    );
+
+    // Video share rewards earned by this user
+    const shareRes = await query(
+      `SELECT COALESCE(SUM(total_earned), 0)::float as earned, COALESCE(SUM(views), 0)::int as views
+       FROM core_video_shares WHERE sharer_id = $1`,
+      [userId]
+    ).catch(() => ({ rows: [{ earned: 0, views: 0 }] }));
+
+    // Ad share rewards earned by this user
+    const adShareRes = await query(
+      `SELECT COALESCE(SUM(total_earned), 0)::float as earned, COALESCE(SUM(clicks), 0)::int as clicks, COALESCE(SUM(impressions), 0)::int as impressions
+       FROM core_ad_shares WHERE sharer_id = $1`,
+      [userId]
+    ).catch(() => ({ rows: [{ earned: 0, clicks: 0, impressions: 0 }] }));
+
+    return res.json({
+      success: true,
+      boostSummary,
+      boostedVideos: boostedRes.rows,
+      videoShareRewards: {
+        totalEarned: Number(shareRes.rows[0]?.earned || 0),
+        totalViews: Number(shareRes.rows[0]?.views || 0)
+      },
+      adShareRewards: {
+        totalEarned: Number(adShareRes.rows[0]?.earned || 0),
+        totalClicks: Number(adShareRes.rows[0]?.clicks || 0),
+        totalImpressions: Number(adShareRes.rows[0]?.impressions || 0)
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Admin platform-wide Boost & Share-and-Earn tracking summary
+ */
+app.get('/api/admin/boost-tracking', authenticateToken, requireAdminRole, async (_req: AuthenticatedRequest, res) => {
+  try {
+    await ensureVideoAndShortsTables();
+
+    const boostedRes = await query(
+      `SELECT COUNT(*)::int as total_boosted, COALESCE(SUM(budget_spent), 0)::float as total_budget, COALESCE(SUM(views_delivered), 0)::int as total_views
+       FROM user_videos WHERE is_boosted = TRUE`
+    ).catch(() => ({ rows: [{ total_boosted: 0, total_budget: 0, total_views: 0 }] }));
+
+    const videoShareRes = await query(
+      `SELECT COUNT(*)::int as total_shares, COALESCE(SUM(views), 0)::int as total_views, COALESCE(SUM(total_earned), 0)::float as total_earned
+       FROM core_video_shares`
+    ).catch(() => ({ rows: [{ total_shares: 0, total_views: 0, total_earned: 0 }] }));
+
+    const adShareRes = await query(
+      `SELECT COUNT(*)::int as total_shares, COALESCE(SUM(clicks), 0)::int as total_clicks, COALESCE(SUM(impressions), 0)::int as total_impressions, COALESCE(SUM(total_earned), 0)::float as total_earned
+       FROM core_ad_shares`
+    ).catch(() => ({ rows: [{ total_shares: 0, total_clicks: 0, total_impressions: 0, total_earned: 0 }] }));
+
+    return res.json({
+      success: true,
+      boostedVideos: boostedRes.rows[0],
+      videoShares: videoShareRes.rows[0],
+      adShares: adShareRes.rows[0]
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -5904,8 +6268,8 @@ interface CustomAdCampaign {
   mediaUrl: string;
   targetAudience: string;
   targetImpressions: number;
-  costPerImpression: number; // default CPM / 1000
-  costPerClick: number; // CPC
+  costPerImpression?: number; // default CPM / 1000
+  costPerClick?: number; // CPC
   cpmBid: number; // RWF per 1000 impressions
   cpcBid: number; // RWF per click
   dailyBudget: number;
@@ -5917,6 +6281,7 @@ interface CustomAdCampaign {
   rejectionReason?: string;
   createdAt: string;
   expiresAt: string;
+  ctaText?: string;
 }
 
 let customAdCampaigns: CustomAdCampaign[] = [];
@@ -5994,13 +6359,66 @@ initAdsTable();
 // 1. Fetch active custom ads (weighted by CPM + CPC bids so higher spenders get shown more)
 app.get('/api/ads/active', async (req, res) => {
   const now = Date.now();
+
+  // Always read the authoritative source of truth from PostgreSQL so ads are
+  // available on serverless cold starts (the in-memory array may be empty).
+  try {
+    const dbRes = await query(
+      `SELECT * FROM core_custom_ads WHERE status = 'active' ORDER BY created_at DESC LIMIT 50`
+    );
+    if (dbRes.rows && dbRes.rows.length > 0) {
+      const activeAds = dbRes.rows
+        .map((r: any) => ({
+          id: r.id,
+          userId: r.user_id,
+          userName: r.user_name || 'Advertiser',
+          title: r.title,
+          description: r.description || '',
+          targetUrl: r.target_url,
+          mediaType: r.media_type || 'image',
+          mediaUrl: r.media_url,
+          targetAudience: r.target_audience || 'all',
+          targetImpressions: Number(r.target_impressions || 1000),
+          costPerImpression: Number(r.cpm_bid || 20) / 1000,
+          costPerClick: Number(r.cpc_bid || 15),
+          cpmBid: Number(r.cpm_bid || 20),
+          cpcBid: Number(r.cpc_bid || 15),
+          dailyBudget: Number(r.daily_budget || 100),
+          durationDays: Number(r.duration_days || 7),
+          currentImpressions: Number(r.current_impressions || 0),
+          currentClicks: Number(r.current_clicks || 0),
+          totalSpent: Number(r.total_spent || 0),
+          status: r.status || 'active',
+          rejectionReason: r.rejection_reason || undefined,
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString(),
+          ctaText: r.cta_text || 'Learn More'
+        }))
+        .filter((ad: any) => {
+          const notExpired = !ad.expiresAt || new Date(ad.expiresAt).getTime() > now;
+          const underQuota = ad.currentImpressions < ad.targetImpressions;
+          return notExpired && underQuota;
+        });
+
+      activeAds.sort((a: any, b: any) => {
+        const weightA = (a.cpmBid || 20) * 2 + (a.cpcBid || 15) * 5;
+        const weightB = (b.cpmBid || 20) * 2 + (b.cpcBid || 15) * 5;
+        return weightB - weightA;
+      });
+
+      return res.json({ success: true, ads: activeAds });
+    }
+  } catch (err) {
+    console.warn('[/api/ads/active] DB read failed, falling back to memory:', err);
+  }
+
+  // Fallback to in-memory if DB is unavailable
   const activeAds = customAdCampaigns.filter((ad) => {
     const notExpired = !ad.expiresAt || new Date(ad.expiresAt).getTime() > now;
     const underQuota = ad.currentImpressions < ad.targetImpressions;
     return ad.status === 'active' && notExpired && underQuota;
   });
 
-  // Sort by highest bid weighting: (CPM bid * 2) + (CPC bid * 5)
   activeAds.sort((a, b) => {
     const weightA = (a.cpmBid || 20) * 2 + (a.cpcBid || 15) * 5;
     const weightB = (b.cpmBid || 20) * 2 + (b.cpcBid || 15) * 5;
@@ -6637,6 +7055,154 @@ app.get('/api/ads/settings', async (req, res) => {
   }
 });
 
+// 7.5 SHARE-AND-EARN: Share ads in the feed & reward sharers on click/10s impression
+async function ensureAdShareTables() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS core_ad_shares (
+      id VARCHAR(255) PRIMARY KEY,
+      ad_id VARCHAR(255) NOT NULL,
+      sharer_id VARCHAR(255) NOT NULL,
+      clicks INT DEFAULT 0,
+      impressions INT DEFAULT 0,
+      total_earned NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ad_shares_sharer ON core_ad_shares(sharer_id);
+    CREATE TABLE IF NOT EXISTS core_ad_share_events (
+      id VARCHAR(255) PRIMARY KEY,
+      share_id VARCHAR(255) NOT NULL,
+      viewer_id VARCHAR(255) NOT NULL,
+      event_type VARCHAR(20) NOT NULL,
+      amount NUMERIC(18,4) DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(share_id, viewer_id, event_type)
+    );
+  `).catch((e) => console.warn('[ad-share tables]', e.message));
+}
+
+async function getAdShareRewards(): Promise<{ clickReward: number; impressionReward: number }> {
+  let clickReward = 18;
+  let impressionReward = 10;
+  try {
+    const row = await query("SELECT value FROM core_system_settings WHERE key = 'platform_all_apps' LIMIT 1");
+    if (row.rows[0]?.value) {
+      const parsed = typeof row.rows[0].value === 'string' ? JSON.parse(row.rows[0].value) : row.rows[0].value;
+      if (parsed.adsense) {
+        clickReward = Number(parsed.adsense.custom_ad_click_payout) || 18;
+        impressionReward = Number(parsed.adsense.custom_ad_view_payout) || 10;
+      }
+    }
+  } catch {}
+  return { clickReward, impressionReward };
+}
+
+// Share an ad into the feed (authenticated sharer)
+app.post('/api/ads/share', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    await ensureAdShareTables();
+    const { adId } = req.body;
+    if (!adId) return res.status(400).json({ error: 'adId is required.' });
+
+    const sharerId = req.user!.id;
+    const shareId = `ads_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    await query(
+      `INSERT INTO core_ad_shares (id, ad_id, sharer_id) VALUES ($1, $2, $3)`,
+      [shareId, adId, sharerId]
+    );
+    return res.json({ success: true, shareId, message: 'Ad shared successfully! Earn when friends click or view it.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to share ad.' });
+  }
+});
+
+// Record a click on a shared ad and credit the sharer (deduplicated per viewer)
+app.post('/api/ads/share/click', async (req, res) => {
+  try {
+    await ensureAdShareTables();
+    const { shareId, viewerId } = req.body;
+    if (!shareId) return res.status(400).json({ error: 'shareId is required.' });
+
+    const shareRes = await query('SELECT * FROM core_ad_shares WHERE id = $1', [shareId]);
+    if (shareRes.rowCount === 0) return res.status(404).json({ error: 'Share not found.' });
+    const share = shareRes.rows[0];
+
+    const dedupId = String(viewerId || req.headers['x-visitor-id'] || req.ip || 'anonymous');
+    const existing = await query(
+      'SELECT id FROM core_ad_share_events WHERE share_id = $1 AND viewer_id = $2 AND event_type = $3',
+      [shareId, dedupId, 'click']
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: 'already_credited' });
+
+    const { clickReward } = await getAdShareRewards();
+    // Never reward a user for clicking their own shared ad
+    if (share.sharer_id !== dedupId) {
+      await WalletService.credit(
+        share.sharer_id,
+        clickReward,
+        'ads',
+        'ad_share_click',
+        'Shared ad click reward',
+        `adshare_click_${shareId}_${Date.now()}`
+      );
+    }
+
+    await query('UPDATE core_ad_shares SET clicks = clicks + 1, total_earned = total_earned + $1 WHERE id = $2', [clickReward, shareId]);
+    await query(
+      `INSERT INTO core_ad_share_events (id, share_id, viewer_id, event_type, amount) VALUES ($1, $2, $3, 'click', $4)`,
+      [`ashe_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, shareId, dedupId, clickReward]
+    ).catch(() => {});
+
+    return res.json({ success: true, credited: true, amount: clickReward });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Record an impression on a shared ad (only credits after viewer sees it for >= 10 seconds)
+app.post('/api/ads/share/impression', async (req, res) => {
+  try {
+    await ensureAdShareTables();
+    const { shareId, viewerId, watchedMs } = req.body;
+    if (!shareId) return res.status(400).json({ error: 'shareId is required.' });
+    if (Number(watchedMs || 0) < 10000) {
+      return res.json({ success: true, credited: false, reason: 'min_watch_not_met' });
+    }
+
+    const shareRes = await query('SELECT * FROM core_ad_shares WHERE id = $1', [shareId]);
+    if (shareRes.rowCount === 0) return res.status(404).json({ error: 'Share not found.' });
+    const share = shareRes.rows[0];
+
+    const dedupId = String(viewerId || req.headers['x-visitor-id'] || req.ip || 'anonymous');
+    const existing = await query(
+      'SELECT id FROM core_ad_share_events WHERE share_id = $1 AND viewer_id = $2 AND event_type = $3',
+      [shareId, dedupId, 'impression']
+    );
+    if (existing.rowCount > 0) return res.json({ success: true, credited: false, reason: 'already_credited' });
+
+    const { impressionReward } = await getAdShareRewards();
+    if (share.sharer_id !== dedupId) {
+      await WalletService.credit(
+        share.sharer_id,
+        impressionReward,
+        'ads',
+        'ad_impression_credit',
+        'Shared ad 10s impression reward',
+        `adshare_imp_${shareId}_${Date.now()}`
+      );
+    }
+
+    await query('UPDATE core_ad_shares SET impressions = impressions + 1, total_earned = total_earned + $1 WHERE id = $2', [impressionReward, shareId]);
+    await query(
+      `INSERT INTO core_ad_share_events (id, share_id, viewer_id, event_type, amount) VALUES ($1, $2, $3, 'impression', $4)`,
+      [`ashe_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, shareId, dedupId, impressionReward]
+    ).catch(() => {});
+
+    return res.json({ success: true, credited: true, amount: impressionReward });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // 8. Creator Ad Revenue Silent Wallet Credit & Daily Earnings Tracking
 app.post('/api/ads/record-reward', async (req, res) => {
   try {
@@ -6831,7 +7397,7 @@ app.post('/api/smm/sync', authenticateToken, requireAdminRole, async (req: Authe
 
 app.post('/api/smm/services/:id/toggle', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    const service = await SmmService.toggleService(req.params.id, req.body.is_enabled);
+    const service = await SmmService.toggleService(String(req.params.id), req.body.is_enabled);
     return res.json({ success: true, service });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -6853,7 +7419,7 @@ app.post('/api/smm/services/bulk-toggle', authenticateToken, requireAdminRole, a
 
 app.post('/api/smm/services/:id/pricing', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    const service = await SmmService.updatePricing(req.params.id, req.body.custom_markup_percent, req.body.rate_rwf);
+    const service = await SmmService.updatePricing(String(req.params.id), req.body.custom_markup_percent, req.body.rate_rwf);
     return res.json({ success: true, service });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -6899,7 +7465,7 @@ app.get('/api/smm/orders/all', authenticateToken, requireAdminRole, async (req: 
 
 app.post('/api/smm/orders/:id/retry', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await SmmService.retryPendingOrder(req.params.id);
+    const result = await SmmService.retryPendingOrder(String(req.params.id));
     return res.json({ success: true, ...result });
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
@@ -7099,44 +7665,6 @@ app.get('/api/admin/settings/storage', authenticateToken, requireAdminRole, asyn
   try {
     const config = await StorageService.getConfig();
     return res.json(config);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/admin/settings/storage/account', authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { name, clientId, clientSecret, refreshToken, folderId, isPrimary } = req.body;
-    if (!name || !clientId || !clientSecret || !refreshToken) {
-      return res.status(400).json({ error: 'Name, Client ID, Client Secret, and Refresh Token are required.' });
-    }
-    const created = await StorageService.addAccount({
-      name,
-      clientId,
-      clientSecret,
-      refreshToken,
-      folderId,
-      isPrimary
-    });
-    return res.json({ success: true, account: created, message: 'Google Drive account added successfully.' });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-app.delete('/api/admin/settings/storage/account/:id', authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    await StorageService.deleteAccount(req.params.id);
-    return res.json({ success: true, message: 'Google Drive account removed.' });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/admin/settings/storage/primary/:id', authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    await StorageService.setPrimaryAccount(req.params.id);
-    return res.json({ success: true, message: 'Primary storage account updated.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -8729,7 +9257,7 @@ app.post('/api/admin/announcements', authenticateAdmin, async (req: Authenticate
 
 app.post('/api/announcements/:id/read', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const userId = req.user?.id;
     const userName = req.user?.name || 'User';
     const userEmail = req.user?.email || '';
@@ -8749,7 +9277,7 @@ app.post('/api/announcements/:id/read', authenticateToken, async (req: Authentic
 
 app.get('/api/admin/announcements/:id/stats', authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const numId = parseInt(id, 10);
     const readsResult = await query(
       `SELECT user_id, user_name, user_email, read_at FROM announcement_reads WHERE announcement_id = $1 ORDER BY read_at DESC`,
@@ -10358,7 +10886,7 @@ app.get('/api/admin/users/:id/details', authenticateToken, requireAdminRole, asy
 // Admin Manual Balance Adjustment (Credit or Deduct RWF with note)
 app.post('/api/admin/users/:id/adjust-wallet', authenticateToken, requireAdminRole, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { amount, type, note } = req.body;
 
     const numAmount = Math.abs(Number(amount));
@@ -10904,14 +11432,21 @@ app.get('/sitemap.xml', async (req, res) => {
       '/shorts',
       '/tv',
       '/radio',
-      '/music',
-      '/marketplace',
-      '/dating',
       '/games',
+      '/pay',
+      '/cloud',
+      '/docs/benixpay',
+      '/advertise',
+      '/studio',
+      '/boost',
       '/blog',
       '/services',
       '/projects',
-      '/about'
+      '/about',
+      '/contact',
+      '/privacy',
+      '/terms',
+      '/cookies'
     ];
 
     const staticXml = staticRoutes.map(route => `
@@ -10946,14 +11481,14 @@ app.use(async (req, res, next) => {
   }
 
   try {
-    let title = 'BenixSpace — Rwanda Unified Digital Ecosystem & Super-App';
-    let description = 'Discover Live TV & Radio, Trending Shorts, HD Videos, Kunda Dating, Voxify Choirs & Songs, and Rwandan MoMo Central Wallet.';
+    let title = 'BenixSpace — Live TV, Radio, Games, Benix Pay, Cloud Hosting & More';
+    let description = 'BenixSpace by NebeluRw Co. Ltd: Live Rwandan TV, 24/7 Radio FM, RollDice Games, Benix Pay payment gateway, Benix Cloud hosting, video sharing, and a central Mobile Money wallet.';
     let imageUrl = 'https://benix.space/og-main.png';
     let ogType = 'website';
     let videoUrl = '';
     let jsonLd = null;
     const canonicalUrl = `https://benix.space${req.path}`;
-    const keywords = 'amashusho, indirimbo, videwo nyarwanda, rwanda trending, rwanda entertainment, benixspace, rwanda videos, online tv rwanda, ibyamamare, amakuru, kigali, voxify, filime nyarwanda, shorts, gospel rwanda';
+    const keywords = 'BenixSpace, Benix Space, Benix TV, Benix Radio, Radio FM Rwanda, RollDice, RollDice Arena, Benix Pay, BenixPay, Benix Cloud, BenixCloud, buy views, YouTube views, SMM, social media marketing, MTN MoMo, Airtel Money, mobile money Rwanda, cloud hosting, web hosting, video streaming, shorts, creator videos, central wallet, share and earn, video boost, advertising, sponsored ads, digital marketing, Rwanda, Kigali, live TV Rwanda, RTV, Kiss FM';
 
     // Route matching
     if (req.path.startsWith('/videos/') || req.path.startsWith('/video/') || req.path.startsWith('/watch/') || req.path.startsWith('/shorts/')) {
@@ -11055,6 +11590,45 @@ app.use(async (req, res, next) => {
       title = 'Kunda Space — Rwanda Verified Matchmaking & Dating';
       description = 'Connect with verified Rwandan singles, explore smart compatibility matches, and unlock direct contacts.';
       imageUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1200&auto=format&fit=crop&q=80';
+    } else if (req.path === '/pay' || req.path.startsWith('/benixpay') || req.path === '/docs/benixpay' || req.path.startsWith('/docs/benixpay')) {
+      title = 'Benix Pay — MTN MoMo, Airtel & Card Payment Gateway for Rwanda';
+      description = 'Accept MTN MoMo, Airtel Money and cards directly on your website or app with Benix Pay. Developer-friendly REST API, webhooks, and automatic wallet settlement.';
+      imageUrl = 'https://benix.space/og-benixpay.png';
+    } else if (req.path === '/cloud' || req.path.startsWith('/cloud')) {
+      title = 'Benix Cloud — Zero-Config Web Hosting, Custom Domains & GitHub Auto-Sync';
+      description = 'Deploy web applications in seconds with Benix Cloud. Free developer trial, custom domains, GitHub auto-sync, DNS verification, and automatic container builds.';
+      imageUrl = 'https://benix.space/og-cloud.png';
+    } else if (req.path === '/games' || req.path === '/dice' || req.path.startsWith('/rolldice')) {
+      title = 'RollDice Arena — Win 1.95x Instant Cash on BenixSpace';
+      description = 'Play provably fair dice challenges from 50 RWF and cash out instant winnings directly to your MTN Mobile Money wallet on BenixSpace.';
+      imageUrl = 'https://benix.space/og-games.png';
+    } else if (req.path === '/advertise' || req.path.startsWith('/ads/')) {
+      title = 'Advertise on BenixSpace — Reach Rwandan Audiences with CPM & CPC Ads';
+      description = 'Launch targeted CPM and CPC advertising campaigns across BenixSpace TV, Radio, Videos and Shorts. Track impressions and clicks in real time.';
+      imageUrl = 'https://benix.space/og-advertise.png';
+    } else if (req.path.startsWith('/ad/')) {
+      const adId = req.path.split('/')[2];
+      title = 'Sponsored — BenixSpace';
+      description = 'Sponsored content on BenixSpace. Explore this offer on the BenixSpace unified platform.';
+      imageUrl = 'https://benix.space/og-main.png';
+      if (adId) {
+        try {
+          const adRes = await query('SELECT * FROM core_custom_ads WHERE id = $1', [adId]);
+          if (adRes.rows && adRes.rows.length > 0) {
+            const ad = adRes.rows[0];
+            title = `${ad.title} — Sponsored on BenixSpace`;
+            description = ad.description ? ad.description.slice(0, 160) : `Explore ${ad.title} on BenixSpace.`;
+            if (ad.media_url) imageUrl = ad.media_url;
+            jsonLd = {
+              "@context": "https://schema.org",
+              "@type": "WebPage",
+              "name": ad.title,
+              "description": description,
+              "image": imageUrl
+            };
+          }
+        } catch {}
+      }
     }
 
     if (!jsonLd) {

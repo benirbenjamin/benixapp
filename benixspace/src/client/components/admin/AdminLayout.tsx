@@ -6,7 +6,7 @@ import { NotificationTray } from '../modals/NotificationTray';
 import {
   LayoutDashboard, Layers, FileText, BarChart3, SearchCheck, ArrowUpRight,
   Settings, LogOut, Menu, X, ShieldCheck, Users, UserCheck,
-  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2, Bell, Server
+  Globe, ExternalLink, Film, ShoppingBag, Tv, Radio, Heart, Music, Gamepad2, Bell, Server, CreditCard
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -36,6 +36,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const coreNavItems = [
     { name: 'Dashboard Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Users & Permissions', path: '/admin/users', icon: Users },
+    { name: 'Benix Pay Gateway', path: '/admin#benixpay', icon: CreditCard, badge: 'Payments' },
     { name: 'Withdrawals & Payouts', path: '/admin#withdrawals', icon: ArrowUpRight, badge: 'Payouts' },
     { name: 'Hosting Services', path: '/cloud/admin', icon: Server, badge: 'Hosting' },
     { name: 'Project Portfolio', path: '/admin/projects', icon: Layers },
