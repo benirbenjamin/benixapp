@@ -192,7 +192,7 @@ export class BenixPayService {
         test_public_key, test_secret_key_hash,
         live_public_key, live_secret_key_hash,
         webhook_secret, fee_bearer, fee_percent, is_live_enabled
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'merchant', 4.50, false)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 4.50, false)
       RETURNING *`,
       [
         merchantId,

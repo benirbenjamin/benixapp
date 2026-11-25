@@ -61,7 +61,7 @@ export const DEFAULT_BANNER_ONLY_ADS: SponsorAdItem[] = DEFAULT_SPONSOR_ADS.map(
 export const getEffectiveCustomAd = (
   customAds: any[],
   slotIndex: number = 0
-): SponsorAdItem => {
+): SponsorAdItem | null => {
   if (customAds && customAds.length > 0) {
     const ad = customAds[Math.floor(slotIndex) % customAds.length];
     return {
@@ -75,7 +75,7 @@ export const getEffectiveCustomAd = (
       ctaText: ad.ctaText || 'Learn More'
     };
   }
-  return DEFAULT_SPONSOR_ADS[Math.floor(slotIndex) % DEFAULT_SPONSOR_ADS.length];
+  return null;
 };
 
 /**
@@ -84,7 +84,7 @@ export const getEffectiveCustomAd = (
 export const getEffectiveVideoAd = (
   customAds: any[],
   slotIndex: number = 0
-): SponsorAdItem => {
+): SponsorAdItem | null => {
   const videoCustomAds = (customAds || []).filter(
     (a) => a.mediaType === 'video' || a.videoUrl || (a.mediaUrl && a.mediaUrl.endsWith('.mp4'))
   );
@@ -101,8 +101,7 @@ export const getEffectiveVideoAd = (
       ctaText: ad.ctaText || 'Learn More'
     };
   }
-  const defaultVideos = DEFAULT_SPONSOR_ADS.filter(a => a.mediaType === 'video');
-  return defaultVideos[Math.floor(slotIndex) % defaultVideos.length];
+  return null;
 };
 
 /**
@@ -111,7 +110,7 @@ export const getEffectiveVideoAd = (
 export const getEffectiveBannerOnlyAd = (
   customAds: any[],
   slotIndex: number = 0
-): SponsorAdItem => {
+): SponsorAdItem | null => {
   const nonVideoAds = (customAds || []).filter(
     (a) => a.mediaType !== 'video' && (!a.mediaUrl || !a.mediaUrl.endsWith('.mp4'))
   );
@@ -127,5 +126,5 @@ export const getEffectiveBannerOnlyAd = (
       ctaText: ad.ctaText || 'Learn More'
     };
   }
-  return DEFAULT_BANNER_ONLY_ADS[Math.floor(slotIndex) % DEFAULT_BANNER_ONLY_ADS.length];
+  return null;
 };

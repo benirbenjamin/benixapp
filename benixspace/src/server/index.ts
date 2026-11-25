@@ -4152,6 +4152,10 @@ app.get('/api/shorts/feed', async (req, res) => {
         v.created_at as "createdAt",
         'video' as source,
         COALESCE(v.category, 'General') as category,
+        COALESCE(v.is_boosted, FALSE) as "isBoosted",
+        COALESCE(v.boost_status, 'inactive') as "boostStatus",
+        COALESCE(v.target_views, 0) as "targetViews",
+        COALESCE(v.views_delivered, 0) as "viewsDelivered",
         COALESCE(u.monetization_status, 'auto') as "userMonetization",
         COALESCE(
           (SELECT COUNT(DISTINCT subscriber_id) 
@@ -4163,13 +4167,14 @@ app.get('/api/shorts/feed', async (req, res) => {
         ) as "subscribersCount"
       FROM user_videos v
       LEFT JOIN core_users u ON v.user_id = u.id
-      WHERE v.is_portrait = TRUE 
+      WHERE (v.is_portrait = TRUE 
          OR v.category ILIKE '%short%' 
          OR v.category ILIKE '%tiktok%' 
          OR v.category ILIKE '%story%'
          OR v.description ILIKE '%#short%'
          OR v.title ILIKE '%#short%'
-      ORDER BY v.created_at DESC
+         OR (v.is_boosted = TRUE AND v.boost_status = 'active'))
+      ORDER BY v.is_boosted DESC, v.created_at DESC
       LIMIT 150
     `).catch(() => ({ rows: [] }));
 

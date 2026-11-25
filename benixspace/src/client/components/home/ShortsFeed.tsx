@@ -49,6 +49,10 @@ export interface ShortFeedItem {
   likes: number;
   source: 'story' | 'video';
   isPortrait?: boolean;
+  isBoosted?: boolean;
+  boostStatus?: string;
+  targetViews?: number;
+  viewsDelivered?: number;
   createdAt?: string;
   isMonetized?: boolean;
   trendingScore?: number;
@@ -988,6 +992,23 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                       {item.title}
                     </p>
 
+                    {/* Boosted Share & Earn badge */}
+                    {item.isBoosted && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider">
+                          <Share2 className="w-3 h-3" />
+                          Share & Earn
+                        </span>
+                        {item.boostStatus === 'completed' ? (
+                          <span className="text-[10px] text-slate-400">Completed</span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">
+                            {item.viewsDelivered || 0}/{item.targetViews || 0} views
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Music Track Info Ticker */}
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-300/90 drop-shadow">
                       <Music className="w-3.5 h-3.5 text-rose-400 animate-pulse shrink-0" />
@@ -1028,16 +1049,21 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        // Create a share record so the sharer earns a reward on verified watches
+                        // Create a share record and include the shareId in the shared link
                         const token = getAuthToken();
+                        let shareId = '';
                         if (token && item.id) {
-                          fetch('/api/videos/share', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                            body: JSON.stringify({ videoId: item.id })
-                          }).catch(() => {});
+                          try {
+                            const res = await fetch('/api/videos/share', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ videoId: item.id })
+                            });
+                            const data = await res.json();
+                            if (data?.shareId) shareId = data.shareId;
+                          } catch {}
                         }
-                        const shareUrl = `${window.location.origin}/videos/${item.id}`;
+                        const shareUrl = `${window.location.origin}/videos/${item.id}${shareId ? `?shareId=${shareId}` : ''}`;
                         if (navigator.share) {
                           navigator.share({ title: item.title, url: shareUrl }).catch(() => {});
                         } else {
@@ -1084,8 +1110,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     {(() => {
                       const isNaturalCustom = (idx % 4 === 3);
                       const isUnfilledGoogle = Boolean(unfilledGoogleSlots[item.id]);
-                      const showCustomAd = isNaturalCustom || isUnfilledGoogle;
                       const customAd = getEffectiveBannerOnlyAd(customAds, Math.floor(idx / 4));
+                      const showCustomAd = (isNaturalCustom || isUnfilledGoogle) && !!customAd;
 
                       const customAdCard = (
                         <div
@@ -1093,7 +1119,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                             fetch('/api/ads/track-click', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ adId: customAd.id })
+                              body: JSON.stringify({ adId: customAd?.id })
                             }).catch(() => {});
                             fetch('/api/ads/record-reward', {
                               method: 'POST',
@@ -1106,14 +1132,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                                 mediaType: 'short'
                               })
                             }).catch(() => {});
-                            if (customAd.targetUrl) window.open(customAd.targetUrl, '_blank');
+                            if (customAd?.targetUrl) window.open(customAd?.targetUrl, '_blank');
                           }}
                           className="w-full flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-800/40 p-1 rounded-xl transition"
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <img
-                              src={customAd.mediaUrl || '/logo.png'}
-                              alt={customAd.title}
+                              src={customAd?.mediaUrl || '/logo.png'}
+                              alt={customAd?.title}
                               className="w-8 h-8 rounded-lg object-cover border border-amber-500/30 shrink-0"
                             />
                             <div className="min-w-0">
@@ -1121,10 +1147,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                                 <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded">
                                   Sponsored
                                 </span>
-                                <span className="text-xs font-bold text-white truncate">{customAd.title}</span>
+                                <span className="text-xs font-bold text-white truncate">{customAd?.title}</span>
                               </div>
                               <p className="text-[10px] text-slate-400 truncate">
-                                {customAd.description || 'Visit sponsor website'}
+                                {customAd?.description || 'Visit sponsor website'}
                               </p>
                             </div>
                           </div>
@@ -1138,12 +1164,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                                   fetch('/api/ads/share', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                    body: JSON.stringify({ adId: customAd.id })
+                                    body: JSON.stringify({ adId: customAd?.id })
                                   }).catch(() => {});
                                 }
-                                const adUrl = `${window.location.origin}/ad/${customAd.id}`;
+                                const adUrl = `${window.location.origin}/ad/${customAd?.id}`;
                                 if (navigator.share) {
-                                  navigator.share({ title: customAd.title, url: adUrl }).catch(() => {});
+                                  navigator.share({ title: customAd?.title, url: adUrl }).catch(() => {});
                                 } else {
                                   navigator.clipboard?.writeText(adUrl);
                                   showToast('Ad link copied! You will earn when friends click or view it.', 'success');
@@ -1158,7 +1184,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                               type="button"
                               className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0 shadow-md flex items-center gap-1"
                             >
-                              <span>{customAd.ctaText || 'Explore Site'}</span>
+                              <span>{customAd?.ctaText || 'Explore Site'}</span>
                               <ExternalLink className="w-3 h-3" />
                             </button>
                           </div>
