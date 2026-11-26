@@ -179,14 +179,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       ]);
       clearTimeout(timer);
 
+      // Posts section shows all posts (stories, videos, boosted videos). No orientation filter.
       let loadedShorts: ShortFeedItem[] = feedRes?.shorts && Array.isArray(feedRes.shorts)
-        ? feedRes.shorts.filter((s: ShortFeedItem) => {
-            if (s.source === 'story') return true;
-            if (s.isPortrait) return true;
-            const cat = (s.category || '').toLowerCase();
-            const title = (s.title || '').toLowerCase();
-            return cat.includes('short') || cat.includes('tiktok') || cat.includes('reels') || cat.includes('portrait') || title.includes('#short');
-          })
+        ? feedRes.shorts.filter((s: ShortFeedItem) => Boolean(s && (s.id || s.mediaUrl)))
         : [];
 
       setShorts(loadedShorts);
@@ -635,12 +630,75 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               <Sparkles className="w-6 h-6 text-rose-500 animate-spin" />
               <span className="text-xs font-bold">Loading posts...</span>
             </div>
-          ) : shorts.length === 0 ? (
+          ) : shorts.length === 0 && customAds.length === 0 ? (
             <div className="w-full text-center py-10 text-slate-500 text-xs">
               No posts yet. Boosted videos and sponsored ads will appear here.
             </div>
           ) : (
-            shorts.map((item, idx) => (
+            <>
+              {customAds.slice(0, 6).map((ad) => (
+                <div
+                  key={`ad-h-${ad.id}`}
+                  className="w-40 sm:w-48 h-64 sm:h-76 shrink-0 rounded-2xl overflow-hidden relative border border-amber-500/40 shadow-lg snap-start bg-slate-900"
+                >
+                  <img
+                    src={ad.mediaUrl || '/logo.png'}
+                    alt={ad.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
+                  <div className="absolute top-2.5 left-2.5 z-10">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+                      Sponsored
+                    </span>
+                  </div>
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 space-y-1.5">
+                    <p className="text-xs font-bold text-white line-clamp-2 leading-tight">{ad.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={ad.targetUrl || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => {
+                          fetch('/api/ads/track-click', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ adId: ad.id })
+                          }).catch(() => {});
+                        }}
+                        className="flex-1 px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black text-center"
+                      >
+                        Explore
+                      </a>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const token = getAuthToken();
+                          if (token) {
+                            fetch('/api/ads/share', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ adId: ad.id })
+                            }).catch(() => {});
+                          }
+                          const adUrl = `${window.location.origin}/ad/${ad.id}`;
+                          if (navigator.share) navigator.share({ title: ad.title, url: adUrl }).catch(() => {});
+                          else {
+                            navigator.clipboard?.writeText(adUrl);
+                            showToast('Ad link copied! Earn when friends click or view.', 'success');
+                          }
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold flex items-center gap-1"
+                        title="Share & Earn"
+                      >
+                        <Share2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {shorts.map((item, idx) => (
               <div
                 key={item.id}
                 onClick={() => {
@@ -731,7 +789,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   </div>
                 </div>
               </div>
-            ))
+              ))}
+            </>
           )}
         </div>
       </section>
