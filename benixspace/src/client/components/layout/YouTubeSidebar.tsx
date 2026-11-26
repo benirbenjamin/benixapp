@@ -131,11 +131,11 @@ export const YouTubeSidebar: React.FC = () => {
     },
     {
       id: 'shorts',
-      name: 'Shorts',
+      name: 'Posts',
       icon: Zap,
       route: '/shorts',
       badge: 'HOT',
-      color: 'text-rose-400 group-hover:text-rose-300'
+      color: 'text-amber-400 group-hover:text-amber-300'
     },
     {
       id: 'tv',

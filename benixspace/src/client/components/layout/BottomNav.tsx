@@ -46,16 +46,16 @@ export const BottomNav: React.FC = () => {
           <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Home</span>
         </Link>
 
-        {/* 2. Shorts */}
+        {/* 2. Posts */}
         <Link
           to="/shorts"
           className={`flex flex-col items-center justify-center flex-1 min-w-0 py-0.5 transition-all ${
-            isActive('/shorts') ? 'text-rose-500 font-black' : 'text-slate-400 hover:text-white'
+            isActive('/shorts') ? 'text-amber-500 font-black' : 'text-slate-400 hover:text-white'
           }`}
-          title="Shorts"
+          title="Posts"
         >
-          <Zap className="w-5 h-5 text-rose-400" />
-          <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Shorts</span>
+          <Zap className="w-5 h-5 text-amber-400" />
+          <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Posts</span>
         </Link>
 
         {/* 3. Live Radio */}

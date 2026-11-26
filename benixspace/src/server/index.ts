@@ -4184,7 +4184,8 @@ app.get('/api/shorts/feed', async (req, res) => {
         ) as "subscribersCount"
       FROM user_videos v
       LEFT JOIN core_users u ON v.user_id = u.id
-      ORDER BY (v.is_boosted = TRUE AND v.boost_status = 'active') DESC, v.created_at DESC
+      WHERE v.is_boosted = TRUE
+      ORDER BY v.created_at DESC
       LIMIT 150
     `).catch(() => ({ rows: [] }));
 

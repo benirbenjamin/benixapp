@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Play,
   Pause,
@@ -105,6 +106,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   isStandalonePage = false,
   initialIndex = 0
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { setActivePipMedia } = usePlayer();
 
@@ -572,50 +574,47 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     return (
       <section className="relative w-full py-6 select-none">
         {/* Section Header */}
-        <div className="flex items-center justify-between gap-4 mb-4 px-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+        <div className="flex flex-col gap-3 mb-4 px-1 sm:flex-row sm:items-center sm:justify-between sm:px-2">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
               <Zap className="w-4 h-4 fill-current" />
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <span>Posts</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-                  <Share2 className="w-3 h-3" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className="text-base sm:text-lg font-black text-white leading-none">Posts</h3>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 inline-flex items-center gap-0.5 whitespace-nowrap">
+                  <Share2 className="w-2.5 h-2.5" />
                   Share & Earn
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-700/50 text-slate-300 border border-slate-600/50 whitespace-nowrap">
                   {shorts.length} Posts
                 </span>
-              </h3>
-              <p className="text-xs text-slate-400">Boosted videos, sponsored posts & creator content from verified creators</p>
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-400 leading-snug mt-1">Boosted videos & sponsored posts from verified creators</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => scrollHorizontal('left')}
               className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-700/60"
-              title="Previous Shorts"
+              title="Previous Posts"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => scrollHorizontal('right')}
               className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-700/60"
-              title="Next Shorts"
+              title="Next Posts"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => {
-                setActiveIndex(0);
-                setIsVerticalModalOpen(true);
-              }}
-              className="ml-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition active:scale-95 flex items-center gap-1.5"
+              onClick={() => navigate('/videos')}
+              className="ml-auto sm:ml-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 flex items-center gap-1.5"
             >
               <Play className="w-3.5 h-3.5 fill-white" />
-              <span>Watch All</span>
+              <span>View All</span>
             </button>
           </div>
         </div>
@@ -702,10 +701,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               <div
                 key={item.id}
                 onClick={() => {
-                  setActiveIndex(idx);
-                  setIsVerticalModalOpen(true);
+                  if (item.isBoosted) navigate(`/videos/${item.id}`);
+                  else { setActiveIndex(idx); setIsVerticalModalOpen(true); }
                 }}
-                className="w-40 sm:w-48 h-64 sm:h-76 shrink-0 rounded-2xl overflow-hidden relative group cursor-pointer border border-slate-800 hover:border-rose-500/60 shadow-lg hover:shadow-rose-500/25 transition-all duration-200 transform hover:scale-[1.02] snap-start bg-slate-900"
+                className="w-40 sm:w-48 h-64 sm:h-76 shrink-0 rounded-2xl overflow-hidden relative group cursor-pointer border border-slate-800 hover:border-amber-500/60 shadow-lg hover:shadow-amber-500/25 transition-all duration-200 transform hover:scale-[1.02] snap-start bg-slate-900"
               >
                 {/* Media Preview (Video poster, YouTube thumbnail, or Image) */}
                 {(() => {
