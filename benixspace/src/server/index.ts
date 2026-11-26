@@ -3720,28 +3720,45 @@ app.post('/api/media/upload-chunk', async (req, res) => {
     const safeFileName = `${fileId}${safeExt}`;
     const cleanMime = (mimeType || 'application/octet-stream').split(';')[0].trim();
 
-    // 1. Store in PostgreSQL stored_media_files
-    await query(
-      `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [fileId, safeFileName, cleanMime, fullBuffer, fullBuffer.length]
-    );
-
-    // 2. Also try writing to local disk if public/uploads directory is writable
+    // 1. PRIMARY: Store via Cloudflare R2 (or local disk) — handles large files without
+    //    hitting the Neon HTTP driver's per-query size limit.
+    let finalFileUrl = '';
     try {
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media');
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      fs.writeFileSync(path.join(uploadDir, safeFileName), fullBuffer);
-    } catch {}
+      const uploaded = await StorageService.uploadFile(safeFileName, cleanMime, fullBuffer, folder || 'media');
+      finalFileUrl = uploaded.fileUrl;
+    } catch (storageErr: any) {
+      console.warn('[upload-chunk] R2/local storage failed, falling back to PostgreSQL:', storageErr?.message);
+    }
+
+    // 2. FALLBACK: store in PostgreSQL (only if R2/local failed)
+    if (!finalFileUrl) {
+      try {
+        await query(
+          `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (id) DO NOTHING`,
+          [fileId, safeFileName, cleanMime, fullBuffer, fullBuffer.length]
+        );
+      } catch (dbErr: any) {
+        console.warn('[upload-chunk] DB storage also failed:', dbErr?.message);
+        await query('DELETE FROM upload_chunks WHERE upload_id = $1', [uploadId]).catch(() => {});
+        return res.status(500).json({ error: 'Media storage is temporarily unavailable. Please try again or contact support.' });
+      }
+      try {
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        fs.writeFileSync(path.join(uploadDir, safeFileName), fullBuffer);
+      } catch {}
+      finalFileUrl = `/api/media/file/${fileId}`;
+    }
 
     // 3. Clean up temporary chunks
     await query('DELETE FROM upload_chunks WHERE upload_id = $1', [uploadId]).catch(() => {});
 
-    const fileUrl = `/api/media/file/${fileId}`;
     return res.json({
       success: true,
-      fileUrl,
-      publicUrl: fileUrl,
+      fileUrl: finalFileUrl,
+      publicUrl: finalFileUrl,
       fileId,
       fileSize: fullBuffer.length
     });
@@ -4415,6 +4432,10 @@ async function ensureStoriesTable() {
       author_avatar TEXT,
       media_url TEXT NOT NULL,
       caption TEXT,
+      media_type VARCHAR(50) DEFAULT 'image',
+      duration NUMERIC(6,2) DEFAULT 5.0,
+      views INT DEFAULT 0,
+      likes INT DEFAULT 0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
     );
@@ -4425,6 +4446,8 @@ async function ensureStoriesTable() {
       author_avatar TEXT,
       media_url TEXT NOT NULL,
       caption TEXT,
+      media_type VARCHAR(50) DEFAULT 'image',
+      duration NUMERIC(6,2) DEFAULT 5.0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
     );
@@ -4436,6 +4459,7 @@ async function ensureStoriesTable() {
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {});
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {});
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {});
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS likes INT DEFAULT 0;").catch(() => {});
   await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {});
   await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {});
   await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {});

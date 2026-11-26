@@ -11,6 +11,7 @@ export const ReferralModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { user, token } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  const [rewardAmount, setRewardAmount] = useState<number>(0);
 
   useEffect(() => {
     if (isOpen && token) {
@@ -19,6 +20,16 @@ export const ReferralModal: React.FC<Props> = ({ isOpen, onClose }) => {
       })
         .then((res) => res.json())
         .then((data) => setStats(data))
+        .catch(() => {});
+    }
+    if (isOpen) {
+      fetch('/api/referrals/config')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.rewardAmount !== undefined && !isNaN(Number(data.rewardAmount))) {
+            setRewardAmount(Number(data.rewardAmount));
+          }
+        })
         .catch(() => {});
     }
   }, [isOpen, token]);
@@ -34,14 +45,8 @@ export const ReferralModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const savedSettings = localStorage.getItem('benix_platform_settings');
-  let referralRewardAmount = 500;
-  if (savedSettings) {
-    try {
-      const parsed = JSON.parse(savedSettings);
-      if (parsed.referral_reward_rwf) referralRewardAmount = Number(parsed.referral_reward_rwf);
-    } catch (e) {}
-  }
+  // Reward amount comes from the live DB config (never a hardcoded value)
+  const referralRewardAmount = rewardAmount;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">

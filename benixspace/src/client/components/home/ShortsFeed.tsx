@@ -584,12 +584,16 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <span>Trending Shorts</span>
+                <span>Posts</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                  <Share2 className="w-3 h-3" />
+                  Share & Earn
+                </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                  {shorts.length} Clips
+                  {shorts.length} Posts
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">Portrait videos & stories from verified creators</p>
+              <p className="text-xs text-slate-400">Boosted videos, sponsored posts & creator content from verified creators</p>
             </div>
           </div>
 
@@ -629,11 +633,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           {loading ? (
             <div className="flex items-center gap-3 w-full py-10 justify-center text-slate-400">
               <Sparkles className="w-6 h-6 text-rose-500 animate-spin" />
-              <span className="text-xs font-bold">Loading trending shorts...</span>
+              <span className="text-xs font-bold">Loading posts...</span>
             </div>
           ) : shorts.length === 0 ? (
             <div className="w-full text-center py-10 text-slate-500 text-xs">
-              No shorts uploaded yet. Upload a vertical clip to be featured here!
+              No posts yet. Boosted videos and sponsored ads will appear here.
             </div>
           ) : (
             shorts.map((item, idx) => (

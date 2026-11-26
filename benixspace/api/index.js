@@ -127391,24 +127391,41 @@ app.post("/api/media/upload-chunk", async (req, res) => {
     const fileId = "med_" + Date.now() + "_" + crypto21.randomBytes(4).toString("hex");
     const safeFileName = `${fileId}${safeExt}`;
     const cleanMime = (mimeType || "application/octet-stream").split(";")[0].trim();
-    await query(
-      `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [fileId, safeFileName, cleanMime, fullBuffer, fullBuffer.length]
-    );
+    let finalFileUrl = "";
     try {
-      const uploadDir = path4.join(process.cwd(), "public", "uploads", "media");
-      if (!fs6.existsSync(uploadDir)) fs6.mkdirSync(uploadDir, { recursive: true });
-      fs6.writeFileSync(path4.join(uploadDir, safeFileName), fullBuffer);
-    } catch {
+      const uploaded = await StorageService.uploadFile(safeFileName, cleanMime, fullBuffer, folder || "media");
+      finalFileUrl = uploaded.fileUrl;
+    } catch (storageErr) {
+      console.warn("[upload-chunk] R2/local storage failed, falling back to PostgreSQL:", storageErr?.message);
+    }
+    if (!finalFileUrl) {
+      try {
+        await query(
+          `INSERT INTO stored_media_files (id, file_name, mime_type, file_data, file_size)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (id) DO NOTHING`,
+          [fileId, safeFileName, cleanMime, fullBuffer, fullBuffer.length]
+        );
+      } catch (dbErr) {
+        console.warn("[upload-chunk] DB storage also failed:", dbErr?.message);
+        await query("DELETE FROM upload_chunks WHERE upload_id = $1", [uploadId]).catch(() => {
+        });
+        return res.status(500).json({ error: "Media storage is temporarily unavailable. Please try again or contact support." });
+      }
+      try {
+        const uploadDir = path4.join(process.cwd(), "public", "uploads", "media");
+        if (!fs6.existsSync(uploadDir)) fs6.mkdirSync(uploadDir, { recursive: true });
+        fs6.writeFileSync(path4.join(uploadDir, safeFileName), fullBuffer);
+      } catch {
+      }
+      finalFileUrl = `/api/media/file/${fileId}`;
     }
     await query("DELETE FROM upload_chunks WHERE upload_id = $1", [uploadId]).catch(() => {
     });
-    const fileUrl = `/api/media/file/${fileId}`;
     return res.json({
       success: true,
-      fileUrl,
-      publicUrl: fileUrl,
+      fileUrl: finalFileUrl,
+      publicUrl: finalFileUrl,
       fileId,
       fileSize: fullBuffer.length
     });
@@ -128003,6 +128020,10 @@ async function ensureStoriesTable() {
       author_avatar TEXT,
       media_url TEXT NOT NULL,
       caption TEXT,
+      media_type VARCHAR(50) DEFAULT 'image',
+      duration NUMERIC(6,2) DEFAULT 5.0,
+      views INT DEFAULT 0,
+      likes INT DEFAULT 0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
     );
@@ -128013,6 +128034,8 @@ async function ensureStoriesTable() {
       author_avatar TEXT,
       media_url TEXT NOT NULL,
       caption TEXT,
+      media_type VARCHAR(50) DEFAULT 'image',
+      duration NUMERIC(6,2) DEFAULT 5.0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
     );
@@ -128031,6 +128054,8 @@ async function ensureStoriesTable() {
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS duration NUMERIC(6,2) DEFAULT 5.0;").catch(() => {
   });
   await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS views INT DEFAULT 0;").catch(() => {
+  });
+  await query("ALTER TABLE core_stories ADD COLUMN IF NOT EXISTS likes INT DEFAULT 0;").catch(() => {
   });
   await query("ALTER TABLE stories ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) DEFAULT 'image';").catch(() => {
   });
