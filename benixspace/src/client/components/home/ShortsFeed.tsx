@@ -610,7 +610,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               <ChevronRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => navigate('/videos')}
+              onClick={() => navigate('/posts')}
               className="ml-auto sm:ml-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition active:scale-95 flex items-center gap-1.5"
             >
               <Play className="w-3.5 h-3.5 fill-white" />
@@ -755,10 +755,41 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
                 {/* Top Source Badge */}
                 <div className="absolute top-2.5 left-2.5 z-10">
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-md text-rose-400 border border-white/10">
-                    {item.source === 'story' ? 'Moment' : 'Short'}
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-md text-amber-400 border border-white/10">
+                    {item.isBoosted ? 'Boosted' : (item.source === 'story' ? 'Moment' : 'Post')}
                   </span>
                 </div>
+
+                {/* Share & Earn Button */}
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const token = getAuthToken();
+                    let shareId = '';
+                    if (token) {
+                      try {
+                        const res = await fetch('/api/videos/share', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ videoId: item.id })
+                        });
+                        const data = await res.json();
+                        if (data?.shareId) shareId = data.shareId;
+                      } catch {}
+                    }
+                    const shareUrl = `${window.location.origin}/videos/${item.id}${shareId ? `?shareId=${shareId}` : ''}`;
+                    if (navigator.share) {
+                      navigator.share({ title: item.title, url: shareUrl }).catch(() => {});
+                    } else {
+                      navigator.clipboard?.writeText(shareUrl);
+                      showToast('Link copied! Share it to earn.', 'success');
+                    }
+                  }}
+                  className="absolute top-2 right-2 z-20 p-1.5 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-amber-500 hover:text-slate-950 transition shadow-lg"
+                  title="Share & Earn"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                </button>
 
                 {/* Center Hover Play Icon */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">

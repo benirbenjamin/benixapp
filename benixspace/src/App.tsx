@@ -26,15 +26,15 @@ import { RouteAnalyticsTracker } from './client/analytics/tracker';
 import { ScrollToTop } from './client/components/common/ScrollToTop';
 
 // Dynamic code-splitting helper for named and default exports
-function lazyNamed<T extends React.ComponentType<any>>(
+function lazyNamed(
   factory: () => Promise<any>,
   name: string
-) {
+): React.LazyExoticComponent<React.ComponentType<any>> {
   return React.lazy(() =>
     factory().then((m) => ({
       default: m[name] || m.default
     }))
-  );
+  ) as React.LazyExoticComponent<React.ComponentType<any>>;
 }
 
 // Fallback loader during dynamic chunk fetches
@@ -63,6 +63,7 @@ const NotFoundPage = lazyNamed(() => import('./client/pages/NotFoundPage'), 'Not
 const DashboardPage = lazyNamed(() => import('./client/pages/DashboardPage'), 'DashboardPage');
 const TvPage = lazyNamed(() => import('./client/pages/modules/TvPage'), 'TvPage');
 const VideosPage = lazyNamed(() => import('./client/pages/modules/VideosPage'), 'VideosPage');
+const PostsPage = lazyNamed(() => import('./client/pages/PostsPage'), 'PostsPage');
 const RadioPage = lazyNamed(() => import('./client/pages/modules/RadioPage'), 'RadioPage');
 const GamesPage = lazyNamed(() => import('./client/pages/modules/GamesPage'), 'GamesPage');
 const CloudLandingPage = lazyNamed(() => import('./client/pages/modules/CloudLandingPage'), 'CloudLandingPage');
@@ -312,6 +313,7 @@ export const App: React.FC = () => {
                                               <Route path="/chat" element={<Navigate to="/messages?user=user-superadmin-benir&name=benirabok&email=benirabok@gmail.com" replace />} />
 
                                               {/* Integrated Module Pages */}
+                                              <Route path="/posts" element={<PostsPage />} />
                                               <Route path="/shorts" element={<VideosPage initialTab="shorts" />} />
                                               <Route path="/videos" element={<VideosPage initialTab="videos" />} />
                                               <Route path="/videos/:id" element={<VideosPage initialTab="videos" />} />
