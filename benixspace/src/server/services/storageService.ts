@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -59,6 +59,40 @@ const r2Client = isR2Configured
 const LOCAL_UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 export class StorageService {
+  private static corsConfigured = false;
+
+  /**
+   * Ensures the R2 bucket allows browser PUT uploads from any origin.
+   * Prevents CORS preflight failures on direct pre-signed uploads.
+   */
+  static async configureBucketCors(): Promise<boolean> {
+    if (!isR2Configured || !r2Client) return false;
+    if (StorageService.corsConfigured) return true;
+    try {
+      await r2Client.send(
+        new PutBucketCorsCommand({
+          Bucket: BUCKET_NAME,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedOrigins: ['*'],
+                AllowedMethods: ['GET', 'PUT', 'HEAD'],
+                AllowedHeaders: ['*'],
+                ExposeHeaders: ['ETag'],
+                MaxAgeSeconds: 3600
+              }
+            ]
+          }
+        })
+      );
+      StorageService.corsConfigured = true;
+      return true;
+    } catch (err: any) {
+      console.warn('[StorageService] Could not configure R2 CORS:', err?.message);
+      return false;
+    }
+  }
+
   /**
    * Generates a secure, 60-second direct pre-signed upload URL for Cloudflare R2
    * Browser uploads directly via HTTP PUT with 0 MB Node.js RAM and 0 server bandwidth

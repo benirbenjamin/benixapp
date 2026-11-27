@@ -66000,7 +66000,7 @@ var require_dist_cjs16 = __commonJS({
     };
     var PutBucketAnalyticsConfigurationCommand = class extends command5(_ep3, _mw4, "PutBucketAnalyticsConfiguration", PutBucketAnalyticsConfiguration$) {
     };
-    var PutBucketCorsCommand = class extends command5(_ep3, _mw3, "PutBucketCors", PutBucketCors$) {
+    var PutBucketCorsCommand2 = class extends command5(_ep3, _mw3, "PutBucketCors", PutBucketCors$) {
     };
     var PutBucketEncryptionCommand = class extends command5(_ep3, _mw3, "PutBucketEncryption", PutBucketEncryption$) {
     };
@@ -66241,7 +66241,7 @@ var require_dist_cjs16 = __commonJS({
       PutBucketAccelerateConfigurationCommand,
       PutBucketAclCommand,
       PutBucketAnalyticsConfigurationCommand,
-      PutBucketCorsCommand,
+      PutBucketCorsCommand: PutBucketCorsCommand2,
       PutBucketEncryptionCommand,
       PutBucketIntelligentTieringConfigurationCommand,
       PutBucketInventoryConfigurationCommand,
@@ -67232,7 +67232,7 @@ var require_dist_cjs16 = __commonJS({
     exports.PutBucketAnalyticsConfigurationCommand = PutBucketAnalyticsConfigurationCommand;
     exports.PutBucketAnalyticsConfigurationRequest$ = PutBucketAnalyticsConfigurationRequest$;
     exports.PutBucketCors$ = PutBucketCors$;
-    exports.PutBucketCorsCommand = PutBucketCorsCommand;
+    exports.PutBucketCorsCommand = PutBucketCorsCommand2;
     exports.PutBucketCorsRequest$ = PutBucketCorsRequest$;
     exports.PutBucketEncryption$ = PutBucketEncryption$;
     exports.PutBucketEncryptionCommand = PutBucketEncryptionCommand;
@@ -110144,7 +110144,39 @@ var r2Client = isR2Configured ? new import_client_s3.S3Client({
   }
 }) : null;
 var LOCAL_UPLOADS_DIR = path3.join(process.cwd(), "public", "uploads");
-var StorageService = class {
+var StorageService = class _StorageService {
+  static corsConfigured = false;
+  /**
+   * Ensures the R2 bucket allows browser PUT uploads from any origin.
+   * Prevents CORS preflight failures on direct pre-signed uploads.
+   */
+  static async configureBucketCors() {
+    if (!isR2Configured || !r2Client) return false;
+    if (_StorageService.corsConfigured) return true;
+    try {
+      await r2Client.send(
+        new import_client_s3.PutBucketCorsCommand({
+          Bucket: BUCKET_NAME,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedOrigins: ["*"],
+                AllowedMethods: ["GET", "PUT", "HEAD"],
+                AllowedHeaders: ["*"],
+                ExposeHeaders: ["ETag"],
+                MaxAgeSeconds: 3600
+              }
+            ]
+          }
+        })
+      );
+      _StorageService.corsConfigured = true;
+      return true;
+    } catch (err) {
+      console.warn("[StorageService] Could not configure R2 CORS:", err?.message);
+      return false;
+    }
+  }
   /**
    * Generates a secure, 60-second direct pre-signed upload URL for Cloudflare R2
    * Browser uploads directly via HTTP PUT with 0 MB Node.js RAM and 0 server bandwidth
@@ -127394,6 +127426,8 @@ app.post("/api/media/presigned-upload", async (req, res) => {
     if (!fileName || !fileType) {
       return res.status(400).json({ error: "fileName and fileType are required." });
     }
+    await StorageService.configureBucketCors().catch(() => {
+    });
     const presigned = await StorageService.generatePresignedUploadUrl(fileName, fileType, folder);
     return res.json({
       success: true,
@@ -127418,7 +127452,10 @@ app.post("/api/media/upload-chunk", async (req, res) => {
         chunk_data TEXT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (upload_id, chunk_index)
-      );
+      )
+    `).catch(() => {
+    });
+    await query(`
       CREATE TABLE IF NOT EXISTS stored_media_files (
         id VARCHAR(255) PRIMARY KEY,
         file_name VARCHAR(500) NOT NULL,
@@ -127426,7 +127463,7 @@ app.post("/api/media/upload-chunk", async (req, res) => {
         file_data BYTEA NOT NULL,
         file_size BIGINT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
+      )
     `).catch(() => {
     });
     await query(
@@ -132791,11 +132828,14 @@ async function ensureAnalyticsEventsTable() {
       ip_address VARCHAR(120),
       duration_ms INT DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_cae_created ON client_analytics_events(created_at);
-    CREATE INDEX IF NOT EXISTS idx_cae_session ON client_analytics_events(session_id);
-    CREATE INDEX IF NOT EXISTS idx_cae_type ON client_analytics_events(event_type);
+    )
   `).catch(() => {
+  });
+  await query(`CREATE INDEX IF NOT EXISTS idx_cae_created ON client_analytics_events(created_at)`).catch(() => {
+  });
+  await query(`CREATE INDEX IF NOT EXISTS idx_cae_session ON client_analytics_events(session_id)`).catch(() => {
+  });
+  await query(`CREATE INDEX IF NOT EXISTS idx_cae_type ON client_analytics_events(event_type)`).catch(() => {
   });
 }
 app.post("/api/analytics/track", async (req, res) => {

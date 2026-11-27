@@ -3647,6 +3647,9 @@ app.post('/api/media/presigned-upload', async (req, res) => {
       return res.status(400).json({ error: 'fileName and fileType are required.' });
     }
 
+    // Make sure browser PUT uploads are allowed by the R2 bucket (CORS)
+    await StorageService.configureBucketCors().catch(() => {});
+
     const presigned = await StorageService.generatePresignedUploadUrl(fileName, fileType, folder);
     return res.json({
       success: true,
@@ -3677,7 +3680,9 @@ app.post('/api/media/upload-chunk', async (req, res) => {
         chunk_data TEXT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (upload_id, chunk_index)
-      );
+      )
+    `).catch(() => {});
+    await query(`
       CREATE TABLE IF NOT EXISTS stored_media_files (
         id VARCHAR(255) PRIMARY KEY,
         file_name VARCHAR(500) NOT NULL,
@@ -3685,7 +3690,7 @@ app.post('/api/media/upload-chunk', async (req, res) => {
         file_data BYTEA NOT NULL,
         file_size BIGINT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
+      )
     `).catch(() => {});
 
     // Save current chunk
@@ -10075,11 +10080,11 @@ async function ensureAnalyticsEventsTable() {
       ip_address VARCHAR(120),
       duration_ms INT DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_cae_created ON client_analytics_events(created_at);
-    CREATE INDEX IF NOT EXISTS idx_cae_session ON client_analytics_events(session_id);
-    CREATE INDEX IF NOT EXISTS idx_cae_type ON client_analytics_events(event_type);
+    )
   `).catch(() => {});
+  await query(`CREATE INDEX IF NOT EXISTS idx_cae_created ON client_analytics_events(created_at)`).catch(() => {});
+  await query(`CREATE INDEX IF NOT EXISTS idx_cae_session ON client_analytics_events(session_id)`).catch(() => {});
+  await query(`CREATE INDEX IF NOT EXISTS idx_cae_type ON client_analytics_events(event_type)`).catch(() => {});
 }
 
 // Public telemetry ingest (page views + session heartbeats)

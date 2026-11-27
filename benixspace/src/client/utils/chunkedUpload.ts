@@ -78,7 +78,7 @@ export async function uploadChunksToServer(
   const safeFileName = rawFileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
   const mimeType = (fileToUpload.type || 'application/octet-stream').split(';')[0].trim();
 
-  const chunkSize = 512 * 1024; // 512 KB chunks guarantee < 700KB request bodies
+  const chunkSize = 256 * 1024; // 256 KB chunks keep each request safely under serverless body limits
   const totalChunks = Math.max(1, Math.ceil(fileToUpload.size / chunkSize));
   const uploadId = 'up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
 
