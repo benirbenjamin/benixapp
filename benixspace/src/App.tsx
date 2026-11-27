@@ -314,6 +314,7 @@ export const App: React.FC = () => {
 
                                               {/* Integrated Module Pages */}
                                               <Route path="/posts" element={<PostsPage />} />
+                                              <Route path="/ad/:id" element={<PostsPage />} />
                                               <Route path="/shorts" element={<VideosPage initialTab="shorts" />} />
                                               <Route path="/videos" element={<VideosPage initialTab="videos" />} />
                                               <Route path="/videos/:id" element={<VideosPage initialTab="videos" />} />

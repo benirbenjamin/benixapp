@@ -70,7 +70,7 @@ export const BottomNav: React.FC = () => {
           <span className="text-[9px] font-bold mt-0.5 tracking-tight truncate">Radio</span>
         </Link>
 
-        {/* 4. Elevated Center Action Button (+) - Post Story or Video */}
+        {/* 4. Elevated Center Action Button (+) - Create (Video / Submit Ad) */}
         <div className="relative -top-3 flex items-center justify-center shrink-0 mx-1">
           <button
             onClick={() => {
@@ -81,8 +81,8 @@ export const BottomNav: React.FC = () => {
                 setShowCreateMedia(true);
               }
             }}
-            className="w-11 h-11 rounded-full bg-gradient-to-tr from-rose-500 via-indigo-600 to-blue-600 hover:from-rose-400 hover:to-blue-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/40 border-2 border-[#0B0E14] active:scale-95 transition-all"
-            title="Post Story or Video"
+            className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 via-orange-600 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/40 border-2 border-[#0B0E14] active:scale-95 transition-all"
+            title="Create"
           >
             <Plus className="w-5 h-5 stroke-[2.5]" />
           </button>
@@ -144,7 +144,7 @@ export const BottomNav: React.FC = () => {
         />
       )}
 
-      {/* Creator Media Modal (Post Story / Upload Video) */}
+      {/* Create Modal (Submit Ad / Broadcast Video) */}
       {showCreateMedia && (
         <CreateMediaModal
           isOpen={showCreateMedia}

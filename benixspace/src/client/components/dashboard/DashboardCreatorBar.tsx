@@ -2,19 +2,16 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Sparkles,
-  Camera,
   Film,
   Music,
   ShoppingBag,
   Megaphone,
   Wallet,
   TrendingUp,
-  Award,
   Users
 } from 'lucide-react';
 
 interface Props {
-  onOpenStoryModal: () => void;
   onOpenVideoModal: () => void;
   onOpenAdModal: () => void;
   wallet: any;
@@ -22,7 +19,6 @@ interface Props {
 }
 
 export const DashboardCreatorBar: React.FC<Props> = ({
-  onOpenStoryModal,
   onOpenVideoModal,
   onOpenAdModal,
   wallet,
@@ -47,18 +43,18 @@ export const DashboardCreatorBar: React.FC<Props> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {/* 1. Post Ephemeral Story */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {/* 1. Submit Ad for Leads */}
           <button
-            onClick={onOpenStoryModal}
-            className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 hover:border-rose-500/50 hover:bg-rose-950/20 text-left transition group shadow flex flex-col justify-between"
+            onClick={onOpenAdModal}
+            className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 hover:border-amber-500/50 hover:bg-amber-950/20 text-left transition group shadow flex flex-col justify-between"
           >
-            <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <Camera className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <Megaphone className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-bold text-xs text-white">Post Story</h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">24h Ephemeral Media</p>
+              <h4 className="font-bold text-xs text-white">Submit Ad</h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Submit ad to get leads</p>
             </div>
           </button>
 
@@ -104,19 +100,6 @@ export const DashboardCreatorBar: React.FC<Props> = ({
             </div>
           </Link>
 
-          {/* 5. Run Targeted Ads */}
-          <button
-            onClick={onOpenAdModal}
-            className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 hover:border-blue-500/50 hover:bg-blue-950/20 text-left transition group shadow flex flex-col justify-between col-span-2 sm:col-span-1"
-          >
-            <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <Megaphone className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-white">Broadcast Ads</h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">CPM & CPC Campaigns</p>
-            </div>
-          </button>
         </div>
       </div>
 

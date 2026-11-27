@@ -33,14 +33,10 @@ import {
   Check,
   TrendingUp,
   Award,
-  Upload,
   ThumbsUp,
   Bell,
-  UserPlus,
-  Plus,
   X,
   Wifi,
-  Settings,
   Zap,
   Video as VideoIcon
 } from 'lucide-react';
@@ -68,6 +64,7 @@ interface VideoItem {
   description?: string;
   channelName?: string;
   channelAvatar?: string;
+  userId?: string;
   createdAt?: string;
 }
 
@@ -86,7 +83,7 @@ export function extractYouTubeId(raw: string | null | undefined): string | null 
 
 export function getSafeYouTubeEmbedUrl(
   video: { id?: string; embedUrl?: string; videoUrl?: string } | null | undefined,
-  quality: string = '720p'
+  _quality: string = '720p'
 ): string {
   if (!video) return '';
   const vidId = extractYouTubeId(video.id) || extractYouTubeId(video.embedUrl) || extractYouTubeId(video.videoUrl);
@@ -219,6 +216,10 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
   const [showWizardModal, setShowWizardModal] = useState<boolean>(false);
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
+
+  // Share & Earn: reward the sharer after a verified 2-minute watch from a shared link
+  const shareLinkId = searchParams.get('shareId') || searchParams.get('share') || '';
+  const [shareRewardClaimed, setShareRewardClaimed] = useState<boolean>(false);
 
   // Creator Upload Video Modal State (Unified Chunked + Background Upload Modal)
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
@@ -469,6 +470,33 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
     }
   }, [searchParams]);
 
+  // Share & Earn: credit the sharer after a verified 2-minute watch from a shared link
+  useEffect(() => {
+    if (!shareLinkId || !activeVideo || !isPlaying || shareRewardClaimed) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      if (elapsed < 120) return;
+      clearInterval(timer);
+      setShareRewardClaimed(true);
+      let viewerId = '';
+      try {
+        viewerId = localStorage.getItem('benix_visitor_id') || '';
+      } catch {}
+      fetch('/api/videos/share/watch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shareId: shareLinkId,
+          videoId: activeVideo.id,
+          viewerId: viewerId || user?.id || '',
+          watchedMs: 120000
+        })
+      }).catch(() => {});
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [shareLinkId, activeVideo?.id, isPlaying, shareRewardClaimed, user?.id]);
+
   // Load dynamic video ad timing settings
   useEffect(() => {
     fetch('/api/ads/settings')
@@ -631,7 +659,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
       axios.post(`/api/modules/videos/${activeVideo.id}/view`, { videoId: activeVideo.id }).catch(() => {});
       setVideos((prev) => prev.map((v) => (v.id === activeVideo.id ? { ...v, views: (v.views || 0) + 1 } : v)));
       setActiveVideo((prev) => (prev && prev.id === activeVideo.id ? { ...prev, views: (prev.views || 0) + 1 } : prev));
-      recordWatchInteraction(activeVideo.id, activeVideo.category, activeVideo.creator);
+      recordWatchInteraction({ id: activeVideo.id, category: activeVideo.category, creator: activeVideo.creator });
     }, 3000);
     return () => clearTimeout(timer);
   }, [activeVideo?.id]);
@@ -1625,7 +1653,7 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
 
               {/* Google AdSense Banner below description */}
               <div className="pt-2">
-                <GoogleAdSense slot="8392017482" format="horizontal" />
+                <GoogleAdSense slot="8392017482" format="auto" />
               </div>
 
               {/* YouTube-Style Threaded Comments & Live Replies with Multilingual Moderation */}
@@ -1961,7 +1989,6 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
       {showCreateMediaModal && (
         <CreateMediaModal
           isOpen={showCreateMediaModal}
-          initialTab="video"
           onClose={() => setShowCreateMediaModal(false)}
           onSuccess={() => {
             setShowCreateMediaModal(false);

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useUpload } from '../../context/UploadContext';
-import { uploadFileInChunks } from '../../utils/chunkedUpload';
-import { notificationSound } from '../../utils/notificationSound';
 import {
   X,
   Plus,
@@ -13,23 +11,16 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  HardDrive,
-  Clock,
-  Users,
-  ShieldCheck,
-  Eye,
-  Film,
-  Link as LinkIcon,
   Search,
-  FileVideo,
-  Zap
+  Zap,
+  Megaphone
 } from 'lucide-react';
+import { SubmitAdModal } from './SubmitAdModal';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  initialTab?: 'story' | 'video';
 }
 
 /**
@@ -82,105 +73,27 @@ const compressImage = (file: File, maxDimension = 1080, quality = 0.75): Promise
   });
 };
 
-/**
- * Capture an automatic high-definition snapshot frame from a video file
- * Used as automatic video thumbnail if creator doesn't upload a custom one
- */
-const generateThumbnailFromVideo = (file: File): Promise<string> => {
-  return new Promise((resolve) => {
-    try {
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.muted = true;
-      video.playsInline = true;
-      const objectUrl = URL.createObjectURL(file);
-      video.src = objectUrl;
-
-      let resolved = false;
-      const cleanup = () => {
-        if (!resolved) {
-          resolved = true;
-          URL.revokeObjectURL(objectUrl);
-        }
-      };
-
-      video.onloadeddata = () => {
-        video.currentTime = Math.min(1.5, Math.max(0.2, (video.duration || 3) * 0.2));
-      };
-
-      video.onseeked = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 360;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            cleanup();
-            resolve(dataUrl);
-            return;
-          }
-        } catch {}
-        cleanup();
-        resolve('');
-      };
-
-      video.onerror = () => {
-        cleanup();
-        resolve('');
-      };
-
-      setTimeout(() => {
-        cleanup();
-        resolve('');
-      }, 5000);
-    } catch {
-      resolve('');
-    }
-  });
-};
-
-export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, initialTab = 'story' }) => {
+export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const { user, token, updateProfile } = useAuth();
   const { startUpload } = useUpload();
-  const [tab, setTab] = useState<'story' | 'video'>(initialTab);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
-
-  useEffect(() => {
-    if (isOpen && initialTab) {
-      setTab(initialTab);
-    }
-  }, [isOpen, initialTab]);
-
-  // Story Form State
-  const [storyMediaUrl, setStoryMediaUrl] = useState('');
-  const [selectedStoryFile, setSelectedStoryFile] = useState<File | null>(null);
-  const [storyCaption, setStoryCaption] = useState('');
-  const [storyPreview, setStoryPreview] = useState<string | null>(null);
-  const [storyDuration, setStoryDuration] = useState<number>(15);
-  const [storyTotalDuration, setStoryTotalDuration] = useState<number>(0);
-  const [storyClipStart, setStoryClipStart] = useState<number>(0);
-  const [isCompressingStory, setIsCompressingStory] = useState<boolean>(false);
 
   // Video Form State
   const [channelNameInput, setChannelNameInput] = useState(user?.channel_name || user?.name || '');
-  const [videoSourceMode, setVideoSourceMode] = useState<'youtube' | 'file'>('youtube');
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDesc, setVideoDesc] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [videoCategory, setVideoCategory] = useState('Entertainment & Movies');
   const [isPaidVideo, setIsPaidVideo] = useState(false);
   const [videoPrice, setVideoPrice] = useState('500');
   const [videoThumbnailUrl, setVideoThumbnailUrl] = useState('');
   const [isFetchingYouTube, setIsFetchingYouTube] = useState(false);
-  const [selectedVideoFileName, setSelectedVideoFileName] = useState('');
   const [isVideoPortrait, setIsVideoPortrait] = useState(false);
-  const [detectedVideoDuration, setDetectedVideoDuration] = useState(60);
+  const [detectedVideoDuration] = useState(60);
 
   // Video Boost state (target views + budget, 1 view = 8 RWF)
+  const [showSubmitAd, setShowSubmitAd] = useState(false);
   const [isBoostEnabled, setIsBoostEnabled] = useState(false);
   const [boostTargetViews, setBoostTargetViews] = useState('100');
   const [boostBudget, setBoostBudget] = useState('800');
@@ -216,273 +129,6 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   }, [isOpen, token]);
 
   if (!isOpen) return null;
-
-  const formatSecs = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  // Client-Side Video Trimmer and Compressor for 45s Stories
-  const trimAndCompressVideo = async (
-    file: File,
-    startTime: number,
-    clipDuration = 45,
-    onProgress?: (pct: number) => void
-  ): Promise<File> => {
-    return new Promise((resolve) => {
-      try {
-        const video = document.createElement('video');
-        video.preload = 'auto';
-        video.muted = true;
-        video.playsInline = true;
-        const objectUrl = URL.createObjectURL(file);
-        video.src = objectUrl;
-
-        video.onloadedmetadata = () => {
-          try {
-            const width = Math.min(video.videoWidth || 540, 540);
-            const height = Math.round((width * (video.videoHeight || 960)) / (video.videoWidth || 540));
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              URL.revokeObjectURL(objectUrl);
-              resolve(file);
-              return;
-            }
-
-            const stream = canvas.captureStream ? canvas.captureStream(24) : null;
-            if (!stream || typeof MediaRecorder === 'undefined') {
-              URL.revokeObjectURL(objectUrl);
-              resolve(file);
-              return;
-            }
-
-            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-              ? 'video/webm;codecs=vp8'
-              : MediaRecorder.isTypeSupported('video/webm')
-              ? 'video/webm'
-              : 'video/mp4';
-
-            let recorder: MediaRecorder;
-            try {
-              recorder = new MediaRecorder(stream, {
-                mimeType,
-                videoBitsPerSecond: 800000 // Compressed mobile 800 kbps for high speed
-              });
-            } catch {
-              URL.revokeObjectURL(objectUrl);
-              resolve(file);
-              return;
-            }
-
-            const chunks: Blob[] = [];
-            recorder.ondataavailable = (e) => {
-              if (e.data && e.data.size > 0) chunks.push(e.data);
-            };
-
-            const targetEnd = Math.min(video.duration, startTime + clipDuration);
-            const totalClipTime = Math.max(1, targetEnd - startTime);
-
-            recorder.onstop = () => {
-              URL.revokeObjectURL(objectUrl);
-              const blob = new Blob(chunks, { type: mimeType });
-              const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-              const cleanType = mimeType.split(';')[0];
-              const trimmedFile = new File([blob], `story_${Date.now()}.${ext}`, { type: cleanType });
-              resolve(trimmedFile);
-            };
-
-            video.currentTime = startTime;
-            video.onseeked = () => {
-              recorder.start(100);
-              video.play().catch(() => {});
-
-              const renderLoop = () => {
-                if (video.currentTime >= targetEnd || video.paused || video.ended) {
-                  video.pause();
-                  if (recorder.state === 'recording') recorder.stop();
-                  return;
-                }
-                ctx.drawImage(video, 0, 0, width, height);
-                if (onProgress) {
-                  const elapsed = video.currentTime - startTime;
-                  const pct = Math.min(100, Math.max(0, Math.round((elapsed / totalClipTime) * 100)));
-                  onProgress(pct);
-                }
-                requestAnimationFrame(renderLoop);
-              };
-              renderLoop();
-            };
-          } catch {
-            URL.revokeObjectURL(objectUrl);
-            resolve(file);
-          }
-        };
-
-        video.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve(file);
-        };
-      } catch {
-        resolve(file);
-      }
-    });
-  };
-
-  // Handle Story File Upload with Fast Preview, Chunk Preparation & 45s Duration Limit
-  const handleStoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const isVid = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(file.name);
-    if (isVid) {
-      const tempVideo = document.createElement('video');
-      tempVideo.preload = 'metadata';
-      const objUrl = URL.createObjectURL(file);
-      tempVideo.src = objUrl;
-      tempVideo.onloadedmetadata = () => {
-        URL.revokeObjectURL(objUrl);
-        const dur = Math.round(tempVideo.duration || 0);
-        setStoryTotalDuration(dur);
-        setStoryClipStart(0);
-        setStoryDuration(Math.min(45, dur || 15));
-
-        setSelectedStoryFile(file);
-        const objectUrl = URL.createObjectURL(file);
-        setStoryPreview(objectUrl);
-        setStoryMediaUrl(objectUrl);
-
-        if (dur > 45) {
-          setStatusMsg({
-            text: `Selected video is ${dur}s. Pick your 45-second story cut using the slider or part buttons below. It will be compressed automatically on upload.`
-          });
-        } else {
-          setStatusMsg({
-            text: `Video clip ready: "${file.name}" (${dur}s, ${(file.size / (1024 * 1024)).toFixed(1)} MB)`
-          });
-        }
-      };
-      tempVideo.onerror = () => {
-        URL.revokeObjectURL(objUrl);
-        setSelectedStoryFile(file);
-        const objectUrl = URL.createObjectURL(file);
-        setStoryPreview(objectUrl);
-        setStoryMediaUrl(objectUrl);
-      };
-      return;
-    }
-
-    setSelectedStoryFile(file);
-    setStoryTotalDuration(0);
-    setStoryClipStart(0);
-    const objectUrl = URL.createObjectURL(file);
-    setStoryPreview(objectUrl);
-    setStoryMediaUrl(objectUrl);
-    setStatusMsg({
-      text: `Photo ready for story broadcast!`
-    });
-  };
-
-  // Publish 24h Story in Background with Chunked Upload & Live Progress Line
-  const handleCreateStory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatusMsg(null);
-    if (!selectedStoryFile && !storyMediaUrl) {
-      setStatusMsg({ text: 'Please upload a photo or short clip for your story.', error: true });
-      return;
-    }
-
-    const title = storyCaption.trim() ? `Story: "${storyCaption.trim().slice(0, 24)}..."` : '24h Story';
-    const captionToUpload = storyCaption.trim();
-    const fileToUpload = selectedStoryFile;
-    const fallbackUrl = storyMediaUrl;
-
-    // Start background upload & close modal so user can browse freely
-    startUpload(title, 'story', async (updateProgress) => {
-      let finalMediaUrl = fallbackUrl;
-
-      // If local file selected, cut/compress video or optimize photo, then upload in resilient chunks
-      if (fileToUpload) {
-        let processedFile = fileToUpload;
-        const isVidStory = fileToUpload.type.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(fileToUpload.name);
-
-        if (isVidStory && (storyTotalDuration > 45 || fileToUpload.size > 2 * 1024 * 1024)) {
-          setIsCompressingStory(true);
-          updateProgress(5);
-          try {
-            processedFile = await trimAndCompressVideo(fileToUpload, storyClipStart, Math.min(45, storyTotalDuration || 45), (pct) => {
-              updateProgress(Math.round(5 + pct * 0.2));
-            });
-          } catch (e) {
-            console.warn('Story video trim note:', e);
-          } finally {
-            setIsCompressingStory(false);
-          }
-        }
-
-        updateProgress(25);
-        try {
-          finalMediaUrl = await uploadFileInChunks(processedFile, {
-            folder: 'stories',
-            onProgress: (pct) => updateProgress(Math.round(25 + pct * 0.65))
-          });
-        } catch (uploadErr: any) {
-          console.error('Story chunked upload error:', uploadErr);
-          throw new Error('Failed to upload media: ' + (uploadErr?.message || 'Please check your connection and retry.'));
-        }
-      }
-
-      updateProgress(88);
-      const isVidStory = (fileToUpload && fileToUpload.type.startsWith('video/')) ||
-        (fileToUpload && /\.(mp4|webm|mov|ogg)$/i.test(fileToUpload.name)) ||
-        finalMediaUrl.startsWith('data:video') ||
-        /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(finalMediaUrl);
-
-      const authToken = token || localStorage.getItem('benix_auth_token') || localStorage.getItem('benix_admin_token');
-      const res = await fetch('/api/stories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify({
-          mediaUrl: finalMediaUrl,
-          caption: captionToUpload,
-          mediaType: isVidStory ? 'video' : 'image',
-          duration: isVidStory ? (storyDuration || 15) : undefined
-        })
-      });
-
-      updateProgress(96);
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(text.slice(0, 150) || 'Server returned invalid response');
-      }
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to publish story');
-      }
-
-      updateProgress(100);
-      if (onSuccess) {
-        try {
-          onSuccess();
-        } catch (err) {
-          console.error('onSuccess callback notice:', err);
-        }
-      }
-      return data;
-    });
-
-    onClose();
-  };
 
   // Extract 11-Character YouTube Video ID (Standard, Shortened, and Shorts)
   const extractYouTubeId = (rawUrl: string): string | null => {
@@ -566,54 +212,6 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     }
   };
 
-  // Handle local video file selection
-  const handleLocalVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSelectedVideoFile(file);
-    setSelectedVideoFileName(file.name);
-    // Use cleaned file name as initial title if empty
-    if (!videoTitle) {
-      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-      setVideoTitle(cleanName);
-    }
-    // Create object URL for local streaming/preview
-    const objectUrl = URL.createObjectURL(file);
-    setVideoUrl(objectUrl);
-    setStatusMsg({ text: `Generating snapshot thumbnail from "${file.name}"...` });
-
-    // Automatically generate snapshot thumbnail and detect portrait aspect ratio & duration from video frame
-    try {
-      const tempVideo = document.createElement('video');
-      tempVideo.preload = 'metadata';
-      const objUrl = URL.createObjectURL(file);
-      tempVideo.src = objUrl;
-      tempVideo.onloadedmetadata = () => {
-        URL.revokeObjectURL(objUrl);
-        const w = tempVideo.videoWidth || 0;
-        const h = tempVideo.videoHeight || 0;
-        const isPortrait = h > w;
-        const dur = Math.round(tempVideo.duration || 60);
-        setIsVideoPortrait(isPortrait);
-        setDetectedVideoDuration(dur);
-        if (isPortrait) {
-          setVideoCategory((prev) => (prev === 'Entertainment & Movies' ? 'Trending Shorts' : prev));
-        }
-      };
-      tempVideo.onerror = () => URL.revokeObjectURL(objUrl);
-    } catch {}
-
-    generateThumbnailFromVideo(file).then((snapshot) => {
-      if (snapshot) {
-        setVideoThumbnailUrl(snapshot);
-        setStatusMsg({ text: `✓ Auto-generated thumbnail from "${file.name}"!` });
-      } else {
-        setStatusMsg({ text: `Selected local video: "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)` });
-      }
-    });
-  };
-
   // Handle custom user-uploaded video thumbnail
   const handleCustomThumbnailChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -654,7 +252,6 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
     const titleToUpload = videoTitle.trim();
     const descToUpload = videoDesc.trim();
     const categoryToUpload = videoCategory;
-    const isPaidToUpload = isPaidVideo;
     const priceToUpload = isPaidVideo ? parseFloat(videoPrice) || 0 : 0;
     const channelNameToUpdate = channelNameInput.trim();
     const thumbToUpload = videoThumbnailUrl.trim() || `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
@@ -671,34 +268,9 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
         await updateProfile({ channel_name: channelNameToUpdate }).catch(() => {});
       }
 
-      updateProgress(50);
+      updateProgress(60);
 
-      // 1. Post to module videos endpoint
-      await fetch('/api/modules/videos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          title: titleToUpload,
-          description: descToUpload,
-          videoUrl: formattedUrl,
-          embedUrl: formattedUrl,
-          thumbnailUrl: thumbToUpload,
-          youtubeId: ytId,
-          category: categoryToUpload,
-          price: priceToUpload,
-          channelName: channelNameToUpdate || user?.channel_name || user?.name,
-          channelAvatar: user?.avatar_url || (user as any)?.app_profiles?.avatar || '/logo.png',
-          isPortrait: isVideoPortrait,
-          duration: detectedVideoDuration
-        })
-      }).catch(() => {});
-
-      updateProgress(80);
-
-      // 2. Also record in user video uploads
+      // Single source of truth: post to /api/videos/upload (handles boost + wallet debit)
       const res = await fetch('/api/videos/upload', {
         method: 'POST',
         headers: {
@@ -755,7 +327,7 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             </div>
             <div>
               <h3 className="text-base font-black text-white">Create on Benix.Space</h3>
-              <p className="text-[11px] text-slate-400">Share 24h stories and broadcast YouTube videos</p>
+              <p className="text-[11px] text-slate-400">Submit ads for leads or broadcast YouTube videos</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-800/60 transition-colors">
@@ -763,31 +335,30 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           </button>
         </div>
 
-        {/* Tab Controls: Story vs Video */}
+        {/* Create Actions: Submit Ad or Broadcast Video */}
         <div className="px-6 flex gap-2 border-b border-slate-800 pb-3 pt-3">
           <button
-            onClick={() => { setTab('story'); setStatusMsg(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              tab === 'story'
-                ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-600/30'
-                : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-            }`}
+            onClick={() => setShowSubmitAd(true)}
+            className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-600/30 hover:from-amber-400 hover:to-orange-500"
           >
-            <Camera className="w-4 h-4" />
-            <span>Post Story (24h)</span>
+            <Megaphone className="w-4 h-4" />
+            <span>Submit Ad for Leads</span>
           </button>
           <button
-            onClick={() => { setTab('video'); setStatusMsg(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              tab === 'video'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-            }`}
+            type="button"
+            className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30"
           >
             <Video className="w-4 h-4" />
             <span>Broadcast Video</span>
           </button>
         </div>
+
+        {/* Submit Ad Modal (opens from the Submit Ad tab) */}
+        <SubmitAdModal
+          isOpen={showSubmitAd}
+          onClose={() => setShowSubmitAd(false)}
+          onOpenWallet={() => setShowSubmitAd(false)}
+        />
 
         {/* Body Container */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
@@ -798,166 +369,26 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
             </div>
           )}
 
-          {/* TAB 1: POST STORY (With Canvas Compression) */}
-          {tab === 'story' && (
-            <form onSubmit={handleCreateStory} className="space-y-4">
+          {/* Submit ad for getting leads */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 to-[#121824] border border-amber-500/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Megaphone className="w-5 h-5 text-amber-400 shrink-0" />
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Story Photo or Short Video Clip *
-                </label>
-                <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 text-center hover:border-pink-500 transition-colors bg-[#121824] relative overflow-hidden">
-                  {storyPreview ? (
-                    <div className="relative max-h-64 h-64 w-full mx-auto rounded-xl overflow-hidden shadow-lg border border-slate-700 bg-black flex items-center justify-center">
-                      {(selectedStoryFile?.type.startsWith('video/') ||
-                        (selectedStoryFile && /\.(mp4|webm|mov|ogg)$/i.test(selectedStoryFile.name)) ||
-                        storyPreview.startsWith('data:video') ||
-                        /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(storyPreview)) ? (
-                        <video
-                          id="story-preview-video"
-                          src={storyPreview}
-                          autoPlay
-                          muted
-                          playsInline
-                          loop
-                          controls
-                          onTimeUpdate={(e) => {
-                            const vid = e.currentTarget;
-                            if (storyTotalDuration > 45 && vid.currentTime >= storyClipStart + 45) {
-                              vid.currentTime = storyClipStart;
-                            }
-                          }}
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <img src={storyPreview} alt="Story Preview" className="w-full h-full object-contain" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStoryPreview(null);
-                          setStoryMediaUrl('');
-                          setSelectedStoryFile(null);
-                          setStoryTotalDuration(0);
-                          setStoryClipStart(0);
-                        }}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors z-10"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="cursor-pointer block py-6">
-                      <Camera className="w-8 h-8 text-pink-400 mx-auto mb-2" />
-                      <span className="text-xs font-bold text-white block">Click to select photo or clip</span>
-                      <span className="text-[10px] text-slate-400 block mt-1">
-                        Automatically compressed to high-efficiency format (max 1080px)
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleStoryFileChange}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-
-                {/* 45-Second Video Part Selection Slider */}
-                {selectedStoryFile && storyTotalDuration > 45 && (
-                  <div className="mt-3 p-3.5 bg-slate-900 border border-pink-500/30 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-pink-300 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Select 45-Second Story Segment</span>
-                      </span>
-                      <span className="font-mono text-[11px] text-pink-400 font-bold">
-                        {formatSecs(storyClipStart)} - {formatSecs(Math.min(storyTotalDuration, storyClipStart + 45))} (45s max)
-                      </span>
-                    </div>
-
-                    {/* Quick Part Buttons */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                      <span className="text-[10px] text-slate-400 font-semibold shrink-0">Parts:</span>
-                      {Array.from({ length: Math.ceil(storyTotalDuration / 45) }).map((_, idx) => {
-                        const start = idx * 45;
-                        const end = Math.min(storyTotalDuration, start + 45);
-                        const isActive = Math.abs(storyClipStart - start) < 5;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              const newStart = Math.min(start, Math.max(0, storyTotalDuration - 45));
-                              setStoryClipStart(newStart);
-                              const vid = document.getElementById('story-preview-video') as HTMLVideoElement;
-                              if (vid) vid.currentTime = newStart;
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition ${
-                              isActive
-                                ? 'bg-pink-600 text-white shadow'
-                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            }`}
-                          >
-                            Part {idx + 1} ({formatSecs(start)} - {formatSecs(end)})
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Timeline Scrub Slider */}
-                    <input
-                      type="range"
-                      min="0"
-                      max={Math.max(0, storyTotalDuration - 45)}
-                      step="1"
-                      value={storyClipStart}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setStoryClipStart(val);
-                        const vid = document.getElementById('story-preview-video') as HTMLVideoElement;
-                        if (vid) vid.currentTime = val;
-                      }}
-                      className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
-                    />
-
-                    <p className="text-[10px] text-slate-400 italic">
-                      Drag the slider to adjust your 45-second cut. Upon upload, the video will be cut and compressed automatically.
-                    </p>
-                  </div>
-                )}
+                <p className="text-xs font-bold text-white">Submit ad for getting leads</p>
+                <p className="text-[10px] text-slate-400">Reach buyers across BenixSpace and grow your business.</p>
               </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSubmitAd(true)}
+              className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black shrink-0"
+            >
+              Submit Ad
+            </button>
+          </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Story Caption
-                </label>
-                <input
-                  type="text"
-                  value={storyCaption}
-                  onChange={(e) => setStoryCaption(e.target.value)}
-                  placeholder="Add an engaging caption to your story..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#161D2E] border border-slate-700 text-white text-xs focus:outline-none focus:border-pink-500"
-                />
-              </div>
-
-              <div className="p-3 rounded-2xl bg-pink-500/10 border border-pink-500/20 text-[11px] text-pink-300 flex items-center gap-2">
-                <Clock className="w-4 h-4 shrink-0 text-pink-400" />
-                <span>Your story will appear in the top Stories Bar on the homepage for 24 hours.</span>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || !storyMediaUrl}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50"
-              >
-                {loading ? 'Publishing Story...' : 'Publish Story to Homepage'}
-              </button>
-            </form>
-          )}
-
-          {/* TAB 2: BROADCAST YOUTUBE VIDEO */}
-          {tab === 'video' && (
-            <form onSubmit={handleUploadVideo} className="space-y-4">
+          {/* Broadcast YouTube video */}
+          <form onSubmit={handleUploadVideo} className="space-y-4">
               
               {/* Single YouTube Video Input (Standard, Shortened, or Shorts) */}
               <div>
@@ -1272,7 +703,6 @@ export const CreateMediaModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
                 {loading ? 'Broadcasting Video...' : isBoostEnabled ? `Boost Video (${estimatedBoostViews.toLocaleString()} views)` : 'Broadcast Video to Creator Hub'}
               </button>
             </form>
-          )}
 
         </div>
 

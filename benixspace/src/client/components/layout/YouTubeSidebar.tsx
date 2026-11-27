@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSidebar } from '../../context/SidebarContext';
-import { usePlayer } from '../../context/PlayerContext';
 import { usePwa } from '../../context/PwaContext';
 import {
   Home,
@@ -22,13 +21,7 @@ import {
   ChevronUp,
   X,
   LogIn,
-  Play,
-  Volume2,
   ExternalLink,
-  ShieldCheck,
-  Compass,
-  Flame,
-  RadioTower,
   Zap,
   Download,
   LayoutDashboard,
@@ -47,7 +40,6 @@ export const YouTubeSidebar: React.FC = () => {
   const { user, wallet, hasAppProfile } = useAuth();
   const { formatAmount } = useCurrency();
   const { isInstalled, installApp } = usePwa();
-  const { playTvChannel, playStation } = usePlayer();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -385,7 +377,7 @@ export const YouTubeSidebar: React.FC = () => {
                   return (
                     <a
                       key={item.id}
-                      href={item.external}
+                      href={(item as any).external}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => { if (isDrawer) closeMobile(); }}

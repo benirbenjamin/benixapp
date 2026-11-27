@@ -127817,14 +127817,8 @@ app.get("/api/shorts/feed", async (req, res) => {
         ) as "subscribersCount"
       FROM user_videos v
       LEFT JOIN core_users u ON v.user_id = u.id
-      WHERE (v.is_portrait = TRUE 
-         OR v.category ILIKE '%short%' 
-         OR v.category ILIKE '%tiktok%' 
-         OR v.category ILIKE '%story%'
-         OR v.description ILIKE '%#short%'
-         OR v.title ILIKE '%#short%'
-         OR (v.is_boosted = TRUE AND v.boost_status = 'active'))
-      ORDER BY v.is_boosted DESC, v.created_at DESC
+      WHERE v.is_boosted = TRUE
+      ORDER BY v.created_at DESC
       LIMIT 150
     `).catch(() => ({ rows: [] }));
     const combined = [...storiesRes.rows || [], ...videosRes.rows || []];
@@ -127918,6 +127912,10 @@ app.get("/api/shorts/feed", async (req, res) => {
         subscribersCount: Number(item.subscribersCount) || 0,
         source: item.source,
         category: item.category,
+        isBoosted: Boolean(item.isBoosted),
+        boostStatus: item.boostStatus || "inactive",
+        targetViews: Number(item.targetViews) || 0,
+        viewsDelivered: Number(item.viewsDelivered) || 0,
         createdAt: item.createdAt,
         isMonetized: item.userMonetization === "approved" || item.userMonetization === "active" || item.userMonetization === "monetized" || item.isMonetized,
         trendingScore: Number(finalScore.toFixed(3)),

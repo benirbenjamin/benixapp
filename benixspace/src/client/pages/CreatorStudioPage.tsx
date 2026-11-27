@@ -11,13 +11,11 @@ import {
   DollarSign,
   Sparkles,
   CheckCircle2,
-  AlertCircle,
   ArrowLeft,
   Plus,
+  Megaphone,
   Play,
-  Share2,
   Trash2,
-  ExternalLink,
   Award,
   TrendingUp,
   BarChart3,
@@ -89,7 +87,7 @@ export const CreatorStudioPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [analytics, setAnalytics] = useState<StudioAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'stories' | 'analytics' | 'monetization'>('dashboard');
@@ -747,11 +745,11 @@ export const CreatorStudioPage: React.FC = () => {
                 </p>
               </div>
               <button
-                onClick={() => setShowUploadModal(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5"
+                onClick={() => navigate('/advertise')}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Post New Story</span>
+                <Megaphone className="w-3.5 h-3.5" />
+                <span>Submit Ad for Leads</span>
               </button>
             </div>
 
@@ -760,12 +758,12 @@ export const CreatorStudioPage: React.FC = () => {
             ) : creatorStories.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-400 bg-slate-900/40 rounded-2xl border border-slate-800 space-y-3">
                 <Play className="w-8 h-8 text-slate-600 mx-auto" />
-                <p>You haven't posted any stories yet.</p>
+                <p>Story posting has been replaced by ads. Submit an ad to reach your audience.</p>
                 <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white font-bold"
+                  onClick={() => navigate('/advertise')}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold"
                 >
-                  Create Your First Story
+                  Submit an Ad
                 </button>
               </div>
             ) : (
@@ -906,20 +904,20 @@ export const CreatorStudioPage: React.FC = () => {
               <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
                 {viewingStoryViewers.viewers.map((viewer) => (
                   <div
-                    key={viewer.id}
+                    key={viewer.viewerId}
                     className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-blue-500 overflow-hidden flex items-center justify-center text-white font-bold text-xs shrink-0">
-                        {viewer.avatarUrl ? (
-                          <img src={viewer.avatarUrl} alt={viewer.name} className="w-full h-full object-cover" />
+                        {viewer.viewerAvatar ? (
+                          <img src={viewer.viewerAvatar} alt={viewer.viewerName} className="w-full h-full object-cover" />
                         ) : (
-                          viewer.name.charAt(0).toUpperCase()
+                          (viewer.viewerName || '?').charAt(0).toUpperCase()
                         )}
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-white">{viewer.name}</p>
-                        <span className="text-[10px] text-slate-400">{viewer.email || 'Benix Member'}</span>
+                        <p className="text-xs font-bold text-white">{viewer.viewerName || 'Benix Member'}</p>
+                        <span className="text-[10px] text-slate-400">Benix Member</span>
                       </div>
                     </div>
                     <span className="text-[10px] text-slate-500 font-mono">
@@ -1010,7 +1008,6 @@ export const CreatorStudioPage: React.FC = () => {
       {showUploadModal && (
         <CreateMediaModal
           isOpen={showUploadModal}
-          initialTab="video"
           onClose={() => setShowUploadModal(false)}
           onSuccess={() => {
             setShowUploadModal(false);

@@ -2,13 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Play,
-  Pause,
   Heart,
   MessageCircle,
   Share2,
   Sparkles,
   Tv,
-  CheckCircle2,
   Volume2,
   VolumeX,
   ChevronDown,
@@ -18,12 +16,10 @@ import {
   ExternalLink,
   X,
   Flame,
-  Radio,
   Clock,
   DollarSign,
   Maximize2,
   Music,
-  UserPlus,
   Check,
   Zap,
   ShieldCheck
@@ -34,7 +30,6 @@ import { AdSenseUnit } from '../common/AdSenseUnit';
 import { getAuthToken } from '../../services/api';
 import { showToast } from '../../utils/toast';
 import { getEffectiveCustomAd, getEffectiveBannerOnlyAd } from '../../config/sponsorAds';
-import realVideosData from '../../config/realVideos.json';
 
 export interface ShortFeedItem {
   id: string;
@@ -110,6 +105,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const { user } = useAuth();
   const { setActivePipMedia } = usePlayer();
 
+  // Build a Share & Earn referral link that always carries the sharer's referral code
+  const buildReferralLink = (path: string, shareId: string) => {
+    const params = new URLSearchParams();
+    if (shareId) params.set('shareId', shareId);
+    if (user?.referral_code) params.set('ref', user.referral_code);
+    const qs = params.toString();
+    return `${window.location.origin}${path}${qs ? `?${qs}` : ''}`;
+  };
+
   const [shorts, setShorts] = useState<ShortFeedItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [customAds, setCustomAds] = useState<CustomAdItem[]>([]);
@@ -118,7 +122,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [activeIndex, setActiveIndex] = useState<number>(initialIndex);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [isAutoScroll, setIsAutoScroll] = useState<boolean>(true);
+  const [isAutoScroll] = useState<boolean>(true);
   const [photoProgress, setPhotoProgress] = useState<number>(0);
   const [isVerticalModalOpen, setIsVerticalModalOpen] = useState<boolean>(isStandalonePage);
 
@@ -137,7 +141,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [subscribersMap, setSubscribersMap] = useState<Record<string, number>>({});
 
   // 10-Second Non-Skippable Interstitial Ad Sequencer State
-  const [scrolledVideosCount, setScrolledVideosCount] = useState<number>(0);
+  const [, setScrolledVideosCount] = useState<number>(0);
   const [nextInterstitialThreshold, setNextInterstitialThreshold] = useState<number>(() => Math.floor(Math.random() * 6) + 5); // 5 to 10
   const [interstitialAdIndex, setInterstitialAdIndex] = useState<number>(0);
   const [showInterstitialAd, setShowInterstitialAd] = useState<boolean>(false);
@@ -671,19 +675,28 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                         Explore
                       </a>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
                           const token = getAuthToken();
+                          let shareId = '';
                           if (token) {
-                            fetch('/api/ads/share', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                              body: JSON.stringify({ adId: ad.id })
-                            }).catch(() => {});
+                            try {
+                              const res = await fetch('/api/ads/share', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ adId: ad.id })
+                              });
+                              const data = await res.json();
+                              if (data?.shareId) shareId = data.shareId;
+                            } catch {}
                           }
-                          const adUrl = `${window.location.origin}/ad/${ad.id}`;
-                          if (navigator.share) navigator.share({ title: ad.title, url: adUrl }).catch(() => {});
-                          else {
+                          const adUrl = buildReferralLink(`/ad/${ad.id}`, shareId);
+                          if (navigator.share) {
+                            navigator.share({ title: ad.title, text: `${ad.title} — ${adUrl}` }).catch(() => {
+                              navigator.clipboard?.writeText(adUrl);
+                              showToast('Ad link copied! Earn when friends click or view.', 'success');
+                            });
+                          } else {
                             navigator.clipboard?.writeText(adUrl);
                             showToast('Ad link copied! Earn when friends click or view.', 'success');
                           }
@@ -692,6 +705,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                         title="Share & Earn"
                       >
                         <Share2 className="w-3 h-3" />
+                        <span>Earn</span>
                       </button>
                     </div>
                   </div>
@@ -777,18 +791,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                         if (data?.shareId) shareId = data.shareId;
                       } catch {}
                     }
-                    const shareUrl = `${window.location.origin}/videos/${item.id}${shareId ? `?shareId=${shareId}` : ''}`;
-                    if (navigator.share) {
-                      navigator.share({ title: item.title, url: shareUrl }).catch(() => {});
-                    } else {
-                      navigator.clipboard?.writeText(shareUrl);
-                      showToast('Link copied! Share it to earn.', 'success');
-                    }
+                    const shareUrl = buildReferralLink(`/videos/${item.id}`, shareId);
+                    try { await navigator.clipboard?.writeText(shareUrl); } catch {}
+                    showToast('Earn link copied! Share it — you earn when friends watch.', 'success');
                   }}
-                  className="absolute top-2 right-2 z-20 p-1.5 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-amber-500 hover:text-slate-950 transition shadow-lg"
+                  className="absolute top-2 right-2 z-20 px-2 py-1 rounded-full bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold flex items-center gap-1 transition shadow-lg"
                   title="Share & Earn"
                 >
                   <Share2 className="w-3.5 h-3.5" />
+                  <span>Earn</span>
                 </button>
 
                 {/* Center Hover Play Icon */}
@@ -1156,9 +1167,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                             if (data?.shareId) shareId = data.shareId;
                           } catch {}
                         }
-                        const shareUrl = `${window.location.origin}/videos/${item.id}${shareId ? `?shareId=${shareId}` : ''}`;
+                        const shareUrl = buildReferralLink(`/videos/${item.id}`, shareId);
                         if (navigator.share) {
-                          navigator.share({ title: item.title, url: shareUrl }).catch(() => {});
+                          navigator.share({ title: item.title, text: `${item.title} — ${shareUrl}` }).catch(() => {
+                            navigator.clipboard?.writeText(shareUrl);
+                            showToast('Earn link copied! Share it to earn when friends watch.', 'success');
+                          });
                         } else {
                           navigator.clipboard?.writeText(shareUrl);
                           showToast('Video link copied! Share it to earn when friends watch.', 'success');
@@ -1170,7 +1184,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                       <div className="p-2.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/70 transition group-hover:scale-110">
                         <Share2 className="w-5 h-5" />
                       </div>
-                      <span className="text-[10px] font-bold drop-shadow">Share</span>
+                      <span className="text-[9px] font-bold drop-shadow">Share &amp; Earn</span>
                     </button>
 
                     {/* 4. Views / Flame Counter */}
@@ -1250,19 +1264,27 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
                                 const token = getAuthToken();
-                                if (token) {
-                                  fetch('/api/ads/share', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                    body: JSON.stringify({ adId: customAd?.id })
-                                  }).catch(() => {});
+                                let shareId = '';
+                                if (token && customAd?.id) {
+                                  try {
+                                    const res = await fetch('/api/ads/share', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                      body: JSON.stringify({ adId: customAd.id })
+                                    });
+                                    const data = await res.json();
+                                    if (data?.shareId) shareId = data.shareId;
+                                  } catch {}
                                 }
-                                const adUrl = `${window.location.origin}/ad/${customAd?.id}`;
+                                const adUrl = buildReferralLink(`/ad/${customAd?.id}`, shareId);
                                 if (navigator.share) {
-                                  navigator.share({ title: customAd?.title, url: adUrl }).catch(() => {});
+                                  navigator.share({ title: customAd?.title, text: `${customAd?.title} — ${adUrl}` }).catch(() => {
+                                    navigator.clipboard?.writeText(adUrl);
+                                    showToast('Ad link copied! You will earn when friends click or view it.', 'success');
+                                  });
                                 } else {
                                   navigator.clipboard?.writeText(adUrl);
                                   showToast('Ad link copied! You will earn when friends click or view it.', 'success');
@@ -1272,6 +1294,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                               title="Share & Earn"
                             >
                               <Share2 className="w-3 h-3" />
+                              <span>Earn</span>
                             </button>
                             <button
                               type="button"

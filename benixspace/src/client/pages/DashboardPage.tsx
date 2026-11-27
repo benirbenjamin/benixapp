@@ -101,7 +101,6 @@ export const DashboardPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showCreateMediaModal, setShowCreateMediaModal] = useState(false);
-  const [mediaModalTab, setMediaModalTab] = useState<'story' | 'video'>('video');
   const [boostStats, setBoostStats] = useState<any>(null);
   const [selectedReceiptTx, setSelectedReceiptTx] = useState<any | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -773,8 +772,7 @@ export const DashboardPage: React.FC = () => {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <DashboardCreatorBar
-              onOpenStoryModal={() => { setMediaModalTab('story'); setShowCreateMediaModal(true); }}
-              onOpenVideoModal={() => { setMediaModalTab('video'); setShowCreateMediaModal(true); }}
+              onOpenVideoModal={() => setShowCreateMediaModal(true)}
               onOpenAdModal={() => setShowSubmitAdModal(true)}
               wallet={wallet}
               userCampaignsCount={userCampaigns.length}
@@ -2113,7 +2111,6 @@ export const DashboardPage: React.FC = () => {
         <CreateMediaModal
           isOpen={showCreateMediaModal}
           onClose={() => setShowCreateMediaModal(false)}
-          initialTab={mediaModalTab}
         />
       )}
 

@@ -584,102 +584,25 @@ export const HomePage: React.FC = () => {
       <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-10">
 
         {/* ========================================================
-            1. SHORTS & REELS BAR (COME UP BEFORE FEATURED SECTION)
+            ADVERTISEMENT / LEADS CTA (Replaces Stories)
            ======================================================== */}
-        <section ref={shortsSectionRef} className="space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-md">
-                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-              </div>
-              <h2 className="text-lg sm:text-xl font-black text-white">
-                Shorts & Stories
-              </h2>
+        <section className="rounded-2xl p-5 sm:p-6 bg-gradient-to-r from-amber-950/60 via-orange-950/40 to-[#0F141F] border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 text-center sm:text-left">
+            <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-300 shrink-0 border border-amber-500/30">
+              <Sparkles className="w-6 h-6" />
             </div>
-
-            <button
-              onClick={() => {
-                if (!user) setWizardTargetKey('tv');
-                else setShowCreateMediaModal(true);
-              }}
-              className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Your Story</span>
-            </button>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-white">Submit an Ad for Getting Leads</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Promote your business, reach Rwandan audiences, and get more customers with CPM &amp; CPC ads.</p>
+            </div>
           </div>
-
-          <div className="flex items-center gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none">
-            {/* Create Story Button */}
-            <button
-              onClick={() => {
-                if (!user) setWizardTargetKey('tv');
-                else setShowCreateMediaModal(true);
-              }}
-              className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl border-2 border-dashed border-blue-500/60 hover:border-blue-400 bg-blue-600/10 flex flex-col items-center justify-center gap-2 shrink-0 group transition-all"
-            >
-              <div className="w-12 h-12 rounded-full bg-blue-600/20 text-blue-400 group-hover:scale-110 flex items-center justify-center transition-transform">
-                <Plus className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-white">
-                Add Story
-              </span>
-            </button>
-
-            {/* Stories List (Supports Video & Photo stories) */}
-            {stories.map((story, idx) => {
-              const isVideo =
-                story.mediaType === 'video' ||
-                story.mediaUrl?.startsWith('data:video') ||
-                /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(story.mediaUrl);
-
-              return (
-                <div
-                  key={story.id || idx}
-                  onClick={() => setActiveStoryIndex(idx)}
-                  className="w-32 sm:w-36 h-56 sm:h-64 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/60 overflow-hidden relative cursor-pointer shrink-0 group transition-all shadow-lg"
-                >
-                  {isVideo ? (
-                    <video
-                      src={story.mediaUrl}
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none"
-                    />
-                  ) : (
-                    <img
-                      src={story.mediaUrl || story.authorAvatar}
-                      alt={story.authorName}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-between p-2.5">
-                    <div className="w-7 h-7 rounded-full border-2 border-blue-500 overflow-hidden">
-                      <img
-                        src={story.authorAvatar || story.mediaUrl}
-                        alt={story.authorName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight">
-                        {story.caption || story.authorName}
-                      </h4>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
-                        {story.authorName}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {stories.length === 0 && (
-              <div className="flex items-center gap-3 text-xs text-slate-400 px-3 py-6">
-                <span>No stories active yet. Click "Add Story" to upload yours!</span>
-              </div>
-            )}
-          </div>
+          <Link
+            to="/advertise"
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-500/25 flex items-center gap-2 shrink-0 transition active:scale-95"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Submit Ad</span>
+          </Link>
         </section>
 
         {/* ========================================================
