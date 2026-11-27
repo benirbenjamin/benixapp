@@ -590,19 +590,24 @@ benixPayRouter.post(['/api/benixpay/merchant/kyc/submit', '/api/benixpay/merchan
     const merchant = await BenixPayService.getMerchantByUserId(userId);
     if (!merchant) return res.status(404).json({ success: false, error: 'Merchant not found.' });
 
-    const { business_reg_number, tin_number, owner_id_type, owner_id_number, document_urls, notes } = req.body;
+    const { id_front_url, id_back_url, passport_photo_url, company_documents, business_reg_number, tin_number } = req.body;
 
-    if (!business_reg_number || !tin_number) {
-      return res.status(400).json({ success: false, error: 'Business Registration Number and TIN are required.' });
+    if (!id_front_url || !id_back_url || !passport_photo_url) {
+      return res.status(400).json({
+        success: false,
+        error: 'National ID front, National ID back, and passport photo are required.'
+      });
     }
 
     const kycPayload = {
+      id_front_url,
+      id_back_url,
+      passport_photo_url,
+      company_documents: Array.isArray(company_documents) ? company_documents : [],
+      // Legacy optional fields kept for backward compatibility
       business_reg_number,
       tin_number,
-      owner_id_type,
-      owner_id_number,
-      document_urls: Array.isArray(document_urls) ? document_urls : [],
-      notes
+      submitted_at: new Date().toISOString()
     };
 
     const updated = await query(

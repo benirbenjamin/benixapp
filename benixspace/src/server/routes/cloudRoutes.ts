@@ -2164,18 +2164,46 @@ cloudRouter.post('/databases', authenticateToken, async (req: AuthenticatedReque
     let realPort = 5432;
     let realDb = 'neondb';
     let realUser = 'postgres';
+    let realPassword = '';
     try {
-      if (process.env.DATABASE_URL) {
-        const parsed = new URL(process.env.DATABASE_URL);
+      const baseConn = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
+      if (baseConn) {
+        const parsed = new URL(baseConn);
         realHost = parsed.hostname || realHost;
         realPort = Number(parsed.port) || realPort;
         realDb = parsed.pathname.replace(/^\//, '') || realDb;
-        realUser = parsed.username || realUser;
+        realUser = parsed.username ? decodeURIComponent(parsed.username) : realUser;
+        realPassword = parsed.password ? decodeURIComponent(parsed.password) : '';
       }
     } catch {}
 
-    const generatedPassword = crypto.randomBytes(8).toString('hex') + 'A1!';
-    const realConnUri = `postgresql://${realUser}:${generatedPassword}@${realHost}:${realPort}/${realDb}?options=-c%20search_path%3D${schemaName}&sslmode=require`;
+    const generatedPassword = crypto.randomBytes(12).toString('hex') + 'A1!';
+    const roleName = `u_${safeDb}_${shortUser}`.slice(0, 60);
+    let roleCreated = false;
+
+    // Provision an isolated login role that can only access this schema
+    try {
+      await query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${roleName}') THEN CREATE ROLE "${roleName}" LOGIN PASSWORD '${generatedPassword}'; END IF; END $$;`);
+      await query(`GRANT USAGE, CREATE ON SCHEMA "${schemaName}" TO "${roleName}"`);
+      await query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "${schemaName}" TO "${roleName}"`);
+      await query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "${schemaName}" TO "${roleName}"`);
+      await query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON TABLES TO "${roleName}"`);
+      await query(`ALTER DEFAULT PRIVILEGES IN SCHEMA "${schemaName}" GRANT ALL ON SEQUENCES TO "${roleName}"`);
+      roleCreated = true;
+    } catch (roleErr: any) {
+      console.warn('[cloud db] Could not create isolated role, falling back to platform credentials:', roleErr?.message);
+    }
+
+    const finalDbUser = roleCreated ? roleName : realUser;
+    const finalDbPass = roleCreated ? generatedPassword : realPassword;
+    if (!finalDbPass) {
+      return res.status(500).json({
+        success: false,
+        error: 'Server DATABASE_URL is not configured with credentials. Set DATABASE_URL (or POSTGRES_URL) in the environment.'
+      });
+    }
+
+    const realConnUri = `postgresql://${encodeURIComponent(finalDbUser)}:${encodeURIComponent(finalDbPass)}@${realHost}:${realPort}/${realDb}?options=-c%20search_path%3D${schemaName}&sslmode=require`;
 
     const dbId = 'cdb-' + crypto.randomUUID();
     const inserted = await query(
@@ -2194,8 +2222,8 @@ cloudRouter.post('/databases', authenticateToken, async (req: AuthenticatedReque
         name,
         engine,
         dbName,
-        dbUser,
-        generatedPassword,
+        finalDbUser,
+        roleCreated ? generatedPassword : null,
         realPort,
         realPort,
         realConnUri,
@@ -2225,8 +2253,25 @@ cloudRouter.post('/databases/:id/test-connection', authenticateToken, async (req
     if (dbRes.rowCount === 0) return res.status(404).json({ error: 'Database not found' });
     const db = dbRes.rows[0];
 
+    if (!db.connection_uri_masked) {
+      return res.status(400).json({ success: false, error: 'No connection URI stored for this database.' });
+    }
+
+    const { Client } = await import('pg');
+    const client = new Client({
+      connectionString: db.connection_uri_masked,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000
+    });
+
     const t0 = Date.now();
-    const testRes = await query('SELECT version(), current_database(), current_schema()');
+    let testRes: any;
+    try {
+      await client.connect();
+      testRes = await client.query('SELECT version(), current_database(), current_schema()');
+    } finally {
+      await client.end().catch(() => {});
+    }
     const latencyMs = Date.now() - t0;
 
     const rawVer = String(testRes.rows[0]?.version || 'PostgreSQL 16.6');
@@ -2274,16 +2319,30 @@ cloudRouter.post('/databases/:id/query', authenticateToken, async (req: Authenti
       }
     }
 
-    // Set search_path to user's isolated schema
-    await query(`SET search_path TO "${schema}", public`);
-    const qRes = await query(sqlQuery);
+    if (!db.connection_uri_masked) {
+      return res.status(400).json({ error: 'No connection URI stored for this database.' });
+    }
 
-    return res.json({
-      success: true,
-      rows: qRes.rows || [],
-      rowCount: qRes.rowCount || 0,
-      columns: qRes.rows.length > 0 ? Object.keys(qRes.rows[0]) : []
+    const { Client } = await import('pg');
+    const client = new Client({
+      connectionString: db.connection_uri_masked,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000
     });
+
+    try {
+      await client.connect();
+      await client.query(`SET search_path TO "${schema}", public`);
+      const qRes = await client.query(sqlQuery);
+      return res.json({
+        success: true,
+        rows: qRes.rows || [],
+        rowCount: qRes.rowCount || 0,
+        columns: qRes.rows.length > 0 ? Object.keys(qRes.rows[0]) : []
+      });
+    } finally {
+      await client.end().catch(() => {});
+    }
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
   }

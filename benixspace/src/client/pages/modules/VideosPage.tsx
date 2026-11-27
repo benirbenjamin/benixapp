@@ -65,6 +65,8 @@ interface VideoItem {
   channelName?: string;
   channelAvatar?: string;
   userId?: string;
+  isBoosted?: boolean;
+  boostStatus?: string;
   createdAt?: string;
 }
 
@@ -220,6 +222,9 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
   // Share & Earn: reward the sharer after a verified 2-minute watch from a shared link
   const shareLinkId = searchParams.get('shareId') || searchParams.get('share') || '';
   const [shareRewardClaimed, setShareRewardClaimed] = useState<boolean>(false);
+
+  // Boosted video view tracking (deduplicates per viewer on the server)
+  const boostedTrackedRef = useRef<Set<string>>(new Set());
 
   // Creator Upload Video Modal State (Unified Chunked + Background Upload Modal)
   const [showCreateMediaModal, setShowCreateMediaModal] = useState<boolean>(false);
@@ -496,6 +501,31 @@ export const VideosPage: React.FC<{ initialTab?: 'videos' | 'shorts' }> = ({ ini
     }, 1000);
     return () => clearInterval(timer);
   }, [shareLinkId, activeVideo?.id, isPlaying, shareRewardClaimed, user?.id]);
+
+  // Track a boosted video view so the campaign budget/views are consumed correctly
+  useEffect(() => {
+    if (!activeVideo || !isPlaying) return;
+    if (!activeVideo.isBoosted || activeVideo.boostStatus === 'completed') return;
+    const videoId = activeVideo.id;
+    if (boostedTrackedRef.current.has(videoId)) return;
+    const timer = setTimeout(() => {
+      boostedTrackedRef.current.add(videoId);
+      let viewerId = '';
+      try {
+        viewerId = localStorage.getItem('benix_visitor_id') || '';
+        if (!viewerId) {
+          viewerId = 'v_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+          localStorage.setItem('benix_visitor_id', viewerId);
+        }
+      } catch {}
+      fetch(`/api/videos/${encodeURIComponent(videoId)}/boosted-view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ viewerId })
+      }).catch(() => {});
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [activeVideo?.id, activeVideo?.isBoosted, activeVideo?.boostStatus, isPlaying]);
 
   // Load dynamic video ad timing settings
   useEffect(() => {

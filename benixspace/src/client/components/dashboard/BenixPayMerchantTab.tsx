@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
+import { uploadFileInChunks } from '../../utils/chunkedUpload';
 
 interface BenixPayMerchant {
   id: string;
@@ -64,9 +65,11 @@ export const BenixPayMerchantTab: React.FC = () => {
   
   // Modals & transient outputs
   const [showKycModal, setShowKycModal] = useState(false);
-  const [kycRegNumber, setKycRegNumber] = useState('');
-  const [kycTin, setKycTin] = useState('');
-  const [kycDoc, setKycDoc] = useState('');
+  const [kycIdFront, setKycIdFront] = useState('');
+  const [kycIdBack, setKycIdBack] = useState('');
+  const [kycPassport, setKycPassport] = useState('');
+  const [kycCompanyDocs, setKycCompanyDocs] = useState<string[]>([]);
+  const [kycUploading, setKycUploading] = useState<string | null>(null);
   const [kycSubmitting, setKycSubmitting] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -244,18 +247,48 @@ export const BenixPayMerchantTab: React.FC = () => {
     }
   };
 
+  // Upload KYC documents from the user's computer
+  const handleKycUpload = async (
+    files: FileList | null,
+    kind: 'idFront' | 'idBack' | 'passport' | 'company'
+  ) => {
+    if (!files || files.length === 0) return;
+    setKycUploading(kind);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        const url = await uploadFileInChunks(file, { folder: 'kyc' });
+        if (url) urls.push(url);
+      }
+      if (urls.length === 0) throw new Error('Upload failed. Please try again.');
+      if (kind === 'idFront') setKycIdFront(urls[0]);
+      else if (kind === 'idBack') setKycIdBack(urls[0]);
+      else if (kind === 'passport') setKycPassport(urls[0]);
+      else setKycCompanyDocs((prev) => [...prev, ...urls]);
+    } catch (err: any) {
+      alert(err?.message || 'Could not upload document.');
+    } finally {
+      setKycUploading(null);
+    }
+  };
+
   // Submit KYC for Live Activation
   const handleSubmitKyc = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!kycIdFront || !kycIdBack || !kycPassport) {
+      alert('Please upload the National ID front, National ID back, and your passport photo.');
+      return;
+    }
     try {
       setKycSubmitting(true);
       const res = await fetch('/api/benixpay/merchant/kyc', {
         method: 'POST',
         headers: getAuthHeader(),
         body: JSON.stringify({
-          business_reg_number: kycRegNumber.trim(),
-          tin_number: kycTin.trim(),
-          document_urls: kycDoc.trim() ? [kycDoc.trim()] : []
+          id_front_url: kycIdFront,
+          id_back_url: kycIdBack,
+          passport_photo_url: kycPassport,
+          company_documents: kycCompanyDocs
         })
       });
 
@@ -800,44 +833,104 @@ export const BenixPayMerchantTab: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Rwanda regulatory compliance requires verifying merchant identity before enabling live Mobile Money and Card settlement.
+              Upload clear photos or scans from your computer. Your National ID (front and back) and a passport photo are required. Company documents are optional.
             </p>
 
             <form onSubmit={handleSubmitKyc} className="space-y-4 pt-2">
+              {/* National ID Front */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Business Registration Number *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. RDB/REG/2024/123456"
-                  value={kycRegNumber}
-                  onChange={(e) => setKycRegNumber(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
-                />
+                <label className="text-xs font-bold text-slate-300">National ID — Front *</label>
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:border-blue-500 transition-colors">
+                    {kycUploading === 'idFront' ? 'Uploading...' : kycIdFront ? 'Replace file' : 'Choose from computer'}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleKycUpload(e.target.files, 'idFront')}
+                    />
+                  </label>
+                  {kycIdFront && (
+                    <a href={kycIdFront} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-400 truncate">
+                      Uploaded ✓
+                    </a>
+                  )}
+                </div>
               </div>
 
+              {/* National ID Back */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">RDB / TIN Number *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 109283746"
-                  value={kycTin}
-                  onChange={(e) => setKycTin(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
-                />
+                <label className="text-xs font-bold text-slate-300">National ID — Back *</label>
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:border-blue-500 transition-colors">
+                    {kycUploading === 'idBack' ? 'Uploading...' : kycIdBack ? 'Replace file' : 'Choose from computer'}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleKycUpload(e.target.files, 'idBack')}
+                    />
+                  </label>
+                  {kycIdBack && (
+                    <a href={kycIdBack} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-400 truncate">
+                      Uploaded ✓
+                    </a>
+                  )}
+                </div>
               </div>
 
+              {/* Passport Photo */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Registration Certificate or National ID URL *</label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://drive.google.com/... or document URL"
-                  value={kycDoc}
-                  onChange={(e) => setKycDoc(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
-                />
+                <label className="text-xs font-bold text-slate-300">Passport Photo *</label>
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:border-blue-500 transition-colors">
+                    {kycUploading === 'passport' ? 'Uploading...' : kycPassport ? 'Replace file' : 'Choose from computer'}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleKycUpload(e.target.files, 'passport')}
+                    />
+                  </label>
+                  {kycPassport && (
+                    <a href={kycPassport} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-400 truncate">
+                      Uploaded ✓
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Optional Company Documents */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300">Company Documents (optional)</label>
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:border-blue-500 transition-colors">
+                    {kycUploading === 'company' ? 'Uploading...' : 'Choose files'}
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleKycUpload(e.target.files, 'company')}
+                    />
+                  </label>
+                  <span className="text-[11px] text-slate-500">{kycCompanyDocs.length} file(s) attached</span>
+                </div>
+                {kycCompanyDocs.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {kycCompanyDocs.map((url, idx) => (
+                      <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block text-[11px] text-blue-400 hover:text-blue-300 truncate"
+                      >
+                        Company document {idx + 1} ↗
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

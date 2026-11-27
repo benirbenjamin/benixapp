@@ -332,13 +332,29 @@ export async function recordClientAnalyticsEvent(eventData: any) {
   localEvents.unshift(newEvt);
   if (localEvents.length > 2000) localEvents.splice(2000);
   setLocalData('benix_analytics_events', localEvents);
+
+  // Persist real telemetry to the server so admin analytics are genuine
+  try {
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newEvt),
+      keepalive: true
+    }).catch(() => {});
+  } catch {}
+
   return newEvt;
 }
 
-export async function fetchAnalyticsStats(range: string = '30d') {
+export async function fetchAnalyticsStats(range: string = '30d', from?: string, to?: string) {
   const token = getAuthToken();
   if (token) {
-    const remote = await tryRemoteFetch<any>(`/api/admin/analytics?range=${range}`, {
+    const params = new URLSearchParams({ range });
+    if (range === 'custom') {
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+    }
+    const remote = await tryRemoteFetch<any>(`/api/admin/analytics?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (remote && remote.overview) {
@@ -350,34 +366,22 @@ export async function fetchAnalyticsStats(range: string = '30d') {
   return {
     overview: {
       total_views: 0,
+      page_views: 0,
       unique_visitors: 0,
+      sessions: 0,
       external_clicks: 0,
       avg_views_per_session: 0,
+      avg_time_on_site: 0,
       bounce_rate: 0
     },
-    stats: {
-      total_users: 0,
-      total_wallet_balance: 0,
-      total_tx_volume: 0,
-      tv_stations: 0,
-      radio_stations: 0,
-      tv_videos: 0,
-      kunda_profiles: 0,
-      game_rooms: 0
-    },
-    adsense_earnings: 0.00,
-    tv_interstitial_earnings: 0.00,
-    radio_preroll_earnings: 0.00,
-    banner_earnings: 0.00,
-    tv_impressions: 0,
-    radio_impressions: 0,
-    banner_impressions: 0,
-    top_projects: [],
-    top_articles: [],
+    trend: [],
+    top_pages: [],
     sources: [],
     devices: [],
     browsers: [],
-    recent_activity: []
+    os: [],
+    recent_activity: [],
+    stats: { total_users: 0, total_videos: 0, total_articles: 0 }
   };
 }
 

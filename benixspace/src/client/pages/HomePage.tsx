@@ -549,9 +549,9 @@ export const HomePage: React.FC = () => {
       />
 
       {/* ========================================================
-          1. YOUTUBE-STYLE FILTER CHIPS BAR (Sticky below top navbar)
+          1. YOUTUBE-STYLE FILTER CHIPS BAR
          ======================================================== */}
-      <div className="sticky top-14 z-20 bg-[#0B0E14]/95 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 py-2.5">
+      <div className="relative z-20 bg-[#0B0E14]/95 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 py-2.5">
         <div className="max-w-[1720px] mx-auto flex items-center gap-2 overflow-x-auto scrollbar-none scroll-smooth">
           {[
             'All',

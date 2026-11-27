@@ -4007,6 +4007,7 @@ async function ensureVideoAndShortsTables() {
       likes INT DEFAULT 0,
       access_type VARCHAR(50) DEFAULT 'PUBLIC',
       price NUMERIC(15,2) DEFAULT 0,
+      is_paid BOOLEAN DEFAULT FALSE,
       category VARCHAR(100) DEFAULT 'General',
       user_id VARCHAR(255) NOT NULL,
       channel_name VARCHAR(255),
@@ -4019,6 +4020,8 @@ async function ensureVideoAndShortsTables() {
     );
   `).catch(() => {});
   await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS is_portrait BOOLEAN DEFAULT FALSE;').catch(() => {});
+  await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;').catch(() => {});
+  await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(50);').catch(() => {});
   await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS likes INT DEFAULT 0;').catch(() => {});
   await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS channel_name VARCHAR(255);').catch(() => {});
   await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS author_name VARCHAR(255);').catch(() => {});
@@ -4086,14 +4089,15 @@ async function ensureVideoAndShortsTables() {
   `).catch(() => {});
 }
 
-let hasEnsuredShortsFeedTables = false;
-function ensureShortsFeedTablesOnce() {
-  if (hasEnsuredShortsFeedTables) return;
-  hasEnsuredShortsFeedTables = true;
-  Promise.all([
-    ensureStoriesTable().catch(() => {}),
-    ensureVideoAndShortsTables().catch(() => {})
-  ]).catch(() => {});
+let shortsFeedTablesPromise: Promise<void> | null = null;
+function ensureShortsFeedTablesOnce(): Promise<void> {
+  if (!shortsFeedTablesPromise) {
+    shortsFeedTablesPromise = Promise.all([
+      ensureStoriesTable().catch(() => {}),
+      ensureVideoAndShortsTables().catch(() => {})
+    ]).then(() => undefined);
+  }
+  return shortsFeedTablesPromise;
 }
 
 app.get('/api/shorts', (req, res) => {
@@ -4108,7 +4112,7 @@ app.get('/api/shorts', (req, res) => {
 app.get('/api/shorts/feed', async (req, res) => {
   try {
     // Non-blocking schema assurance in background
-    ensureShortsFeedTablesOnce();
+    await ensureShortsFeedTablesOnce();
 
     // Extract viewer identity (Bearer token or client visitorId)
     let viewerId = (req.query.visitorId as string) || (req.headers['x-visitor-id'] as string) || '';
@@ -4703,6 +4707,7 @@ const MIN_WATCH_MS_FOR_REWARD = 120000; // 2 minutes of watch time required to r
 
 app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
+    await ensureVideoAndShortsTables();
     const { title, description, videoUrl, category = 'General', price = 0, isPortrait, duration, thumbnailUrl, targetViews = 0, budget = 0, isBoosted = false } = req.body;
     if (!title || !videoUrl) {
       return res.status(400).json({ error: 'Video title and YouTube video URL are required.' });
@@ -4783,33 +4788,47 @@ app.post('/api/videos/upload', authenticateToken, async (req: AuthenticatedReque
       createdAt: new Date().toISOString()
     };
 
-    userVideosList.unshift(newVideo);
-
     await query('ALTER TABLE user_videos ADD COLUMN IF NOT EXISTS youtube_id VARCHAR(50);').catch(() => {});
-    await query(
-      `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id, target_views, budget_spent, views_delivered, is_boosted, boost_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
-      [
-        newVideo.id,
-        newVideo.userId,
-        newVideo.authorName,
-        newVideo.title,
-        newVideo.description,
-        newVideo.videoUrl,
-        newVideo.thumbnailUrl,
-        newVideo.category,
-        newVideo.price,
-        newVideo.isPaid,
-        isPortraitVideo,
-        videoDuration,
-        parsedYtId,
-        finalTargetViews,
-        isBoost ? numBudget : 0,
-        0,
-        isBoost,
-        isBoost ? 'active' : 'inactive'
-      ]
-    ).catch(() => {});
+    try {
+      await query(
+        `INSERT INTO user_videos (id, user_id, author_name, title, description, video_url, thumbnail_url, category, price, is_paid, is_portrait, duration, youtube_id, target_views, budget_spent, views_delivered, is_boosted, boost_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+        [
+          newVideo.id,
+          newVideo.userId,
+          newVideo.authorName,
+          newVideo.title,
+          newVideo.description,
+          newVideo.videoUrl,
+          newVideo.thumbnailUrl,
+          newVideo.category,
+          newVideo.price,
+          newVideo.isPaid,
+          isPortraitVideo,
+          videoDuration,
+          parsedYtId,
+          finalTargetViews,
+          isBoost ? numBudget : 0,
+          0,
+          isBoost,
+          isBoost ? 'active' : 'inactive'
+        ]
+      );
+    } catch (dbErr: any) {
+      // Refund the boost budget so a failed publish never charges the creator
+      if (isBoost) {
+        await WalletService.credit(
+          req.user!.id,
+          numBudget,
+          'videos',
+          'video_boost_refund',
+          `Refund: failed to publish boosted video "${title.trim()}"`,
+          `tx_boost_refund_${Date.now()}`
+        ).catch(() => {});
+      }
+      throw new Error(`Could not save video to database: ${dbErr?.message || 'unknown error'}`);
+    }
+    userVideosList.unshift(newVideo);
     return res.json({
       success: true,
       video: newVideo,
@@ -8556,6 +8575,10 @@ app.get(['/api/modules/videos', '/api/videos'], async (req, res) => {
         channelHandle: r.channel_handle || 'creator',
         channelAvatar: r.channel_avatar || '/logo.png',
         isVerified: Boolean(r.is_verified),
+        isBoosted: Boolean(r.is_boosted),
+        boostStatus: r.boost_status || 'inactive',
+        targetViews: Number(r.target_views) || 0,
+        viewsDelivered: Number(r.views_delivered) || 0,
         createdAt: r.created_at
       }));
 
@@ -10031,135 +10054,311 @@ app.get('/api/admin/users', authenticateToken, requireAdminRole, async (req, res
 });
 
 // Admin Real Database Analytics
+// ===== Real first-party visitor analytics (website telemetry) =====
+async function ensureAnalyticsEventsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS client_analytics_events (
+      id BIGSERIAL PRIMARY KEY,
+      event_type VARCHAR(50) NOT NULL DEFAULT 'page_view',
+      page_url TEXT,
+      page_path TEXT,
+      page_type VARCHAR(60),
+      project_id INT,
+      article_id INT,
+      referrer TEXT,
+      user_agent TEXT,
+      device_type VARCHAR(30),
+      browser VARCHAR(50),
+      os VARCHAR(50),
+      session_id VARCHAR(120),
+      visitor_id VARCHAR(120),
+      ip_address VARCHAR(120),
+      duration_ms INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_cae_created ON client_analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_cae_session ON client_analytics_events(session_id);
+    CREATE INDEX IF NOT EXISTS idx_cae_type ON client_analytics_events(event_type);
+  `).catch(() => {});
+}
+
+// Public telemetry ingest (page views + session heartbeats)
+app.post('/api/analytics/track', async (req, res) => {
+  try {
+    await ensureAnalyticsEventsTable();
+    const {
+      event_type = 'page_view',
+      page_url,
+      page_path,
+      page_type,
+      project_id,
+      article_id,
+      referrer,
+      user_agent,
+      device_type,
+      browser,
+      os,
+      session_id,
+      visitor_id,
+      duration_ms
+    } = req.body || {};
+
+    if (!session_id) {
+      return res.status(400).json({ success: false, error: 'session_id is required.' });
+    }
+
+    const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '';
+    let cleanPath = page_path;
+    if (!cleanPath && page_url) {
+      try {
+        cleanPath = new URL(page_url).pathname;
+      } catch {
+        cleanPath = page_url;
+      }
+    }
+
+    await query(
+      `INSERT INTO client_analytics_events
+        (event_type, page_url, page_path, page_type, project_id, article_id, referrer, user_agent, device_type, browser, os, session_id, visitor_id, ip_address, duration_ms)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [
+        String(event_type).slice(0, 50),
+        page_url || null,
+        cleanPath || null,
+        page_type || null,
+        project_id || null,
+        article_id || null,
+        referrer || null,
+        user_agent || req.headers['user-agent'] || null,
+        device_type || null,
+        browser || null,
+        os || null,
+        String(session_id).slice(0, 120),
+        visitor_id ? String(visitor_id).slice(0, 120) : null,
+        String(rawIp).slice(0, 120),
+        Number(duration_ms) || 0
+      ]
+    );
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/admin/analytics', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    // 1. Total real users in database
-    const usersCountRes = await query('SELECT count(*)::int as total FROM core_users');
-    const totalUsers = usersCountRes.rows[0]?.total || 0;
+    await ensureAnalyticsEventsTable();
 
-    // 2. Real wallet balances and transaction volume
-    const walletRes = await query('SELECT COALESCE(SUM(balance), 0)::numeric as total_balance, COALESCE(SUM(bonus_balance), 0)::numeric as total_bonus FROM core_wallets');
-    const totalWalletBalance = Number(walletRes.rows[0]?.total_balance || 0);
+    const range = String(req.query.range || '30d');
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    let start: Date | null = null;
+    let end: Date | null = null;
 
-    const txRes = await query("SELECT COALESCE(SUM(amount), 0)::numeric as total_volume FROM core_wallet_transactions WHERE status = 'completed'");
-    const totalTxVolume = Number(txRes.rows[0]?.total_volume || 0);
+    switch (range) {
+      case 'today':
+        start = startOfDay(now);
+        break;
+      case 'yesterday':
+        start = startOfDay(new Date(now.getTime() - 86400000));
+        end = startOfDay(now);
+        break;
+      case '7d':
+        start = new Date(now.getTime() - 7 * 86400000);
+        break;
+      case '30d':
+        start = new Date(now.getTime() - 30 * 86400000);
+        break;
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        start = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'custom': {
+        const from = req.query.from ? new Date(String(req.query.from)) : null;
+        const to = req.query.to ? new Date(`${String(req.query.to)}T23:59:59`) : null;
+        start = from && !isNaN(from.getTime()) ? from : null;
+        end = to && !isNaN(to.getTime()) ? to : null;
+        break;
+      }
+      case 'all':
+      default:
+        start = null;
+        break;
+    }
 
-    // 3. Module assets and entities in database
-    const tvCountRes = await query('SELECT count(*)::int as total FROM tv_stations').catch(() => ({ rows: [{ total: 17 }] }));
-    const radioCountRes = await query('SELECT count(*)::int as total FROM radio_stations').catch(() => ({ rows: [{ total: 19 }] }));
-    const videosCountRes = await query('SELECT count(*)::int as total, COALESCE(SUM(views), 0)::bigint as total_views FROM user_videos').catch(() => ({ rows: [{ total: 0, total_views: 0 }] }));
-    const articlesCountRes = await query('SELECT count(*)::int as total, COALESCE(SUM(views_count), 0)::int as total_views FROM articles').catch(() => ({ rows: [{ total: 0, total_views: 0 }] }));
-    const projectsCountRes = await query('SELECT count(*)::int as total FROM projects').catch(() => ({ rows: [{ total: 0 }] }));
-    const kundaCountRes = await query('SELECT count(*)::int as total FROM kunda_profiles').catch(() => ({ rows: [{ total: 0 }] }));
-    const gameRoomsRes = await query('SELECT count(*)::int as total FROM game_rooms').catch(() => ({ rows: [{ total: 0 }] }));
-    const marketplaceRes = await query('SELECT count(*)::int as total FROM marketplace_items').catch(() => ({ rows: [{ total: 0 }] }));
-    const voxifyRes = await query('SELECT count(*)::int as total FROM voxify_songs').catch(() => ({ rows: [{ total: 0 }] }));
+    const params: any[] = [];
+    const conditions: string[] = [];
+    if (start) {
+      params.push(start.toISOString());
+      conditions.push(`created_at >= $${params.length}`);
+    }
+    if (end) {
+      params.push(end.toISOString());
+      conditions.push(`created_at <= $${params.length}`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const visitorExpr = `COALESCE(NULLIF(visitor_id, ''), session_id, ip_address)`;
 
-    const tvStationsCount = Math.max(tvCountRes.rows[0]?.total || 0, 17);
-    const radioStationsCount = Math.max(radioCountRes.rows[0]?.total || 0, 19);
-    const videoViews = Number(videosCountRes.rows[0]?.total_views || 0);
-    const articleViews = Number(articlesCountRes.rows[0]?.total_views || 0);
-    const totalViews = Math.max(videoViews + articleViews, totalUsers * 16 + 48);
+    const [
+      overviewRes,
+      sessionsRes,
+      trendRes,
+      pagesRes,
+      sourcesRes,
+      devicesRes,
+      browsersRes,
+      osRes,
+      recentRes,
+      usersRes,
+      videosRes,
+      articlesRes
+    ] = await Promise.all([
+      query(
+        `SELECT
+          COUNT(*) FILTER (WHERE event_type = 'page_view')::int AS page_views,
+          COUNT(DISTINCT ${visitorExpr})::int AS unique_visitors,
+          COUNT(DISTINCT session_id)::int AS sessions
+         FROM client_analytics_events ${where}`,
+        params
+      ).catch(() => ({ rows: [{ page_views: 0, unique_visitors: 0, sessions: 0 }] })),
+      query(
+        `WITH s AS (
+          SELECT session_id,
+            COUNT(*) FILTER (WHERE event_type = 'page_view') AS pv,
+            EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) AS dur
+          FROM client_analytics_events
+          ${where} ${where ? 'AND' : 'WHERE'} session_id IS NOT NULL
+          GROUP BY session_id
+        )
+        SELECT
+          COALESCE(AVG(dur), 0)::float AS avg_duration,
+          COALESCE(AVG(pv), 0)::float AS avg_pages,
+          CASE WHEN COUNT(*) = 0 THEN 0
+               ELSE (COUNT(*) FILTER (WHERE pv <= 1)::float / COUNT(*)) * 100
+          END AS bounce_rate
+        FROM s`,
+        params
+      ).catch(() => ({ rows: [{ avg_duration: 0, avg_pages: 0, bounce_rate: 0 }] })),
+      query(
+        `SELECT
+          to_char(created_at::date, 'YYYY-MM-DD') AS date,
+          COUNT(*) FILTER (WHERE event_type = 'page_view')::int AS page_views,
+          COUNT(DISTINCT ${visitorExpr})::int AS visitors,
+          COUNT(DISTINCT session_id)::int AS sessions
+         FROM client_analytics_events ${where}
+         GROUP BY created_at::date
+         ORDER BY created_at::date ASC
+         LIMIT 366`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT COALESCE(NULLIF(page_path, ''), page_url, '/') AS page_path,
+          COUNT(*)::int AS views,
+          COUNT(DISTINCT ${visitorExpr})::int AS visitors
+         FROM client_analytics_events
+         ${where} ${where ? 'AND' : 'WHERE'} event_type = 'page_view'
+         GROUP BY 1 ORDER BY views DESC LIMIT 10`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT COALESCE(NULLIF(referrer, ''), 'Direct') AS source, COUNT(*)::int AS count
+         FROM client_analytics_events
+         ${where} ${where ? 'AND' : 'WHERE'} event_type = 'page_view'
+         GROUP BY 1 ORDER BY count DESC LIMIT 8`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT COALESCE(NULLIF(device_type, ''), 'Unknown') AS device_type, COUNT(*)::int AS count
+         FROM client_analytics_events ${where}
+         GROUP BY 1 ORDER BY count DESC`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT COALESCE(NULLIF(browser, ''), 'Unknown') AS browser, COUNT(*)::int AS count
+         FROM client_analytics_events ${where}
+         GROUP BY 1 ORDER BY count DESC LIMIT 8`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT COALESCE(NULLIF(os, ''), 'Unknown') AS os, COUNT(*)::int AS count
+         FROM client_analytics_events ${where}
+         GROUP BY 1 ORDER BY count DESC LIMIT 8`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query(
+        `SELECT event_type, COALESCE(NULLIF(page_path, ''), '') AS page_path, device_type, browser, created_at
+         FROM client_analytics_events ${where}
+         ORDER BY created_at DESC LIMIT 15`,
+        params
+      ).catch(() => ({ rows: [] })),
+      query('SELECT count(*)::int AS total FROM core_users').catch(() => ({ rows: [{ total: 0 }] })),
+      query('SELECT count(*)::int AS total FROM user_videos').catch(() => ({ rows: [{ total: 0 }] })),
+      query('SELECT count(*)::int AS total FROM articles').catch(() => ({ rows: [{ total: 0 }] }))
+    ]);
 
-    // Dynamic Live Viewers & Listeners telemetry
-    const tvViewers = Math.max(1, Math.round(totalUsers * 0.45));
-    const radioListeners = Math.max(1, Math.round(totalUsers * 0.35));
+    const rawOverview = overviewRes.rows[0] || { page_views: 0, unique_visitors: 0, sessions: 0 };
+    const siteMetrics = sessionsRes.rows[0] || { avg_duration: 0, avg_pages: 0, bounce_rate: 0 };
+    const sessions = Number(rawOverview.sessions) || 0;
+    const pageViews = Number(rawOverview.page_views) || 0;
 
-    // Real Google AdSense Unit Performance Calculations
-    const tvImpressions = Math.max(videoViews, totalUsers * 9 + 14);
-    const tvInterstitialEarnings = Number(((tvImpressions * 1.25) / 1000).toFixed(2));
-
-    const radioImpressions = Math.max(radioListeners * 12, totalUsers * 6 + 10);
-    const radioPrerollEarnings = Number(((radioImpressions * 0.85) / 1000).toFixed(2));
-
-    const bannerImpressions = Math.max(totalViews * 2, totalUsers * 28 + 65);
-    const bannerEarnings = Number(((bannerImpressions * 0.45) / 1000).toFixed(2));
-
-    const totalAdsenseEarnings = Number((tvInterstitialEarnings + radioPrerollEarnings + bannerEarnings).toFixed(2));
-    const adsenseEarningsRwf = Math.round(totalAdsenseEarnings * 1350);
-
-    // 4. Recent real database activity
-    const recentUsers = await query(`
-      SELECT id, 'user_signup' as event_type, email, name, 'Web/PWA' as device_type, 'Chrome' as browser, 'Active' as os, created_at
-      FROM core_users
-      ORDER BY created_at DESC
-      LIMIT 10
-    `);
-
-    // Top articles from real database
-    const topArticlesRes = await query(`
-      SELECT title, slug, COALESCE(views_count, 0) as views, category
-      FROM articles
-      ORDER BY views_count DESC
-      LIMIT 5
-    `);
-    const topArticles = topArticlesRes.rows.map((a: any, idx: number) => ({
-      ...a,
-      views: Number(a.views) > 0 ? Number(a.views) : Math.max(1, Math.floor(totalUsers * 0.6) - idx * 2)
-    }));
-
-    // Real dynamic module engagement clicks
-    const topProjects = [
-      { name: 'Benix Space TV', slug: 'tv', clicks: Math.round(tvImpressions * 0.8) },
-      { name: 'Videos & Creator Studio', slug: 'videos', clicks: Math.round(videoViews + 34) },
-      { name: 'Kunda Dating Hub', slug: 'kunda', clicks: Math.max(kundaCountRes.rows[0]?.total || 0, 1) * 18 + 14 },
-      { name: 'Benix FM Radio', slug: 'radio', clicks: Math.round(radioImpressions * 0.7) },
-      { name: 'Marketplace Store', slug: 'marketplace', clicks: Math.max(marketplaceRes.rows[0]?.total || 0, 1) * 12 + 8 },
-      { name: 'Voxify Choir Music', slug: 'voxify', clicks: Math.max(voxifyRes.rows[0]?.total || 0, 1) * 10 + 6 },
-      { name: 'RollDice Arena', slug: 'games', clicks: Math.max(gameRoomsRes.rows[0]?.total || 0, 1) * 16 + 11 }
-    ];
+    const withPct = (rows: any[], labelKey: string) => {
+      const total = rows.reduce((acc, r) => acc + (Number(r.count) || 0), 0);
+      return rows.map((r) => ({
+        ...r,
+        [labelKey]: r[labelKey] ?? 'Unknown',
+        count: Number(r.count) || 0,
+        pct: total > 0 ? `${Math.round(((Number(r.count) || 0) / total) * 100)}%` : '0%'
+      }));
+    };
 
     return res.json({
+      range: {
+        key: range,
+        from: start ? start.toISOString() : null,
+        to: end ? end.toISOString() : null
+      },
       overview: {
-        total_views: totalViews,
-        unique_visitors: totalUsers,
-        external_clicks: topProjects.reduce((acc, p) => acc + p.clicks, 0),
-        avg_views_per_session: totalUsers > 0 ? Number((totalViews / totalUsers).toFixed(1)) : 0,
-        bounce_rate: 18.4
+        total_views: pageViews,
+        page_views: pageViews,
+        unique_visitors: Number(rawOverview.unique_visitors) || 0,
+        sessions,
+        external_clicks: 0,
+        avg_views_per_session: sessions > 0 ? Number((pageViews / sessions).toFixed(2)) : 0,
+        avg_time_on_site: Math.round(Number(siteMetrics.avg_duration) || 0),
+        bounce_rate: Number((Number(siteMetrics.bounce_rate) || 0).toFixed(1))
       },
+      trend: trendRes.rows.map((r: any) => ({
+        date: r.date,
+        page_views: Number(r.page_views) || 0,
+        visitors: Number(r.visitors) || 0,
+        sessions: Number(r.sessions) || 0
+      })),
+      top_pages: pagesRes.rows.map((r: any) => ({
+        page_path: r.page_path,
+        views: Number(r.views) || 0,
+        visitors: Number(r.visitors) || 0
+      })),
+      sources: withPct(sourcesRes.rows, 'source'),
+      devices: withPct(devicesRes.rows, 'device_type'),
+      browsers: withPct(browsersRes.rows, 'browser'),
+      os: withPct(osRes.rows, 'os'),
+      recent_activity: recentRes.rows,
       stats: {
-        total_users: totalUsers,
-        total_wallet_balance: totalWalletBalance,
-        total_tx_volume: totalTxVolume,
-        tv_stations: tvStationsCount,
-        radio_stations: radioStationsCount,
-        tv_videos: videosCountRes.rows[0]?.total || 0,
-        kunda_profiles: kundaCountRes.rows[0]?.total || 0,
-        game_rooms: gameRoomsRes.rows[0]?.total || 0
+        total_users: Number(usersRes.rows[0]?.total) || 0,
+        total_videos: Number(videosRes.rows[0]?.total) || 0,
+        total_articles: Number(articlesRes.rows[0]?.total) || 0
       },
-      tv_viewers: tvViewers,
-      radio_listeners: radioListeners,
-      adsense_earnings: totalAdsenseEarnings,
-      adsense_earnings_rwf: adsenseEarningsRwf,
-      tv_interstitial_earnings: tvInterstitialEarnings,
-      radio_preroll_earnings: radioPrerollEarnings,
-      banner_earnings: bannerEarnings,
-      tv_impressions: tvImpressions,
-      radio_impressions: radioImpressions,
-      banner_impressions: bannerImpressions,
-      top_projects: topProjects,
-      top_articles: topArticles,
-      sources: [
-        { source: 'Direct / PWA App Launch', count: Math.round(totalUsers * 0.65), pct: '65%' },
-        { source: 'WhatsApp & Social Share', count: Math.round(totalUsers * 0.25), pct: '25%' },
-        { source: 'Organic Search Engine', count: Math.max(1, Math.round(totalUsers * 0.10)), pct: '10%' }
-      ],
-      devices: [
-        { device_type: 'Mobile Smartphone (Android / iOS)', count: Math.round(totalUsers * 0.75), pct: '75%' },
-        { device_type: 'Desktop & Laptop PC', count: Math.max(1, Math.round(totalUsers * 0.25)), pct: '25%' }
-      ],
-      browsers: [
-        { browser: 'Chrome Mobile & Desktop', count: Math.round(totalUsers * 0.68) },
-        { browser: 'Safari iOS', count: Math.round(totalUsers * 0.22) },
-        { browser: 'Firefox / Edge / Opera', count: Math.max(1, Math.round(totalUsers * 0.10)) }
-      ],
-      recent_activity: recentUsers.rows
+      generated_at: new Date().toISOString()
     });
   } catch (err: any) {
     console.error('Analytics API error:', err);
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 // Admin All-Apps & Platform Settings Storage
 app.get('/api/admin/settings/all-apps', authenticateAdmin, async (req, res) => {
